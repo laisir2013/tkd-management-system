@@ -1,0 +1,170 @@
+{
+  "query": "SELECT name, COUNT(*) as count \nFROM students \nGROUP BY name \nHAVING COUNT(*) > 1 \nORDER BY count DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT name, COUNT(*) as count \nFROM students \nGROUP BY name \nHAVING COUNT(*) > 1 \nORDER BY count DESC;",
+  "rows": [
+    {
+      "name": "鄧穎翹",
+      "count": "2"
+    },
+    {
+      "name": "龐兆羽",
+      "count": "2"
+    },
+    {
+      "name": "林恩同",
+      "count": "2"
+    },
+    {
+      "name": "李弘正",
+      "count": "2"
+    },
+    {
+      "name": "陳景韜",
+      "count": "2"
+    },
+    {
+      "name": "簡頌曦",
+      "count": "2"
+    },
+    {
+      "name": "江柏僑",
+      "count": "2"
+    },
+    {
+      "name": "蔡宏鑫",
+      "count": "2"
+    },
+    {
+      "name": "林慧玲",
+      "count": "2"
+    },
+    {
+      "name": "劉玥",
+      "count": "2"
+    },
+    {
+      "name": "陳臻軒",
+      "count": "2"
+    },
+    {
+      "name": "江哲男",
+      "count": "2"
+    },
+    {
+      "name": "林諾天",
+      "count": "2"
+    },
+    {
+      "name": "李泳霖",
+      "count": "2"
+    },
+    {
+      "name": "楊廷諄",
+      "count": "2"
+    },
+    {
+      "name": "韓灝南",
+      "count": "2"
+    },
+    {
+      "name": "葉明恩",
+      "count": "2"
+    },
+    {
+      "name": "梁珀豪",
+      "count": "2"
+    },
+    {
+      "name": "朱棋楓",
+      "count": "2"
+    },
+    {
+      "name": "郭俊康",
+      "count": "2"
+    },
+    {
+      "name": "麥晉維",
+      "count": "2"
+    },
+    {
+      "name": "葉駿輝",
+      "count": "2"
+    },
+    {
+      "name": "陳孝謙",
+      "count": "2"
+    },
+    {
+      "name": "吳傲天",
+      "count": "2"
+    },
+    {
+      "name": "黃頌琛",
+      "count": "2"
+    },
+    {
+      "name": "王嘉楷",
+      "count": "2"
+    },
+    {
+      "name": "蔡御霆",
+      "count": "2"
+    },
+    {
+      "name": "李梓皓",
+      "count": "2"
+    },
+    {
+      "name": "林煒堯",
+      "count": "2"
+    },
+    {
+      "name": "曾祉媃",
+      "count": "2"
+    },
+    {
+      "name": "陳梓軒",
+      "count": "2"
+    },
+    {
+      "name": "王浩宇",
+      "count": "2"
+    },
+    {
+      "name": "黃天愉",
+      "count": "2"
+    },
+    {
+      "name": "林明慧",
+      "count": "2"
+    },
+    {
+      "name": "林文傑",
+      "count": "2"
+    },
+    {
+      "name": "施俊杰",
+      "count": "2"
+    },
+    {
+      "name": "楊惜林",
+      "count": "2"
+    },
+    {
+      "name": "黃銘軒",
+      "count": "2"
+    },
+    {
+      "name": "吳卓謙",
+      "count": "2"
+    },
+    {
+      "name": "葉栩靖",
+      "count": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tcount\n鄧穎翹\t2\n龐兆羽\t2\n林恩同\t2\n李弘正\t2\n陳景韜\t2\n簡頌曦\t2\n江柏僑\t2\n蔡宏鑫\t2\n林慧玲\t2\n劉玥\t2\n陳臻軒\t2\n江哲男\t2\n林諾天\t2\n李泳霖\t2\n楊廷諄\t2\n韓灝南\t2\n葉明恩\t2\n梁珀豪\t2\n朱棋楓\t2\n郭俊康\t2\n麥晉維\t2\n葉駿輝\t2\n陳孝謙\t2\n吳傲天\t2\n黃頌琛\t2\n王嘉楷\t2\n蔡御霆\t2\n李梓皓\t2\n林煒堯\t2\n曾祉媃\t2\n陳梓軒\t2\n王浩宇\t2\n黃天愉\t2\n林明慧\t2\n林文傑\t2\n施俊杰\t2\n楊惜林\t2\n黃銘軒\t2\n吳卓謙\t2\n葉栩靖\t2\n",
+  "stderr": "",
+  "execution_time_ms": 1504
+}

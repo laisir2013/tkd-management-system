@@ -1,0 +1,9 @@
+{
+  "query": "SELECT 'students.venue' as source, venue as value, COUNT(*) as cnt FROM students WHERE venue LIKE '%一般班%' GROUP BY venue UNION ALL SELECT 'dojos.name', name, COUNT(*) FROM dojos WHERE name LIKE '%一般班%' GROUP BY name UNION ALL SELECT 'training_schedules.venue', venue, COUNT(*) FROM training_schedules WHERE venue LIKE '%一般班%' GROUP BY venue;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT 'students.venue' as source, venue as value, COUNT(*) as cnt FROM students WHERE venue LIKE '%一般班%' GROUP BY venue UNION ALL SELECT 'dojos.name', name, COUNT(*) FROM dojos WHERE name LIKE '%一般班%' GROUP BY name UNION ALL SELECT 'training_schedules.venue', venue, COUNT(*) FROM training_schedules WHERE venue LIKE '%一般班%' GROUP BY venue;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1580
+}

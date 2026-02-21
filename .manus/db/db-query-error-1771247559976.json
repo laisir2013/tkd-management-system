@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, phone, role, coachName FROM users WHERE phone = '94839882';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, phone, role, coachName FROM users WHERE phone = '94839882';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'coachname' in 'field list'"
+  ]
+}

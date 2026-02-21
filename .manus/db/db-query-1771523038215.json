@@ -1,0 +1,15 @@
+{
+  "query": "SELECT \n  COUNT(*) as total,\n  COUNT(coach_id) as has_coach_id,\n  SUM(CAST(feePerQuarter AS DECIMAL(10,2))) as total_fee\nFROM students\nWHERE coach_id IS NOT NULL\nLIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  COUNT(*) as total,\n  COUNT(coach_id) as has_coach_id,\n  SUM(CAST(feePerQuarter AS DECIMAL(10,2))) as total_fee\nFROM students\nWHERE coach_id IS NOT NULL\nLIMIT 1;",
+  "rows": [
+    {
+      "total": "0",
+      "has_coach_id": "0",
+      "total_fee": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\thas_coach_id\ttotal_fee\n0\t0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1538
+}

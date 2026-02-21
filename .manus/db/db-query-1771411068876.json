@@ -1,0 +1,136 @@
+{
+  "query": "SELECT name, phone, birthDate, beltLevel, venue, scheduleDay, scheduleTime\nFROM students \nWHERE venue != '精英班道場'\nAND name IN ('吳傲天', '施俊杰', '朱棋楓', '李弘正', '林煒堯', '王嘉楷', '王浩宇', '簡頌曦', '蔡御霆', '鄧浚豪', '陳孝謙', '陳梓軒', '黃曜軒', '黃銘軒', '黃頌琛')\nORDER BY name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT name, phone, birthDate, beltLevel, venue, scheduleDay, scheduleTime\nFROM students \nWHERE venue != '精英班道場'\nAND name IN ('吳傲天', '施俊杰', '朱棋楓', '李弘正', '林煒堯', '王嘉楷', '王浩宇', '簡頌曦', '蔡御霆', '鄧浚豪', '陳孝謙', '陳梓軒', '黃曜軒', '黃銘軒', '黃頌琛')\nORDER BY name;",
+  "rows": [
+    {
+      "name": "吳傲天",
+      "phone": "93537253",
+      "birthDate": "2018-01-08",
+      "beltLevel": "藍帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30"
+    },
+    {
+      "name": "施俊杰",
+      "phone": "97339729",
+      "birthDate": "2021-09-29",
+      "beltLevel": "藍紅帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30"
+    },
+    {
+      "name": "朱棋楓",
+      "phone": "62238604",
+      "birthDate": "2017-04-14",
+      "beltLevel": "藍紅帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30"
+    },
+    {
+      "name": "李弘正",
+      "phone": "98350858",
+      "birthDate": "2015-06-07",
+      "beltLevel": "紅黑帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30"
+    },
+    {
+      "name": "林煒堯",
+      "phone": "93498497",
+      "birthDate": "2017-07-12",
+      "beltLevel": "綠帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "10：00-11：00"
+    },
+    {
+      "name": "王嘉楷",
+      "phone": "53822755",
+      "birthDate": "2013-10-08",
+      "beltLevel": "藍紅帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30"
+    },
+    {
+      "name": "王浩宇",
+      "phone": "92507585",
+      "birthDate": "NULL",
+      "beltLevel": "藍紅帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30"
+    },
+    {
+      "name": "簡頌曦",
+      "phone": "98356407",
+      "birthDate": "2019-10-22",
+      "beltLevel": "綠帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "10：00-11：00"
+    },
+    {
+      "name": "蔡御霆",
+      "phone": "97478091",
+      "birthDate": "2016-01-21",
+      "beltLevel": "紅帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30"
+    },
+    {
+      "name": "陳孝謙",
+      "phone": "60777261",
+      "birthDate": "2016-03-03",
+      "beltLevel": "藍帶",
+      "venue": "至善道場",
+      "scheduleDay": "星期四",
+      "scheduleTime": "6：00-7：00"
+    },
+    {
+      "name": "陳梓軒",
+      "phone": "61521528",
+      "birthDate": "NULL",
+      "beltLevel": "綠藍帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30"
+    },
+    {
+      "name": "黃曜軒",
+      "phone": "90979276",
+      "birthDate": "2019-11-23",
+      "beltLevel": "黃綠帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期三",
+      "scheduleTime": "4:00-5:00pm"
+    },
+    {
+      "name": "黃銘軒",
+      "phone": "91392077",
+      "birthDate": "2013-07-31",
+      "beltLevel": "藍帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30"
+    },
+    {
+      "name": "黃頌琛",
+      "phone": "98597310",
+      "birthDate": "2019-01-26",
+      "beltLevel": "紅帶",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tphone\tbirthDate\tbeltLevel\tvenue\tscheduleDay\tscheduleTime\n吳傲天\t93537253\t2018-01-08\t藍帶\t寶林道場\t星期日\t3：00-4：30\n施俊杰\t97339729\t2021-09-29\t藍紅帶\t寶林道場\t星期日\t3：00-4：30\n朱棋楓\t62238604\t2017-04-14\t藍紅帶\t寶林道場\t星期日\t3：00-4：30\n李弘正\t98350858\t2015-06-07\t紅黑帶\t寶林道場\t星期日\t3：00-4：30\n林煒堯\t93498497\t2017-07-12\t綠帶\t寶林道場\t星期日\t10：00-11：00\n王嘉楷\t53822755\t2013-10-08\t藍紅帶\t寶林道場\t星期日\t3：00-4：30\n王浩宇\t92507585\tNULL\t藍紅帶\t寶林道場\t星期日\t3：00-4：30\n簡頌曦\t98356407\t2019-10-22\t綠帶\t寶林道場\t星期日\t10：00-11：00\n蔡御霆\t97478091\t2016-01-21\t紅帶\t寶林道場\t星期日\t3：00-4：30\n陳孝謙\t60777261\t2016-03-03\t藍帶\t至善道場\t星期四\t6：00-7：00\n陳梓軒\t61521528\tNULL\t綠藍帶\t寶林道場\t星期日\t3：00-4：30\n黃曜軒\t90979276\t2019-11-23\t黃綠帶\t寶林道場\t星期三\t4:00-5:00pm\n黃銘軒\t91392077\t2013-07-31\t藍帶\t寶林道場\t星期日\t3：00-4：30\n黃頌琛\t98597310\t2019-01-26\t紅帶\t寶林道場\t星期日\t3：00-4：30\n",
+  "stderr": "",
+  "execution_time_ms": 1653
+}

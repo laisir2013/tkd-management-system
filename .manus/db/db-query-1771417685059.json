@@ -1,0 +1,38 @@
+{
+  "query": "SELECT \n  COUNT(*) as total_students,\n  SUM(feePerQuarter) as total_quarterly_fee,\n  venue,\n  COUNT(*) as student_count,\n  SUM(feePerQuarter) as venue_total\nFROM students\nGROUP BY venue\nORDER BY venue;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  COUNT(*) as total_students,\n  SUM(feePerQuarter) as total_quarterly_fee,\n  venue,\n  COUNT(*) as student_count,\n  SUM(feePerQuarter) as venue_total\nFROM students\nGROUP BY venue\nORDER BY venue;",
+  "rows": [
+    {
+      "total_students": "67",
+      "total_quarterly_fee": "120600.00",
+      "venue": "寶林道場",
+      "student_count": "67",
+      "venue_total": "120600.00"
+    },
+    {
+      "total_students": "69",
+      "total_quarterly_fee": "165600.00",
+      "venue": "精英班道場",
+      "student_count": "69",
+      "venue_total": "165600.00"
+    },
+    {
+      "total_students": "18",
+      "total_quarterly_fee": "32400.00",
+      "venue": "至善道場",
+      "student_count": "18",
+      "venue_total": "32400.00"
+    },
+    {
+      "total_students": "18",
+      "total_quarterly_fee": "25920.00",
+      "venue": "蒲崗村道場",
+      "student_count": "18",
+      "venue_total": "25920.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_students\ttotal_quarterly_fee\tvenue\tstudent_count\tvenue_total\n67\t120600.00\t寶林道場\t67\t120600.00\n69\t165600.00\t精英班道場\t69\t165600.00\n18\t32400.00\t至善道場\t18\t32400.00\n18\t25920.00\t蒲崗村道場\t18\t25920.00\n",
+  "stderr": "",
+  "execution_time_ms": 1562
+}

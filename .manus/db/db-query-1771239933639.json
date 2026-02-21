@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, name, email, role FROM users WHERE name LIKE '%賴政堡%' OR name LIKE '%政堡%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, email, role FROM users WHERE name LIKE '%賴政堡%' OR name LIKE '%政堡%';",
+  "rows": [
+    {
+      "id": "150004",
+      "name": "賴政堡教練",
+      "email": "lai.zhengbao@taekwondo.com",
+      "role": "coach"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\n150004\t賴政堡教練\tlai.zhengbao@taekwondo.com\tcoach\n",
+  "stderr": "",
+  "execution_time_ms": 1618
+}

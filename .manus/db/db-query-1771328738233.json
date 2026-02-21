@@ -1,0 +1,9 @@
+{
+  "query": "\nINSERT INTO whatsapp_templates (name, content, is_default, is_active) VALUES\n('標準繳費通知', '您好 {{studentName}}！\\n\\n這是跆拳道館的繳費提醒。\\n\\n學生姓名：{{studentName}}\\n每季學費：HK${{feeAmount}}\\n\\n請盡快繳交學費，謝謝！\\n\\n如有任何問題，歡迎聯絡我們。', 1, 1),\n('友善提醒', '{{studentName}} 家長您好！😊\\n\\n希望 {{studentName}} 在道館訓練愉快！\\n\\n溫馨提醒：本季學費 HK${{feeAmount}} 尚未繳交。\\n\\n方便時請安排繳費，感謝您的支持！🙏', 0, 1),\n('緊急催繳', '{{studentName}} 家長您好，\\n\\n本季學費 HK${{feeAmount}} 已逾期未繳。\\n\\n為確保 {{studentName}} 能繼續上課，請盡快處理繳費事宜。\\n\\n如有困難，歡迎與我們聯絡商討。\\n謝謝合作！', 0, 1);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute \nINSERT INTO whatsapp_templates (name, content, is_default, is_active) VALUES\n('標準繳費通知', '您好 {{studentName}}！\\n\\n這是跆拳道館的繳費提醒。\\n\\n學生姓名：{{studentName}}\\n每季學費：HK${{feeAmount}}\\n\\n請盡快繳交學費，謝謝！\\n\\n如有任何問題，歡迎聯絡我們。', 1, 1),\n('友善提醒', '{{studentName}} 家長您好！😊\\n\\n希望 {{studentName}} 在道館訓練愉快！\\n\\n溫馨提醒：本季學費 HK${{feeAmount}} 尚未繳交。\\n\\n方便時請安排繳費，感謝您的支持！🙏', 0, 1),\n('緊急催繳', '{{studentName}} 家長您好，\\n\\n本季學費 HK${{feeAmount}} 已逾期未繳。\\n\\n為確保 {{studentName}} 能繼續上課，請盡快處理繳費事宜。\\n\\n如有困難，歡迎與我們聯絡商討。\\n謝謝合作！', 0, 1);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1673
+}

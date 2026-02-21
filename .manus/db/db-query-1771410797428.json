@@ -1,0 +1,16 @@
+{
+  "query": "SELECT \n  COUNT(*) as total,\n  SUM(CASE WHEN birthDate IS NOT NULL THEN 1 ELSE 0 END) as has_birthdate,\n  SUM(CASE WHEN beltLevel IS NOT NULL THEN 1 ELSE 0 END) as has_belt,\n  SUM(CASE WHEN phone NOT LIKE '%[a-zA-Z]%' THEN 1 ELSE 0 END) as has_real_phone\nFROM students \nWHERE venue = '精英班道場';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  COUNT(*) as total,\n  SUM(CASE WHEN birthDate IS NOT NULL THEN 1 ELSE 0 END) as has_birthdate,\n  SUM(CASE WHEN beltLevel IS NOT NULL THEN 1 ELSE 0 END) as has_belt,\n  SUM(CASE WHEN phone NOT LIKE '%[a-zA-Z]%' THEN 1 ELSE 0 END) as has_real_phone\nFROM students \nWHERE venue = '精英班道場';",
+  "rows": [
+    {
+      "total": "69",
+      "has_birthdate": "34",
+      "has_belt": "40",
+      "has_real_phone": "69"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\thas_birthdate\thas_belt\thas_real_phone\n69\t34\t40\t69\n",
+  "stderr": "",
+  "execution_time_ms": 1512
+}

@@ -1,0 +1,18 @@
+{
+  "query": "SELECT DISTINCT schedule_day, schedule_time FROM elite_schedules;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT DISTINCT schedule_day, schedule_time FROM elite_schedules;",
+  "rows": [
+    {
+      "schedule_day": "星期二",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    }
+  ],
+  "messages": [],
+  "stdout": "schedule_day\tschedule_time\n星期二\t12:00-6:30pm\n星期日\t12:00-6:30pm\n",
+  "stderr": "",
+  "execution_time_ms": 1510
+}

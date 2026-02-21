@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE students SET phone = '53822755' WHERE name = '王嘉楷';\nUPDATE students SET phone = '97291797' WHERE name = '林諾天';\nUPDATE students SET phone = '93537253' WHERE name = '吳傲天';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute UPDATE students SET phone = '53822755' WHERE name = '王嘉楷';\nUPDATE students SET phone = '97291797' WHERE name = '林諾天';\nUPDATE students SET phone = '93537253' WHERE name = '吳傲天';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1996
+}

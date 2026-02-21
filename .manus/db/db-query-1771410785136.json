@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE students elite\nINNER JOIN students regular ON elite.name = regular.name\nSET \n  elite.birthDate = regular.birthDate,\n  elite.beltLevel = regular.beltLevel,\n  elite.phone = CASE \n    WHEN elite.phone = elite.name THEN regular.phone \n    ELSE elite.phone \n  END\nWHERE elite.venue = '精英班道場'\nAND regular.venue != '精英班道場'\nAND (elite.birthDate IS NULL OR elite.beltLevel IS NULL OR elite.phone = elite.name);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute UPDATE students elite\nINNER JOIN students regular ON elite.name = regular.name\nSET \n  elite.birthDate = regular.birthDate,\n  elite.beltLevel = regular.beltLevel,\n  elite.phone = CASE \n    WHEN elite.phone = elite.name THEN regular.phone \n    ELSE elite.phone \n  END\nWHERE elite.venue = '精英班道場'\nAND regular.venue != '精英班道場'\nAND (elite.birthDate IS NULL OR elite.beltLevel IS NULL OR elite.phone = elite.name);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1692
+}

@@ -1,0 +1,26 @@
+{
+  "query": "SELECT id, training_date, schedule_day, schedule_time, DAYOFWEEK(training_date) as dow, DAYNAME(training_date) as day_name FROM training_schedules WHERE venue = '寶林道場' AND schedule_time = '4:00-5:00pm' AND training_date IN ('2026-02-02', '2026-02-03');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, training_date, schedule_day, schedule_time, DAYOFWEEK(training_date) as dow, DAYNAME(training_date) as day_name FROM training_schedules WHERE venue = '寶林道場' AND schedule_time = '4:00-5:00pm' AND training_date IN ('2026-02-02', '2026-02-03');",
+  "rows": [
+    {
+      "id": "90056",
+      "training_date": "2026-02-02 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "dow": "2",
+      "day_name": "Monday"
+    },
+    {
+      "id": "120001",
+      "training_date": "2026-02-03 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "dow": "3",
+      "day_name": "Tuesday"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttraining_date\tschedule_day\tschedule_time\tdow\tday_name\n90056\t2026-02-02 00:00:00\t星期一\t4:00-5:00pm\t2\tMonday\n120001\t2026-02-03 00:00:00\t星期一\t4:00-5:00pm\t3\tTuesday\n",
+  "stderr": "",
+  "execution_time_ms": 1566
+}

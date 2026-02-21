@@ -1,0 +1,360 @@
+{
+  "query": "SELECT id, training_date, venue, schedule_day, schedule_time FROM training_schedules WHERE training_date >= '2026-02-01' AND training_date < '2026-04-01' ORDER BY training_date ASC LIMIT 50",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, training_date, venue, schedule_day, schedule_time FROM training_schedules WHERE training_date >= '2026-02-01' AND training_date < '2026-04-01' ORDER BY training_date ASC LIMIT 50",
+  "rows": [
+    {
+      "id": "270077",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "210041",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "270049",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "270025",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "210025",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "180457",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "270045",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180413",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "240049",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "210049",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "180465",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "180461",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180441",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "180389",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "270041",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "180409",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180337",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "180101",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "240045",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "240025",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "210045",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180361",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "180145",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "180233",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "180201",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180257",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "180285",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "180153",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "180301",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "180205",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "180405",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "180357",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180149",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180353",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "180249",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "180129",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "180077",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "180041",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "240041",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "180097",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180181",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "180045",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180305",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180253",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00"
+    },
+    {
+      "id": "180310",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "180049",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "精英班道場",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm"
+    },
+    {
+      "id": "180025",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30"
+    },
+    {
+      "id": "180093",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "180197",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    },
+    {
+      "id": "270093",
+      "training_date": "2026-02-01 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttraining_date\tvenue\tschedule_day\tschedule_time\n270077\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n210041\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n270049\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n270025\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n210025\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n180457\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n270045\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180413\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n240049\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n210049\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n180465\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n180461\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180441\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n180389\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n270041\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n180409\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180337\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n180101\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n240045\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n240025\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n210045\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180361\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n180145\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n180233\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n180201\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180257\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n180285\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n180153\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n180301\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n180205\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n180405\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n180357\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180149\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180353\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n180249\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n180129\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n180077\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n180041\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n240041\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n180097\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180181\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n180045\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180305\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180253\t2026-02-01 05:00:00\t寶林道場\t星期日\t11：00-12：00\n180310\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n180049\t2026-02-01 05:00:00\t精英班道場\t星期日\t12:00-6:30pm\n180025\t2026-02-01 05:00:00\t寶林道場\t星期日\t3：00-4：30\n180093\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n180197\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n270093\t2026-02-01 05:00:00\t寶林道場\t星期日\t10：00-11：00\n",
+  "stderr": "",
+  "execution_time_ms": 1498
+}

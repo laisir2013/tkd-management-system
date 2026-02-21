@@ -1,0 +1,15 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN join_date IS NOT NULL THEN 1 ELSE 0 END) as has_join_date, SUM(CASE WHEN join_date IS NULL THEN 1 ELSE 0 END) as no_join_date FROM elite_students;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(*) as total, SUM(CASE WHEN join_date IS NOT NULL THEN 1 ELSE 0 END) as has_join_date, SUM(CASE WHEN join_date IS NULL THEN 1 ELSE 0 END) as no_join_date FROM elite_students;",
+  "rows": [
+    {
+      "total": "77",
+      "has_join_date": "69",
+      "no_join_date": "8"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\thas_join_date\tno_join_date\n77\t69\t8\n",
+  "stderr": "",
+  "execution_time_ms": 1498
+}

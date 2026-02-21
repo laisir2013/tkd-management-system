@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE elite_students es\nINNER JOIN students s ON es.name = s.name\nSET es.phone = s.phone\nWHERE (es.phone = '' OR es.phone = '0' OR es.phone IS NULL)\nAND s.phone IS NOT NULL AND s.phone != '' AND s.phone != '0';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute UPDATE elite_students es\nINNER JOIN students s ON es.name = s.name\nSET es.phone = s.phone\nWHERE (es.phone = '' OR es.phone = '0' OR es.phone IS NULL)\nAND s.phone IS NOT NULL AND s.phone != '' AND s.phone != '0';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1491
+}

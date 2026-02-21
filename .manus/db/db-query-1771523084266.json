@@ -1,0 +1,80 @@
+{
+  "query": "SELECT id, name, schedule_day, schedule_time, coach_name FROM dojos LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, schedule_day, schedule_time, coach_name FROM dojos LIMIT 10;",
+  "rows": [
+    {
+      "id": "7",
+      "name": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "id": "8",
+      "name": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "id": "9",
+      "name": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "id": "10",
+      "name": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "id": "11",
+      "name": "寶林道場",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "id": "12",
+      "name": "寶林道場",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "id": "13",
+      "name": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10:00-11:00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "id": "14",
+      "name": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11:00-12:00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "id": "15",
+      "name": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3:00-4:30",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "id": "16",
+      "name": "至善道場",
+      "schedule_day": "星期二",
+      "schedule_time": "6:00-7:00",
+      "coach_name": "賴政堡教練"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tschedule_day\tschedule_time\tcoach_name\n7\t寶林道場\t星期一\t4:00-5:00pm\t賴政堡教練\n8\t寶林道場\t星期一\t5:00-6:00pm\t賴政堡教練\n9\t寶林道場\t星期三\t4:00-5:00pm\t賴政堡教練\n10\t寶林道場\t星期三\t5:00-6:30pm\t賴政堡教練\n11\t寶林道場\t星期六\t10:00-11:30am\t賴政堡教練\n12\t寶林道場\t星期六\t10:00-11:30\t賴政堡教練\n13\t寶林道場\t星期日\t10:00-11:00\t賴政堡教練\n14\t寶林道場\t星期日\t11:00-12:00\t賴政堡教練\n15\t寶林道場\t星期日\t3:00-4:30\t賴政堡教練\n16\t至善道場\t星期二\t6:00-7:00\t賴政堡教練\n",
+  "stderr": "",
+  "execution_time_ms": 1542
+}

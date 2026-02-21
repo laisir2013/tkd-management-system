@@ -1,0 +1,24 @@
+{
+  "query": "SELECT schedule_day, schedule_time, COUNT(*) as cnt, MIN(training_date) as earliest, MAX(training_date) as latest FROM elite_schedules GROUP BY schedule_day, schedule_time;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT schedule_day, schedule_time, COUNT(*) as cnt, MIN(training_date) as earliest, MAX(training_date) as latest FROM elite_schedules GROUP BY schedule_day, schedule_time;",
+  "rows": [
+    {
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "cnt": "151",
+      "earliest": "2022-07-10 12:00:00",
+      "latest": "2026-02-15 12:00:00"
+    },
+    {
+      "schedule_day": "星期二",
+      "schedule_time": "12:00-6:30pm",
+      "cnt": "1",
+      "earliest": "2022-12-27 12:00:00",
+      "latest": "2022-12-27 12:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "schedule_day\tschedule_time\tcnt\tearliest\tlatest\n星期日\t12:00-6:30pm\t151\t2022-07-10 12:00:00\t2026-02-15 12:00:00\n星期二\t12:00-6:30pm\t1\t2022-12-27 12:00:00\t2022-12-27 12:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 1508
+}

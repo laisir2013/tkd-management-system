@@ -1,0 +1,34 @@
+{
+  "query": "SELECT s.id, s.name, s.phone, pr.id as payment_id, pr.paymentPeriod, pr.amount, pr.paymentDate, pr.receiptTransferDate, pr.status, pr.createdAt\nFROM students s \nLEFT JOIN paymentRecords pr ON s.id = pr.studentId \nWHERE s.name = '黃睿浠'\nORDER BY pr.paymentDate DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT s.id, s.name, s.phone, pr.id as payment_id, pr.paymentPeriod, pr.amount, pr.paymentDate, pr.receiptTransferDate, pr.status, pr.createdAt\nFROM students s \nLEFT JOIN paymentRecords pr ON s.id = pr.studentId \nWHERE s.name = '黃睿浠'\nORDER BY pr.paymentDate DESC;",
+  "rows": [
+    {
+      "id": "90027",
+      "name": "黃睿浠",
+      "phone": "64630040/61760596",
+      "payment_id": "30008",
+      "paymentPeriod": "Q1",
+      "amount": "1800.00",
+      "paymentDate": "2026-01-15 00:00:00",
+      "receiptTransferDate": "NULL",
+      "status": "confirmed",
+      "createdAt": "2026-02-18 12:05:13"
+    },
+    {
+      "id": "90027",
+      "name": "黃睿浠",
+      "phone": "64630040/61760596",
+      "payment_id": "30019",
+      "paymentPeriod": "Q1",
+      "amount": "1800.00",
+      "paymentDate": "2026-01-15 00:00:00",
+      "receiptTransferDate": "NULL",
+      "status": "confirmed",
+      "createdAt": "2026-02-18 12:13:30"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tphone\tpayment_id\tpaymentPeriod\tamount\tpaymentDate\treceiptTransferDate\tstatus\tcreatedAt\n90027\t黃睿浠\t64630040/61760596\t30008\tQ1\t1800.00\t2026-01-15 00:00:00\tNULL\tconfirmed\t2026-02-18 12:05:13\n90027\t黃睿浠\t64630040/61760596\t30019\tQ1\t1800.00\t2026-01-15 00:00:00\tNULL\tconfirmed\t2026-02-18 12:13:30\n",
+  "stderr": "",
+  "execution_time_ms": 1538
+}

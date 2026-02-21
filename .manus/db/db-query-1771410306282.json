@@ -1,0 +1,650 @@
+{
+  "query": "SELECT s.name, s.venue, s.scheduleDay, s.scheduleTime, s.phone, s.feePerQuarter\nFROM students s\nWHERE s.name IN (\n  SELECT name \n  FROM students \n  GROUP BY name \n  HAVING COUNT(*) > 1\n)\nORDER BY s.name, s.venue;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT s.name, s.venue, s.scheduleDay, s.scheduleTime, s.phone, s.feePerQuarter\nFROM students s\nWHERE s.name IN (\n  SELECT name \n  FROM students \n  GROUP BY name \n  HAVING COUNT(*) > 1\n)\nORDER BY s.name, s.venue;",
+  "rows": [
+    {
+      "name": "劉玥",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "phone": "65015000",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "劉玥",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "劉玥",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "吳傲天",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "93537253",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "吳傲天",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "吳傲天",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "吳卓謙",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "5:00-6:00pm",
+      "phone": "90923662",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "吳卓謙",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "吳卓謙",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "施俊杰",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "97339729",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "施俊杰",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "施俊杰",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "曾祉媃",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "94498987",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "曾祉媃",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "曾祉媃",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "朱棋楓",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "62238604",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "朱棋楓",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "朱棋楓",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "李弘正",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "98350858",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "李弘正",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "李弘正",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "李梓皓",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "phone": "92365066",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "李梓皓",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "李梓皓",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "李泳霖",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "phone": "90971420",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "李泳霖",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "李泳霖",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "林恩同",
+      "venue": "寶林道場",
+      "scheduleDay": "星期三",
+      "scheduleTime": "5:00-6:30pm",
+      "phone": "55792767",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "林恩同",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "林恩同",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "林慧玲",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "林慧玲",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "林慧玲",
+      "venue": "蒲崗村道場",
+      "scheduleDay": "星期五",
+      "scheduleTime": "6：00-7：00",
+      "phone": "57266698",
+      "feePerQuarter": "1440.00"
+    },
+    {
+      "name": "林文傑",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "林文傑",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "林文傑",
+      "venue": "蒲崗村道場",
+      "scheduleDay": "星期五",
+      "scheduleTime": "6：00-7：00",
+      "phone": "91234338",
+      "feePerQuarter": "1440.00"
+    },
+    {
+      "name": "林明慧",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "林明慧",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "林明慧",
+      "venue": "蒲崗村道場",
+      "scheduleDay": "星期五",
+      "scheduleTime": "6：00-7：00",
+      "phone": "91234338",
+      "feePerQuarter": "1440.00"
+    },
+    {
+      "name": "林煒堯",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "10：00-11：00",
+      "phone": "93498497",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "林煒堯",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "林煒堯",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "林諾天",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "97291797",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "林諾天",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "林諾天",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "梁珀豪",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "5:00-6:00pm",
+      "phone": "96338639",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "梁珀豪",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "梁珀豪",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "楊廷諄",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "楊廷諄",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "楊廷諄",
+      "venue": "至善道場",
+      "scheduleDay": "星期四",
+      "scheduleTime": "6：00-7：00",
+      "phone": "92760188",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "楊惜林",
+      "venue": "寶林道場",
+      "scheduleDay": "星期六",
+      "scheduleTime": "10:00-11:30am",
+      "phone": "90303283",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "楊惜林",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "楊惜林",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "江哲男",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "61214704",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "江哲男",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "江哲男",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "江柏僑",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "江柏僑",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "江柏僑",
+      "venue": "蒲崗村道場",
+      "scheduleDay": "星期五",
+      "scheduleTime": "6：00-7：00",
+      "phone": "60686558",
+      "feePerQuarter": "1440.00"
+    },
+    {
+      "name": "王嘉楷",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "53822755",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "王嘉楷",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "王嘉楷",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "王浩宇",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "92507585",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "王浩宇",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "王浩宇",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "簡頌曦",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "10：00-11：00",
+      "phone": "98356407",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "簡頌曦",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "簡頌曦",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "葉明恩",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "葉明恩",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "葉明恩",
+      "venue": "蒲崗村道場",
+      "scheduleDay": "星期五",
+      "scheduleTime": "6：00-7：00",
+      "phone": "95107971",
+      "feePerQuarter": "1440.00"
+    },
+    {
+      "name": "葉栩靖",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "葉栩靖",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "葉栩靖",
+      "venue": "蒲崗村道場",
+      "scheduleDay": "星期五",
+      "scheduleTime": "6：00-7：00",
+      "phone": "95107971",
+      "feePerQuarter": "1440.00"
+    },
+    {
+      "name": "葉駿輝",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "葉駿輝",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "葉駿輝",
+      "venue": "蒲崗村道場",
+      "scheduleDay": "星期五",
+      "scheduleTime": "6：00-7：00",
+      "phone": "95107971",
+      "feePerQuarter": "1440.00"
+    },
+    {
+      "name": "蔡宏鑫",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "蔡宏鑫",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "蔡宏鑫",
+      "venue": "蒲崗村道場",
+      "scheduleDay": "星期五",
+      "scheduleTime": "6：00-7：00",
+      "phone": "67090499",
+      "feePerQuarter": "1440.00"
+    },
+    {
+      "name": "蔡御霆",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "97478091",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "蔡御霆",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "蔡御霆",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "郭俊康",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "phone": "67351169",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "郭俊康",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "郭俊康",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "鄧穎翹",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "鄧穎翹",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "鄧穎翹",
+      "venue": "至善道場",
+      "scheduleDay": "星期四",
+      "scheduleTime": "6：00-7：00",
+      "phone": "92355055",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "陳孝謙",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "陳孝謙",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "陳孝謙",
+      "venue": "至善道場",
+      "scheduleDay": "星期四",
+      "scheduleTime": "6：00-7：00",
+      "phone": "60777261",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "陳景韜",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "陳景韜",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "陳景韜",
+      "venue": "蒲崗村道場",
+      "scheduleDay": "星期五",
+      "scheduleTime": "6：00-7：00",
+      "phone": "90965636",
+      "feePerQuarter": "1440.00"
+    },
+    {
+      "name": "陳梓軒",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "61521528",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "陳梓軒",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "陳梓軒",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "陳臻軒",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "phone": "90192599",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "陳臻軒",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "陳臻軒",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "韓灝南",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "phone": "62556224",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "韓灝南",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "韓灝南",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "麥晉維",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "5:00-6:00pm",
+      "phone": "96799633",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "麥晉維",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "麥晉維",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "黃天愉",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "phone": "92756760",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "黃天愉",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "黃天愉",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "黃銘軒",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "91392077",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "黃銘軒",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "黃銘軒",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "黃頌琛",
+      "venue": "寶林道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "3：00-4：30",
+      "phone": "98597310",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "黃頌琛",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "黃頌琛",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "name": "龐兆羽",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "phone": "96224749",
+      "feePerQuarter": "1800.00"
+    },
+    {
+      "name": "龐兆羽",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "phone": "龐兆羽",
+      "feePerQuarter": "2400.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tvenue\tscheduleDay\tscheduleTime\tphone\tfeePerQuarter\n劉玥\t寶林道場\t星期一\t4:00-5:00pm\t65015000\t1800.00\n劉玥\t精英班道場\t星期日\t12:00-6:30pm\t劉玥\t2400.00\n吳傲天\t寶林道場\t星期日\t3：00-4：30\t93537253\t1800.00\n吳傲天\t精英班道場\t星期日\t12:00-6:30pm\t吳傲天\t2400.00\n吳卓謙\t寶林道場\t星期一\t5:00-6:00pm\t90923662\t1800.00\n吳卓謙\t精英班道場\t星期日\t12:00-6:30pm\t吳卓謙\t2400.00\n施俊杰\t寶林道場\t星期日\t3：00-4：30\t97339729\t1800.00\n施俊杰\t精英班道場\t星期日\t12:00-6:30pm\t施俊杰\t2400.00\n曾祉媃\t寶林道場\t星期日\t3：00-4：30\t94498987\t1800.00\n曾祉媃\t精英班道場\t星期日\t12:00-6:30pm\t曾祉媃\t2400.00\n朱棋楓\t寶林道場\t星期日\t3：00-4：30\t62238604\t1800.00\n朱棋楓\t精英班道場\t星期日\t12:00-6:30pm\t朱棋楓\t2400.00\n李弘正\t寶林道場\t星期日\t3：00-4：30\t98350858\t1800.00\n李弘正\t精英班道場\t星期日\t12:00-6:30pm\t李弘正\t2400.00\n李梓皓\t寶林道場\t星期一\t4:00-5:00pm\t92365066\t1800.00\n李梓皓\t精英班道場\t星期日\t12:00-6:30pm\t李梓皓\t2400.00\n李泳霖\t寶林道場\t星期一\t4:00-5:00pm\t90971420\t1800.00\n李泳霖\t精英班道場\t星期日\t12:00-6:30pm\t李泳霖\t2400.00\n林恩同\t寶林道場\t星期三\t5:00-6:30pm\t55792767\t1800.00\n林恩同\t精英班道場\t星期日\t12:00-6:30pm\t林恩同\t2400.00\n林慧玲\t精英班道場\t星期日\t12:00-6:30pm\t林慧玲\t2400.00\n林慧玲\t蒲崗村道場\t星期五\t6：00-7：00\t57266698\t1440.00\n林文傑\t精英班道場\t星期日\t12:00-6:30pm\t林文傑\t2400.00\n林文傑\t蒲崗村道場\t星期五\t6：00-7：00\t91234338\t1440.00\n林明慧\t精英班道場\t星期日\t12:00-6:30pm\t林明慧\t2400.00\n林明慧\t蒲崗村道場\t星期五\t6：00-7：00\t91234338\t1440.00\n林煒堯\t寶林道場\t星期日\t10：00-11：00\t93498497\t1800.00\n林煒堯\t精英班道場\t星期日\t12:00-6:30pm\t林煒堯\t2400.00\n林諾天\t寶林道場\t星期日\t3：00-4：30\t97291797\t1800.00\n林諾天\t精英班道場\t星期日\t12:00-6:30pm\t林諾天\t2400.00\n梁珀豪\t寶林道場\t星期一\t5:00-6:00pm\t96338639\t1800.00\n梁珀豪\t精英班道場\t星期日\t12:00-6:30pm\t梁珀豪\t2400.00\n楊廷諄\t精英班道場\t星期日\t12:00-6:30pm\t楊廷諄\t2400.00\n楊廷諄\t至善道場\t星期四\t6：00-7：00\t92760188\t1800.00\n楊惜林\t寶林道場\t星期六\t10:00-11:30am\t90303283\t1800.00\n楊惜林\t精英班道場\t星期日\t12:00-6:30pm\t楊惜林\t2400.00\n江哲男\t寶林道場\t星期日\t3：00-4：30\t61214704\t1800.00\n江哲男\t精英班道場\t星期日\t12:00-6:30pm\t江哲男\t2400.00\n江柏僑\t精英班道場\t星期日\t12:00-6:30pm\t江柏僑\t2400.00\n江柏僑\t蒲崗村道場\t星期五\t6：00-7：00\t60686558\t1440.00\n王嘉楷\t寶林道場\t星期日\t3：00-4：30\t53822755\t1800.00\n王嘉楷\t精英班道場\t星期日\t12:00-6:30pm\t王嘉楷\t2400.00\n王浩宇\t寶林道場\t星期日\t3：00-4：30\t92507585\t1800.00\n王浩宇\t精英班道場\t星期日\t12:00-6:30pm\t王浩宇\t2400.00\n簡頌曦\t寶林道場\t星期日\t10：00-11：00\t98356407\t1800.00\n簡頌曦\t精英班道場\t星期日\t12:00-6:30pm\t簡頌曦\t2400.00\n葉明恩\t精英班道場\t星期日\t12:00-6:30pm\t葉明恩\t2400.00\n葉明恩\t蒲崗村道場\t星期五\t6：00-7：00\t95107971\t1440.00\n葉栩靖\t精英班道場\t星期日\t12:00-6:30pm\t葉栩靖\t2400.00\n葉栩靖\t蒲崗村道場\t星期五\t6：00-7：00\t95107971\t1440.00\n葉駿輝\t精英班道場\t星期日\t12:00-6:30pm\t葉駿輝\t2400.00\n葉駿輝\t蒲崗村道場\t星期五\t6：00-7：00\t95107971\t1440.00\n蔡宏鑫\t精英班道場\t星期日\t12:00-6:30pm\t蔡宏鑫\t2400.00\n蔡宏鑫\t蒲崗村道場\t星期五\t6：00-7：00\t67090499\t1440.00\n蔡御霆\t寶林道場\t星期日\t3：00-4：30\t97478091\t1800.00\n蔡御霆\t精英班道場\t星期日\t12:00-6:30pm\t蔡御霆\t2400.00\n郭俊康\t寶林道場\t星期一\t4:00-5:00pm\t67351169\t1800.00\n郭俊康\t精英班道場\t星期日\t12:00-6:30pm\t郭俊康\t2400.00\n鄧穎翹\t精英班道場\t星期日\t12:00-6:30pm\t鄧穎翹\t2400.00\n鄧穎翹\t至善道場\t星期四\t6：00-7：00\t92355055\t1800.00\n陳孝謙\t精英班道場\t星期日\t12:00-6:30pm\t陳孝謙\t2400.00\n陳孝謙\t至善道場\t星期四\t6：00-7：00\t60777261\t1800.00\n陳景韜\t精英班道場\t星期日\t12:00-6:30pm\t陳景韜\t2400.00\n陳景韜\t蒲崗村道場\t星期五\t6：00-7：00\t90965636\t1440.00\n陳梓軒\t寶林道場\t星期日\t3：00-4：30\t61521528\t1800.00\n陳梓軒\t精英班道場\t星期日\t12:00-6:30pm\t陳梓軒\t2400.00\n陳臻軒\t寶林道場\t星期一\t4:00-5:00pm\t90192599\t1800.00\n陳臻軒\t精英班道場\t星期日\t12:00-6:30pm\t陳臻軒\t2400.00\n韓灝南\t寶林道場\t星期一\t4:00-5:00pm\t62556224\t1800.00\n韓灝南\t精英班道場\t星期日\t12:00-6:30pm\t韓灝南\t2400.00\n麥晉維\t寶林道場\t星期一\t5:00-6:00pm\t96799633\t1800.00\n麥晉維\t精英班道場\t星期日\t12:00-6:30pm\t麥晉維\t2400.00\n黃天愉\t寶林道場\t星期一\t4:00-5:00pm\t92756760\t1800.00\n黃天愉\t精英班道場\t星期日\t12:00-6:30pm\t黃天愉\t2400.00\n黃銘軒\t寶林道場\t星期日\t3：00-4：30\t91392077\t1800.00\n黃銘軒\t精英班道場\t星期日\t12:00-6:30pm\t黃銘軒\t2400.00\n黃頌琛\t寶林道場\t星期日\t3：00-4：30\t98597310\t1800.00\n黃頌琛\t精英班道場\t星期日\t12:00-6:30pm\t黃頌琛\t2400.00\n龐兆羽\t寶林道場\t星期一\t4:00-5:00pm\t96224749\t1800.00\n龐兆羽\t精英班道場\t星期日\t12:00-6:30pm\t龐兆羽\t2400.00\n",
+  "stderr": "",
+  "execution_time_ms": 1492
+}

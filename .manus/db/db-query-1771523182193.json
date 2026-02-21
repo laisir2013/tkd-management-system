@@ -1,0 +1,94 @@
+{
+  "query": "SELECT \n  d.name as dojo_name,\n  d.schedule_day,\n  d.schedule_time,\n  COUNT(s.id) as student_count,\n  SUM(CAST(s.feePerQuarter AS DECIMAL(10,2))) as total_fee\nFROM dojos d\nLEFT JOIN students s ON (\n  s.venue = d.name AND\n  s.scheduleDay = d.schedule_day AND\n  s.scheduleTime = d.schedule_time\n)\nWHERE d.coach_name LIKE '%賴政堡%'\nGROUP BY d.id, d.name, d.schedule_day, d.schedule_time;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  d.name as dojo_name,\n  d.schedule_day,\n  d.schedule_time,\n  COUNT(s.id) as student_count,\n  SUM(CAST(s.feePerQuarter AS DECIMAL(10,2))) as total_fee\nFROM dojos d\nLEFT JOIN students s ON (\n  s.venue = d.name AND\n  s.scheduleDay = d.schedule_day AND\n  s.scheduleTime = d.schedule_time\n)\nWHERE d.coach_name LIKE '%賴政堡%'\nGROUP BY d.id, d.name, d.schedule_day, d.schedule_time;",
+  "rows": [
+    {
+      "dojo_name": "至善道場",
+      "schedule_day": "星期二",
+      "schedule_time": "6:00-7:00",
+      "student_count": "6",
+      "total_fee": "10800.00"
+    },
+    {
+      "dojo_name": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10:00-11:00",
+      "student_count": "7",
+      "total_fee": "12600.00"
+    },
+    {
+      "dojo_name": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "student_count": "6",
+      "total_fee": "10800.00"
+    },
+    {
+      "dojo_name": "寶林道場",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "student_count": "1",
+      "total_fee": "1800.00"
+    },
+    {
+      "dojo_name": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3:00-4:30",
+      "student_count": "21",
+      "total_fee": "37800.00"
+    },
+    {
+      "dojo_name": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "student_count": "10",
+      "total_fee": "18000.00"
+    },
+    {
+      "dojo_name": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11:00-12:00",
+      "student_count": "3",
+      "total_fee": "5400.00"
+    },
+    {
+      "dojo_name": "至善道場",
+      "schedule_day": "星期四",
+      "schedule_time": "6:00-7:00",
+      "student_count": "8",
+      "total_fee": "14400.00"
+    },
+    {
+      "dojo_name": "蒲崗村道場",
+      "schedule_day": "星期五",
+      "schedule_time": "6:00-7:00",
+      "student_count": "18",
+      "total_fee": "25920.00"
+    },
+    {
+      "dojo_name": "寶林道場",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30",
+      "student_count": "8",
+      "total_fee": "14400.00"
+    },
+    {
+      "dojo_name": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "student_count": "5",
+      "total_fee": "9000.00"
+    },
+    {
+      "dojo_name": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "student_count": "10",
+      "total_fee": "18000.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "dojo_name\tschedule_day\tschedule_time\tstudent_count\ttotal_fee\n至善道場\t星期二\t6:00-7:00\t6\t10800.00\n寶林道場\t星期日\t10:00-11:00\t7\t12600.00\n寶林道場\t星期三\t4:00-5:00pm\t6\t10800.00\n寶林道場\t星期六\t10:00-11:30am\t1\t1800.00\n寶林道場\t星期日\t3:00-4:30\t21\t37800.00\n寶林道場\t星期一\t5:00-6:00pm\t10\t18000.00\n寶林道場\t星期日\t11:00-12:00\t3\t5400.00\n至善道場\t星期四\t6:00-7:00\t8\t14400.00\n蒲崗村道場\t星期五\t6:00-7:00\t18\t25920.00\n寶林道場\t星期六\t10:00-11:30\t8\t14400.00\n寶林道場\t星期三\t5:00-6:30pm\t5\t9000.00\n寶林道場\t星期一\t4:00-5:00pm\t10\t18000.00\n",
+  "stderr": "",
+  "execution_time_ms": 1573
+}

@@ -1,0 +1,8 @@
+{
+  "query": "SELECT DATE_FORMAT(trainingDate, '%Y-%m') as month, COUNT(*) as count FROM training_schedules GROUP BY month ORDER BY month;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT DATE_FORMAT(trainingDate, '%Y-%m') as month, COUNT(*) as count FROM training_schedules GROUP BY month ORDER BY month;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'trainingdate' in 'group statement'"
+  ]
+}

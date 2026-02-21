@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE elite_attendance SET schedule_id = schedule_id + 30000",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute UPDATE elite_attendance SET schedule_id = schedule_id + 30000",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1578
+}

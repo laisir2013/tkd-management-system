@@ -1,0 +1,104 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1770740711930,
+      "tag": "0000_fuzzy_midnight",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1770740864684,
+      "tag": "0001_numerous_star_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1770743545158,
+      "tag": "0002_empty_the_executioner",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1770746879226,
+      "tag": "0003_jazzy_the_enforcers",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1771265500349,
+      "tag": "0004_sudden_shadow_king",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1771302969362,
+      "tag": "0005_nervous_power_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1771307665464,
+      "tag": "0006_greedy_ironclad",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1771316219472,
+      "tag": "0007_boring_gargoyle",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1771328617711,
+      "tag": "0008_public_azazel",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1771421386400,
+      "tag": "0009_nostalgic_maria_hill",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1771522310897,
+      "tag": "0010_striped_earthquake",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1771529039989,
+      "tag": "0011_red_spencer_smythe",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1771530646011,
+      "tag": "0012_colossal_lily_hollister",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1771583081923,
+      "tag": "0013_sour_the_anarchist",
+      "breakpoints": true
+    }
+  ]
+}

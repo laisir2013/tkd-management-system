@@ -1,0 +1,135 @@
+{
+  "query": "SELECT es.id, es.name, s.phone as regular_phone \nFROM elite_students es \nINNER JOIN students s ON es.name = s.name \nWHERE (es.phone = '' OR es.phone = '0' OR es.phone IS NULL)\nAND s.phone IS NOT NULL AND s.phone != '' AND s.phone != '0'\nORDER BY es.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT es.id, es.name, s.phone as regular_phone \nFROM elite_students es \nINNER JOIN students s ON es.name = s.name \nWHERE (es.phone = '' OR es.phone = '0' OR es.phone IS NULL)\nAND s.phone IS NOT NULL AND s.phone != '' AND s.phone != '0'\nORDER BY es.id;",
+  "rows": [
+    {
+      "id": "24",
+      "name": "林諾天",
+      "regular_phone": "97291797"
+    },
+    {
+      "id": "26",
+      "name": "李弘正",
+      "regular_phone": "98350858"
+    },
+    {
+      "id": "27",
+      "name": "蔡御霆",
+      "regular_phone": "97478091"
+    },
+    {
+      "id": "28",
+      "name": "黃頌琛",
+      "regular_phone": "98597310"
+    },
+    {
+      "id": "35",
+      "name": "江哲男",
+      "regular_phone": "61214704"
+    },
+    {
+      "id": "36",
+      "name": "王浩宇",
+      "regular_phone": "92507585"
+    },
+    {
+      "id": "37",
+      "name": "吳傲天",
+      "regular_phone": "93537253"
+    },
+    {
+      "id": "38",
+      "name": "陳梓軒",
+      "regular_phone": "61521528"
+    },
+    {
+      "id": "39",
+      "name": "黃銘軒",
+      "regular_phone": "91392077"
+    },
+    {
+      "id": "40",
+      "name": "朱棋楓",
+      "regular_phone": "62238604"
+    },
+    {
+      "id": "42",
+      "name": "楊廷諄",
+      "regular_phone": "92760188"
+    },
+    {
+      "id": "44",
+      "name": "王嘉楷",
+      "regular_phone": "53822755"
+    },
+    {
+      "id": "45",
+      "name": "楊猷宸",
+      "regular_phone": "96849267"
+    },
+    {
+      "id": "46",
+      "name": "周泓謙",
+      "regular_phone": "64849229"
+    },
+    {
+      "id": "60006",
+      "name": "吳卓謙",
+      "regular_phone": "63521866"
+    },
+    {
+      "id": "60008",
+      "name": "林文傑",
+      "regular_phone": "91234338"
+    },
+    {
+      "id": "60009",
+      "name": "林明慧",
+      "regular_phone": "91234338"
+    },
+    {
+      "id": "60010",
+      "name": "林煒堯",
+      "regular_phone": "93498497"
+    },
+    {
+      "id": "60013",
+      "name": "梁珀豪",
+      "regular_phone": "96613148"
+    },
+    {
+      "id": "60014",
+      "name": "江柏僑",
+      "regular_phone": "60686558"
+    },
+    {
+      "id": "60016",
+      "name": "簡頌曦",
+      "regular_phone": "98356407"
+    },
+    {
+      "id": "60017",
+      "name": "葉明恩",
+      "regular_phone": "95107971"
+    },
+    {
+      "id": "60023",
+      "name": "陳孝謙",
+      "regular_phone": "60777261"
+    },
+    {
+      "id": "60024",
+      "name": "陳景韜",
+      "regular_phone": "90965636"
+    },
+    {
+      "id": "60026",
+      "name": "麥晉維",
+      "regular_phone": "96799633"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tregular_phone\n24\t林諾天\t97291797\n26\t李弘正\t98350858\n27\t蔡御霆\t97478091\n28\t黃頌琛\t98597310\n35\t江哲男\t61214704\n36\t王浩宇\t92507585\n37\t吳傲天\t93537253\n38\t陳梓軒\t61521528\n39\t黃銘軒\t91392077\n40\t朱棋楓\t62238604\n42\t楊廷諄\t92760188\n44\t王嘉楷\t53822755\n45\t楊猷宸\t96849267\n46\t周泓謙\t64849229\n60006\t吳卓謙\t63521866\n60008\t林文傑\t91234338\n60009\t林明慧\t91234338\n60010\t林煒堯\t93498497\n60013\t梁珀豪\t96613148\n60014\t江柏僑\t60686558\n60016\t簡頌曦\t98356407\n60017\t葉明恩\t95107971\n60023\t陳孝謙\t60777261\n60024\t陳景韜\t90965636\n60026\t麥晉維\t96799633\n",
+  "stderr": "",
+  "execution_time_ms": 1514
+}

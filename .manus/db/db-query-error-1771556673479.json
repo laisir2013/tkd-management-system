@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, name, phone, belt_level FROM students WHERE name IN ('賴柏希','林諾天','徐志杰','李弘正','蔡御霆','黃頌琛','葉晧晴','楊惜林','鄒曉澄','鄒詩雅','袁穗晴','袁逸朗','江哲男','曾祉媃','王浩宇','吳傲天','陳梓軒','吳博立','歐航瑋','黃銘軒','朱棋楓','葉栩靖','葉駿輝','吳芷媛','李泳霖','郭俊康','張溰榆','丁子聰','鄧穎翹','楊廷諄','譚子鋭','黃天愉','林慧玲','黃煒庭','林恩同','韓灝南','龐兆羽','施俊杰','李梓皓','陳臻軒','蔡宏鑫','劉玥','王嘉楷','楊猷宸','周泓謙') ORDER BY name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, phone, belt_level FROM students WHERE name IN ('賴柏希','林諾天','徐志杰','李弘正','蔡御霆','黃頌琛','葉晧晴','楊惜林','鄒曉澄','鄒詩雅','袁穗晴','袁逸朗','江哲男','曾祉媃','王浩宇','吳傲天','陳梓軒','吳博立','歐航瑋','黃銘軒','朱棋楓','葉栩靖','葉駿輝','吳芷媛','李泳霖','郭俊康','張溰榆','丁子聰','鄧穎翹','楊廷諄','譚子鋭','黃天愉','林慧玲','黃煒庭','林恩同','韓灝南','龐兆羽','施俊杰','李梓皓','陳臻軒','蔡宏鑫','劉玥','王嘉楷','楊猷宸','周泓謙') ORDER BY name;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'belt_level' in 'field list'"
+  ]
+}

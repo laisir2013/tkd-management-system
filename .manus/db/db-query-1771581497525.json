@@ -1,0 +1,19 @@
+{
+  "query": "SELECT COUNT(*) as total FROM elite_schedules; SELECT COUNT(*) as total FROM elite_attendance;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(*) as total FROM elite_schedules; SELECT COUNT(*) as total FROM elite_attendance;",
+  "rows": [
+    {
+      "total": "104"
+    },
+    {
+      "total": "total"
+    },
+    {
+      "total": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\n104\ntotal\n1\n",
+  "stderr": "",
+  "execution_time_ms": 1727
+}

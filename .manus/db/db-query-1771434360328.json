@@ -1,0 +1,66 @@
+{
+  "query": "SELECT \n  training_date,\n  venue,\n  schedule_day,\n  schedule_time,\n  DAYOFWEEK(training_date) as dow\nFROM training_schedules\nWHERE venue = '寶林道場'\n  AND schedule_day = '星期一'\n  AND schedule_time = '4:00-5:00pm'\n  AND training_date >= '2026-02-01'\n  AND training_date < '2026-03-01'\nORDER BY training_date;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  training_date,\n  venue,\n  schedule_day,\n  schedule_time,\n  DAYOFWEEK(training_date) as dow\nFROM training_schedules\nWHERE venue = '寶林道場'\n  AND schedule_day = '星期一'\n  AND schedule_time = '4:00-5:00pm'\n  AND training_date >= '2026-02-01'\n  AND training_date < '2026-03-01'\nORDER BY training_date;",
+  "rows": [
+    {
+      "training_date": "2026-02-02 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "dow": "2"
+    },
+    {
+      "training_date": "2026-02-02 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "dow": "2"
+    },
+    {
+      "training_date": "2026-02-09 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "dow": "2"
+    },
+    {
+      "training_date": "2026-02-09 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "dow": "2"
+    },
+    {
+      "training_date": "2026-02-16 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "dow": "2"
+    },
+    {
+      "training_date": "2026-02-16 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "dow": "2"
+    },
+    {
+      "training_date": "2026-02-23 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "dow": "2"
+    },
+    {
+      "training_date": "2026-02-23 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "dow": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "training_date\tvenue\tschedule_day\tschedule_time\tdow\n2026-02-02 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\t2\n2026-02-02 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\t2\n2026-02-09 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\t2\n2026-02-09 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\t2\n2026-02-16 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\t2\n2026-02-16 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\t2\n2026-02-23 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\t2\n2026-02-23 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\t2\n",
+  "stderr": "",
+  "execution_time_ms": 1496
+}

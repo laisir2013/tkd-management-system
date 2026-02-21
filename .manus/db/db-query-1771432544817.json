@@ -1,0 +1,514 @@
+{
+  "query": "SELECT id, training_date, schedule_day, schedule_time, DAYOFWEEK(training_date) as day_of_week FROM training_schedules WHERE venue = '寶林道場' AND training_date >= '2026-02-01' AND training_date < '2026-03-01' ORDER BY training_date, schedule_time;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, training_date, schedule_day, schedule_time, DAYOFWEEK(training_date) as day_of_week FROM training_schedules WHERE venue = '寶林道場' AND training_date >= '2026-02-01' AND training_date < '2026-03-01' ORDER BY training_date, schedule_time;",
+  "rows": [
+    {
+      "id": "90096",
+      "training_date": "2026-02-01 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120037",
+      "training_date": "2026-02-01 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120021",
+      "training_date": "2026-02-01 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "day_of_week": "1"
+    },
+    {
+      "id": "90100",
+      "training_date": "2026-02-01 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "day_of_week": "1"
+    },
+    {
+      "id": "90080",
+      "training_date": "2026-02-01 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120041",
+      "training_date": "2026-02-02 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120045",
+      "training_date": "2026-02-02 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120025",
+      "training_date": "2026-02-02 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "day_of_week": "2"
+    },
+    {
+      "id": "90056",
+      "training_date": "2026-02-02 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "2"
+    },
+    {
+      "id": "90060",
+      "training_date": "2026-02-02 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120001",
+      "training_date": "2026-02-03 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "3"
+    },
+    {
+      "id": "120005",
+      "training_date": "2026-02-03 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "day_of_week": "3"
+    },
+    {
+      "id": "90068",
+      "training_date": "2026-02-04 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "4"
+    },
+    {
+      "id": "90072",
+      "training_date": "2026-02-04 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "day_of_week": "4"
+    },
+    {
+      "id": "120013",
+      "training_date": "2026-02-05 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "5"
+    },
+    {
+      "id": "120017",
+      "training_date": "2026-02-05 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "day_of_week": "5"
+    },
+    {
+      "id": "90093",
+      "training_date": "2026-02-07 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "day_of_week": "7"
+    },
+    {
+      "id": "90077",
+      "training_date": "2026-02-07 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "day_of_week": "7"
+    },
+    {
+      "id": "90097",
+      "training_date": "2026-02-08 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120038",
+      "training_date": "2026-02-08 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120022",
+      "training_date": "2026-02-08 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "day_of_week": "1"
+    },
+    {
+      "id": "90101",
+      "training_date": "2026-02-08 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "day_of_week": "1"
+    },
+    {
+      "id": "90081",
+      "training_date": "2026-02-08 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120042",
+      "training_date": "2026-02-09 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120046",
+      "training_date": "2026-02-09 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120026",
+      "training_date": "2026-02-09 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "day_of_week": "2"
+    },
+    {
+      "id": "90057",
+      "training_date": "2026-02-09 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "2"
+    },
+    {
+      "id": "90061",
+      "training_date": "2026-02-09 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120002",
+      "training_date": "2026-02-10 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "3"
+    },
+    {
+      "id": "120006",
+      "training_date": "2026-02-10 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "day_of_week": "3"
+    },
+    {
+      "id": "90069",
+      "training_date": "2026-02-11 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "4"
+    },
+    {
+      "id": "90073",
+      "training_date": "2026-02-11 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "day_of_week": "4"
+    },
+    {
+      "id": "120014",
+      "training_date": "2026-02-12 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "5"
+    },
+    {
+      "id": "120018",
+      "training_date": "2026-02-12 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "day_of_week": "5"
+    },
+    {
+      "id": "90094",
+      "training_date": "2026-02-14 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "day_of_week": "7"
+    },
+    {
+      "id": "90078",
+      "training_date": "2026-02-14 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "day_of_week": "7"
+    },
+    {
+      "id": "90098",
+      "training_date": "2026-02-15 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120039",
+      "training_date": "2026-02-15 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120023",
+      "training_date": "2026-02-15 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "day_of_week": "1"
+    },
+    {
+      "id": "90102",
+      "training_date": "2026-02-15 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "day_of_week": "1"
+    },
+    {
+      "id": "90082",
+      "training_date": "2026-02-15 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120043",
+      "training_date": "2026-02-16 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120047",
+      "training_date": "2026-02-16 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120027",
+      "training_date": "2026-02-16 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "day_of_week": "2"
+    },
+    {
+      "id": "90058",
+      "training_date": "2026-02-16 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "2"
+    },
+    {
+      "id": "90062",
+      "training_date": "2026-02-16 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120003",
+      "training_date": "2026-02-17 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "3"
+    },
+    {
+      "id": "120007",
+      "training_date": "2026-02-17 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "day_of_week": "3"
+    },
+    {
+      "id": "90070",
+      "training_date": "2026-02-18 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "4"
+    },
+    {
+      "id": "90074",
+      "training_date": "2026-02-18 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "day_of_week": "4"
+    },
+    {
+      "id": "120015",
+      "training_date": "2026-02-19 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "5"
+    },
+    {
+      "id": "120019",
+      "training_date": "2026-02-19 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "day_of_week": "5"
+    },
+    {
+      "id": "90095",
+      "training_date": "2026-02-21 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "day_of_week": "7"
+    },
+    {
+      "id": "90079",
+      "training_date": "2026-02-21 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "day_of_week": "7"
+    },
+    {
+      "id": "90099",
+      "training_date": "2026-02-22 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120040",
+      "training_date": "2026-02-22 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120024",
+      "training_date": "2026-02-22 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "day_of_week": "1"
+    },
+    {
+      "id": "90103",
+      "training_date": "2026-02-22 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "day_of_week": "1"
+    },
+    {
+      "id": "90083",
+      "training_date": "2026-02-22 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "day_of_week": "1"
+    },
+    {
+      "id": "120044",
+      "training_date": "2026-02-23 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120048",
+      "training_date": "2026-02-23 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120028",
+      "training_date": "2026-02-23 00:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "day_of_week": "2"
+    },
+    {
+      "id": "90059",
+      "training_date": "2026-02-23 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "2"
+    },
+    {
+      "id": "90063",
+      "training_date": "2026-02-23 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "day_of_week": "2"
+    },
+    {
+      "id": "120004",
+      "training_date": "2026-02-24 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "3"
+    },
+    {
+      "id": "120008",
+      "training_date": "2026-02-24 00:00:00",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "day_of_week": "3"
+    },
+    {
+      "id": "90071",
+      "training_date": "2026-02-25 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "4"
+    },
+    {
+      "id": "90075",
+      "training_date": "2026-02-25 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "day_of_week": "4"
+    },
+    {
+      "id": "120016",
+      "training_date": "2026-02-26 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "day_of_week": "5"
+    },
+    {
+      "id": "120020",
+      "training_date": "2026-02-26 00:00:00",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "day_of_week": "5"
+    },
+    {
+      "id": "90041",
+      "training_date": "2026-02-28 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "day_of_week": "7"
+    },
+    {
+      "id": "90023",
+      "training_date": "2026-02-28 00:00:00",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "day_of_week": "7"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttraining_date\tschedule_day\tschedule_time\tday_of_week\n90096\t2026-02-01 00:00:00\t星期日\t10：00-11：00\t1\n120037\t2026-02-01 00:00:00\t星期六\t10：00-11：30\t1\n120021\t2026-02-01 00:00:00\t星期六\t10:00-11:30am\t1\n90100\t2026-02-01 00:00:00\t星期日\t11：00-12：00\t1\n90080\t2026-02-01 00:00:00\t星期日\t3：00-4：30\t1\n120041\t2026-02-02 00:00:00\t星期日\t10：00-11：00\t2\n120045\t2026-02-02 00:00:00\t星期日\t11：00-12：00\t2\n120025\t2026-02-02 00:00:00\t星期日\t3：00-4：30\t2\n90056\t2026-02-02 00:00:00\t星期一\t4:00-5:00pm\t2\n90060\t2026-02-02 00:00:00\t星期一\t5:00-6:00pm\t2\n120001\t2026-02-03 00:00:00\t星期一\t4:00-5:00pm\t3\n120005\t2026-02-03 00:00:00\t星期一\t5:00-6:00pm\t3\n90068\t2026-02-04 00:00:00\t星期三\t4:00-5:00pm\t4\n90072\t2026-02-04 00:00:00\t星期三\t5:00-6:30pm\t4\n120013\t2026-02-05 00:00:00\t星期三\t4:00-5:00pm\t5\n120017\t2026-02-05 00:00:00\t星期三\t5:00-6:30pm\t5\n90093\t2026-02-07 00:00:00\t星期六\t10：00-11：30\t7\n90077\t2026-02-07 00:00:00\t星期六\t10:00-11:30am\t7\n90097\t2026-02-08 00:00:00\t星期日\t10：00-11：00\t1\n120038\t2026-02-08 00:00:00\t星期六\t10：00-11：30\t1\n120022\t2026-02-08 00:00:00\t星期六\t10:00-11:30am\t1\n90101\t2026-02-08 00:00:00\t星期日\t11：00-12：00\t1\n90081\t2026-02-08 00:00:00\t星期日\t3：00-4：30\t1\n120042\t2026-02-09 00:00:00\t星期日\t10：00-11：00\t2\n120046\t2026-02-09 00:00:00\t星期日\t11：00-12：00\t2\n120026\t2026-02-09 00:00:00\t星期日\t3：00-4：30\t2\n90057\t2026-02-09 00:00:00\t星期一\t4:00-5:00pm\t2\n90061\t2026-02-09 00:00:00\t星期一\t5:00-6:00pm\t2\n120002\t2026-02-10 00:00:00\t星期一\t4:00-5:00pm\t3\n120006\t2026-02-10 00:00:00\t星期一\t5:00-6:00pm\t3\n90069\t2026-02-11 00:00:00\t星期三\t4:00-5:00pm\t4\n90073\t2026-02-11 00:00:00\t星期三\t5:00-6:30pm\t4\n120014\t2026-02-12 00:00:00\t星期三\t4:00-5:00pm\t5\n120018\t2026-02-12 00:00:00\t星期三\t5:00-6:30pm\t5\n90094\t2026-02-14 00:00:00\t星期六\t10：00-11：30\t7\n90078\t2026-02-14 00:00:00\t星期六\t10:00-11:30am\t7\n90098\t2026-02-15 00:00:00\t星期日\t10：00-11：00\t1\n120039\t2026-02-15 00:00:00\t星期六\t10：00-11：30\t1\n120023\t2026-02-15 00:00:00\t星期六\t10:00-11:30am\t1\n90102\t2026-02-15 00:00:00\t星期日\t11：00-12：00\t1\n90082\t2026-02-15 00:00:00\t星期日\t3：00-4：30\t1\n120043\t2026-02-16 00:00:00\t星期日\t10：00-11：00\t2\n120047\t2026-02-16 00:00:00\t星期日\t11：00-12：00\t2\n120027\t2026-02-16 00:00:00\t星期日\t3：00-4：30\t2\n90058\t2026-02-16 00:00:00\t星期一\t4:00-5:00pm\t2\n90062\t2026-02-16 00:00:00\t星期一\t5:00-6:00pm\t2\n120003\t2026-02-17 00:00:00\t星期一\t4:00-5:00pm\t3\n120007\t2026-02-17 00:00:00\t星期一\t5:00-6:00pm\t3\n90070\t2026-02-18 00:00:00\t星期三\t4:00-5:00pm\t4\n90074\t2026-02-18 00:00:00\t星期三\t5:00-6:30pm\t4\n120015\t2026-02-19 00:00:00\t星期三\t4:00-5:00pm\t5\n120019\t2026-02-19 00:00:00\t星期三\t5:00-6:30pm\t5\n90095\t2026-02-21 00:00:00\t星期六\t10：00-11：30\t7\n90079\t2026-02-21 00:00:00\t星期六\t10:00-11:30am\t7\n90099\t2026-02-22 00:00:00\t星期日\t10：00-11：00\t1\n120040\t2026-02-22 00:00:00\t星期六\t10：00-11：30\t1\n120024\t2026-02-22 00:00:00\t星期六\t10:00-11:30am\t1\n90103\t2026-02-22 00:00:00\t星期日\t11：00-12：00\t1\n90083\t2026-02-22 00:00:00\t星期日\t3：00-4：30\t1\n120044\t2026-02-23 00:00:00\t星期日\t10：00-11：00\t2\n120048\t2026-02-23 00:00:00\t星期日\t11：00-12：00\t2\n120028\t2026-02-23 00:00:00\t星期日\t3：00-4：30\t2\n90059\t2026-02-23 00:00:00\t星期一\t4:00-5:00pm\t2\n90063\t2026-02-23 00:00:00\t星期一\t5:00-6:00pm\t2\n120004\t2026-02-24 00:00:00\t星期一\t4:00-5:00pm\t3\n120008\t2026-02-24 00:00:00\t星期一\t5:00-6:00pm\t3\n90071\t2026-02-25 00:00:00\t星期三\t4:00-5:00pm\t4\n90075\t2026-02-25 00:00:00\t星期三\t5:00-6:30pm\t4\n120016\t2026-02-26 00:00:00\t星期三\t4:00-5:00pm\t5\n120020\t2026-02-26 00:00:00\t星期三\t5:00-6:30pm\t5\n90041\t2026-02-28 00:00:00\t星期六\t10：00-11：30\t7\n90023\t2026-02-28 00:00:00\t星期六\t10:00-11:30am\t7\n",
+  "stderr": "",
+  "execution_time_ms": 1523
+}

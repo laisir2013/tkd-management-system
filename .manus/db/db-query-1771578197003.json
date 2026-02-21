@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE elite_students SET schedule_day = '星期日', schedule_time = '4:30-6:30pm' WHERE status = 'active' AND id NOT IN (SELECT id FROM (SELECT id FROM elite_students WHERE status = 'active' ORDER BY id LIMIT 23) AS t);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute UPDATE elite_students SET schedule_day = '星期日', schedule_time = '4:30-6:30pm' WHERE status = 'active' AND id NOT IN (SELECT id FROM (SELECT id FROM elite_students WHERE status = 'active' ORDER BY id LIMIT 23) AS t);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1520
+}

@@ -1,0 +1,240 @@
+{
+  "query": "SELECT id, name, schedule_day FROM elite_students ORDER BY name LIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, schedule_day FROM elite_students ORDER BY name LIMIT 50;",
+  "rows": [
+    {
+      "id": "30",
+      "name": "Luna Petralia",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "41",
+      "name": "丁子聰",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "7",
+      "name": "劉玥",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "37",
+      "name": "吳傲天",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "15",
+      "name": "吳博立",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "18",
+      "name": "吳芷媛",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "46",
+      "name": "周泓謙",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "19",
+      "name": "張溰榆",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "25",
+      "name": "徐志杰",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "22",
+      "name": "施俊杰",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "13",
+      "name": "曾祉媃",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "40",
+      "name": "朱棋楓",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "26",
+      "name": "李弘正",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "8",
+      "name": "李梓皓",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "1",
+      "name": "李泳霖",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "12",
+      "name": "林恩同",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "16",
+      "name": "林慧玲",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "24",
+      "name": "林諾天",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "42",
+      "name": "楊廷諄",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "11",
+      "name": "楊惜林",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "45",
+      "name": "楊猷宸",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "14",
+      "name": "歐航瑋",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "35",
+      "name": "江哲男",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "44",
+      "name": "王嘉楷",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "36",
+      "name": "王浩宇",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "29",
+      "name": "葉晧晴",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "20",
+      "name": "葉栩靖",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "21",
+      "name": "葉駿輝",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "17",
+      "name": "蔡宏鑫",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "27",
+      "name": "蔡御霆",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "33",
+      "name": "袁穗晴",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "34",
+      "name": "袁逸朗",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "43",
+      "name": "譚子鋭",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "23",
+      "name": "賴柏希",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "3",
+      "name": "郭俊康",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "31",
+      "name": "鄒曉澄",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "32",
+      "name": "鄒詩雅",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "10",
+      "name": "鄧穎翹",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "38",
+      "name": "陳梓軒",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "6",
+      "name": "陳臻軒",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "4",
+      "name": "韓灝南",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "2",
+      "name": "黃天愉",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "9",
+      "name": "黃煒庭",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "39",
+      "name": "黃銘軒",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "28",
+      "name": "黃頌琛",
+      "schedule_day": "星期日"
+    },
+    {
+      "id": "5",
+      "name": "龐兆羽",
+      "schedule_day": "星期日"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tschedule_day\n30\tLuna Petralia\t星期日\n41\t丁子聰\t星期日\n7\t劉玥\t星期日\n37\t吳傲天\t星期日\n15\t吳博立\t星期日\n18\t吳芷媛\t星期日\n46\t周泓謙\t星期日\n19\t張溰榆\t星期日\n25\t徐志杰\t星期日\n22\t施俊杰\t星期日\n13\t曾祉媃\t星期日\n40\t朱棋楓\t星期日\n26\t李弘正\t星期日\n8\t李梓皓\t星期日\n1\t李泳霖\t星期日\n12\t林恩同\t星期日\n16\t林慧玲\t星期日\n24\t林諾天\t星期日\n42\t楊廷諄\t星期日\n11\t楊惜林\t星期日\n45\t楊猷宸\t星期日\n14\t歐航瑋\t星期日\n35\t江哲男\t星期日\n44\t王嘉楷\t星期日\n36\t王浩宇\t星期日\n29\t葉晧晴\t星期日\n20\t葉栩靖\t星期日\n21\t葉駿輝\t星期日\n17\t蔡宏鑫\t星期日\n27\t蔡御霆\t星期日\n33\t袁穗晴\t星期日\n34\t袁逸朗\t星期日\n43\t譚子鋭\t星期日\n23\t賴柏希\t星期日\n3\t郭俊康\t星期日\n31\t鄒曉澄\t星期日\n32\t鄒詩雅\t星期日\n10\t鄧穎翹\t星期日\n38\t陳梓軒\t星期日\n6\t陳臻軒\t星期日\n4\t韓灝南\t星期日\n2\t黃天愉\t星期日\n9\t黃煒庭\t星期日\n39\t黃銘軒\t星期日\n28\t黃頌琛\t星期日\n5\t龐兆羽\t星期日\n",
+  "stderr": "",
+  "execution_time_ms": 1615
+}

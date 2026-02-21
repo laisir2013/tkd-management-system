@@ -1,0 +1,9 @@
+{
+  "query": "SELECT \n  s.name,\n  s.feePerQuarter,\n  s.venue,\n  s.scheduleDay,\n  s.scheduleTime\nFROM students s\nWHERE s.id IN (\n  SELECT DISTINCT st.id \n  FROM students st\n  JOIN dojos d ON (\n    st.venue = d.name AND \n    st.scheduleDay = d.schedule_day AND \n    st.scheduleTime = d.schedule_time\n  )\n  WHERE d.coach_name = '賴政堡'\n)\nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  s.name,\n  s.feePerQuarter,\n  s.venue,\n  s.scheduleDay,\n  s.scheduleTime\nFROM students s\nWHERE s.id IN (\n  SELECT DISTINCT st.id \n  FROM students st\n  JOIN dojos d ON (\n    st.venue = d.name AND \n    st.scheduleDay = d.schedule_day AND \n    st.scheduleTime = d.schedule_time\n  )\n  WHERE d.coach_name = '賴政堡'\n)\nLIMIT 10;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1626
+}

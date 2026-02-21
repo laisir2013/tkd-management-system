@@ -1,0 +1,378 @@
+{
+  "query": "SELECT id, name, phone, schedule_day, schedule_time, status FROM elite_students ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, phone, schedule_day, schedule_time, status FROM elite_students ORDER BY id;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "李泳霖",
+      "phone": "90971420",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "2",
+      "name": "黃天愉",
+      "phone": "92756760",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "3",
+      "name": "郭俊康",
+      "phone": "67351169",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "4",
+      "name": "韓灝南",
+      "phone": "62556224",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "5",
+      "name": "龐兆羽",
+      "phone": "96224749",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "6",
+      "name": "陳臻軒",
+      "phone": "90192599",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "7",
+      "name": "劉玥",
+      "phone": "65015000",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "8",
+      "name": "李梓皓",
+      "phone": "92365066",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "9",
+      "name": "黃煒庭",
+      "phone": "94030392",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "10",
+      "name": "鄧穎翹",
+      "phone": "92355055",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "11",
+      "name": "楊惜林",
+      "phone": "90303283",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "12",
+      "name": "林恩同",
+      "phone": "55792767",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "13",
+      "name": "曾祉媃",
+      "phone": "84891247",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "14",
+      "name": "歐航瑋",
+      "phone": "96852018",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "15",
+      "name": "吳博立",
+      "phone": "62066990/97352974",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "16",
+      "name": "林慧玲",
+      "phone": "57266698",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "17",
+      "name": "蔡宏鑫",
+      "phone": "67090499",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "18",
+      "name": "吳芷媛",
+      "phone": "97992389",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "19",
+      "name": "張溰榆",
+      "phone": "98240781",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "20",
+      "name": "葉栩靖",
+      "phone": "95107971",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "21",
+      "name": "葉駿輝",
+      "phone": "95107971",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "22",
+      "name": "施俊杰",
+      "phone": "97339729",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "23",
+      "name": "賴柏希",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-2:00pm",
+      "status": "active"
+    },
+    {
+      "id": "24",
+      "name": "林諾天",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "25",
+      "name": "徐志杰",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "26",
+      "name": "李弘正",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "27",
+      "name": "蔡御霆",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "28",
+      "name": "黃頌琛",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "29",
+      "name": "葉晧晴",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "30",
+      "name": "Luna Petralia",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "31",
+      "name": "鄒曉澄",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "32",
+      "name": "鄒詩雅",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "33",
+      "name": "袁穗晴",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "34",
+      "name": "袁逸朗",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "35",
+      "name": "江哲男",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "36",
+      "name": "王浩宇",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "37",
+      "name": "吳傲天",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "38",
+      "name": "陳梓軒",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "39",
+      "name": "黃銘軒",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "40",
+      "name": "朱棋楓",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "41",
+      "name": "丁子聰",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "42",
+      "name": "楊廷諄",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "43",
+      "name": "譚子鋭",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "44",
+      "name": "王嘉楷",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "45",
+      "name": "楊猷宸",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "46",
+      "name": "周泓謙",
+      "phone": "",
+      "schedule_day": "星期日",
+      "schedule_time": "4:30-6:30pm",
+      "status": "active"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tphone\tschedule_day\tschedule_time\tstatus\n1\t李泳霖\t90971420\t星期日\t12:00-2:00pm\tactive\n2\t黃天愉\t92756760\t星期日\t12:00-2:00pm\tactive\n3\t郭俊康\t67351169\t星期日\t12:00-2:00pm\tactive\n4\t韓灝南\t62556224\t星期日\t12:00-2:00pm\tactive\n5\t龐兆羽\t96224749\t星期日\t12:00-2:00pm\tactive\n6\t陳臻軒\t90192599\t星期日\t12:00-2:00pm\tactive\n7\t劉玥\t65015000\t星期日\t12:00-2:00pm\tactive\n8\t李梓皓\t92365066\t星期日\t12:00-2:00pm\tactive\n9\t黃煒庭\t94030392\t星期日\t12:00-2:00pm\tactive\n10\t鄧穎翹\t92355055\t星期日\t12:00-2:00pm\tactive\n11\t楊惜林\t90303283\t星期日\t12:00-2:00pm\tactive\n12\t林恩同\t55792767\t星期日\t12:00-2:00pm\tactive\n13\t曾祉媃\t84891247\t星期日\t12:00-2:00pm\tactive\n14\t歐航瑋\t96852018\t星期日\t12:00-2:00pm\tactive\n15\t吳博立\t62066990/97352974\t星期日\t12:00-2:00pm\tactive\n16\t林慧玲\t57266698\t星期日\t12:00-2:00pm\tactive\n17\t蔡宏鑫\t67090499\t星期日\t12:00-2:00pm\tactive\n18\t吳芷媛\t97992389\t星期日\t12:00-2:00pm\tactive\n19\t張溰榆\t98240781\t星期日\t12:00-2:00pm\tactive\n20\t葉栩靖\t95107971\t星期日\t12:00-2:00pm\tactive\n21\t葉駿輝\t95107971\t星期日\t12:00-2:00pm\tactive\n22\t施俊杰\t97339729\t星期日\t12:00-2:00pm\tactive\n23\t賴柏希\t\t星期日\t12:00-2:00pm\tactive\n24\t林諾天\t\t星期日\t4:30-6:30pm\tactive\n25\t徐志杰\t\t星期日\t4:30-6:30pm\tactive\n26\t李弘正\t\t星期日\t4:30-6:30pm\tactive\n27\t蔡御霆\t\t星期日\t4:30-6:30pm\tactive\n28\t黃頌琛\t\t星期日\t4:30-6:30pm\tactive\n29\t葉晧晴\t\t星期日\t4:30-6:30pm\tactive\n30\tLuna Petralia\t\t星期日\t4:30-6:30pm\tactive\n31\t鄒曉澄\t\t星期日\t4:30-6:30pm\tactive\n32\t鄒詩雅\t\t星期日\t4:30-6:30pm\tactive\n33\t袁穗晴\t\t星期日\t4:30-6:30pm\tactive\n34\t袁逸朗\t\t星期日\t4:30-6:30pm\tactive\n35\t江哲男\t\t星期日\t4:30-6:30pm\tactive\n36\t王浩宇\t\t星期日\t4:30-6:30pm\tactive\n37\t吳傲天\t\t星期日\t4:30-6:30pm\tactive\n38\t陳梓軒\t\t星期日\t4:30-6:30pm\tactive\n39\t黃銘軒\t\t星期日\t4:30-6:30pm\tactive\n40\t朱棋楓\t\t星期日\t4:30-6:30pm\tactive\n41\t丁子聰\t\t星期日\t4:30-6:30pm\tactive\n42\t楊廷諄\t\t星期日\t4:30-6:30pm\tactive\n43\t譚子鋭\t\t星期日\t4:30-6:30pm\tactive\n44\t王嘉楷\t\t星期日\t4:30-6:30pm\tactive\n45\t楊猷宸\t\t星期日\t4:30-6:30pm\tactive\n46\t周泓謙\t\t星期日\t4:30-6:30pm\tactive\n",
+  "stderr": "",
+  "execution_time_ms": 2753
+}

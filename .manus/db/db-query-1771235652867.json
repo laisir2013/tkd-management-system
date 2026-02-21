@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO users (openId, name, email, loginMethod, role, coach_name, createdAt, updatedAt) \nVALUES ('coach_lai_zhengbao', '賴政堡教練', 'lai.zhengbao@taekwondo.com', 'google', 'coach', '賴政堡教練', NOW(), NOW());",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute INSERT INTO users (openId, name, email, loginMethod, role, coach_name, createdAt, updatedAt) \nVALUES ('coach_lai_zhengbao', '賴政堡教練', 'lai.zhengbao@taekwondo.com', 'google', 'coach', '賴政堡教練', NOW(), NOW());",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1680
+}

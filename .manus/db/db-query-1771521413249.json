@@ -1,0 +1,60 @@
+{
+  "query": "SELECT id, name, phone FROM students LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, phone FROM students LIMIT 10;",
+  "rows": [
+    {
+      "id": "90001",
+      "name": "李泳霖",
+      "phone": ""
+    },
+    {
+      "id": "90002",
+      "name": "黃天愉",
+      "phone": ""
+    },
+    {
+      "id": "90003",
+      "name": "郭俊康",
+      "phone": ""
+    },
+    {
+      "id": "90004",
+      "name": "韓灝南",
+      "phone": ""
+    },
+    {
+      "id": "90005",
+      "name": "龐兆羽",
+      "phone": ""
+    },
+    {
+      "id": "90006",
+      "name": "陳臻軒",
+      "phone": ""
+    },
+    {
+      "id": "90007",
+      "name": "劉玥",
+      "phone": ""
+    },
+    {
+      "id": "90008",
+      "name": "翁喆楠",
+      "phone": ""
+    },
+    {
+      "id": "90009",
+      "name": "李梓皓",
+      "phone": ""
+    },
+    {
+      "id": "90010",
+      "name": "麥晉維",
+      "phone": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tphone\n90001\t李泳霖\t\n90002\t黃天愉\t\n90003\t郭俊康\t\n90004\t韓灝南\t\n90005\t龐兆羽\t\n90006\t陳臻軒\t\n90007\t劉玥\t\n90008\t翁喆楠\t\n90009\t李梓皓\t\n90010\t麥晉維\t\n",
+  "stderr": "",
+  "execution_time_ms": 2072
+}

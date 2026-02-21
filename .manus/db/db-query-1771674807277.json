@@ -1,0 +1,64 @@
+{
+  "query": "SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY, EXTRA FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'elite_attendance' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY, EXTRA FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'elite_attendance' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id",
+      "DATA_TYPE": "int",
+      "COLUMN_TYPE": "int(11)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": "auto_increment"
+    },
+    {
+      "COLUMN_NAME": "schedule_id",
+      "DATA_TYPE": "int",
+      "COLUMN_TYPE": "int(11)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "student_id",
+      "DATA_TYPE": "int",
+      "COLUMN_TYPE": "int(11)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "status",
+      "DATA_TYPE": "enum",
+      "COLUMN_TYPE": "enum('present','absent','late','excused')",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "present",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "notes",
+      "DATA_TYPE": "text",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "created_at",
+      "DATA_TYPE": "timestamp",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tDATA_TYPE\tCOLUMN_TYPE\tIS_NULLABLE\tCOLUMN_DEFAULT\tCOLUMN_KEY\tEXTRA\nid\tint\tint(11)\tNO\tNULL\tPRI\tauto_increment\nschedule_id\tint\tint(11)\tNO\tNULL\t\t\nstudent_id\tint\tint(11)\tNO\tNULL\t\t\nstatus\tenum\tenum('present','absent','late','excused')\tNO\tpresent\t\t\nnotes\ttext\ttext\tYES\tNULL\t\t\ncreated_at\ttimestamp\ttimestamp\tNO\tCURRENT_TIMESTAMP\t\t\n",
+  "stderr": "",
+  "execution_time_ms": 1497
+}

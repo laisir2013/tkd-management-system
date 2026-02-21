@@ -1,0 +1,16 @@
+{
+  "query": "SELECT DISTINCT scheduleDay FROM students WHERE venue = '寶林道場' AND scheduleTime = '4:00-5:00pm';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT DISTINCT scheduleDay FROM students WHERE venue = '寶林道場' AND scheduleTime = '4:00-5:00pm';",
+  "rows": [
+    {
+      "scheduleDay": "星期一"
+    },
+    {
+      "scheduleDay": "星期三"
+    }
+  ],
+  "messages": [],
+  "stdout": "scheduleDay\n星期一\n星期三\n",
+  "stderr": "",
+  "execution_time_ms": 1511
+}

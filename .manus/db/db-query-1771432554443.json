@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM training_schedules WHERE venue = '寶林道場' AND schedule_time = '4:00-5:00pm' AND schedule_day = 'Monday' AND DAYOFWEEK(training_date) = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute DELETE FROM training_schedules WHERE venue = '寶林道場' AND schedule_time = '4:00-5:00pm' AND schedule_day = 'Monday' AND DAYOFWEEK(training_date) = 1;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1549
+}

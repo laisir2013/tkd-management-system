@@ -1,0 +1,14 @@
+{
+  "query": "SELECT \n  COUNT(*) as total_students,\n  SUM(feePerQuarter) as total_quarterly_fee\nFROM students;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  COUNT(*) as total_students,\n  SUM(feePerQuarter) as total_quarterly_fee\nFROM students;",
+  "rows": [
+    {
+      "total_students": "172",
+      "total_quarterly_fee": "344520.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_students\ttotal_quarterly_fee\n172\t344520.00\n",
+  "stderr": "",
+  "execution_time_ms": 1518
+}

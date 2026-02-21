@@ -1,0 +1,31 @@
+{
+  "query": "SELECT name, phone, birthDate, beltLevel, venue\nFROM students \nWHERE venue != '精英班道場'\nAND (name LIKE '%ADREW%' OR name LIKE '%Andrew%' OR name = '林諾天' OR name = '林頴萳' OR name = '楊廷諄' OR name = '譚子銳')\nORDER BY name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT name, phone, birthDate, beltLevel, venue\nFROM students \nWHERE venue != '精英班道場'\nAND (name LIKE '%ADREW%' OR name LIKE '%Andrew%' OR name = '林諾天' OR name = '林頴萳' OR name = '楊廷諄' OR name = '譚子銳')\nORDER BY name;",
+  "rows": [
+    {
+      "name": "林諾天",
+      "phone": "97291797",
+      "birthDate": "2013-08-31",
+      "beltLevel": "藍紅帶",
+      "venue": "寶林道場"
+    },
+    {
+      "name": "楊廷諄",
+      "phone": "92760188",
+      "birthDate": "NULL",
+      "beltLevel": "紅帶",
+      "venue": "至善道場"
+    },
+    {
+      "name": "譚子銳",
+      "phone": "96769072",
+      "birthDate": "NULL",
+      "beltLevel": "藍紅帶",
+      "venue": "至善道場"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tphone\tbirthDate\tbeltLevel\tvenue\n林諾天\t97291797\t2013-08-31\t藍紅帶\t寶林道場\n楊廷諄\t92760188\tNULL\t紅帶\t至善道場\n譚子銳\t96769072\tNULL\t藍紅帶\t至善道場\n",
+  "stderr": "",
+  "execution_time_ms": 1500
+}

@@ -1,0 +1,90 @@
+{
+  "query": "SELECT \n  s.name as student_name,\n  s.venue,\n  s.scheduleDay,\n  s.scheduleTime,\n  s.feePerQuarter,\n  d.coach_name\nFROM students s\nLEFT JOIN dojos d ON (\n  s.venue = d.name AND\n  s.scheduleDay = d.schedule_day AND\n  s.scheduleTime = d.schedule_time\n)\nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  s.name as student_name,\n  s.venue,\n  s.scheduleDay,\n  s.scheduleTime,\n  s.feePerQuarter,\n  d.coach_name\nFROM students s\nLEFT JOIN dojos d ON (\n  s.venue = d.name AND\n  s.scheduleDay = d.schedule_day AND\n  s.scheduleTime = d.schedule_time\n)\nLIMIT 10;",
+  "rows": [
+    {
+      "student_name": "李泳霖",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "student_name": "黃天愉",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "student_name": "郭俊康",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "student_name": "韓灝南",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "student_name": "龐兆羽",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "student_name": "陳臻軒",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "student_name": "劉玥",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "student_name": "翁喆楠",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "student_name": "李梓皓",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "coach_name": "賴政堡教練"
+    },
+    {
+      "student_name": "麥晉維",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "5:00-6:00pm",
+      "feePerQuarter": "1800.00",
+      "coach_name": "賴政堡教練"
+    }
+  ],
+  "messages": [],
+  "stdout": "student_name\tvenue\tscheduleDay\tscheduleTime\tfeePerQuarter\tcoach_name\n李泳霖\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t賴政堡教練\n黃天愉\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t賴政堡教練\n郭俊康\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t賴政堡教練\n韓灝南\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t賴政堡教練\n龐兆羽\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t賴政堡教練\n陳臻軒\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t賴政堡教練\n劉玥\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t賴政堡教練\n翁喆楠\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t賴政堡教練\n李梓皓\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t賴政堡教練\n麥晉維\t寶林道場\t星期一\t5:00-6:00pm\t1800.00\t賴政堡教練\n",
+  "stderr": "",
+  "execution_time_ms": 1515
+}

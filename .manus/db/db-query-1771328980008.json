@@ -1,0 +1,38 @@
+{
+  "query": "SELECT * FROM users WHERE role = 'admin';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT * FROM users WHERE role = 'admin';",
+  "rows": [
+    {
+      "id": "1",
+      "openId": "BEsunkdtEjJ5LrTNzxjMMJ",
+      "name": "lai sir",
+      "email": "laisir2013@gmail.com",
+      "loginMethod": "google",
+      "role": "admin",
+      "createdAt": "2026-02-10 16:39:56",
+      "updatedAt": "2026-02-17 10:32:28",
+      "lastSignedIn": "2026-02-17 10:32:28",
+      "coach_name": "NULL",
+      "phone": "NULL",
+      "password": "NULL"
+    },
+    {
+      "id": "150004",
+      "openId": "coach_lai_zhengbao",
+      "name": "賴政堡教練",
+      "email": "lai.zhengbao@taekwondo.com",
+      "loginMethod": "google",
+      "role": "admin",
+      "createdAt": "2026-02-16 09:54:12",
+      "updatedAt": "2026-02-16 12:35:39",
+      "lastSignedIn": "2026-02-16 09:54:12",
+      "coach_name": "賴政堡教練",
+      "phone": "94839882",
+      "password": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\topenId\tname\temail\tloginMethod\trole\tcreatedAt\tupdatedAt\tlastSignedIn\tcoach_name\tphone\tpassword\n1\tBEsunkdtEjJ5LrTNzxjMMJ\tlai sir\tlaisir2013@gmail.com\tgoogle\tadmin\t2026-02-10 16:39:56\t2026-02-17 10:32:28\t2026-02-17 10:32:28\tNULL\tNULL\tNULL\n150004\tcoach_lai_zhengbao\t賴政堡教練\tlai.zhengbao@taekwondo.com\tgoogle\tadmin\t2026-02-16 09:54:12\t2026-02-16 12:35:39\t2026-02-16 09:54:12\t賴政堡教練\t94839882\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1529
+}

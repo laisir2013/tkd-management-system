@@ -1,0 +1,1 @@
+ALTER TABLE `paymentRecords` ADD `confirmedBy` enum('parent_upload','admin_approved') DEFAULT 'admin_approved';

@@ -1,0 +1,9 @@
+{
+  "query": "SELECT DATE(training_date) as date, COUNT(*) as count, GROUP_CONCAT(id) as ids\nFROM training_schedules \nWHERE venue = '寶林道場' AND schedule_day = '星期一' AND schedule_time = '4:00-5:00pm'\nGROUP BY DATE(training_date)\nHAVING COUNT(*) > 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT DATE(training_date) as date, COUNT(*) as count, GROUP_CONCAT(id) as ids\nFROM training_schedules \nWHERE venue = '寶林道場' AND schedule_day = '星期一' AND schedule_time = '4:00-5:00pm'\nGROUP BY DATE(training_date)\nHAVING COUNT(*) > 1;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1501
+}

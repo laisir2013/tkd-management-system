@@ -1,0 +1,1 @@
+ALTER TABLE `paymentRecords` ADD `year` int DEFAULT 2026 NOT NULL;

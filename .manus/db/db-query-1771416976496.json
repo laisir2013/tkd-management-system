@@ -1,0 +1,25 @@
+{
+  "query": "SELECT s.venue, COUNT(*) as payment_count, SUM(pr.amount) as total_amount\nFROM paymentRecords pr\nJOIN students s ON pr.studentId = s.id\nWHERE pr.paymentPeriod = 'Q1' AND YEAR(pr.paymentDate) = 2026\nGROUP BY s.venue\nORDER BY payment_count DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT s.venue, COUNT(*) as payment_count, SUM(pr.amount) as total_amount\nFROM paymentRecords pr\nJOIN students s ON pr.studentId = s.id\nWHERE pr.paymentPeriod = 'Q1' AND YEAR(pr.paymentDate) = 2026\nGROUP BY s.venue\nORDER BY payment_count DESC;",
+  "rows": [
+    {
+      "venue": "寶林道場",
+      "payment_count": "37",
+      "total_amount": "66600.00"
+    },
+    {
+      "venue": "蒲崗村道場",
+      "payment_count": "13",
+      "total_amount": "18720.00"
+    },
+    {
+      "venue": "至善道場",
+      "payment_count": "11",
+      "total_amount": "19800.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "venue\tpayment_count\ttotal_amount\n寶林道場\t37\t66600.00\n蒲崗村道場\t13\t18720.00\n至善道場\t11\t19800.00\n",
+  "stderr": "",
+  "execution_time_ms": 1547
+}

@@ -1,0 +1,31 @@
+{
+  "query": "SELECT COUNT(*) as total FROM elite_schedules; SELECT id, training_date, schedule_day, schedule_time, status FROM elite_schedules ORDER BY training_date LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(*) as total FROM elite_schedules; SELECT id, training_date, schedule_day, schedule_time, status FROM elite_schedules ORDER BY training_date LIMIT 5;",
+  "rows": [
+    {
+      "total": "152"
+    },
+    {
+      "total": "id\ttraining_date\tschedule_day\tschedule_time\tstatus"
+    },
+    {
+      "total": "30001\t2022-07-10 12:00:00\t星期日\t12:00-6:30pm\tactive"
+    },
+    {
+      "total": "30002\t2022-07-17 12:00:00\t星期日\t12:00-6:30pm\tactive"
+    },
+    {
+      "total": "30003\t2022-07-24 12:00:00\t星期日\t12:00-6:30pm\tactive"
+    },
+    {
+      "total": "30004\t2022-07-31 12:00:00\t星期日\t12:00-6:30pm\tactive"
+    },
+    {
+      "total": "30005\t2022-08-07 12:00:00\t星期日\t12:00-6:30pm\tactive"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\n152\nid\ttraining_date\tschedule_day\tschedule_time\tstatus\n30001\t2022-07-10 12:00:00\t星期日\t12:00-6:30pm\tactive\n30002\t2022-07-17 12:00:00\t星期日\t12:00-6:30pm\tactive\n30003\t2022-07-24 12:00:00\t星期日\t12:00-6:30pm\tactive\n30004\t2022-07-31 12:00:00\t星期日\t12:00-6:30pm\tactive\n30005\t2022-08-07 12:00:00\t星期日\t12:00-6:30pm\tactive\n",
+  "stderr": "",
+  "execution_time_ms": 2385
+}

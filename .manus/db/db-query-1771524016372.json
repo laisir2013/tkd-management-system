@@ -1,0 +1,31 @@
+{
+  "query": "SELECT TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME \nFROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE \nWHERE REFERENCED_TABLE_NAME = 'students' \nAND TABLE_SCHEMA = DATABASE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME \nFROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE \nWHERE REFERENCED_TABLE_NAME = 'students' \nAND TABLE_SCHEMA = DATABASE();",
+  "rows": [
+    {
+      "TABLE_NAME": "attendance_records",
+      "COLUMN_NAME": "student_id",
+      "CONSTRAINT_NAME": "attendance_records_student_id_students_id_fk",
+      "REFERENCED_TABLE_NAME": "students",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "student_belt_history",
+      "COLUMN_NAME": "student_id",
+      "CONSTRAINT_NAME": "student_belt_history_student_id_students_id_fk",
+      "REFERENCED_TABLE_NAME": "students",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "payment_reminders",
+      "COLUMN_NAME": "student_id",
+      "CONSTRAINT_NAME": "payment_reminders_student_id_students_id_fk",
+      "REFERENCED_TABLE_NAME": "students",
+      "REFERENCED_COLUMN_NAME": "id"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\tCOLUMN_NAME\tCONSTRAINT_NAME\tREFERENCED_TABLE_NAME\tREFERENCED_COLUMN_NAME\nattendance_records\tstudent_id\tattendance_records_student_id_students_id_fk\tstudents\tid\nstudent_belt_history\tstudent_id\tstudent_belt_history_student_id_students_id_fk\tstudents\tid\npayment_reminders\tstudent_id\tpayment_reminders_student_id_students_id_fk\tstudents\tid\n",
+  "stderr": "",
+  "execution_time_ms": 1558
+}

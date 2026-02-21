@@ -1,0 +1,1 @@
+ALTER TABLE `paymentRecords` ADD `receiptTransferDate` timestamp;

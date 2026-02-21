@@ -1,0 +1,70 @@
+{
+  "query": "SELECT name, join_date FROM elite_students WHERE join_date IS NOT NULL ORDER BY join_date LIMIT 15;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT name, join_date FROM elite_students WHERE join_date IS NOT NULL ORDER BY join_date LIMIT 15;",
+  "rows": [
+    {
+      "name": "侯兆洪",
+      "join_date": "2022-07-10 00:00:00"
+    },
+    {
+      "name": "蘇柏霖",
+      "join_date": "2022-07-10 00:00:00"
+    },
+    {
+      "name": "劉宇政",
+      "join_date": "2022-07-10 00:00:00"
+    },
+    {
+      "name": "梁熙朗",
+      "join_date": "2022-07-10 00:00:00"
+    },
+    {
+      "name": "陳臻軒",
+      "join_date": "2022-07-10 00:00:00"
+    },
+    {
+      "name": "陳雪瑩",
+      "join_date": "2022-07-10 00:00:00"
+    },
+    {
+      "name": "許雋昇",
+      "join_date": "2022-07-10 00:00:00"
+    },
+    {
+      "name": "余學然",
+      "join_date": "2022-07-10 00:00:00"
+    },
+    {
+      "name": "江柏僑",
+      "join_date": "2022-07-10 00:00:00"
+    },
+    {
+      "name": "劉燊政",
+      "join_date": "2022-07-10 00:00:00"
+    },
+    {
+      "name": "江哲男",
+      "join_date": "2023-10-15 00:00:00"
+    },
+    {
+      "name": "蔡御霆",
+      "join_date": "2023-12-03 00:00:00"
+    },
+    {
+      "name": "李梓皓",
+      "join_date": "2024-03-17 00:00:00"
+    },
+    {
+      "name": "賴柏希",
+      "join_date": "2024-03-24 00:00:00"
+    },
+    {
+      "name": "黃頌琛",
+      "join_date": "2024-04-07 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tjoin_date\n侯兆洪\t2022-07-10 00:00:00\n蘇柏霖\t2022-07-10 00:00:00\n劉宇政\t2022-07-10 00:00:00\n梁熙朗\t2022-07-10 00:00:00\n陳臻軒\t2022-07-10 00:00:00\n陳雪瑩\t2022-07-10 00:00:00\n許雋昇\t2022-07-10 00:00:00\n余學然\t2022-07-10 00:00:00\n江柏僑\t2022-07-10 00:00:00\n劉燊政\t2022-07-10 00:00:00\n江哲男\t2023-10-15 00:00:00\n蔡御霆\t2023-12-03 00:00:00\n李梓皓\t2024-03-17 00:00:00\n賴柏希\t2024-03-24 00:00:00\n黃頌琛\t2024-04-07 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 1504
+}

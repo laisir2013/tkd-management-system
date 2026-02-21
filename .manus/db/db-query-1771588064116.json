@@ -1,0 +1,340 @@
+{
+  "query": "SELECT es.id, es.name, es.phone as elite_phone, s.phone as regular_phone \nFROM elite_students es \nLEFT JOIN students s ON es.name = s.name \nWHERE es.phone = '' OR es.phone = '0' OR es.phone IS NULL\nORDER BY es.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT es.id, es.name, es.phone as elite_phone, s.phone as regular_phone \nFROM elite_students es \nLEFT JOIN students s ON es.name = s.name \nWHERE es.phone = '' OR es.phone = '0' OR es.phone IS NULL\nORDER BY es.id;",
+  "rows": [
+    {
+      "id": "23",
+      "name": "賴柏希",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "24",
+      "name": "林諾天",
+      "elite_phone": "",
+      "regular_phone": "97291797"
+    },
+    {
+      "id": "25",
+      "name": "徐志杰",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "26",
+      "name": "李弘正",
+      "elite_phone": "",
+      "regular_phone": "98350858"
+    },
+    {
+      "id": "27",
+      "name": "蔡御霆",
+      "elite_phone": "",
+      "regular_phone": "97478091"
+    },
+    {
+      "id": "28",
+      "name": "黃頌琛",
+      "elite_phone": "",
+      "regular_phone": "98597310"
+    },
+    {
+      "id": "29",
+      "name": "葉晧晴",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "30",
+      "name": "Luna Petralia",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "31",
+      "name": "鄒曉澄",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "32",
+      "name": "鄒詩雅",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "33",
+      "name": "袁穗晴",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "34",
+      "name": "袁逸朗",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "35",
+      "name": "江哲男",
+      "elite_phone": "",
+      "regular_phone": "61214704"
+    },
+    {
+      "id": "36",
+      "name": "王浩宇",
+      "elite_phone": "",
+      "regular_phone": "92507585"
+    },
+    {
+      "id": "37",
+      "name": "吳傲天",
+      "elite_phone": "",
+      "regular_phone": "93537253"
+    },
+    {
+      "id": "38",
+      "name": "陳梓軒",
+      "elite_phone": "",
+      "regular_phone": "61521528"
+    },
+    {
+      "id": "39",
+      "name": "黃銘軒",
+      "elite_phone": "",
+      "regular_phone": "91392077"
+    },
+    {
+      "id": "40",
+      "name": "朱棋楓",
+      "elite_phone": "",
+      "regular_phone": "62238604"
+    },
+    {
+      "id": "41",
+      "name": "丁子聰",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "42",
+      "name": "楊廷諄",
+      "elite_phone": "",
+      "regular_phone": "92760188"
+    },
+    {
+      "id": "43",
+      "name": "譚子鋭",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "44",
+      "name": "王嘉楷",
+      "elite_phone": "",
+      "regular_phone": "53822755"
+    },
+    {
+      "id": "45",
+      "name": "楊猷宸",
+      "elite_phone": "",
+      "regular_phone": "96849267"
+    },
+    {
+      "id": "46",
+      "name": "周泓謙",
+      "elite_phone": "",
+      "regular_phone": "64849229"
+    },
+    {
+      "id": "60001",
+      "name": "Enzo",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60002",
+      "name": "余學然",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60003",
+      "name": "侯兆洪",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60004",
+      "name": "劉宇政",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60005",
+      "name": "劉燊政",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60006",
+      "name": "吳卓謙",
+      "elite_phone": "",
+      "regular_phone": "63521866"
+    },
+    {
+      "id": "60007",
+      "name": "周泳謝",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60008",
+      "name": "林文傑",
+      "elite_phone": "",
+      "regular_phone": "91234338"
+    },
+    {
+      "id": "60009",
+      "name": "林明慧",
+      "elite_phone": "",
+      "regular_phone": "91234338"
+    },
+    {
+      "id": "60010",
+      "name": "林煒堯",
+      "elite_phone": "",
+      "regular_phone": "93498497"
+    },
+    {
+      "id": "60011",
+      "name": "林頴萳",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60012",
+      "name": "梁熙朗",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60013",
+      "name": "梁珀豪",
+      "elite_phone": "",
+      "regular_phone": "96613148"
+    },
+    {
+      "id": "60014",
+      "name": "江柏僑",
+      "elite_phone": "",
+      "regular_phone": "60686558"
+    },
+    {
+      "id": "60015",
+      "name": "洪卓斐",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60016",
+      "name": "簡頌曦",
+      "elite_phone": "",
+      "regular_phone": "98356407"
+    },
+    {
+      "id": "60017",
+      "name": "葉明恩",
+      "elite_phone": "",
+      "regular_phone": "95107971"
+    },
+    {
+      "id": "60018",
+      "name": "蘇柏霖",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60019",
+      "name": "袁梓睡",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60020",
+      "name": "許雋昇",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60021",
+      "name": "譚子鋐",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60022",
+      "name": "鄧浚濵",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60023",
+      "name": "陳孝謙",
+      "elite_phone": "",
+      "regular_phone": "60777261"
+    },
+    {
+      "id": "60024",
+      "name": "陳景韜",
+      "elite_phone": "",
+      "regular_phone": "90965636"
+    },
+    {
+      "id": "60025",
+      "name": "陳雪瑩",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60026",
+      "name": "麥晉維",
+      "elite_phone": "",
+      "regular_phone": "96799633"
+    },
+    {
+      "id": "60027",
+      "name": "黃曜軯",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60028",
+      "name": "黃柏熙",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60029",
+      "name": "黃銀軯",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60030",
+      "name": "黃璑霜",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    },
+    {
+      "id": "60031",
+      "name": "黄顧頕",
+      "elite_phone": "",
+      "regular_phone": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\telite_phone\tregular_phone\n23\t賴柏希\t\tNULL\n24\t林諾天\t\t97291797\n25\t徐志杰\t\tNULL\n26\t李弘正\t\t98350858\n27\t蔡御霆\t\t97478091\n28\t黃頌琛\t\t98597310\n29\t葉晧晴\t\tNULL\n30\tLuna Petralia\t\tNULL\n31\t鄒曉澄\t\tNULL\n32\t鄒詩雅\t\tNULL\n33\t袁穗晴\t\tNULL\n34\t袁逸朗\t\tNULL\n35\t江哲男\t\t61214704\n36\t王浩宇\t\t92507585\n37\t吳傲天\t\t93537253\n38\t陳梓軒\t\t61521528\n39\t黃銘軒\t\t91392077\n40\t朱棋楓\t\t62238604\n41\t丁子聰\t\tNULL\n42\t楊廷諄\t\t92760188\n43\t譚子鋭\t\tNULL\n44\t王嘉楷\t\t53822755\n45\t楊猷宸\t\t96849267\n46\t周泓謙\t\t64849229\n60001\tEnzo\t\tNULL\n60002\t余學然\t\tNULL\n60003\t侯兆洪\t\tNULL\n60004\t劉宇政\t\tNULL\n60005\t劉燊政\t\tNULL\n60006\t吳卓謙\t\t63521866\n60007\t周泳謝\t\tNULL\n60008\t林文傑\t\t91234338\n60009\t林明慧\t\t91234338\n60010\t林煒堯\t\t93498497\n60011\t林頴萳\t\tNULL\n60012\t梁熙朗\t\tNULL\n60013\t梁珀豪\t\t96613148\n60014\t江柏僑\t\t60686558\n60015\t洪卓斐\t\tNULL\n60016\t簡頌曦\t\t98356407\n60017\t葉明恩\t\t95107971\n60018\t蘇柏霖\t\tNULL\n60019\t袁梓睡\t\tNULL\n60020\t許雋昇\t\tNULL\n60021\t譚子鋐\t\tNULL\n60022\t鄧浚濵\t\tNULL\n60023\t陳孝謙\t\t60777261\n60024\t陳景韜\t\t90965636\n60025\t陳雪瑩\t\tNULL\n60026\t麥晉維\t\t96799633\n60027\t黃曜軯\t\tNULL\n60028\t黃柏熙\t\tNULL\n60029\t黃銀軯\t\tNULL\n60030\t黃璑霜\t\tNULL\n60031\t黄顧頕\t\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1499
+}

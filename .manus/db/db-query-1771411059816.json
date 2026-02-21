@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE students \nSET name = '鄧浚豪' \nWHERE name = '鄧浚濵' AND venue = '精英班道場';\n\nUPDATE students \nSET name = '黃曜軒' \nWHERE name = '黃曜軯' AND venue = '精英班道場';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute UPDATE students \nSET name = '鄧浚豪' \nWHERE name = '鄧浚濵' AND venue = '精英班道場';\n\nUPDATE students \nSET name = '黃曜軒' \nWHERE name = '黃曜軯' AND venue = '精英班道場';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1884
+}

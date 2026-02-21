@@ -1,0 +1,17 @@
+{
+  "query": "SELECT \n  total_students,\n  has_phone,\n  no_phone,\n  has_password,\n  no_password\nFROM (\n  SELECT \n    COUNT(*) as total_students,\n    SUM(CASE WHEN phone IS NOT NULL AND phone != '' THEN 1 ELSE 0 END) as has_phone,\n    SUM(CASE WHEN phone IS NULL OR phone = '' THEN 1 ELSE 0 END) as no_phone,\n    SUM(CASE WHEN password IS NOT NULL THEN 1 ELSE 0 END) as has_password,\n    SUM(CASE WHEN password IS NULL THEN 1 ELSE 0 END) as no_password\n  FROM students\n) t;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  total_students,\n  has_phone,\n  no_phone,\n  has_password,\n  no_password\nFROM (\n  SELECT \n    COUNT(*) as total_students,\n    SUM(CASE WHEN phone IS NOT NULL AND phone != '' THEN 1 ELSE 0 END) as has_phone,\n    SUM(CASE WHEN phone IS NULL OR phone = '' THEN 1 ELSE 0 END) as no_phone,\n    SUM(CASE WHEN password IS NOT NULL THEN 1 ELSE 0 END) as has_password,\n    SUM(CASE WHEN password IS NULL THEN 1 ELSE 0 END) as no_password\n  FROM students\n) t;",
+  "rows": [
+    {
+      "total_students": "106",
+      "has_phone": "106",
+      "no_phone": "0",
+      "has_password": "103",
+      "no_password": "3"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_students\thas_phone\tno_phone\thas_password\tno_password\n106\t106\t0\t103\t3\n",
+  "stderr": "",
+  "execution_time_ms": 1600
+}

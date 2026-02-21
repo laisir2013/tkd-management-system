@@ -1,0 +1,15 @@
+{
+  "query": "SELECT \n  c.name as coach_name,\n  COUNT(s.id) as student_count,\n  SUM(CAST(s.feePerQuarter AS DECIMAL(10,2))) as total_fee\nFROM students s\nLEFT JOIN coaches c ON s.coach_id = c.id\nGROUP BY c.name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  c.name as coach_name,\n  COUNT(s.id) as student_count,\n  SUM(CAST(s.feePerQuarter AS DECIMAL(10,2))) as total_fee\nFROM students s\nLEFT JOIN coaches c ON s.coach_id = c.id\nGROUP BY c.name;",
+  "rows": [
+    {
+      "coach_name": "NULL",
+      "student_count": "172",
+      "total_fee": "344520.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "coach_name\tstudent_count\ttotal_fee\nNULL\t172\t344520.00\n",
+  "stderr": "",
+  "execution_time_ms": 1566
+}

@@ -1,0 +1,9 @@
+{
+  "query": "\n-- 先刪除出席記錄\nDELETE FROM attendance_records WHERE student_id IN (150105, 150107, 150109);\n-- 刪除繳費記錄\nDELETE FROM paymentRecords WHERE studentId IN (150105, 150107, 150109);\n-- 刪除繳費提醒\nDELETE FROM payment_reminders WHERE student_id IN (150105, 150107, 150109);\n-- 刪除帶級歷史\nDELETE FROM student_belt_history WHERE student_id IN (150105, 150107, 150109);\n-- 最後刪除學生記錄\nDELETE FROM students WHERE id IN (150105, 150107, 150109);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute \n-- 先刪除出席記錄\nDELETE FROM attendance_records WHERE student_id IN (150105, 150107, 150109);\n-- 刪除繳費記錄\nDELETE FROM paymentRecords WHERE studentId IN (150105, 150107, 150109);\n-- 刪除繳費提醒\nDELETE FROM payment_reminders WHERE student_id IN (150105, 150107, 150109);\n-- 刪除帶級歷史\nDELETE FROM student_belt_history WHERE student_id IN (150105, 150107, 150109);\n-- 最後刪除學生記錄\nDELETE FROM students WHERE id IN (150105, 150107, 150109);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2546
+}

@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM training_schedules WHERE \n  (schedule_day = 'Sunday' AND DAYOFWEEK(training_date) != 1) OR\n  (schedule_day = 'Monday' AND DAYOFWEEK(training_date) != 2) OR\n  (schedule_day = 'Tuesday' AND DAYOFWEEK(training_date) != 3) OR\n  (schedule_day = 'Wednesday' AND DAYOFWEEK(training_date) != 4) OR\n  (schedule_day = 'Thursday' AND DAYOFWEEK(training_date) != 5) OR\n  (schedule_day = 'Friday' AND DAYOFWEEK(training_date) != 6) OR\n  (schedule_day = 'Saturday' AND DAYOFWEEK(training_date) != 7);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute DELETE FROM training_schedules WHERE \n  (schedule_day = 'Sunday' AND DAYOFWEEK(training_date) != 1) OR\n  (schedule_day = 'Monday' AND DAYOFWEEK(training_date) != 2) OR\n  (schedule_day = 'Tuesday' AND DAYOFWEEK(training_date) != 3) OR\n  (schedule_day = 'Wednesday' AND DAYOFWEEK(training_date) != 4) OR\n  (schedule_day = 'Thursday' AND DAYOFWEEK(training_date) != 5) OR\n  (schedule_day = 'Friday' AND DAYOFWEEK(training_date) != 6) OR\n  (schedule_day = 'Saturday' AND DAYOFWEEK(training_date) != 7);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1523
+}

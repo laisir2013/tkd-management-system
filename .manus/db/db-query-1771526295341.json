@@ -1,0 +1,94 @@
+{
+  "query": "SELECT MONTH(training_date) as month, YEAR(training_date) as year, COUNT(*) as count, MIN(CAST(training_date AS CHAR)) as first_date, MAX(CAST(training_date AS CHAR)) as last_date FROM training_schedules GROUP BY YEAR(training_date), MONTH(training_date) ORDER BY year, month",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT MONTH(training_date) as month, YEAR(training_date) as year, COUNT(*) as count, MIN(CAST(training_date AS CHAR)) as first_date, MAX(CAST(training_date AS CHAR)) as last_date FROM training_schedules GROUP BY YEAR(training_date), MONTH(training_date) ORDER BY year, month",
+  "rows": [
+    {
+      "month": "1",
+      "year": "2026",
+      "count": "124",
+      "first_date": "2026-01-01 00:00:00",
+      "last_date": "2026-01-31 05:00:00"
+    },
+    {
+      "month": "2",
+      "year": "2026",
+      "count": "1706",
+      "first_date": "2026-02-01 05:00:00",
+      "last_date": "2026-02-28 00:00:00"
+    },
+    {
+      "month": "3",
+      "year": "2026",
+      "count": "63",
+      "first_date": "2026-03-01 00:00:00",
+      "last_date": "2026-03-30 00:00:00"
+    },
+    {
+      "month": "4",
+      "year": "2026",
+      "count": "55",
+      "first_date": "2026-04-01 00:00:00",
+      "last_date": "2026-04-30 00:00:00"
+    },
+    {
+      "month": "5",
+      "year": "2026",
+      "count": "58",
+      "first_date": "2026-05-01 00:00:00",
+      "last_date": "2026-05-31 00:00:00"
+    },
+    {
+      "month": "6",
+      "year": "2026",
+      "count": "56",
+      "first_date": "2026-06-01 00:00:00",
+      "last_date": "2026-06-30 00:00:00"
+    },
+    {
+      "month": "7",
+      "year": "2026",
+      "count": "56",
+      "first_date": "2026-07-01 00:00:00",
+      "last_date": "2026-07-31 00:00:00"
+    },
+    {
+      "month": "8",
+      "year": "2026",
+      "count": "60",
+      "first_date": "2026-08-01 00:00:00",
+      "last_date": "2026-08-31 00:00:00"
+    },
+    {
+      "month": "9",
+      "year": "2026",
+      "count": "55",
+      "first_date": "2026-09-01 00:00:00",
+      "last_date": "2026-09-30 00:00:00"
+    },
+    {
+      "month": "10",
+      "year": "2026",
+      "count": "56",
+      "first_date": "2026-10-01 00:00:00",
+      "last_date": "2026-10-31 00:00:00"
+    },
+    {
+      "month": "11",
+      "year": "2026",
+      "count": "58",
+      "first_date": "2026-11-01 00:00:00",
+      "last_date": "2026-11-30 00:00:00"
+    },
+    {
+      "month": "12",
+      "year": "2026",
+      "count": "56",
+      "first_date": "2026-12-01 00:00:00",
+      "last_date": "2026-12-31 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "month\tyear\tcount\tfirst_date\tlast_date\n1\t2026\t124\t2026-01-01 00:00:00\t2026-01-31 05:00:00\n2\t2026\t1706\t2026-02-01 05:00:00\t2026-02-28 00:00:00\n3\t2026\t63\t2026-03-01 00:00:00\t2026-03-30 00:00:00\n4\t2026\t55\t2026-04-01 00:00:00\t2026-04-30 00:00:00\n5\t2026\t58\t2026-05-01 00:00:00\t2026-05-31 00:00:00\n6\t2026\t56\t2026-06-01 00:00:00\t2026-06-30 00:00:00\n7\t2026\t56\t2026-07-01 00:00:00\t2026-07-31 00:00:00\n8\t2026\t60\t2026-08-01 00:00:00\t2026-08-31 00:00:00\n9\t2026\t55\t2026-09-01 00:00:00\t2026-09-30 00:00:00\n10\t2026\t56\t2026-10-01 00:00:00\t2026-10-31 00:00:00\n11\t2026\t58\t2026-11-01 00:00:00\t2026-11-30 00:00:00\n12\t2026\t56\t2026-12-01 00:00:00\t2026-12-31 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 1525
+}

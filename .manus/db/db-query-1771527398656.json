@@ -1,0 +1,31 @@
+{
+  "query": "SELECT COUNT(*) as total FROM students; SELECT id, name, phone, venue, scheduleDay, scheduleTime, feePerQuarter FROM students LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(*) as total FROM students; SELECT id, name, phone, venue, scheduleDay, scheduleTime, feePerQuarter FROM students LIMIT 5",
+  "rows": [
+    {
+      "total": "105"
+    },
+    {
+      "total": "id\tname\tphone\tvenue\tscheduleDay\tscheduleTime\tfeePerQuarter"
+    },
+    {
+      "total": "150001\t李泳霖\t90971420\t寶林道場\t星期一\t4:00-5:00pm\t1800.00"
+    },
+    {
+      "total": "150002\t黃天愉\t92756760\t寶林道場\t星期一\t4:00-5:00pm\t1800.00"
+    },
+    {
+      "total": "150003\t郭俊康\t67351169\t寶林道場\t星期一\t4:00-5:00pm\t1800.00"
+    },
+    {
+      "total": "150004\t韓灝南\t62556224\t寶林道場\t星期一\t4:00-5:00pm\t1800.00"
+    },
+    {
+      "total": "150005\t龐兆羽\t96224749\t寶林道場\t星期一\t4:00-5:00pm\t1800.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\n105\nid\tname\tphone\tvenue\tscheduleDay\tscheduleTime\tfeePerQuarter\n150001\t李泳霖\t90971420\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\n150002\t黃天愉\t92756760\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\n150003\t郭俊康\t67351169\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\n150004\t韓灝南\t62556224\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\n150005\t龐兆羽\t96224749\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\n",
+  "stderr": "",
+  "execution_time_ms": 1746
+}

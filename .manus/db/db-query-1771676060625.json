@@ -1,0 +1,110 @@
+{
+  "query": "SELECT * FROM elite_schedules ORDER BY training_date LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT * FROM elite_schedules ORDER BY training_date LIMIT 10;",
+  "rows": [
+    {
+      "id": "30001",
+      "training_date": "2022-07-10 12:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "status": "active",
+      "notes": "第1堂",
+      "created_at": "2026-02-20 10:14:45",
+      "updated_at": "2026-02-20 10:14:45"
+    },
+    {
+      "id": "30002",
+      "training_date": "2022-07-17 12:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "status": "active",
+      "notes": "第2堂",
+      "created_at": "2026-02-20 10:14:45",
+      "updated_at": "2026-02-20 10:14:45"
+    },
+    {
+      "id": "30003",
+      "training_date": "2022-07-24 12:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "status": "active",
+      "notes": "第3堂",
+      "created_at": "2026-02-20 10:14:45",
+      "updated_at": "2026-02-20 10:14:45"
+    },
+    {
+      "id": "30004",
+      "training_date": "2022-07-31 12:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "status": "active",
+      "notes": "第4堂",
+      "created_at": "2026-02-20 10:14:45",
+      "updated_at": "2026-02-20 10:14:45"
+    },
+    {
+      "id": "30005",
+      "training_date": "2022-08-07 12:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "status": "active",
+      "notes": "第5堂",
+      "created_at": "2026-02-20 10:14:45",
+      "updated_at": "2026-02-20 10:14:45"
+    },
+    {
+      "id": "30006",
+      "training_date": "2022-08-14 12:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "status": "active",
+      "notes": "第6堂",
+      "created_at": "2026-02-20 10:14:45",
+      "updated_at": "2026-02-20 10:14:45"
+    },
+    {
+      "id": "30007",
+      "training_date": "2022-08-28 12:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "status": "active",
+      "notes": "第7堂",
+      "created_at": "2026-02-20 10:14:45",
+      "updated_at": "2026-02-20 10:14:45"
+    },
+    {
+      "id": "30008",
+      "training_date": "2022-09-04 12:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "status": "active",
+      "notes": "第8堂",
+      "created_at": "2026-02-20 10:14:45",
+      "updated_at": "2026-02-20 10:14:45"
+    },
+    {
+      "id": "30009",
+      "training_date": "2022-09-11 12:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "status": "active",
+      "notes": "第9堂",
+      "created_at": "2026-02-20 10:14:45",
+      "updated_at": "2026-02-20 10:14:45"
+    },
+    {
+      "id": "30010",
+      "training_date": "2022-09-18 12:00:00",
+      "schedule_day": "星期日",
+      "schedule_time": "12:00-6:30pm",
+      "status": "active",
+      "notes": "第10堂",
+      "created_at": "2026-02-20 10:14:45",
+      "updated_at": "2026-02-20 10:14:45"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttraining_date\tschedule_day\tschedule_time\tstatus\tnotes\tcreated_at\tupdated_at\n30001\t2022-07-10 12:00:00\t星期日\t12:00-6:30pm\tactive\t第1堂\t2026-02-20 10:14:45\t2026-02-20 10:14:45\n30002\t2022-07-17 12:00:00\t星期日\t12:00-6:30pm\tactive\t第2堂\t2026-02-20 10:14:45\t2026-02-20 10:14:45\n30003\t2022-07-24 12:00:00\t星期日\t12:00-6:30pm\tactive\t第3堂\t2026-02-20 10:14:45\t2026-02-20 10:14:45\n30004\t2022-07-31 12:00:00\t星期日\t12:00-6:30pm\tactive\t第4堂\t2026-02-20 10:14:45\t2026-02-20 10:14:45\n30005\t2022-08-07 12:00:00\t星期日\t12:00-6:30pm\tactive\t第5堂\t2026-02-20 10:14:45\t2026-02-20 10:14:45\n30006\t2022-08-14 12:00:00\t星期日\t12:00-6:30pm\tactive\t第6堂\t2026-02-20 10:14:45\t2026-02-20 10:14:45\n30007\t2022-08-28 12:00:00\t星期日\t12:00-6:30pm\tactive\t第7堂\t2026-02-20 10:14:45\t2026-02-20 10:14:45\n30008\t2022-09-04 12:00:00\t星期日\t12:00-6:30pm\tactive\t第8堂\t2026-02-20 10:14:45\t2026-02-20 10:14:45\n30009\t2022-09-11 12:00:00\t星期日\t12:00-6:30pm\tactive\t第9堂\t2026-02-20 10:14:45\t2026-02-20 10:14:45\n30010\t2022-09-18 12:00:00\t星期日\t12:00-6:30pm\tactive\t第10堂\t2026-02-20 10:14:45\t2026-02-20 10:14:45\n",
+  "stderr": "",
+  "execution_time_ms": 1626
+}

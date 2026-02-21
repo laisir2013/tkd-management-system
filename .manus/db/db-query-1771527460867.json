@@ -1,0 +1,14 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CAST(amount AS DECIMAL(10,2))) as total_amount FROM paymentRecords WHERE year = 2026 AND paymentPeriod = 'Q1' AND status = 'confirmed'",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(*) as total, SUM(CAST(amount AS DECIMAL(10,2))) as total_amount FROM paymentRecords WHERE year = 2026 AND paymentPeriod = 'Q1' AND status = 'confirmed'",
+  "rows": [
+    {
+      "total": "73",
+      "total_amount": "126720.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\ttotal_amount\n73\t126720.00\n",
+  "stderr": "",
+  "execution_time_ms": 1590
+}

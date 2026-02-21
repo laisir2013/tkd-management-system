@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM training_schedules WHERE \n  (schedule_day = '星期日' AND DAYNAME(training_date) != 'Sunday') OR\n  (schedule_day = '星期一' AND DAYNAME(training_date) != 'Monday') OR\n  (schedule_day = '星期二' AND DAYNAME(training_date) != 'Tuesday') OR\n  (schedule_day = '星期三' AND DAYNAME(training_date) != 'Wednesday') OR\n  (schedule_day = '星期四' AND DAYNAME(training_date) != 'Thursday') OR\n  (schedule_day = '星期五' AND DAYNAME(training_date) != 'Friday') OR\n  (schedule_day = '星期六' AND DAYNAME(training_date) != 'Saturday');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute DELETE FROM training_schedules WHERE \n  (schedule_day = '星期日' AND DAYNAME(training_date) != 'Sunday') OR\n  (schedule_day = '星期一' AND DAYNAME(training_date) != 'Monday') OR\n  (schedule_day = '星期二' AND DAYNAME(training_date) != 'Tuesday') OR\n  (schedule_day = '星期三' AND DAYNAME(training_date) != 'Wednesday') OR\n  (schedule_day = '星期四' AND DAYNAME(training_date) != 'Thursday') OR\n  (schedule_day = '星期五' AND DAYNAME(training_date) != 'Friday') OR\n  (schedule_day = '星期六' AND DAYNAME(training_date) != 'Saturday');",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1577
+}

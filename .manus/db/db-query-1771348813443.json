@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM training_schedules\nWHERE id NOT IN (\n  SELECT MIN(id)\n  FROM (SELECT * FROM training_schedules) AS temp\n  GROUP BY venue, schedule_day, schedule_time, DATE(training_date)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute DELETE FROM training_schedules\nWHERE id NOT IN (\n  SELECT MIN(id)\n  FROM (SELECT * FROM training_schedules) AS temp\n  GROUP BY venue, schedule_day, schedule_time, DATE(training_date)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1546
+}

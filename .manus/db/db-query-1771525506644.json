@@ -1,0 +1,38 @@
+{
+  "query": "SELECT DISTINCT scheduleDay, COUNT(*) as cnt FROM students GROUP BY scheduleDay ORDER BY cnt DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT DISTINCT scheduleDay, COUNT(*) as cnt FROM students GROUP BY scheduleDay ORDER BY cnt DESC;",
+  "rows": [
+    {
+      "scheduleDay": "星期日",
+      "cnt": "31"
+    },
+    {
+      "scheduleDay": "星期一",
+      "cnt": "20"
+    },
+    {
+      "scheduleDay": "星期五",
+      "cnt": "18"
+    },
+    {
+      "scheduleDay": "星期三",
+      "cnt": "11"
+    },
+    {
+      "scheduleDay": "星期六",
+      "cnt": "9"
+    },
+    {
+      "scheduleDay": "星期四",
+      "cnt": "8"
+    },
+    {
+      "scheduleDay": "星期二",
+      "cnt": "6"
+    }
+  ],
+  "messages": [],
+  "stdout": "scheduleDay\tcnt\n星期日\t31\n星期一\t20\n星期五\t18\n星期三\t11\n星期六\t9\n星期四\t8\n星期二\t6\n",
+  "stderr": "",
+  "execution_time_ms": 1516
+}

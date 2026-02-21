@@ -1,0 +1,214 @@
+{
+  "query": "SELECT name, phone, birthDate, beltLevel\nFROM students \nWHERE venue = '精英班道場'\nAND (birthDate IS NULL OR beltLevel IS NULL)\nORDER BY name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT name, phone, birthDate, beltLevel\nFROM students \nWHERE venue = '精英班道場'\nAND (birthDate IS NULL OR beltLevel IS NULL)\nORDER BY name;",
+  "rows": [
+    {
+      "name": "Enzo",
+      "phone": "67580607",
+      "birthDate": "NULL",
+      "beltLevel": "黃帶"
+    },
+    {
+      "name": "Luna Petralia",
+      "phone": "67580607",
+      "birthDate": "NULL",
+      "beltLevel": "黑帶"
+    },
+    {
+      "name": "丁子聰",
+      "phone": "丁子聰",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "余學然",
+      "phone": "余學然",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "侯兆洪",
+      "phone": "侯兆洪",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "劉宇政",
+      "phone": "劉宇政",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "劉燊政",
+      "phone": "劉燊政",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "周泳謝",
+      "phone": "周泳謝",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "徐志杰",
+      "phone": "61702662",
+      "birthDate": "NULL",
+      "beltLevel": "藍紅帶"
+    },
+    {
+      "name": "林恩同",
+      "phone": "55792767",
+      "birthDate": "NULL",
+      "beltLevel": "紅黑帶"
+    },
+    {
+      "name": "林頴萳",
+      "phone": "林頴萳",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "梁熙朗",
+      "phone": "梁熙朗",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "楊廷諄",
+      "phone": "92760188",
+      "birthDate": "NULL",
+      "beltLevel": "紅帶"
+    },
+    {
+      "name": "楊惜林",
+      "phone": "90303283",
+      "birthDate": "NULL",
+      "beltLevel": "紅黑帶"
+    },
+    {
+      "name": "楊猷宸",
+      "phone": "楊猷宸",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "洪卓斌",
+      "phone": "93052574",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "王浩宇",
+      "phone": "92507585",
+      "birthDate": "NULL",
+      "beltLevel": "藍紅帶"
+    },
+    {
+      "name": "蘇柏霖",
+      "phone": "蘇柏霖",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "袁梓睡",
+      "phone": "袁梓睡",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "袁穗晴",
+      "phone": "袁穗晴",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "袁逸朗",
+      "phone": "袁逸朗",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "許雋昇",
+      "phone": "許雋昇",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "譚子銳",
+      "phone": "96769072",
+      "birthDate": "NULL",
+      "beltLevel": "藍紅帶"
+    },
+    {
+      "name": "賴柏希",
+      "phone": "62242679",
+      "birthDate": "NULL",
+      "beltLevel": "紅黑帶"
+    },
+    {
+      "name": "鄒曉澄",
+      "phone": "92266599",
+      "birthDate": "NULL",
+      "beltLevel": "黑帶"
+    },
+    {
+      "name": "鄒詩雅",
+      "phone": "92266599",
+      "birthDate": "NULL",
+      "beltLevel": "黑帶"
+    },
+    {
+      "name": "鄧浚豪",
+      "phone": "鄧浚濵",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "鄧穎翹",
+      "phone": "92355055",
+      "birthDate": "NULL",
+      "beltLevel": "藍帶"
+    },
+    {
+      "name": "陳梓軒",
+      "phone": "61521528",
+      "birthDate": "NULL",
+      "beltLevel": "綠藍帶"
+    },
+    {
+      "name": "陳雪瑩",
+      "phone": "陳雪瑩",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "黃柏熙",
+      "phone": "黃柏熙",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "黃璑霜",
+      "phone": "黃璑霜",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "黃銀軯",
+      "phone": "黃銀軯",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    },
+    {
+      "name": "黄顧頕",
+      "phone": "黄顧頕",
+      "birthDate": "NULL",
+      "beltLevel": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tphone\tbirthDate\tbeltLevel\nEnzo\t67580607\tNULL\t黃帶\nLuna Petralia\t67580607\tNULL\t黑帶\n丁子聰\t丁子聰\tNULL\tNULL\n余學然\t余學然\tNULL\tNULL\n侯兆洪\t侯兆洪\tNULL\tNULL\n劉宇政\t劉宇政\tNULL\tNULL\n劉燊政\t劉燊政\tNULL\tNULL\n周泳謝\t周泳謝\tNULL\tNULL\n徐志杰\t61702662\tNULL\t藍紅帶\n林恩同\t55792767\tNULL\t紅黑帶\n林頴萳\t林頴萳\tNULL\tNULL\n梁熙朗\t梁熙朗\tNULL\tNULL\n楊廷諄\t92760188\tNULL\t紅帶\n楊惜林\t90303283\tNULL\t紅黑帶\n楊猷宸\t楊猷宸\tNULL\tNULL\n洪卓斌\t93052574\tNULL\tNULL\n王浩宇\t92507585\tNULL\t藍紅帶\n蘇柏霖\t蘇柏霖\tNULL\tNULL\n袁梓睡\t袁梓睡\tNULL\tNULL\n袁穗晴\t袁穗晴\tNULL\tNULL\n袁逸朗\t袁逸朗\tNULL\tNULL\n許雋昇\t許雋昇\tNULL\tNULL\n譚子銳\t96769072\tNULL\t藍紅帶\n賴柏希\t62242679\tNULL\t紅黑帶\n鄒曉澄\t92266599\tNULL\t黑帶\n鄒詩雅\t92266599\tNULL\t黑帶\n鄧浚豪\t鄧浚濵\tNULL\tNULL\n鄧穎翹\t92355055\tNULL\t藍帶\n陳梓軒\t61521528\tNULL\t綠藍帶\n陳雪瑩\t陳雪瑩\tNULL\tNULL\n黃柏熙\t黃柏熙\tNULL\tNULL\n黃璑霜\t黃璑霜\tNULL\tNULL\n黃銀軯\t黃銀軯\tNULL\tNULL\n黄顧頕\t黄顧頕\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1521
+}

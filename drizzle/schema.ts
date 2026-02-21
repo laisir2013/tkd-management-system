@@ -1,0 +1,316 @@
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json, boolean, date } from "drizzle-orm/mysql-core";
+
+/**
+ * Core user table backing auth flow.
+ */
+export const users = mysqlTable("users", {
+  id: int("id").autoincrement().primaryKey(),
+  openId: varchar("openId", { length: 64 }).notNull().unique(),
+  name: text("name"),
+  email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 20 }), // 電話號碼，用於登入識別
+  password: varchar("password", { length: 255 }), // 密碼(加密後),預設為電話號碼
+  loginMethod: varchar("loginMethod", { length: 64 }),
+  role: mysqlEnum("role", ["user", "admin", "coach"]).default("user").notNull(),
+  coachName: varchar("coach_name", { length: 100 }), // 教練姓名，用於匹配 dojos 表中的 coachName
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+});
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+
+/**
+ * 帶級表 - 跆拳道段位級別
+ */
+export const beltLevels = mysqlTable("belt_levels", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 50 }).notNull(), // 例如：白帶、黃帶、綠帶等
+  color: varchar("color", { length: 20 }).notNull(), // 顏色代碼
+  order: int("order").notNull(), // 排序順序，數字越大級別越高
+  minimumTrainingDays: int("minimum_training_days").notNull().default(90), // 最少訓練天數
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type BeltLevel = typeof beltLevels.$inferSelect;
+export type InsertBeltLevel = typeof beltLevels.$inferInsert;
+
+/**
+ * 道場表
+ */
+export const dojos = mysqlTable("dojos", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  scheduleDay: varchar("schedule_day", { length: 100 }),
+  scheduleTime: varchar("schedule_time", { length: 100 }),
+  coachName: varchar("coach_name", { length: 100 }),
+  color: varchar("color", { length: 50 }).default("#3b82f6"),
+  status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Dojo = typeof dojos.$inferSelect;
+export type InsertDojo = typeof dojos.$inferInsert;
+
+/**
+ * 教練表
+ */
+export const coaches = mysqlTable("coaches", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 20 }),
+  beltLevelId: int("belt_level_id").references(() => beltLevels.id),
+  baseSalary: int("base_salary").notNull().default(0), // 基本薪資（以分為單位）
+  status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  joinDate: timestamp("join_date").defaultNow().notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Coach = typeof coaches.$inferSelect;
+export type InsertCoach = typeof coaches.$inferInsert;
+
+/**
+ * Students table - stores student information
+ * 擴展版本:保留原有欄位,新增完整學生管理所需欄位
+ */
+export const students = mysqlTable("students", {
+  id: int("id").autoincrement().primaryKey(),
+  // 原有欄位
+  name: varchar("name", { length: 100 }).notNull(),
+  birthDate: date("birthDate"), // 保留舊欄位名稱以相容現有資料
+  phone: varchar("phone", { length: 50 }).notNull(),
+  password: varchar("password", { length: 255 }), // 密碼(加密後),預設為電話號碼
+  venue: varchar("venue", { length: 100 }).notNull(), // 保留舊欄位,將來對應到 dojoId
+  scheduleDay: varchar("scheduleDay", { length: 50 }),
+  scheduleTime: varchar("scheduleTime", { length: 50 }),
+  feePerQuarter: decimal("feePerQuarter", { precision: 10, scale: 2 }).notNull(),
+  beltLevel: varchar("beltLevel", { length: 50 }), // 保留舊欄位,將來對應到 currentBeltLevelId
+  // 新增欄位
+  studentNumber: varchar("student_number", { length: 50 }).unique(), // 學號(可選,逐步填入)
+  gender: mysqlEnum("gender", ["male", "female", "other"]), // 性別(可選)
+  email: varchar("email", { length: 320 }),
+  address: text("address"),
+  emergencyContact: varchar("emergency_contact", { length: 100 }),
+  emergencyPhone: varchar("emergency_phone", { length: 20 }),
+  dojoId: int("dojo_id").references(() => dojos.id), // 所屬道場(可選,將來取代 venue)
+  coachId: int("coach_id").references(() => coaches.id), // 所屬教練
+  currentBeltLevelId: int("current_belt_level_id").references(() => beltLevels.id), // 當前帶級(可選,將來取代 beltLevel)
+  status: mysqlEnum("status", ["active", "inactive", "suspended"]).default("active").notNull(),
+  joinDate: timestamp("join_date"), // 加入日期
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Student = typeof students.$inferSelect;
+export type InsertStudent = typeof students.$inferInsert;
+
+/**
+ * 學生帶級歷史表
+ */
+export const studentBeltHistory = mysqlTable("student_belt_history", {
+  id: int("id").autoincrement().primaryKey(),
+  studentId: int("student_id").notNull().references(() => students.id),
+  fromBeltLevelId: int("from_belt_level_id").references(() => beltLevels.id),
+  toBeltLevelId: int("to_belt_level_id").notNull().references(() => beltLevels.id),
+  promotionDate: timestamp("promotion_date").defaultNow().notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type StudentBeltHistory = typeof studentBeltHistory.$inferSelect;
+export type InsertStudentBeltHistory = typeof studentBeltHistory.$inferInsert;
+
+/**
+ * Payment records table - stores payment information
+ * 保持不變,確保現有學費功能正常運作
+ */
+export const paymentRecords = mysqlTable("paymentRecords", {
+  id: int("id").autoincrement().primaryKey(),
+  studentId: int("studentId").notNull(),
+  year: int("year").notNull().default(2026), // 繳費年份，支援多年紀錄
+  paymentPeriod: mysqlEnum("paymentPeriod", ["Q1", "Q2", "Q3", "Q4", "CUSTOM"]).notNull(),
+  customMonths: json("customMonths").$type<string[]>(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  classCount: int("classCount"), // 精英班堂數(每次繳費購買的堂數,恆常班為 null)
+  receiptUrl: text("receiptUrl"),
+  receiptKey: text("receiptKey"),
+  receiptTransferDate: timestamp("receiptTransferDate"),
+  paymentDate: timestamp("paymentDate").notNull(),
+  status: mysqlEnum("status", ["pending", "confirmed"]).default("confirmed").notNull(),
+  confirmedBy: mysqlEnum("confirmedBy", ["parent_upload", "admin_approved"]).default("admin_approved"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PaymentRecord = typeof paymentRecords.$inferSelect;
+export type InsertPaymentRecord = typeof paymentRecords.$inferInsert;
+
+/**
+ * 課程表
+ */
+export const courses = mysqlTable("courses", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  dojoId: int("dojo_id").references(() => dojos.id), // 所屬道場
+  coachId: int("coach_id").references(() => coaches.id),
+  dayOfWeek: mysqlEnum("day_of_week", ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(), // HH:MM 格式
+  endTime: varchar("end_time", { length: 5 }).notNull(),
+  maxStudents: int("max_students").default(20),
+  status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Course = typeof courses.$inferSelect;
+export type InsertCourse = typeof courses.$inferInsert;
+
+/**
+ * 出席記錄表
+ */
+export const attendanceRecords = mysqlTable("attendance_records", {
+  id: int("id").autoincrement().primaryKey(),
+  courseId: int("course_id").notNull().references(() => courses.id),
+  studentId: int("student_id").notNull().references(() => students.id),
+  attendanceDate: timestamp("attendance_date").notNull(),
+  status: mysqlEnum("status", ["present", "absent", "late", "excused"]).default("present").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
+export type InsertAttendanceRecord = typeof attendanceRecords.$inferInsert;
+
+/**
+ * 繳費提醒記錄表 - 記錄每次發送繳費提醒的時間
+ */
+export const paymentReminders = mysqlTable("payment_reminders", {
+  id: int("id").autoincrement().primaryKey(),
+  studentId: int("student_id").notNull().references(() => students.id),
+  remindedAt: timestamp("reminded_at").defaultNow().notNull(),
+  remindedBy: int("reminded_by").notNull().references(() => users.id), // 誰發送的提醒
+  month: int("month").notNull(), // 提醒的月份 (1-12)
+  year: int("year").notNull(), // 提醒的年份
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type PaymentReminder = typeof paymentReminders.$inferSelect;
+export type InsertPaymentReminder = typeof paymentReminders.$inferInsert;
+
+/**
+ * 訓練日期表 - 記錄每個班別的訓練日期
+ * 預設每週都有訓練，但可以手動取消或新增
+ */
+export const trainingSchedules = mysqlTable("training_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  trainingDate: timestamp("training_date").notNull(), // 訓練日期
+  venue: varchar("venue", { length: 100 }).notNull(), // 道場
+  scheduleDay: varchar("schedule_day", { length: 50 }).notNull(), // 星期
+  scheduleTime: varchar("schedule_time", { length: 50 }).notNull(), // 時段
+  status: mysqlEnum("status", ["active", "cancelled"]).default("active").notNull(), // 狀態：活躍/已取消
+  notes: text("notes"), // 備註（例如取消原因）
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TrainingSchedule = typeof trainingSchedules.$inferSelect;
+export type InsertTrainingSchedule = typeof trainingSchedules.$inferInsert;
+
+/**
+ * WhatsApp 訊息範本表
+ */
+export const whatsappTemplates = mysqlTable("whatsapp_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(), // 範本名稱
+  content: text("content").notNull(), // 範本內容，支援變數: {{studentName}}, {{feeAmount}}, {{phone}}, {{systemUrl}}
+  isDefault: boolean("is_default").default(false).notNull(), // 是否為預設範本
+  isActive: boolean("is_active").default(true).notNull(), // 是否啟用
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WhatsappTemplate = typeof whatsappTemplates.$inferSelect;
+export type InsertWhatsappTemplate = typeof whatsappTemplates.$inferInsert;
+
+/**
+ * 精英班學生表 - 獨立於恆常班
+ */
+export const eliteStudents = mysqlTable("elite_students", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  phone: varchar("phone", { length: 50 }).notNull(),
+  password: varchar("password", { length: 255 }), // 密碼(加密後),預設為電話號碼
+  beltLevel: varchar("belt_level", { length: 50 }),
+  scheduleDay: varchar("schedule_day", { length: 50 }), // 訓練日(例如: 星期六)
+  scheduleTime: varchar("schedule_time", { length: 50 }), // 訓練時間(例如: 2:00-4:00pm)
+  feePerClass: decimal("fee_per_class", { precision: 10, scale: 2 }).notNull().default("0"), // 每堂費用
+  remainingClasses: int("remaining_classes").notNull().default(0), // 剩餘堂數
+  status: mysqlEnum("status", ["active", "inactive", "suspended"]).default("active").notNull(),
+  joinDate: timestamp("join_date"), // 加入精英班的日期
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EliteStudent = typeof eliteStudents.$inferSelect;
+export type InsertEliteStudent = typeof eliteStudents.$inferInsert;
+
+/**
+ * 精英班訓練日期表
+ */
+export const eliteTrainingSchedules = mysqlTable("elite_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  trainingDate: timestamp("training_date").notNull(),
+  scheduleDay: varchar("schedule_day", { length: 50 }).notNull(),
+  scheduleTime: varchar("schedule_time", { length: 50 }).notNull(),
+  status: mysqlEnum("status", ["active", "cancelled"]).default("active").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EliteTrainingSchedule = typeof eliteTrainingSchedules.$inferSelect;
+export type InsertEliteTrainingSchedule = typeof eliteTrainingSchedules.$inferInsert;
+
+/**
+ * 精英班出席記錄表
+ */
+export const eliteAttendanceRecords = mysqlTable("elite_attendance", {
+  id: int("id").autoincrement().primaryKey(),
+  scheduleId: int("schedule_id").notNull(),
+  studentId: int("student_id").notNull(),
+  status: mysqlEnum("status", ["present", "absent", "late", "excused"]).default("present").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type EliteAttendanceRecord = typeof eliteAttendanceRecords.$inferSelect;
+export type InsertEliteAttendanceRecord = typeof eliteAttendanceRecords.$inferInsert;
+
+/**
+ * 精英班繳費記錄表 - 以堂計費
+ */
+export const elitePaymentRecords = mysqlTable("elite_payments", {
+  id: int("id").autoincrement().primaryKey(),
+  studentId: int("student_id").notNull().references(() => eliteStudents.id),
+  classCount: int("class_count").notNull(), // 購買堂數
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(), // 繳費金額
+  receiptUrl: text("receipt_url"),
+  receiptKey: text("receipt_key"),
+  paymentDate: timestamp("payment_date").notNull(),
+  confirmedBy: mysqlEnum("confirmed_by", ["parent_upload", "admin_approved"]).default("admin_approved"),
+  status: mysqlEnum("status", ["pending", "confirmed"]).default("confirmed").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ElitePaymentRecord = typeof elitePaymentRecords.$inferSelect;
+export type InsertElitePaymentRecord = typeof elitePaymentRecords.$inferInsert;

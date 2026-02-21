@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COUNT(DISTINCT name) as unique_students FROM students;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(DISTINCT name) as unique_students FROM students;",
+  "rows": [
+    {
+      "unique_students": "132"
+    }
+  ],
+  "messages": [],
+  "stdout": "unique_students\n132\n",
+  "stderr": "",
+  "execution_time_ms": 1520
+}

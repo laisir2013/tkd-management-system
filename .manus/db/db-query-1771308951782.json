@@ -1,0 +1,194 @@
+{
+  "query": "SELECT id, name, venue, scheduleDay, scheduleTime, status FROM students WHERE scheduleDay IN ('星期一', 'Monday') AND status = 'active' LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, venue, scheduleDay, scheduleTime, status FROM students WHERE scheduleDay IN ('星期一', 'Monday') AND status = 'active' LIMIT 30;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "李泳霖",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "2",
+      "name": "黃天愉",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "3",
+      "name": "郭俊康",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "4",
+      "name": "韓灝南",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "5",
+      "name": "龐兆羽",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "6",
+      "name": "陳臻軒",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "7",
+      "name": "劉玥",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "8",
+      "name": "翁喆楠",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "9",
+      "name": "李梓皓",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "10",
+      "name": "麥晉維",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "11",
+      "name": "黃煒庭",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "12",
+      "name": "吳卓謙",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "13",
+      "name": "梁珀豪",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "14",
+      "name": "林奕辰",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "15",
+      "name": "王靖喬",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "16",
+      "name": "李聿朗",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "17",
+      "name": "李星玥",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "18",
+      "name": "陳鏏琋",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "19",
+      "name": "黃卓鏗",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "24",
+      "name": "袁梓睎",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "25",
+      "name": "鄧予喬",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "30002",
+      "name": "測試學生-Upsert",
+      "venue": "測試道場",
+      "scheduleDay": "Monday",
+      "scheduleTime": "18:00-19:00",
+      "status": "active"
+    },
+    {
+      "id": "30003",
+      "name": "測試學生-Upsert",
+      "venue": "測試道場",
+      "scheduleDay": "Monday",
+      "scheduleTime": "18:00-19:00",
+      "status": "active"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tvenue\tscheduleDay\tscheduleTime\tstatus\n1\t李泳霖\t寶林道場\t星期一\t4:00-5:00pm\tactive\n2\t黃天愉\t寶林道場\t星期一\t4:00-5:00pm\tactive\n3\t郭俊康\t寶林道場\t星期一\t4:00-5:00pm\tactive\n4\t韓灝南\t寶林道場\t星期一\t4:00-5:00pm\tactive\n5\t龐兆羽\t寶林道場\t星期一\t4:00-5:00pm\tactive\n6\t陳臻軒\t寶林道場\t星期一\t4:00-5:00pm\tactive\n7\t劉玥\t寶林道場\t星期一\t4:00-5:00pm\tactive\n8\t翁喆楠\t寶林道場\t星期一\t4:00-5:00pm\tactive\n9\t李梓皓\t寶林道場\t星期一\t4:00-5:00pm\tactive\n10\t麥晉維\t寶林道場\t星期一\t4:00-5:00pm\tactive\n11\t黃煒庭\t寶林道場\t星期一\t4:00-5:00pm\tactive\n12\t吳卓謙\t寶林道場\t星期一\t4:00-5:00pm\tactive\n13\t梁珀豪\t寶林道場\t星期一\t4:00-5:00pm\tactive\n14\t林奕辰\t寶林道場\t星期一\t4:00-5:00pm\tactive\n15\t王靖喬\t寶林道場\t星期一\t4:00-5:00pm\tactive\n16\t李聿朗\t寶林道場\t星期一\t4:00-5:00pm\tactive\n17\t李星玥\t寶林道場\t星期一\t4:00-5:00pm\tactive\n18\t陳鏏琋\t寶林道場\t星期一\t4:00-5:00pm\tactive\n19\t黃卓鏗\t寶林道場\t星期一\t4:00-5:00pm\tactive\n24\t袁梓睎\t寶林道場\t星期一\t4:00-5:00pm\tactive\n25\t鄧予喬\t寶林道場\t星期一\t4:00-5:00pm\tactive\n30002\t測試學生-Upsert\t測試道場\tMonday\t18:00-19:00\tactive\n30003\t測試學生-Upsert\t測試道場\tMonday\t18:00-19:00\tactive\n",
+  "stderr": "",
+  "execution_time_ms": 1591
+}

@@ -1,0 +1,50 @@
+{
+  "query": "SELECT id, name, phone, venue, scheduleDay, scheduleTime FROM students LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, phone, venue, scheduleDay, scheduleTime FROM students LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "李泳霖",
+      "phone": "90971420",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm"
+    },
+    {
+      "id": "2",
+      "name": "黃天愉",
+      "phone": "92756760",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm"
+    },
+    {
+      "id": "3",
+      "name": "郭俊康",
+      "phone": "67351169",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm"
+    },
+    {
+      "id": "4",
+      "name": "韓灝南",
+      "phone": "62556224",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm"
+    },
+    {
+      "id": "5",
+      "name": "龐兆羽",
+      "phone": "96224749",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tphone\tvenue\tscheduleDay\tscheduleTime\n1\t李泳霖\t90971420\t寶林道場\t星期一\t4:00-5:00pm\n2\t黃天愉\t92756760\t寶林道場\t星期一\t4:00-5:00pm\n3\t郭俊康\t67351169\t寶林道場\t星期一\t4:00-5:00pm\n4\t韓灝南\t62556224\t寶林道場\t星期一\t4:00-5:00pm\n5\t龐兆羽\t96224749\t寶林道場\t星期一\t4:00-5:00pm\n",
+  "stderr": "",
+  "execution_time_ms": 1520
+}

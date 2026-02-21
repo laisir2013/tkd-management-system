@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, phone, role FROM users WHERE role = 'admin';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, phone, role FROM users WHERE role = 'admin';",
+  "rows": [
+    {
+      "id": "1",
+      "phone": "NULL",
+      "role": "admin"
+    },
+    {
+      "id": "150004",
+      "phone": "94839882",
+      "role": "admin"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tphone\trole\n1\tNULL\tadmin\n150004\t94839882\tadmin\n",
+  "stderr": "",
+  "execution_time_ms": 1652
+}

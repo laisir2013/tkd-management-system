@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM paymentRecords;\nDELETE FROM attendance_records;\nDELETE FROM student_belt_history;\nDELETE FROM payment_reminders;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute DELETE FROM paymentRecords;\nDELETE FROM attendance_records;\nDELETE FROM student_belt_history;\nDELETE FROM payment_reminders;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2201
+}

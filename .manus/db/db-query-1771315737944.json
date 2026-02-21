@@ -1,0 +1,48 @@
+{
+  "query": "SHOW CREATE TABLE students;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SHOW CREATE TABLE students;",
+  "rows": [
+    {
+      "Table": "students",
+      "Create Table": "CREATE TABLE `students` ("
+    }
+  ],
+  "messages": [
+    "  `id` int(11) NOT NULL AUTO_INCREMENT,",
+    "  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,",
+    "  `birthDate` timestamp NULL DEFAULT NULL,",
+    "  `phone` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,",
+    "  `venue` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,",
+    "  `scheduleDay` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  `scheduleTime` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  `feePerQuarter` decimal(10,2) NOT NULL,",
+    "  `beltLevel` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,",
+    "  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,",
+    "  `student_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  `gender` enum('male','female','other') COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  `email` varchar(320) COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  `address` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  `emergency_contact` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  `emergency_phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  `dojo_id` int(11) DEFAULT NULL,",
+    "  `coach_id` int(11) DEFAULT NULL,",
+    "  `current_belt_level_id` int(11) DEFAULT NULL,",
+    "  `status` enum('active','inactive','suspended') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',",
+    "  `join_date` timestamp NULL DEFAULT NULL,",
+    "  `notes` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  `password` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,",
+    "  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,",
+    "  UNIQUE KEY `students_student_number_unique` (`student_number`),",
+    "  KEY `students_dojo_id_dojos_id_fk` (`dojo_id`),",
+    "  KEY `students_coach_id_coaches_id_fk` (`coach_id`),",
+    "  KEY `students_current_belt_level_id_belt_levels_id_fk` (`current_belt_level_id`),",
+    "  CONSTRAINT `students_dojo_id_dojos_id_fk` FOREIGN KEY (`dojo_id`) REFERENCES `RnEVHLtrLZsN3YAG38kNKL`.`dojos` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,",
+    "  CONSTRAINT `students_coach_id_coaches_id_fk` FOREIGN KEY (`coach_id`) REFERENCES `RnEVHLtrLZsN3YAG38kNKL`.`coaches` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,",
+    "  CONSTRAINT `students_current_belt_level_id_belt_levels_id_fk` FOREIGN KEY (`current_belt_level_id`) REFERENCES `RnEVHLtrLZsN3YAG38kNKL`.`belt_levels` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION",
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=90001"
+  ],
+  "stdout": "Table\tCreate Table\nstudents\tCREATE TABLE `students` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `birthDate` timestamp NULL DEFAULT NULL,\n  `phone` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `venue` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `scheduleDay` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `scheduleTime` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `feePerQuarter` decimal(10,2) NOT NULL,\n  `beltLevel` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  `student_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `gender` enum('male','female','other') COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `email` varchar(320) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `address` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `emergency_contact` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `emergency_phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `dojo_id` int(11) DEFAULT NULL,\n  `coach_id` int(11) DEFAULT NULL,\n  `current_belt_level_id` int(11) DEFAULT NULL,\n  `status` enum('active','inactive','suspended') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',\n  `join_date` timestamp NULL DEFAULT NULL,\n  `notes` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `password` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,\n  UNIQUE KEY `students_student_number_unique` (`student_number`),\n  KEY `students_dojo_id_dojos_id_fk` (`dojo_id`),\n  KEY `students_coach_id_coaches_id_fk` (`coach_id`),\n  KEY `students_current_belt_level_id_belt_levels_id_fk` (`current_belt_level_id`),\n  CONSTRAINT `students_dojo_id_dojos_id_fk` FOREIGN KEY (`dojo_id`) REFERENCES `RnEVHLtrLZsN3YAG38kNKL`.`dojos` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,\n  CONSTRAINT `students_coach_id_coaches_id_fk` FOREIGN KEY (`coach_id`) REFERENCES `RnEVHLtrLZsN3YAG38kNKL`.`coaches` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,\n  CONSTRAINT `students_current_belt_level_id_belt_levels_id_fk` FOREIGN KEY (`current_belt_level_id`) REFERENCES `RnEVHLtrLZsN3YAG38kNKL`.`belt_levels` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=90001\n",
+  "stderr": "",
+  "execution_time_ms": 1563
+}

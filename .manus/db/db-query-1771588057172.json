@@ -1,0 +1,285 @@
+{
+  "query": "SELECT id, name, phone FROM elite_students WHERE phone = '' OR phone = '0' OR phone IS NULL ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, phone FROM elite_students WHERE phone = '' OR phone = '0' OR phone IS NULL ORDER BY id;",
+  "rows": [
+    {
+      "id": "23",
+      "name": "賴柏希",
+      "phone": ""
+    },
+    {
+      "id": "24",
+      "name": "林諾天",
+      "phone": ""
+    },
+    {
+      "id": "25",
+      "name": "徐志杰",
+      "phone": ""
+    },
+    {
+      "id": "26",
+      "name": "李弘正",
+      "phone": ""
+    },
+    {
+      "id": "27",
+      "name": "蔡御霆",
+      "phone": ""
+    },
+    {
+      "id": "28",
+      "name": "黃頌琛",
+      "phone": ""
+    },
+    {
+      "id": "29",
+      "name": "葉晧晴",
+      "phone": ""
+    },
+    {
+      "id": "30",
+      "name": "Luna Petralia",
+      "phone": ""
+    },
+    {
+      "id": "31",
+      "name": "鄒曉澄",
+      "phone": ""
+    },
+    {
+      "id": "32",
+      "name": "鄒詩雅",
+      "phone": ""
+    },
+    {
+      "id": "33",
+      "name": "袁穗晴",
+      "phone": ""
+    },
+    {
+      "id": "34",
+      "name": "袁逸朗",
+      "phone": ""
+    },
+    {
+      "id": "35",
+      "name": "江哲男",
+      "phone": ""
+    },
+    {
+      "id": "36",
+      "name": "王浩宇",
+      "phone": ""
+    },
+    {
+      "id": "37",
+      "name": "吳傲天",
+      "phone": ""
+    },
+    {
+      "id": "38",
+      "name": "陳梓軒",
+      "phone": ""
+    },
+    {
+      "id": "39",
+      "name": "黃銘軒",
+      "phone": ""
+    },
+    {
+      "id": "40",
+      "name": "朱棋楓",
+      "phone": ""
+    },
+    {
+      "id": "41",
+      "name": "丁子聰",
+      "phone": ""
+    },
+    {
+      "id": "42",
+      "name": "楊廷諄",
+      "phone": ""
+    },
+    {
+      "id": "43",
+      "name": "譚子鋭",
+      "phone": ""
+    },
+    {
+      "id": "44",
+      "name": "王嘉楷",
+      "phone": ""
+    },
+    {
+      "id": "45",
+      "name": "楊猷宸",
+      "phone": ""
+    },
+    {
+      "id": "46",
+      "name": "周泓謙",
+      "phone": ""
+    },
+    {
+      "id": "60001",
+      "name": "Enzo",
+      "phone": ""
+    },
+    {
+      "id": "60002",
+      "name": "余學然",
+      "phone": ""
+    },
+    {
+      "id": "60003",
+      "name": "侯兆洪",
+      "phone": ""
+    },
+    {
+      "id": "60004",
+      "name": "劉宇政",
+      "phone": ""
+    },
+    {
+      "id": "60005",
+      "name": "劉燊政",
+      "phone": ""
+    },
+    {
+      "id": "60006",
+      "name": "吳卓謙",
+      "phone": ""
+    },
+    {
+      "id": "60007",
+      "name": "周泳謝",
+      "phone": ""
+    },
+    {
+      "id": "60008",
+      "name": "林文傑",
+      "phone": ""
+    },
+    {
+      "id": "60009",
+      "name": "林明慧",
+      "phone": ""
+    },
+    {
+      "id": "60010",
+      "name": "林煒堯",
+      "phone": ""
+    },
+    {
+      "id": "60011",
+      "name": "林頴萳",
+      "phone": ""
+    },
+    {
+      "id": "60012",
+      "name": "梁熙朗",
+      "phone": ""
+    },
+    {
+      "id": "60013",
+      "name": "梁珀豪",
+      "phone": ""
+    },
+    {
+      "id": "60014",
+      "name": "江柏僑",
+      "phone": ""
+    },
+    {
+      "id": "60015",
+      "name": "洪卓斐",
+      "phone": ""
+    },
+    {
+      "id": "60016",
+      "name": "簡頌曦",
+      "phone": ""
+    },
+    {
+      "id": "60017",
+      "name": "葉明恩",
+      "phone": ""
+    },
+    {
+      "id": "60018",
+      "name": "蘇柏霖",
+      "phone": ""
+    },
+    {
+      "id": "60019",
+      "name": "袁梓睡",
+      "phone": ""
+    },
+    {
+      "id": "60020",
+      "name": "許雋昇",
+      "phone": ""
+    },
+    {
+      "id": "60021",
+      "name": "譚子鋐",
+      "phone": ""
+    },
+    {
+      "id": "60022",
+      "name": "鄧浚濵",
+      "phone": ""
+    },
+    {
+      "id": "60023",
+      "name": "陳孝謙",
+      "phone": ""
+    },
+    {
+      "id": "60024",
+      "name": "陳景韜",
+      "phone": ""
+    },
+    {
+      "id": "60025",
+      "name": "陳雪瑩",
+      "phone": ""
+    },
+    {
+      "id": "60026",
+      "name": "麥晉維",
+      "phone": ""
+    },
+    {
+      "id": "60027",
+      "name": "黃曜軯",
+      "phone": ""
+    },
+    {
+      "id": "60028",
+      "name": "黃柏熙",
+      "phone": ""
+    },
+    {
+      "id": "60029",
+      "name": "黃銀軯",
+      "phone": ""
+    },
+    {
+      "id": "60030",
+      "name": "黃璑霜",
+      "phone": ""
+    },
+    {
+      "id": "60031",
+      "name": "黄顧頕",
+      "phone": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tphone\n23\t賴柏希\t\n24\t林諾天\t\n25\t徐志杰\t\n26\t李弘正\t\n27\t蔡御霆\t\n28\t黃頌琛\t\n29\t葉晧晴\t\n30\tLuna Petralia\t\n31\t鄒曉澄\t\n32\t鄒詩雅\t\n33\t袁穗晴\t\n34\t袁逸朗\t\n35\t江哲男\t\n36\t王浩宇\t\n37\t吳傲天\t\n38\t陳梓軒\t\n39\t黃銘軒\t\n40\t朱棋楓\t\n41\t丁子聰\t\n42\t楊廷諄\t\n43\t譚子鋭\t\n44\t王嘉楷\t\n45\t楊猷宸\t\n46\t周泓謙\t\n60001\tEnzo\t\n60002\t余學然\t\n60003\t侯兆洪\t\n60004\t劉宇政\t\n60005\t劉燊政\t\n60006\t吳卓謙\t\n60007\t周泳謝\t\n60008\t林文傑\t\n60009\t林明慧\t\n60010\t林煒堯\t\n60011\t林頴萳\t\n60012\t梁熙朗\t\n60013\t梁珀豪\t\n60014\t江柏僑\t\n60015\t洪卓斐\t\n60016\t簡頌曦\t\n60017\t葉明恩\t\n60018\t蘇柏霖\t\n60019\t袁梓睡\t\n60020\t許雋昇\t\n60021\t譚子鋐\t\n60022\t鄧浚濵\t\n60023\t陳孝謙\t\n60024\t陳景韜\t\n60025\t陳雪瑩\t\n60026\t麥晉維\t\n60027\t黃曜軯\t\n60028\t黃柏熙\t\n60029\t黃銀軯\t\n60030\t黃璑霜\t\n60031\t黄顧頕\t\n",
+  "stderr": "",
+  "execution_time_ms": 1521
+}

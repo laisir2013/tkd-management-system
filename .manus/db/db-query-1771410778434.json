@@ -1,0 +1,250 @@
+{
+  "query": "SELECT s1.name, s1.birthDate, s1.beltLevel, s1.phone\nFROM students s1\nWHERE s1.venue != '精英班道場'\nAND s1.name IN (\n  SELECT name FROM students WHERE venue = '精英班道場'\n)\nORDER BY s1.name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT s1.name, s1.birthDate, s1.beltLevel, s1.phone\nFROM students s1\nWHERE s1.venue != '精英班道場'\nAND s1.name IN (\n  SELECT name FROM students WHERE venue = '精英班道場'\n)\nORDER BY s1.name;",
+  "rows": [
+    {
+      "name": "劉玥",
+      "birthDate": "2019-10-19",
+      "beltLevel": "藍帶",
+      "phone": "65015000"
+    },
+    {
+      "name": "吳傲天",
+      "birthDate": "2018-01-08",
+      "beltLevel": "藍帶",
+      "phone": "93537253"
+    },
+    {
+      "name": "吳卓謙",
+      "birthDate": "2017-11-20",
+      "beltLevel": "綠藍帶",
+      "phone": "90923662"
+    },
+    {
+      "name": "施俊杰",
+      "birthDate": "2021-09-29",
+      "beltLevel": "藍紅帶",
+      "phone": "97339729"
+    },
+    {
+      "name": "曾祉媃",
+      "birthDate": "2016-10-31",
+      "beltLevel": "紅黑帶",
+      "phone": "94498987"
+    },
+    {
+      "name": "朱棋楓",
+      "birthDate": "2017-04-14",
+      "beltLevel": "藍紅帶",
+      "phone": "62238604"
+    },
+    {
+      "name": "李弘正",
+      "birthDate": "2015-06-07",
+      "beltLevel": "紅黑帶",
+      "phone": "98350858"
+    },
+    {
+      "name": "李梓皓",
+      "birthDate": "2017-04-20",
+      "beltLevel": "紅帶",
+      "phone": "92365066"
+    },
+    {
+      "name": "李泳霖",
+      "birthDate": "2019-07-27",
+      "beltLevel": "藍帶",
+      "phone": "90971420"
+    },
+    {
+      "name": "林恩同",
+      "birthDate": "NULL",
+      "beltLevel": "紅黑帶",
+      "phone": "55792767"
+    },
+    {
+      "name": "林慧玲",
+      "birthDate": "2018-09-05",
+      "beltLevel": "藍帶",
+      "phone": "57266698"
+    },
+    {
+      "name": "林文傑",
+      "birthDate": "2018-02-21",
+      "beltLevel": "藍帶",
+      "phone": "91234338"
+    },
+    {
+      "name": "林明慧",
+      "birthDate": "2018-02-21",
+      "beltLevel": "藍紅帶",
+      "phone": "91234338"
+    },
+    {
+      "name": "林煒堯",
+      "birthDate": "2017-07-12",
+      "beltLevel": "綠帶",
+      "phone": "93498497"
+    },
+    {
+      "name": "林諾天",
+      "birthDate": "2013-08-31",
+      "beltLevel": "藍紅帶",
+      "phone": "97291797"
+    },
+    {
+      "name": "梁珀豪",
+      "birthDate": "2017-12-08",
+      "beltLevel": "藍帶",
+      "phone": "96338639"
+    },
+    {
+      "name": "楊廷諄",
+      "birthDate": "NULL",
+      "beltLevel": "紅帶",
+      "phone": "92760188"
+    },
+    {
+      "name": "楊惜林",
+      "birthDate": "NULL",
+      "beltLevel": "紅黑帶",
+      "phone": "90303283"
+    },
+    {
+      "name": "江哲男",
+      "birthDate": "2012-12-18",
+      "beltLevel": "黑帶",
+      "phone": "61214704"
+    },
+    {
+      "name": "江柏僑",
+      "birthDate": "2013-06-20",
+      "beltLevel": "紅黑帶",
+      "phone": "60686558"
+    },
+    {
+      "name": "王嘉楷",
+      "birthDate": "2013-10-08",
+      "beltLevel": "藍紅帶",
+      "phone": "53822755"
+    },
+    {
+      "name": "王浩宇",
+      "birthDate": "NULL",
+      "beltLevel": "藍紅帶",
+      "phone": "92507585"
+    },
+    {
+      "name": "簡頌曦",
+      "birthDate": "2019-10-22",
+      "beltLevel": "綠帶",
+      "phone": "98356407"
+    },
+    {
+      "name": "葉明恩",
+      "birthDate": "2019-12-16",
+      "beltLevel": "綠帶",
+      "phone": "95107971"
+    },
+    {
+      "name": "葉栩靖",
+      "birthDate": "2014-06-01",
+      "beltLevel": "藍紅帶",
+      "phone": "95107971"
+    },
+    {
+      "name": "葉駿輝",
+      "birthDate": "2016-01-15",
+      "beltLevel": "藍紅帶",
+      "phone": "95107971"
+    },
+    {
+      "name": "蔡宏鑫",
+      "birthDate": "2019-12-03",
+      "beltLevel": "藍帶",
+      "phone": "67090499"
+    },
+    {
+      "name": "蔡御霆",
+      "birthDate": "2016-01-21",
+      "beltLevel": "紅帶",
+      "phone": "97478091"
+    },
+    {
+      "name": "郭俊康",
+      "birthDate": "2019-02-07",
+      "beltLevel": "藍帶",
+      "phone": "67351169"
+    },
+    {
+      "name": "鄧穎翹",
+      "birthDate": "NULL",
+      "beltLevel": "藍帶",
+      "phone": "92355055"
+    },
+    {
+      "name": "陳孝謙",
+      "birthDate": "2016-03-03",
+      "beltLevel": "藍帶",
+      "phone": "60777261"
+    },
+    {
+      "name": "陳景韜",
+      "birthDate": "2017-11-20",
+      "beltLevel": "綠藍帶",
+      "phone": "90965636"
+    },
+    {
+      "name": "陳梓軒",
+      "birthDate": "NULL",
+      "beltLevel": "綠藍帶",
+      "phone": "61521528"
+    },
+    {
+      "name": "陳臻軒",
+      "birthDate": "2019-10-24",
+      "beltLevel": "藍帶",
+      "phone": "90192599"
+    },
+    {
+      "name": "韓灝南",
+      "birthDate": "2019-02-17",
+      "beltLevel": "藍紅帶",
+      "phone": "62556224"
+    },
+    {
+      "name": "麥晉維",
+      "birthDate": "2019-07-22",
+      "beltLevel": "綠藍帶",
+      "phone": "96799633"
+    },
+    {
+      "name": "黃天愉",
+      "birthDate": "2018-02-19",
+      "beltLevel": "綠藍帶",
+      "phone": "92756760"
+    },
+    {
+      "name": "黃銘軒",
+      "birthDate": "2013-07-31",
+      "beltLevel": "藍帶",
+      "phone": "91392077"
+    },
+    {
+      "name": "黃頌琛",
+      "birthDate": "2019-01-26",
+      "beltLevel": "紅帶",
+      "phone": "98597310"
+    },
+    {
+      "name": "龐兆羽",
+      "birthDate": "2017-10-18",
+      "beltLevel": "綠藍帶",
+      "phone": "96224749"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tbirthDate\tbeltLevel\tphone\n劉玥\t2019-10-19\t藍帶\t65015000\n吳傲天\t2018-01-08\t藍帶\t93537253\n吳卓謙\t2017-11-20\t綠藍帶\t90923662\n施俊杰\t2021-09-29\t藍紅帶\t97339729\n曾祉媃\t2016-10-31\t紅黑帶\t94498987\n朱棋楓\t2017-04-14\t藍紅帶\t62238604\n李弘正\t2015-06-07\t紅黑帶\t98350858\n李梓皓\t2017-04-20\t紅帶\t92365066\n李泳霖\t2019-07-27\t藍帶\t90971420\n林恩同\tNULL\t紅黑帶\t55792767\n林慧玲\t2018-09-05\t藍帶\t57266698\n林文傑\t2018-02-21\t藍帶\t91234338\n林明慧\t2018-02-21\t藍紅帶\t91234338\n林煒堯\t2017-07-12\t綠帶\t93498497\n林諾天\t2013-08-31\t藍紅帶\t97291797\n梁珀豪\t2017-12-08\t藍帶\t96338639\n楊廷諄\tNULL\t紅帶\t92760188\n楊惜林\tNULL\t紅黑帶\t90303283\n江哲男\t2012-12-18\t黑帶\t61214704\n江柏僑\t2013-06-20\t紅黑帶\t60686558\n王嘉楷\t2013-10-08\t藍紅帶\t53822755\n王浩宇\tNULL\t藍紅帶\t92507585\n簡頌曦\t2019-10-22\t綠帶\t98356407\n葉明恩\t2019-12-16\t綠帶\t95107971\n葉栩靖\t2014-06-01\t藍紅帶\t95107971\n葉駿輝\t2016-01-15\t藍紅帶\t95107971\n蔡宏鑫\t2019-12-03\t藍帶\t67090499\n蔡御霆\t2016-01-21\t紅帶\t97478091\n郭俊康\t2019-02-07\t藍帶\t67351169\n鄧穎翹\tNULL\t藍帶\t92355055\n陳孝謙\t2016-03-03\t藍帶\t60777261\n陳景韜\t2017-11-20\t綠藍帶\t90965636\n陳梓軒\tNULL\t綠藍帶\t61521528\n陳臻軒\t2019-10-24\t藍帶\t90192599\n韓灝南\t2019-02-17\t藍紅帶\t62556224\n麥晉維\t2019-07-22\t綠藍帶\t96799633\n黃天愉\t2018-02-19\t綠藍帶\t92756760\n黃銘軒\t2013-07-31\t藍帶\t91392077\n黃頌琛\t2019-01-26\t紅帶\t98597310\n龐兆羽\t2017-10-18\t綠藍帶\t96224749\n",
+  "stderr": "",
+  "execution_time_ms": 1704
+}

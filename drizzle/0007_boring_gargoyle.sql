@@ -1,0 +1,1 @@
+ALTER TABLE `students` MODIFY COLUMN `birthDate` date;

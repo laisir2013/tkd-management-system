@@ -1,0 +1,16 @@
+{
+  "query": "SELECT COUNT(*) as total_payments, \n       SUM(amount) as total_amount,\n       MIN(paymentDate) as earliest_payment,\n       MAX(paymentDate) as latest_payment\nFROM paymentRecords\nWHERE paymentPeriod = 'Q1' AND YEAR(paymentDate) = 2026;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(*) as total_payments, \n       SUM(amount) as total_amount,\n       MIN(paymentDate) as earliest_payment,\n       MAX(paymentDate) as latest_payment\nFROM paymentRecords\nWHERE paymentPeriod = 'Q1' AND YEAR(paymentDate) = 2026;",
+  "rows": [
+    {
+      "total_payments": "15",
+      "total_amount": "23400.00",
+      "earliest_payment": "2026-01-15 00:00:00",
+      "latest_payment": "2026-02-10 16:43:44"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_payments\ttotal_amount\tearliest_payment\tlatest_payment\n15\t23400.00\t2026-01-15 00:00:00\t2026-02-10 16:43:44\n",
+  "stderr": "",
+  "execution_time_ms": 1604
+}

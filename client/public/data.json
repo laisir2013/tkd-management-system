@@ -1,0 +1,2955 @@
+{
+  "classDates": [
+    {
+      "lesson": 1,
+      "year": 2022,
+      "month": 7,
+      "day": 10,
+      "date": "10/7"
+    },
+    {
+      "lesson": 2,
+      "year": 2022,
+      "month": 7,
+      "day": 17,
+      "date": "17/7"
+    },
+    {
+      "lesson": 3,
+      "year": 2022,
+      "month": 7,
+      "day": 24,
+      "date": "24/7"
+    },
+    {
+      "lesson": 4,
+      "year": 2022,
+      "month": 7,
+      "day": 31,
+      "date": "31/7"
+    },
+    {
+      "lesson": 5,
+      "year": 2022,
+      "month": 8,
+      "day": 7,
+      "date": "7/8"
+    },
+    {
+      "lesson": 6,
+      "year": 2022,
+      "month": 8,
+      "day": 14,
+      "date": "14/8"
+    },
+    {
+      "lesson": 7,
+      "year": 2022,
+      "month": 8,
+      "day": 28,
+      "date": "28/8"
+    },
+    {
+      "lesson": 8,
+      "year": 2022,
+      "month": 9,
+      "day": 4,
+      "date": "4/9"
+    },
+    {
+      "lesson": 9,
+      "year": 2022,
+      "month": 9,
+      "day": 11,
+      "date": "11/9"
+    },
+    {
+      "lesson": 10,
+      "year": 2022,
+      "month": 9,
+      "day": 18,
+      "date": "18/9"
+    },
+    {
+      "lesson": 11,
+      "year": 2022,
+      "month": 9,
+      "day": 25,
+      "date": "25/9"
+    },
+    {
+      "lesson": 12,
+      "year": 2022,
+      "month": 10,
+      "day": 2,
+      "date": "2/10"
+    },
+    {
+      "lesson": 13,
+      "year": 2022,
+      "month": 10,
+      "day": 9,
+      "date": "9/10"
+    },
+    {
+      "lesson": 14,
+      "year": 2022,
+      "month": 10,
+      "day": 16,
+      "date": "16/10"
+    },
+    {
+      "lesson": 15,
+      "year": 2022,
+      "month": 10,
+      "day": 23,
+      "date": "23/10"
+    },
+    {
+      "lesson": 16,
+      "year": 2022,
+      "month": 10,
+      "day": 30,
+      "date": "30/10"
+    },
+    {
+      "lesson": 17,
+      "year": 2022,
+      "month": 11,
+      "day": 6,
+      "date": "6/11"
+    },
+    {
+      "lesson": 18,
+      "year": 2022,
+      "month": 11,
+      "day": 13,
+      "date": "13/11"
+    },
+    {
+      "lesson": 19,
+      "year": 2022,
+      "month": 11,
+      "day": 20,
+      "date": "20/11"
+    },
+    {
+      "lesson": 20,
+      "year": 2022,
+      "month": 11,
+      "day": 27,
+      "date": "27/11"
+    },
+    {
+      "lesson": 21,
+      "year": 2022,
+      "month": 12,
+      "day": 4,
+      "date": "4/12"
+    },
+    {
+      "lesson": 22,
+      "year": 2022,
+      "month": 12,
+      "day": 27,
+      "date": "27/12"
+    },
+    {
+      "lesson": 23,
+      "year": 2023,
+      "month": 1,
+      "day": 15,
+      "date": "15/1"
+    },
+    {
+      "lesson": 24,
+      "year": 2023,
+      "month": 1,
+      "day": 29,
+      "date": "29/1"
+    },
+    {
+      "lesson": 25,
+      "year": 2023,
+      "month": 2,
+      "day": 5,
+      "date": "5/2"
+    },
+    {
+      "lesson": 26,
+      "year": 2023,
+      "month": 2,
+      "day": 12,
+      "date": "12/2"
+    },
+    {
+      "lesson": 27,
+      "year": 2023,
+      "month": 2,
+      "day": 19,
+      "date": "19/2"
+    },
+    {
+      "lesson": 28,
+      "year": 2023,
+      "month": 2,
+      "day": 26,
+      "date": "26/2"
+    },
+    {
+      "lesson": 29,
+      "year": 2023,
+      "month": 3,
+      "day": 5,
+      "date": "5/3"
+    },
+    {
+      "lesson": 30,
+      "year": 2023,
+      "month": 3,
+      "day": 12,
+      "date": "12/3"
+    },
+    {
+      "lesson": 31,
+      "year": 2023,
+      "month": 3,
+      "day": 19,
+      "date": "19/3"
+    },
+    {
+      "lesson": 32,
+      "year": 2023,
+      "month": 4,
+      "day": 9,
+      "date": "9/4"
+    },
+    {
+      "lesson": 33,
+      "year": 2023,
+      "month": 4,
+      "day": 16,
+      "date": "16/4"
+    },
+    {
+      "lesson": 34,
+      "year": 2023,
+      "month": 4,
+      "day": 23,
+      "date": "23/4"
+    },
+    {
+      "lesson": 35,
+      "year": 2023,
+      "month": 4,
+      "day": 30,
+      "date": "30/4"
+    },
+    {
+      "lesson": 36,
+      "year": 2023,
+      "month": 5,
+      "day": 14,
+      "date": "14/5"
+    },
+    {
+      "lesson": 37,
+      "year": 2023,
+      "month": 5,
+      "day": 21,
+      "date": "21/5"
+    },
+    {
+      "lesson": 38,
+      "year": 2023,
+      "month": 5,
+      "day": 28,
+      "date": "28/5"
+    },
+    {
+      "lesson": 39,
+      "year": 2023,
+      "month": 6,
+      "day": 4,
+      "date": "4/6"
+    },
+    {
+      "lesson": 40,
+      "year": 2023,
+      "month": 6,
+      "day": 11,
+      "date": "11/6"
+    },
+    {
+      "lesson": 41,
+      "year": 2023,
+      "month": 6,
+      "day": 18,
+      "date": "18/6"
+    },
+    {
+      "lesson": 42,
+      "year": 2023,
+      "month": 6,
+      "day": 25,
+      "date": "25/6"
+    },
+    {
+      "lesson": 43,
+      "year": 2023,
+      "month": 7,
+      "day": 2,
+      "date": "2/7"
+    },
+    {
+      "lesson": 44,
+      "year": 2023,
+      "month": 7,
+      "day": 9,
+      "date": "9/7"
+    },
+    {
+      "lesson": 45,
+      "year": 2023,
+      "month": 7,
+      "day": 16,
+      "date": "16/7"
+    },
+    {
+      "lesson": 46,
+      "year": 2023,
+      "month": 7,
+      "day": 23,
+      "date": "23/7"
+    },
+    {
+      "lesson": 47,
+      "year": 2023,
+      "month": 8,
+      "day": 6,
+      "date": "6/8"
+    },
+    {
+      "lesson": 48,
+      "year": 2023,
+      "month": 8,
+      "day": 13,
+      "date": "13/8"
+    },
+    {
+      "lesson": 49,
+      "year": 2023,
+      "month": 8,
+      "day": 20,
+      "date": "20/8"
+    },
+    {
+      "lesson": 50,
+      "year": 2023,
+      "month": 9,
+      "day": 3,
+      "date": "3/9"
+    },
+    {
+      "lesson": 51,
+      "year": 2023,
+      "month": 9,
+      "day": 17,
+      "date": "17/9"
+    },
+    {
+      "lesson": 52,
+      "year": 2023,
+      "month": 9,
+      "day": 24,
+      "date": "24/9"
+    },
+    {
+      "lesson": 53,
+      "year": 2023,
+      "month": 10,
+      "day": 15,
+      "date": "15/10"
+    },
+    {
+      "lesson": 54,
+      "year": 2023,
+      "month": 10,
+      "day": 22,
+      "date": "22/10"
+    },
+    {
+      "lesson": 55,
+      "year": 2023,
+      "month": 10,
+      "day": 29,
+      "date": "29/10"
+    },
+    {
+      "lesson": 56,
+      "year": 2023,
+      "month": 11,
+      "day": 5,
+      "date": "5/11"
+    },
+    {
+      "lesson": 57,
+      "year": 2023,
+      "month": 11,
+      "day": 12,
+      "date": "12/11"
+    },
+    {
+      "lesson": 58,
+      "year": 2023,
+      "month": 11,
+      "day": 19,
+      "date": "19/11"
+    },
+    {
+      "lesson": 59,
+      "year": 2023,
+      "month": 11,
+      "day": 26,
+      "date": "26/11"
+    },
+    {
+      "lesson": 60,
+      "year": 2023,
+      "month": 12,
+      "day": 3,
+      "date": "3/12"
+    },
+    {
+      "lesson": 61,
+      "year": 2023,
+      "month": 12,
+      "day": 17,
+      "date": "17/12"
+    },
+    {
+      "lesson": 62,
+      "year": 2023,
+      "month": 12,
+      "day": 24,
+      "date": "24/12"
+    },
+    {
+      "lesson": 63,
+      "year": 2023,
+      "month": 12,
+      "day": 31,
+      "date": "31/12"
+    },
+    {
+      "lesson": 64,
+      "year": 2024,
+      "month": 1,
+      "day": 7,
+      "date": "7/1"
+    },
+    {
+      "lesson": 65,
+      "year": 2024,
+      "month": 1,
+      "day": 14,
+      "date": "14/1"
+    },
+    {
+      "lesson": 66,
+      "year": 2024,
+      "month": 1,
+      "day": 28,
+      "date": "28/1"
+    },
+    {
+      "lesson": 67,
+      "year": 2024,
+      "month": 2,
+      "day": 4,
+      "date": "4/2"
+    },
+    {
+      "lesson": 68,
+      "year": 2024,
+      "month": 2,
+      "day": 18,
+      "date": "18/2"
+    },
+    {
+      "lesson": 69,
+      "year": 2024,
+      "month": 2,
+      "day": 25,
+      "date": "25/2"
+    },
+    {
+      "lesson": 70,
+      "year": 2024,
+      "month": 3,
+      "day": 3,
+      "date": "3/3"
+    },
+    {
+      "lesson": 71,
+      "year": 2024,
+      "month": 3,
+      "day": 10,
+      "date": "10/3"
+    },
+    {
+      "lesson": 72,
+      "year": 2024,
+      "month": 3,
+      "day": 17,
+      "date": "17/3"
+    },
+    {
+      "lesson": 73,
+      "year": 2024,
+      "month": 3,
+      "day": 24,
+      "date": "24/3"
+    },
+    {
+      "lesson": 74,
+      "year": 2024,
+      "month": 4,
+      "day": 7,
+      "date": "7/4"
+    },
+    {
+      "lesson": 75,
+      "year": 2024,
+      "month": 4,
+      "day": 14,
+      "date": "14/4"
+    },
+    {
+      "lesson": 76,
+      "year": 2024,
+      "month": 4,
+      "day": 28,
+      "date": "28/4"
+    },
+    {
+      "lesson": 77,
+      "year": 2024,
+      "month": 5,
+      "day": 5,
+      "date": "5/5"
+    },
+    {
+      "lesson": 78,
+      "year": 2024,
+      "month": 5,
+      "day": 12,
+      "date": "12/5"
+    },
+    {
+      "lesson": 79,
+      "year": 2024,
+      "month": 5,
+      "day": 26,
+      "date": "26/5"
+    },
+    {
+      "lesson": 80,
+      "year": 2024,
+      "month": 6,
+      "day": 2,
+      "date": "2/6"
+    },
+    {
+      "lesson": 81,
+      "year": 2024,
+      "month": 6,
+      "day": 9,
+      "date": "9/6"
+    },
+    {
+      "lesson": 82,
+      "year": 2024,
+      "month": 6,
+      "day": 16,
+      "date": "16/6"
+    },
+    {
+      "lesson": 83,
+      "year": 2024,
+      "month": 6,
+      "day": 23,
+      "date": "23/6"
+    },
+    {
+      "lesson": 84,
+      "year": 2024,
+      "month": 7,
+      "day": 7,
+      "date": "7/7"
+    },
+    {
+      "lesson": 85,
+      "year": 2024,
+      "month": 7,
+      "day": 14,
+      "date": "14/7"
+    },
+    {
+      "lesson": 86,
+      "year": 2024,
+      "month": 7,
+      "day": 21,
+      "date": "21/7"
+    },
+    {
+      "lesson": 87,
+      "year": 2024,
+      "month": 7,
+      "day": 28,
+      "date": "28/7"
+    },
+    {
+      "lesson": 88,
+      "year": 2024,
+      "month": 8,
+      "day": 11,
+      "date": "11/8"
+    },
+    {
+      "lesson": 89,
+      "year": 2024,
+      "month": 8,
+      "day": 18,
+      "date": "18/8"
+    },
+    {
+      "lesson": 90,
+      "year": 2024,
+      "month": 9,
+      "day": 8,
+      "date": "8/9"
+    },
+    {
+      "lesson": 91,
+      "year": 2024,
+      "month": 9,
+      "day": 15,
+      "date": "15/9"
+    },
+    {
+      "lesson": 92,
+      "year": 2024,
+      "month": 9,
+      "day": 22,
+      "date": "22/9"
+    },
+    {
+      "lesson": 93,
+      "year": 2024,
+      "month": 9,
+      "day": 29,
+      "date": "29/9"
+    },
+    {
+      "lesson": 94,
+      "year": 2024,
+      "month": 10,
+      "day": 6,
+      "date": "6/10"
+    },
+    {
+      "lesson": 95,
+      "year": 2024,
+      "month": 10,
+      "day": 13,
+      "date": "13/10"
+    },
+    {
+      "lesson": 96,
+      "year": 2024,
+      "month": 10,
+      "day": 20,
+      "date": "20/10"
+    },
+    {
+      "lesson": 97,
+      "year": 2024,
+      "month": 10,
+      "day": 27,
+      "date": "27/10"
+    },
+    {
+      "lesson": 98,
+      "year": 2024,
+      "month": 11,
+      "day": 3,
+      "date": "3/11"
+    },
+    {
+      "lesson": 99,
+      "year": 2024,
+      "month": 11,
+      "day": 10,
+      "date": "10/11"
+    },
+    {
+      "lesson": 100,
+      "year": 2024,
+      "month": 11,
+      "day": 17,
+      "date": "17/11"
+    },
+    {
+      "lesson": 101,
+      "year": 2024,
+      "month": 11,
+      "day": 24,
+      "date": "24/11"
+    },
+    {
+      "lesson": 102,
+      "year": 2024,
+      "month": 12,
+      "day": 1,
+      "date": "1/12"
+    },
+    {
+      "lesson": 103,
+      "year": 2024,
+      "month": 12,
+      "day": 8,
+      "date": "8/12"
+    },
+    {
+      "lesson": 104,
+      "year": 2024,
+      "month": 12,
+      "day": 15,
+      "date": "15/12"
+    },
+    {
+      "lesson": 105,
+      "year": 2024,
+      "month": 12,
+      "day": 22,
+      "date": "22/12"
+    },
+    {
+      "lesson": 106,
+      "year": 2025,
+      "month": 1,
+      "day": 5,
+      "date": "5/1"
+    },
+    {
+      "lesson": 107,
+      "year": 2025,
+      "month": 1,
+      "day": 19,
+      "date": "19/1"
+    },
+    {
+      "lesson": 108,
+      "year": 2025,
+      "month": 2,
+      "day": 16,
+      "date": "16/2"
+    },
+    {
+      "lesson": 109,
+      "year": 2025,
+      "month": 2,
+      "day": 23,
+      "date": "23/2"
+    },
+    {
+      "lesson": 110,
+      "year": 2025,
+      "month": 3,
+      "day": 2,
+      "date": "2/3"
+    },
+    {
+      "lesson": 111,
+      "year": 2025,
+      "month": 3,
+      "day": 9,
+      "date": "9/3"
+    },
+    {
+      "lesson": 112,
+      "year": 2025,
+      "month": 3,
+      "day": 16,
+      "date": "16/3"
+    },
+    {
+      "lesson": 113,
+      "year": 2025,
+      "month": 3,
+      "day": 23,
+      "date": "23/3"
+    },
+    {
+      "lesson": 114,
+      "year": 2025,
+      "month": 3,
+      "day": 30,
+      "date": "30/3"
+    },
+    {
+      "lesson": 115,
+      "year": 2025,
+      "month": 4,
+      "day": 6,
+      "date": "6/4"
+    },
+    {
+      "lesson": 116,
+      "year": 2025,
+      "month": 4,
+      "day": 13,
+      "date": "13/4"
+    },
+    {
+      "lesson": 117,
+      "year": 2025,
+      "month": 4,
+      "day": 27,
+      "date": "27/4"
+    },
+    {
+      "lesson": 118,
+      "year": 2025,
+      "month": 5,
+      "day": 4,
+      "date": "4/5"
+    },
+    {
+      "lesson": 119,
+      "year": 2025,
+      "month": 5,
+      "day": 11,
+      "date": "11/5"
+    },
+    {
+      "lesson": 120,
+      "year": 2025,
+      "month": 5,
+      "day": 18,
+      "date": "18/5"
+    },
+    {
+      "lesson": 121,
+      "year": 2025,
+      "month": 6,
+      "day": 1,
+      "date": "1/6"
+    },
+    {
+      "lesson": 122,
+      "year": 2025,
+      "month": 6,
+      "day": 15,
+      "date": "15/6"
+    },
+    {
+      "lesson": 123,
+      "year": 2025,
+      "month": 6,
+      "day": 22,
+      "date": "22/6"
+    },
+    {
+      "lesson": 124,
+      "year": 2025,
+      "month": 6,
+      "day": 29,
+      "date": "29/6"
+    },
+    {
+      "lesson": 125,
+      "year": 2025,
+      "month": 7,
+      "day": 6,
+      "date": "6/7"
+    },
+    {
+      "lesson": 126,
+      "year": 2025,
+      "month": 7,
+      "day": 13,
+      "date": "13/7"
+    },
+    {
+      "lesson": 127,
+      "year": 2025,
+      "month": 8,
+      "day": 3,
+      "date": "3/8"
+    },
+    {
+      "lesson": 128,
+      "year": 2025,
+      "month": 8,
+      "day": 10,
+      "date": "10/8"
+    },
+    {
+      "lesson": 129,
+      "year": 2025,
+      "month": 8,
+      "day": 17,
+      "date": "17/8"
+    },
+    {
+      "lesson": 130,
+      "year": 2025,
+      "month": 8,
+      "day": 24,
+      "date": "24/8"
+    },
+    {
+      "lesson": 131,
+      "year": 2025,
+      "month": 8,
+      "day": 31,
+      "date": "31/8"
+    },
+    {
+      "lesson": 132,
+      "year": 2025,
+      "month": 9,
+      "day": 7,
+      "date": "7/9"
+    },
+    {
+      "lesson": 133,
+      "year": 2025,
+      "month": 9,
+      "day": 14,
+      "date": "14/9"
+    },
+    {
+      "lesson": 134,
+      "year": 2025,
+      "month": 9,
+      "day": 21,
+      "date": "21/9"
+    },
+    {
+      "lesson": 135,
+      "year": 2025,
+      "month": 9,
+      "day": 28,
+      "date": "28/9"
+    },
+    {
+      "lesson": 136,
+      "year": 2025,
+      "month": 10,
+      "day": 5,
+      "date": "5/10"
+    },
+    {
+      "lesson": 137,
+      "year": 2025,
+      "month": 10,
+      "day": 19,
+      "date": "19/10"
+    },
+    {
+      "lesson": 138,
+      "year": 2025,
+      "month": 10,
+      "day": 26,
+      "date": "26/10"
+    },
+    {
+      "lesson": 139,
+      "year": 2025,
+      "month": 11,
+      "day": 2,
+      "date": "2/11"
+    },
+    {
+      "lesson": 140,
+      "year": 2025,
+      "month": 11,
+      "day": 9,
+      "date": "9/11"
+    },
+    {
+      "lesson": 141,
+      "year": 2025,
+      "month": 11,
+      "day": 16,
+      "date": "16/11"
+    },
+    {
+      "lesson": 142,
+      "year": 2025,
+      "month": 11,
+      "day": 23,
+      "date": "23/11"
+    },
+    {
+      "lesson": 143,
+      "year": 2025,
+      "month": 11,
+      "day": 30,
+      "date": "30/11"
+    },
+    {
+      "lesson": 144,
+      "year": 2025,
+      "month": 12,
+      "day": 21,
+      "date": "21/12"
+    },
+    {
+      "lesson": 145,
+      "year": 2025,
+      "month": 12,
+      "day": 28,
+      "date": "28/12"
+    },
+    {
+      "lesson": 146,
+      "year": 2026,
+      "month": 1,
+      "day": 4,
+      "date": "4/1"
+    },
+    {
+      "lesson": 147,
+      "year": 2026,
+      "month": 1,
+      "day": 11,
+      "date": "11/1"
+    },
+    {
+      "lesson": 148,
+      "year": 2026,
+      "month": 1,
+      "day": 18,
+      "date": "18/1"
+    },
+    {
+      "lesson": 149,
+      "year": 2026,
+      "month": 1,
+      "day": 25,
+      "date": "25/1"
+    },
+    {
+      "lesson": 150,
+      "year": 2026,
+      "month": 2,
+      "day": 1,
+      "date": "2026-02-01"
+    },
+    {
+      "lesson": 151,
+      "year": 2026,
+      "month": 2,
+      "day": 8,
+      "date": "2026-02-08"
+    },
+    {
+      "lesson": 152,
+      "year": 2026,
+      "month": 2,
+      "day": 15,
+      "date": "2026-02-15"
+    },
+    {
+      "lesson": 153,
+      "year": 2026,
+      "month": 2,
+      "day": 22,
+      "date": "2026-02-22"
+    },
+    {
+      "lesson": 154,
+      "year": 2026,
+      "month": 3,
+      "day": 1,
+      "date": "2026-03-01"
+    },
+    {
+      "lesson": 155,
+      "year": 2026,
+      "month": 3,
+      "day": 8,
+      "date": "2026-03-08"
+    },
+    {
+      "lesson": 156,
+      "year": 2026,
+      "month": 3,
+      "day": 15,
+      "date": "2026-03-15"
+    },
+    {
+      "lesson": 157,
+      "year": 2026,
+      "month": 3,
+      "day": 22,
+      "date": "2026-03-22"
+    },
+    {
+      "lesson": 158,
+      "year": 2026,
+      "month": 3,
+      "day": 29,
+      "date": "2026-03-29"
+    },
+    {
+      "lesson": 159,
+      "year": 2026,
+      "month": 4,
+      "day": 5,
+      "date": "2026-04-05"
+    },
+    {
+      "lesson": 160,
+      "year": 2026,
+      "month": 4,
+      "day": 12,
+      "date": "2026-04-12"
+    },
+    {
+      "lesson": 161,
+      "year": 2026,
+      "month": 4,
+      "day": 19,
+      "date": "2026-04-19"
+    },
+    {
+      "lesson": 162,
+      "year": 2026,
+      "month": 4,
+      "day": 26,
+      "date": "2026-04-26"
+    },
+    {
+      "lesson": 163,
+      "year": 2026,
+      "month": 5,
+      "day": 3,
+      "date": "2026-05-03"
+    },
+    {
+      "lesson": 164,
+      "year": 2026,
+      "month": 5,
+      "day": 10,
+      "date": "2026-05-10"
+    },
+    {
+      "lesson": 165,
+      "year": 2026,
+      "month": 5,
+      "day": 17,
+      "date": "2026-05-17"
+    },
+    {
+      "lesson": 166,
+      "year": 2026,
+      "month": 5,
+      "day": 24,
+      "date": "2026-05-24"
+    },
+    {
+      "lesson": 167,
+      "year": 2026,
+      "month": 5,
+      "day": 31,
+      "date": "2026-05-31"
+    },
+    {
+      "lesson": 168,
+      "year": 2026,
+      "month": 6,
+      "day": 7,
+      "date": "2026-06-07"
+    },
+    {
+      "lesson": 169,
+      "year": 2026,
+      "month": 6,
+      "day": 14,
+      "date": "2026-06-14"
+    },
+    {
+      "lesson": 170,
+      "year": 2026,
+      "month": 6,
+      "day": 21,
+      "date": "2026-06-21"
+    },
+    {
+      "lesson": 171,
+      "year": 2026,
+      "month": 6,
+      "day": 28,
+      "date": "2026-06-28"
+    },
+    {
+      "lesson": 172,
+      "year": 2026,
+      "month": 7,
+      "day": 5,
+      "date": "2026-07-05"
+    },
+    {
+      "lesson": 173,
+      "year": 2026,
+      "month": 7,
+      "day": 12,
+      "date": "2026-07-12"
+    },
+    {
+      "lesson": 174,
+      "year": 2026,
+      "month": 7,
+      "day": 19,
+      "date": "2026-07-19"
+    },
+    {
+      "lesson": 175,
+      "year": 2026,
+      "month": 7,
+      "day": 26,
+      "date": "2026-07-26"
+    },
+    {
+      "lesson": 176,
+      "year": 2026,
+      "month": 8,
+      "day": 2,
+      "date": "2026-08-02"
+    },
+    {
+      "lesson": 177,
+      "year": 2026,
+      "month": 8,
+      "day": 9,
+      "date": "2026-08-09"
+    },
+    {
+      "lesson": 178,
+      "year": 2026,
+      "month": 8,
+      "day": 16,
+      "date": "2026-08-16"
+    },
+    {
+      "lesson": 179,
+      "year": 2026,
+      "month": 8,
+      "day": 23,
+      "date": "2026-08-23"
+    },
+    {
+      "lesson": 180,
+      "year": 2026,
+      "month": 8,
+      "day": 30,
+      "date": "2026-08-30"
+    },
+    {
+      "lesson": 181,
+      "year": 2026,
+      "month": 9,
+      "day": 6,
+      "date": "2026-09-06"
+    },
+    {
+      "lesson": 182,
+      "year": 2026,
+      "month": 9,
+      "day": 13,
+      "date": "2026-09-13"
+    },
+    {
+      "lesson": 183,
+      "year": 2026,
+      "month": 9,
+      "day": 20,
+      "date": "2026-09-20"
+    },
+    {
+      "lesson": 184,
+      "year": 2026,
+      "month": 9,
+      "day": 27,
+      "date": "2026-09-27"
+    },
+    {
+      "lesson": 185,
+      "year": 2026,
+      "month": 10,
+      "day": 4,
+      "date": "2026-10-04"
+    },
+    {
+      "lesson": 186,
+      "year": 2026,
+      "month": 10,
+      "day": 11,
+      "date": "2026-10-11"
+    },
+    {
+      "lesson": 187,
+      "year": 2026,
+      "month": 10,
+      "day": 18,
+      "date": "2026-10-18"
+    },
+    {
+      "lesson": 188,
+      "year": 2026,
+      "month": 10,
+      "day": 25,
+      "date": "2026-10-25"
+    },
+    {
+      "lesson": 189,
+      "year": 2026,
+      "month": 11,
+      "day": 1,
+      "date": "2026-11-01"
+    },
+    {
+      "lesson": 190,
+      "year": 2026,
+      "month": 11,
+      "day": 8,
+      "date": "2026-11-08"
+    },
+    {
+      "lesson": 191,
+      "year": 2026,
+      "month": 11,
+      "day": 15,
+      "date": "2026-11-15"
+    },
+    {
+      "lesson": 192,
+      "year": 2026,
+      "month": 11,
+      "day": 22,
+      "date": "2026-11-22"
+    },
+    {
+      "lesson": 193,
+      "year": 2026,
+      "month": 11,
+      "day": 29,
+      "date": "2026-11-29"
+    },
+    {
+      "lesson": 194,
+      "year": 2026,
+      "month": 12,
+      "day": 6,
+      "date": "2026-12-06"
+    },
+    {
+      "lesson": 195,
+      "year": 2026,
+      "month": 12,
+      "day": 13,
+      "date": "2026-12-13"
+    },
+    {
+      "lesson": 196,
+      "year": 2026,
+      "month": 12,
+      "day": 20,
+      "date": "2026-12-20"
+    },
+    {
+      "lesson": 197,
+      "year": 2026,
+      "month": 12,
+      "day": 27,
+      "date": "2026-12-27"
+    }
+  ],
+  "students": [
+    {
+      "name": "Enzo",
+      "startDate": "2025年10月19日",
+      "attendCount": 12,
+      "remainingLessons": 12,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        139
+      ]
+    },
+    {
+      "name": "Luna Petralia",
+      "startDate": "2025年3月30日",
+      "attendCount": 36,
+      "remainingLessons": 12,
+      "paidPeriods": 0,
+      "requiredPeriods": 3,
+      "unpaidPeriods": 3,
+      "unpaidFee": 7200,
+      "absenceLessons": []
+    },
+    {
+      "name": "丁子聰",
+      "startDate": "2025年2月23日",
+      "attendCount": 15,
+      "remainingLessons": 9,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        112,
+        113,
+        114,
+        115,
+        117,
+        120,
+        121,
+        122,
+        123,
+        128,
+        129,
+        131,
+        132,
+        135,
+        136,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "余學然",
+      "startDate": "2022年7月10日",
+      "attendCount": 139,
+      "remainingLessons": 5,
+      "paidPeriods": 0,
+      "requiredPeriods": 11,
+      "unpaidPeriods": 11,
+      "unpaidFee": 26400,
+      "absenceLessons": [
+        106,
+        107,
+        111,
+        115,
+        120,
+        121,
+        128,
+        130,
+        133,
+        138
+      ]
+    },
+    {
+      "name": "侯兆洪",
+      "startDate": "2022年7月10日",
+      "attendCount": 126,
+      "remainingLessons": 6,
+      "paidPeriods": 0,
+      "requiredPeriods": 10,
+      "unpaidPeriods": 10,
+      "unpaidFee": 24000,
+      "absenceLessons": [
+        91,
+        94,
+        98,
+        99,
+        101,
+        102,
+        108,
+        109,
+        110,
+        112,
+        117,
+        120,
+        121,
+        130,
+        131,
+        132,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        149
+      ]
+    },
+    {
+      "name": "劉宇政",
+      "startDate": "2022年7月10日",
+      "attendCount": 143,
+      "remainingLessons": 1,
+      "paidPeriods": 0,
+      "requiredPeriods": 11,
+      "unpaidPeriods": 11,
+      "unpaidFee": 26400,
+      "absenceLessons": [
+        87,
+        94,
+        96,
+        97,
+        99,
+        106
+      ]
+    },
+    {
+      "name": "劉燊政",
+      "startDate": "2022年7月10日",
+      "attendCount": 132,
+      "remainingLessons": 12,
+      "paidPeriods": 0,
+      "requiredPeriods": 11,
+      "unpaidPeriods": 11,
+      "unpaidFee": 26400,
+      "absenceLessons": [
+        5,
+        6,
+        104,
+        113,
+        114,
+        117,
+        118,
+        120,
+        121,
+        124,
+        126,
+        127,
+        137,
+        142,
+        143,
+        145,
+        149
+      ]
+    },
+    {
+      "name": "劉玥",
+      "startDate": "2025年2月16日",
+      "attendCount": 14,
+      "remainingLessons": 10,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        109,
+        111,
+        113,
+        115,
+        116,
+        117,
+        121,
+        123,
+        124,
+        125,
+        126,
+        128,
+        129,
+        130,
+        131,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "吳傲天",
+      "startDate": "2025年5月11日",
+      "attendCount": 14,
+      "remainingLessons": 10,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        121,
+        122,
+        123,
+        124,
+        126,
+        128,
+        129,
+        131,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        145,
+        147,
+        149
+      ]
+    },
+    {
+      "name": "吳卓謙",
+      "startDate": "2025年7月6日",
+      "attendCount": 17,
+      "remainingLessons": 7,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        127,
+        136,
+        137,
+        140,
+        141,
+        142,
+        144,
+        148
+      ]
+    },
+    {
+      "name": "周泳謝",
+      "startDate": "2025年8月31日",
+      "attendCount": 19,
+      "remainingLessons": 5,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": []
+    },
+    {
+      "name": "徐志杰",
+      "startDate": "2024年9月22日",
+      "attendCount": 33,
+      "remainingLessons": 3,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": [
+        93,
+        96,
+        98,
+        101,
+        108,
+        110,
+        112,
+        116,
+        117,
+        118,
+        121,
+        122,
+        126,
+        128,
+        131,
+        132,
+        133,
+        136,
+        139,
+        141,
+        142,
+        144,
+        145,
+        146,
+        149
+      ]
+    },
+    {
+      "name": "施俊杰",
+      "startDate": "2025年1月5日",
+      "attendCount": 34,
+      "remainingLessons": 2,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": [
+        109,
+        122,
+        136,
+        139,
+        140,
+        143,
+        145,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "曾祉媃",
+      "startDate": "2025年1月5日",
+      "attendCount": 38,
+      "remainingLessons": 10,
+      "paidPeriods": 0,
+      "requiredPeriods": 3,
+      "unpaidPeriods": 3,
+      "unpaidFee": 7200,
+      "absenceLessons": [
+        111,
+        115,
+        116,
+        123,
+        141,
+        142
+      ]
+    },
+    {
+      "name": "朱棋楓",
+      "startDate": "2024年7月21日",
+      "attendCount": 44,
+      "remainingLessons": 4,
+      "paidPeriods": 0,
+      "requiredPeriods": 3,
+      "unpaidPeriods": 3,
+      "unpaidFee": 7200,
+      "absenceLessons": [
+        110,
+        111,
+        112,
+        114,
+        116,
+        118,
+        121,
+        123,
+        127,
+        128,
+        130,
+        134,
+        137,
+        141,
+        142,
+        143,
+        144,
+        145,
+        147,
+        149
+      ]
+    },
+    {
+      "name": "李弘正",
+      "startDate": "2024年10月13日",
+      "attendCount": 45,
+      "remainingLessons": 3,
+      "paidPeriods": 0,
+      "requiredPeriods": 3,
+      "unpaidPeriods": 3,
+      "unpaidFee": 7200,
+      "absenceLessons": [
+        105,
+        106,
+        108,
+        113,
+        115,
+        121,
+        125,
+        127,
+        144,
+        148
+      ]
+    },
+    {
+      "name": "李梓皓",
+      "startDate": "2024年3月17日",
+      "attendCount": 53,
+      "remainingLessons": 7,
+      "paidPeriods": 0,
+      "requiredPeriods": 4,
+      "unpaidPeriods": 4,
+      "unpaidFee": 9600,
+      "absenceLessons": [
+        76,
+        78,
+        81,
+        86,
+        87,
+        88,
+        91,
+        93,
+        97,
+        99,
+        111,
+        112,
+        116,
+        121,
+        125,
+        128,
+        129,
+        130,
+        134,
+        138,
+        140,
+        141,
+        142,
+        145,
+        148
+      ]
+    },
+    {
+      "name": "李泳霖",
+      "startDate": "2025年8月3日",
+      "attendCount": 13,
+      "remainingLessons": 11,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        128,
+        129,
+        132,
+        134,
+        137,
+        139,
+        141,
+        142,
+        144,
+        147
+      ]
+    },
+    {
+      "name": "林恩同",
+      "startDate": "2025年6月22日",
+      "attendCount": 12,
+      "remainingLessons": 12,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        125,
+        128,
+        129,
+        131,
+        134,
+        135,
+        137,
+        138,
+        141,
+        143,
+        144,
+        146,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "林慧玲",
+      "startDate": "2024年9月8日",
+      "attendCount": 25,
+      "remainingLessons": 11,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": [
+        107,
+        108,
+        109,
+        110,
+        111,
+        113,
+        115,
+        116,
+        117,
+        119,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "林文傑",
+      "startDate": "2025年2月22日",
+      "attendCount": 41,
+      "remainingLessons": 7,
+      "paidPeriods": 0,
+      "requiredPeriods": 4,
+      "unpaidPeriods": 13,
+      "unpaidFee": 31200,
+      "absenceLessons": []
+    },
+    {
+      "name": "林明慧",
+      "startDate": "2025年2月22日",
+      "attendCount": 41,
+      "remainingLessons": 7,
+      "paidPeriods": 0,
+      "requiredPeriods": 4,
+      "unpaidPeriods": 13,
+      "unpaidFee": 31200,
+      "absenceLessons": []
+    },
+    {
+      "name": "林煒堯",
+      "startDate": "2025年7月6日",
+      "attendCount": 13,
+      "remainingLessons": 11,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        126,
+        128,
+        130,
+        132,
+        134,
+        135,
+        138,
+        139,
+        140,
+        142,
+        145,
+        149
+      ]
+    },
+    {
+      "name": "林諾天",
+      "startDate": "2025年8月17日",
+      "attendCount": 20,
+      "remainingLessons": 4,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        141
+      ]
+    },
+    {
+      "name": "林頴萳",
+      "startDate": "2025年7月6日",
+      "attendCount": 21,
+      "remainingLessons": 3,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        128,
+        132,
+        139,
+        149
+      ]
+    },
+    {
+      "name": "梁熙朗",
+      "startDate": "2022年7月10日",
+      "attendCount": 131,
+      "remainingLessons": 1,
+      "paidPeriods": 0,
+      "requiredPeriods": 10,
+      "unpaidPeriods": 10,
+      "unpaidFee": 24000,
+      "absenceLessons": [
+        112,
+        113,
+        115,
+        116,
+        121,
+        127,
+        128,
+        129,
+        130,
+        136,
+        137,
+        139,
+        141,
+        142,
+        144,
+        145,
+        146,
+        147
+      ]
+    },
+    {
+      "name": "梁珀豪",
+      "startDate": "2025年2月23日",
+      "attendCount": 28,
+      "remainingLessons": 8,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": [
+        110,
+        121,
+        122,
+        123,
+        124,
+        127,
+        131,
+        137,
+        141,
+        143,
+        144,
+        145,
+        149
+      ]
+    },
+    {
+      "name": "楊廷諄",
+      "startDate": "2025年4月6日",
+      "attendCount": 26,
+      "remainingLessons": 10,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": [
+        116,
+        121,
+        125,
+        127,
+        128,
+        141,
+        142,
+        143,
+        144
+      ]
+    },
+    {
+      "name": "楊惜林",
+      "startDate": "2025年1月5日",
+      "attendCount": 24,
+      "remainingLessons": 12,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": [
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        116,
+        119,
+        120,
+        121,
+        122,
+        129,
+        130,
+        131,
+        132,
+        140,
+        141,
+        142
+      ]
+    },
+    {
+      "name": "楊猷宸",
+      "startDate": "2025年8月10日",
+      "attendCount": 11,
+      "remainingLessons": 1,
+      "paidPeriods": 0,
+      "requiredPeriods": 0,
+      "unpaidPeriods": 0,
+      "unpaidFee": 0,
+      "absenceLessons": [
+        129,
+        132,
+        135,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145
+      ]
+    },
+    {
+      "name": "江哲男",
+      "startDate": "2023年10月15日",
+      "attendCount": 77,
+      "remainingLessons": 7,
+      "paidPeriods": 0,
+      "requiredPeriods": 6,
+      "unpaidPeriods": 6,
+      "unpaidFee": 14400,
+      "absenceLessons": [
+        55,
+        61,
+        70,
+        73,
+        77,
+        80,
+        82,
+        89,
+        91,
+        100,
+        103,
+        110,
+        114,
+        120,
+        121,
+        124,
+        125,
+        128,
+        138,
+        139
+      ]
+    },
+    {
+      "name": "江柏僑",
+      "startDate": "2022年7月10日",
+      "attendCount": 128,
+      "remainingLessons": 4,
+      "paidPeriods": 0,
+      "requiredPeriods": 10,
+      "unpaidPeriods": 10,
+      "unpaidFee": 24000,
+      "absenceLessons": [
+        3,
+        7,
+        12,
+        18,
+        27,
+        29,
+        31,
+        32,
+        34,
+        38,
+        44,
+        55,
+        69,
+        73,
+        80,
+        81,
+        83,
+        88,
+        89,
+        90,
+        91
+      ]
+    },
+    {
+      "name": "洪卓斐",
+      "startDate": "2025年10月5日",
+      "attendCount": 14,
+      "remainingLessons": 10,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": []
+    },
+    {
+      "name": "王嘉楷",
+      "startDate": "2025年2月23日",
+      "attendCount": 30,
+      "remainingLessons": 6,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": [
+        111,
+        112,
+        114,
+        118,
+        120,
+        121,
+        122,
+        134,
+        138,
+        141,
+        148
+      ]
+    },
+    {
+      "name": "王浩宇",
+      "startDate": "2026年1月11日",
+      "attendCount": 3,
+      "remainingLessons": 9,
+      "paidPeriods": 0,
+      "requiredPeriods": 0,
+      "unpaidPeriods": 0,
+      "unpaidFee": 0,
+      "absenceLessons": []
+    },
+    {
+      "name": "簡頌曦",
+      "startDate": "2025年11月2日",
+      "attendCount": 3,
+      "remainingLessons": 9,
+      "paidPeriods": 0,
+      "requiredPeriods": 0,
+      "unpaidPeriods": 0,
+      "unpaidFee": 0,
+      "absenceLessons": [
+        140,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148
+      ]
+    },
+    {
+      "name": "葉明恩",
+      "startDate": "2025年11月16日",
+      "attendCount": 3,
+      "remainingLessons": 9,
+      "paidPeriods": 0,
+      "requiredPeriods": 0,
+      "unpaidPeriods": 0,
+      "unpaidFee": 0,
+      "absenceLessons": [
+        143,
+        144,
+        145,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "葉栩靖",
+      "startDate": "2025年3月9日",
+      "attendCount": 14,
+      "remainingLessons": 10,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        112,
+        114,
+        115,
+        117,
+        119,
+        121,
+        122,
+        123,
+        126,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        135,
+        138,
+        139,
+        140,
+        143,
+        144,
+        145,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "葉駿輝",
+      "startDate": "2025年3月9日",
+      "attendCount": 14,
+      "remainingLessons": 10,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        112,
+        114,
+        115,
+        117,
+        119,
+        121,
+        122,
+        123,
+        126,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        135,
+        138,
+        139,
+        140,
+        143,
+        144,
+        145,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "蔡宏鑫",
+      "startDate": "2025年2月16日",
+      "attendCount": 7,
+      "remainingLessons": 5,
+      "paidPeriods": 0,
+      "requiredPeriods": 0,
+      "unpaidPeriods": 0,
+      "unpaidFee": 0,
+      "absenceLessons": [
+        109,
+        110,
+        112,
+        114,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        133,
+        134,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "蔡御霆",
+      "startDate": "2023年12月3日",
+      "attendCount": 75,
+      "remainingLessons": 9,
+      "paidPeriods": 0,
+      "requiredPeriods": 6,
+      "unpaidPeriods": 6,
+      "unpaidFee": 14400,
+      "absenceLessons": [
+        80,
+        81,
+        100,
+        101,
+        104,
+        105,
+        110,
+        111,
+        121,
+        122,
+        126,
+        127,
+        141,
+        142,
+        147
+      ]
+    },
+    {
+      "name": "蘇柏霖",
+      "startDate": "2022年7月10日",
+      "attendCount": 147,
+      "remainingLessons": 9,
+      "paidPeriods": 0,
+      "requiredPeriods": 12,
+      "unpaidPeriods": 12,
+      "unpaidFee": 28800,
+      "absenceLessons": [
+        125,
+        129
+      ]
+    },
+    {
+      "name": "袁梓睡",
+      "startDate": "2025年11月30日",
+      "attendCount": 7,
+      "remainingLessons": 5,
+      "paidPeriods": 0,
+      "requiredPeriods": 0,
+      "unpaidPeriods": 0,
+      "unpaidFee": 0,
+      "absenceLessons": []
+    },
+    {
+      "name": "袁穗晴",
+      "startDate": "2025年2月16日",
+      "attendCount": 20,
+      "remainingLessons": 4,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        110,
+        113,
+        116,
+        118,
+        120,
+        121,
+        122,
+        127,
+        129,
+        132,
+        133,
+        135,
+        138,
+        139,
+        140,
+        141,
+        143,
+        144,
+        146,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "袁逸朗",
+      "startDate": "2025年2月16日",
+      "attendCount": 20,
+      "remainingLessons": 4,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        110,
+        113,
+        116,
+        118,
+        120,
+        121,
+        122,
+        125,
+        127,
+        129,
+        132,
+        133,
+        135,
+        138,
+        139,
+        140,
+        141,
+        143,
+        144,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "許雋昇",
+      "startDate": "2022年7月10日",
+      "attendCount": 114,
+      "remainingLessons": 6,
+      "paidPeriods": 0,
+      "requiredPeriods": 9,
+      "unpaidPeriods": 9,
+      "unpaidFee": 21600,
+      "absenceLessons": [
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        129
+      ]
+    },
+    {
+      "name": "譚子鋐",
+      "startDate": "2025年5月11日",
+      "attendCount": 31,
+      "remainingLessons": 5,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": []
+    },
+    {
+      "name": "賴柏希",
+      "startDate": "2024年3月24日",
+      "attendCount": 67,
+      "remainingLessons": 5,
+      "paidPeriods": 0,
+      "requiredPeriods": 5,
+      "unpaidPeriods": 5,
+      "unpaidFee": 12000,
+      "absenceLessons": [
+        79,
+        80,
+        81,
+        90,
+        96,
+        99,
+        112,
+        131,
+        133,
+        142
+      ]
+    },
+    {
+      "name": "郭俊康",
+      "startDate": "2025年7月27日",
+      "attendCount": 149,
+      "remainingLessons": 7,
+      "paidPeriods": 0,
+      "requiredPeriods": 13,
+      "unpaidPeriods": 13,
+      "unpaidFee": 31200,
+      "absenceLessons": []
+    },
+    {
+      "name": "鄒曉澄",
+      "startDate": "2025年8月20日",
+      "attendCount": 149,
+      "remainingLessons": 7,
+      "paidPeriods": 0,
+      "requiredPeriods": 13,
+      "unpaidPeriods": 13,
+      "unpaidFee": 31200,
+      "absenceLessons": []
+    },
+    {
+      "name": "鄒詩雅",
+      "startDate": "2025年8月20日",
+      "attendCount": 149,
+      "remainingLessons": 7,
+      "paidPeriods": 0,
+      "requiredPeriods": 13,
+      "unpaidPeriods": 13,
+      "unpaidFee": 31200,
+      "absenceLessons": []
+    },
+    {
+      "name": "鄧浚濵",
+      "startDate": "2025年10月19日",
+      "attendCount": 13,
+      "remainingLessons": 11,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": []
+    },
+    {
+      "name": "鄧穎翹",
+      "startDate": "2026年1月25日",
+      "attendCount": 1,
+      "remainingLessons": 11,
+      "paidPeriods": 0,
+      "requiredPeriods": 0,
+      "unpaidPeriods": 0,
+      "unpaidFee": 0,
+      "absenceLessons": []
+    },
+    {
+      "name": "陳孝謙",
+      "startDate": "2026年1月25日",
+      "attendCount": 1,
+      "remainingLessons": 11,
+      "paidPeriods": 0,
+      "requiredPeriods": 0,
+      "unpaidPeriods": 0,
+      "unpaidFee": 0,
+      "absenceLessons": []
+    },
+    {
+      "name": "陳景韜",
+      "startDate": "2025年3月2日",
+      "attendCount": 27,
+      "remainingLessons": 9,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": [
+        116,
+        120,
+        121,
+        123,
+        125,
+        126,
+        127,
+        132,
+        136,
+        139,
+        140,
+        142,
+        149
+      ]
+    },
+    {
+      "name": "陳梓軒",
+      "startDate": "2025年8月10日",
+      "attendCount": 16,
+      "remainingLessons": 8,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        129,
+        134,
+        142,
+        143,
+        145,
+        149
+      ]
+    },
+    {
+      "name": "陳臻軒",
+      "startDate": "2022年7月10日",
+      "attendCount": 127,
+      "remainingLessons": 5,
+      "paidPeriods": 0,
+      "requiredPeriods": 10,
+      "unpaidPeriods": 10,
+      "unpaidFee": 24000,
+      "absenceLessons": [
+        109,
+        110,
+        111,
+        113,
+        114,
+        118,
+        120,
+        121,
+        123,
+        124,
+        126,
+        128,
+        130,
+        132,
+        134,
+        136,
+        137,
+        139,
+        141,
+        142,
+        145,
+        148
+      ]
+    },
+    {
+      "name": "陳雪瑩",
+      "startDate": "2022年7月10日",
+      "attendCount": 143,
+      "remainingLessons": 1,
+      "paidPeriods": 0,
+      "requiredPeriods": 11,
+      "unpaidPeriods": 11,
+      "unpaidFee": 26400,
+      "absenceLessons": [
+        4,
+        7,
+        13,
+        23,
+        24,
+        27
+      ]
+    },
+    {
+      "name": "韓灝南",
+      "startDate": "2025年8月17日",
+      "attendCount": 20,
+      "remainingLessons": 4,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        140
+      ]
+    },
+    {
+      "name": "麥晉維",
+      "startDate": "2025年2月16日",
+      "attendCount": 24,
+      "remainingLessons": 12,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": [
+        112,
+        113,
+        114,
+        119,
+        123,
+        125,
+        127,
+        128,
+        129,
+        131,
+        137,
+        138,
+        142,
+        144,
+        145,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "黃天愉",
+      "startDate": "2025年6月29日",
+      "attendCount": 10,
+      "remainingLessons": 2,
+      "paidPeriods": 0,
+      "requiredPeriods": 0,
+      "unpaidPeriods": 0,
+      "unpaidFee": 0,
+      "absenceLessons": [
+        125,
+        127,
+        128,
+        130,
+        132,
+        133,
+        135,
+        136,
+        138,
+        139,
+        140,
+        141,
+        143,
+        145,
+        147,
+        148
+      ]
+    },
+    {
+      "name": "黃曜軯",
+      "startDate": "2025年10月26日",
+      "attendCount": 12,
+      "remainingLessons": 12,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": []
+    },
+    {
+      "name": "黃柏熙",
+      "startDate": "2025年2月23日",
+      "attendCount": 41,
+      "remainingLessons": 7,
+      "paidPeriods": 0,
+      "requiredPeriods": 3,
+      "unpaidPeriods": 3,
+      "unpaidFee": 7200,
+      "absenceLessons": []
+    },
+    {
+      "name": "黃銀軯",
+      "startDate": "2025年5月11日",
+      "attendCount": 31,
+      "remainingLessons": 5,
+      "paidPeriods": 0,
+      "requiredPeriods": 2,
+      "unpaidPeriods": 2,
+      "unpaidFee": 4800,
+      "absenceLessons": []
+    },
+    {
+      "name": "黃璑霜",
+      "startDate": "2025年11月9日",
+      "attendCount": 8,
+      "remainingLessons": 4,
+      "paidPeriods": 0,
+      "requiredPeriods": 0,
+      "unpaidPeriods": 0,
+      "unpaidFee": 0,
+      "absenceLessons": [
+        144,
+        145
+      ]
+    },
+    {
+      "name": "黃銘軒",
+      "startDate": "2025年7月20日",
+      "attendCount": 149,
+      "remainingLessons": 7,
+      "paidPeriods": 1,
+      "requiredPeriods": 13,
+      "unpaidPeriods": 12,
+      "unpaidFee": 28800,
+      "absenceLessons": []
+    },
+    {
+      "name": "黃頌琛",
+      "startDate": "2024年4月7日",
+      "attendCount": 57,
+      "remainingLessons": 3,
+      "paidPeriods": 0,
+      "requiredPeriods": 4,
+      "unpaidPeriods": 4,
+      "unpaidFee": 9600,
+      "absenceLessons": [
+        78,
+        79,
+        80,
+        100,
+        101,
+        107,
+        109,
+        110,
+        111,
+        121,
+        127,
+        130,
+        135,
+        140,
+        141,
+        142,
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "name": "黄顧頕",
+      "startDate": "2025年10月26日",
+      "attendCount": 12,
+      "remainingLessons": 12,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": []
+    },
+    {
+      "name": "龐兆羽",
+      "startDate": "2025年4月27日",
+      "attendCount": 12,
+      "remainingLessons": 12,
+      "paidPeriods": 0,
+      "requiredPeriods": 1,
+      "unpaidPeriods": 1,
+      "unpaidFee": 2400,
+      "absenceLessons": [
+        118,
+        119,
+        121,
+        122,
+        123,
+        125,
+        126,
+        127,
+        129,
+        130,
+        132,
+        133,
+        135,
+        138,
+        140,
+        141,
+        143,
+        145,
+        147,
+        148,
+        149
+      ]
+    }
+  ]
+}

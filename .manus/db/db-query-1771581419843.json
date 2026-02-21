@@ -1,0 +1,247 @@
+{
+  "query": "SELECT COUNT(*) as total FROM elite_students; SELECT id, name FROM elite_students ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(*) as total FROM elite_students; SELECT id, name FROM elite_students ORDER BY id;",
+  "rows": [
+    {
+      "total": "77"
+    },
+    {
+      "total": "id\tname"
+    },
+    {
+      "total": "1\t李泳霖"
+    },
+    {
+      "total": "2\t黃天愉"
+    },
+    {
+      "total": "3\t郭俊康"
+    },
+    {
+      "total": "4\t韓灝南"
+    },
+    {
+      "total": "5\t龐兆羽"
+    },
+    {
+      "total": "6\t陳臻軒"
+    },
+    {
+      "total": "7\t劉玥"
+    },
+    {
+      "total": "8\t李梓皓"
+    },
+    {
+      "total": "9\t黃煒庭"
+    },
+    {
+      "total": "10\t鄧穎翹"
+    },
+    {
+      "total": "11\t楊惜林"
+    },
+    {
+      "total": "12\t林恩同"
+    },
+    {
+      "total": "13\t曾祉媃"
+    },
+    {
+      "total": "14\t歐航瑋"
+    },
+    {
+      "total": "15\t吳博立"
+    },
+    {
+      "total": "16\t林慧玲"
+    },
+    {
+      "total": "17\t蔡宏鑫"
+    },
+    {
+      "total": "18\t吳芷媛"
+    },
+    {
+      "total": "19\t張溰榆"
+    },
+    {
+      "total": "20\t葉栩靖"
+    },
+    {
+      "total": "21\t葉駿輝"
+    },
+    {
+      "total": "22\t施俊杰"
+    },
+    {
+      "total": "23\t賴柏希"
+    },
+    {
+      "total": "24\t林諾天"
+    },
+    {
+      "total": "25\t徐志杰"
+    },
+    {
+      "total": "26\t李弘正"
+    },
+    {
+      "total": "27\t蔡御霆"
+    },
+    {
+      "total": "28\t黃頌琛"
+    },
+    {
+      "total": "29\t葉晧晴"
+    },
+    {
+      "total": "30\tLuna Petralia"
+    },
+    {
+      "total": "31\t鄒曉澄"
+    },
+    {
+      "total": "32\t鄒詩雅"
+    },
+    {
+      "total": "33\t袁穗晴"
+    },
+    {
+      "total": "34\t袁逸朗"
+    },
+    {
+      "total": "35\t江哲男"
+    },
+    {
+      "total": "36\t王浩宇"
+    },
+    {
+      "total": "37\t吳傲天"
+    },
+    {
+      "total": "38\t陳梓軒"
+    },
+    {
+      "total": "39\t黃銘軒"
+    },
+    {
+      "total": "40\t朱棋楓"
+    },
+    {
+      "total": "41\t丁子聰"
+    },
+    {
+      "total": "42\t楊廷諄"
+    },
+    {
+      "total": "43\t譚子鋭"
+    },
+    {
+      "total": "44\t王嘉楷"
+    },
+    {
+      "total": "45\t楊猷宸"
+    },
+    {
+      "total": "46\t周泓謙"
+    },
+    {
+      "total": "30001\tEnzo"
+    },
+    {
+      "total": "30002\t余學然"
+    },
+    {
+      "total": "30003\t侯兆洪"
+    },
+    {
+      "total": "30004\t劉宇政"
+    },
+    {
+      "total": "30005\t劉燊政"
+    },
+    {
+      "total": "30006\t吳卓謙"
+    },
+    {
+      "total": "30007\t周泳謝"
+    },
+    {
+      "total": "30008\t林文傑"
+    },
+    {
+      "total": "30009\t林明慧"
+    },
+    {
+      "total": "30010\t林煒堯"
+    },
+    {
+      "total": "30011\t林頴萳"
+    },
+    {
+      "total": "30012\t梁熙朗"
+    },
+    {
+      "total": "30013\t梁珀豪"
+    },
+    {
+      "total": "30014\t江柏僑"
+    },
+    {
+      "total": "30015\t洪卓斐"
+    },
+    {
+      "total": "30016\t簡頌曦"
+    },
+    {
+      "total": "30017\t葉明恩"
+    },
+    {
+      "total": "30018\t蘇柏霖"
+    },
+    {
+      "total": "30019\t袁梓睡"
+    },
+    {
+      "total": "30020\t許雋昇"
+    },
+    {
+      "total": "30021\t譚子鋐"
+    },
+    {
+      "total": "30022\t鄧浚濵"
+    },
+    {
+      "total": "30023\t陳孝謙"
+    },
+    {
+      "total": "30024\t陳景韜"
+    },
+    {
+      "total": "30025\t陳雪瑩"
+    },
+    {
+      "total": "30026\t麥晉維"
+    },
+    {
+      "total": "30027\t黃曜軯"
+    },
+    {
+      "total": "30028\t黃柏熙"
+    },
+    {
+      "total": "30029\t黃銀軯"
+    },
+    {
+      "total": "30030\t黃璑霜"
+    },
+    {
+      "total": "30031\t黄顧頕"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\n77\nid\tname\n1\t李泳霖\n2\t黃天愉\n3\t郭俊康\n4\t韓灝南\n5\t龐兆羽\n6\t陳臻軒\n7\t劉玥\n8\t李梓皓\n9\t黃煒庭\n10\t鄧穎翹\n11\t楊惜林\n12\t林恩同\n13\t曾祉媃\n14\t歐航瑋\n15\t吳博立\n16\t林慧玲\n17\t蔡宏鑫\n18\t吳芷媛\n19\t張溰榆\n20\t葉栩靖\n21\t葉駿輝\n22\t施俊杰\n23\t賴柏希\n24\t林諾天\n25\t徐志杰\n26\t李弘正\n27\t蔡御霆\n28\t黃頌琛\n29\t葉晧晴\n30\tLuna Petralia\n31\t鄒曉澄\n32\t鄒詩雅\n33\t袁穗晴\n34\t袁逸朗\n35\t江哲男\n36\t王浩宇\n37\t吳傲天\n38\t陳梓軒\n39\t黃銘軒\n40\t朱棋楓\n41\t丁子聰\n42\t楊廷諄\n43\t譚子鋭\n44\t王嘉楷\n45\t楊猷宸\n46\t周泓謙\n30001\tEnzo\n30002\t余學然\n30003\t侯兆洪\n30004\t劉宇政\n30005\t劉燊政\n30006\t吳卓謙\n30007\t周泳謝\n30008\t林文傑\n30009\t林明慧\n30010\t林煒堯\n30011\t林頴萳\n30012\t梁熙朗\n30013\t梁珀豪\n30014\t江柏僑\n30015\t洪卓斐\n30016\t簡頌曦\n30017\t葉明恩\n30018\t蘇柏霖\n30019\t袁梓睡\n30020\t許雋昇\n30021\t譚子鋐\n30022\t鄧浚濵\n30023\t陳孝謙\n30024\t陳景韜\n30025\t陳雪瑩\n30026\t麥晉維\n30027\t黃曜軯\n30028\t黃柏熙\n30029\t黃銀軯\n30030\t黃璑霜\n30031\t黄顧頕\n",
+  "stderr": "",
+  "execution_time_ms": 1820
+}

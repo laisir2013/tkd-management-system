@@ -1,0 +1,100 @@
+{
+  "query": "SELECT id, name, phone, venue, scheduleDay, scheduleTime, feePerQuarter FROM students WHERE venue = '精英班道場' LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, phone, venue, scheduleDay, scheduleTime, feePerQuarter FROM students WHERE venue = '精英班道場' LIMIT 10;",
+  "rows": [
+    {
+      "id": "120001",
+      "name": "Enzo",
+      "phone": "Enzo",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "id": "120002",
+      "name": "Luna Petralia",
+      "phone": "LunaPetr",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "id": "120003",
+      "name": "丁子聰",
+      "phone": "丁子聰",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "id": "120004",
+      "name": "余學然",
+      "phone": "余學然",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "id": "120005",
+      "name": "侯兆洪",
+      "phone": "侯兆洪",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "id": "120006",
+      "name": "劉宇政",
+      "phone": "劉宇政",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "id": "120007",
+      "name": "劉燊政",
+      "phone": "劉燊政",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "id": "120008",
+      "name": "劉玥",
+      "phone": "劉玥",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "id": "120009",
+      "name": "吳傲天",
+      "phone": "吳傲天",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "feePerQuarter": "2400.00"
+    },
+    {
+      "id": "120010",
+      "name": "吳卓謙",
+      "phone": "吳卓謙",
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "feePerQuarter": "2400.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tphone\tvenue\tscheduleDay\tscheduleTime\tfeePerQuarter\n120001\tEnzo\tEnzo\t精英班道場\t星期日\t12:00-6:30pm\t2400.00\n120002\tLuna Petralia\tLunaPetr\t精英班道場\t星期日\t12:00-6:30pm\t2400.00\n120003\t丁子聰\t丁子聰\t精英班道場\t星期日\t12:00-6:30pm\t2400.00\n120004\t余學然\t余學然\t精英班道場\t星期日\t12:00-6:30pm\t2400.00\n120005\t侯兆洪\t侯兆洪\t精英班道場\t星期日\t12:00-6:30pm\t2400.00\n120006\t劉宇政\t劉宇政\t精英班道場\t星期日\t12:00-6:30pm\t2400.00\n120007\t劉燊政\t劉燊政\t精英班道場\t星期日\t12:00-6:30pm\t2400.00\n120008\t劉玥\t劉玥\t精英班道場\t星期日\t12:00-6:30pm\t2400.00\n120009\t吳傲天\t吳傲天\t精英班道場\t星期日\t12:00-6:30pm\t2400.00\n120010\t吳卓謙\t吳卓謙\t精英班道場\t星期日\t12:00-6:30pm\t2400.00\n",
+  "stderr": "",
+  "execution_time_ms": 1577
+}

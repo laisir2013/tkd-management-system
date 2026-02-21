@@ -1,0 +1,24 @@
+{
+  "query": "SELECT id, role, phone, name, openId FROM users WHERE role = 'admin' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, role, phone, name, openId FROM users WHERE role = 'admin' LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "role": "admin",
+      "phone": "NULL",
+      "name": "lai sir",
+      "openId": "BEsunkdtEjJ5LrTNzxjMMJ"
+    },
+    {
+      "id": "150004",
+      "role": "admin",
+      "phone": "94839882",
+      "name": "賴政堡教練",
+      "openId": "coach_lai_zhengbao"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\trole\tphone\tname\topenId\n1\tadmin\tNULL\tlai sir\tBEsunkdtEjJ5LrTNzxjMMJ\n150004\tadmin\t94839882\t賴政堡教練\tcoach_lai_zhengbao\n",
+  "stderr": "",
+  "execution_time_ms": 1520
+}

@@ -1,0 +1,18 @@
+{
+  "query": "SELECT schedule_time, COUNT(*) as count FROM elite_students WHERE status = 'active' GROUP BY schedule_time;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT schedule_time, COUNT(*) as count FROM elite_students WHERE status = 'active' GROUP BY schedule_time;",
+  "rows": [
+    {
+      "schedule_time": "4:30-6:30pm",
+      "count": "23"
+    },
+    {
+      "schedule_time": "12:00-2:00pm",
+      "count": "23"
+    }
+  ],
+  "messages": [],
+  "stdout": "schedule_time\tcount\n4:30-6:30pm\t23\n12:00-2:00pm\t23\n",
+  "stderr": "",
+  "execution_time_ms": 1485
+}

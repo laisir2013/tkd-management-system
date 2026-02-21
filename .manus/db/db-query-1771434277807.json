@@ -1,0 +1,18 @@
+{
+  "query": "SELECT \n  DATE_FORMAT(training_date, '%Y-%m') as month,\n  COUNT(*) as count\nFROM training_schedules\nGROUP BY DATE_FORMAT(training_date, '%Y-%m')\nORDER BY month;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  DATE_FORMAT(training_date, '%Y-%m') as month,\n  COUNT(*) as count\nFROM training_schedules\nGROUP BY DATE_FORMAT(training_date, '%Y-%m')\nORDER BY month;",
+  "rows": [
+    {
+      "month": "2026-01",
+      "count": "4"
+    },
+    {
+      "month": "2026-02",
+      "count": "100"
+    }
+  ],
+  "messages": [],
+  "stdout": "month\tcount\n2026-01\t4\n2026-02\t100\n",
+  "stderr": "",
+  "execution_time_ms": 1568
+}

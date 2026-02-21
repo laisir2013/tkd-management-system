@@ -1,0 +1,17 @@
+{
+  "query": "SELECT \n  COUNT(*) as total_students,\n  SUM(CAST(feePerQuarter AS DECIMAL(10,2))) as total_quarterly_fee,\n  AVG(CAST(feePerQuarter AS DECIMAL(10,2))) as avg_quarterly_fee,\n  MIN(CAST(feePerQuarter AS DECIMAL(10,2))) as min_quarterly_fee,\n  MAX(CAST(feePerQuarter AS DECIMAL(10,2))) as max_quarterly_fee\nFROM students;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  COUNT(*) as total_students,\n  SUM(CAST(feePerQuarter AS DECIMAL(10,2))) as total_quarterly_fee,\n  AVG(CAST(feePerQuarter AS DECIMAL(10,2))) as avg_quarterly_fee,\n  MIN(CAST(feePerQuarter AS DECIMAL(10,2))) as min_quarterly_fee,\n  MAX(CAST(feePerQuarter AS DECIMAL(10,2))) as max_quarterly_fee\nFROM students;",
+  "rows": [
+    {
+      "total_students": "172",
+      "total_quarterly_fee": "344520.00",
+      "avg_quarterly_fee": "2003.023256",
+      "min_quarterly_fee": "1440.00",
+      "max_quarterly_fee": "2400.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_students\ttotal_quarterly_fee\tavg_quarterly_fee\tmin_quarterly_fee\tmax_quarterly_fee\n172\t344520.00\t2003.023256\t1440.00\t2400.00\n",
+  "stderr": "",
+  "execution_time_ms": 1532
+}

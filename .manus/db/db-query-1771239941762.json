@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE users SET phone = '94839882' WHERE name LIKE '%賴政堡%' OR name LIKE '%政堡%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute UPDATE users SET phone = '94839882' WHERE name LIKE '%賴政堡%' OR name LIKE '%政堡%';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1542
+}

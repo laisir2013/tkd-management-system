@@ -1,0 +1,16 @@
+{
+  "query": "SELECT DISTINCT\n  s.venue,\n  s.scheduleDay,\n  s.scheduleTime,\n  COUNT(*) as student_count\nFROM students s\nWHERE NOT EXISTS (\n  SELECT 1 FROM dojos d\n  WHERE s.venue = d.name \n    AND s.scheduleDay = d.schedule_day \n    AND s.scheduleTime = d.schedule_time\n)\nGROUP BY s.venue, s.scheduleDay, s.scheduleTime\nLIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT DISTINCT\n  s.venue,\n  s.scheduleDay,\n  s.scheduleTime,\n  COUNT(*) as student_count\nFROM students s\nWHERE NOT EXISTS (\n  SELECT 1 FROM dojos d\n  WHERE s.venue = d.name \n    AND s.scheduleDay = d.schedule_day \n    AND s.scheduleTime = d.schedule_time\n)\nGROUP BY s.venue, s.scheduleDay, s.scheduleTime\nLIMIT 20;",
+  "rows": [
+    {
+      "venue": "精英班道場",
+      "scheduleDay": "星期日",
+      "scheduleTime": "12:00-6:30pm",
+      "student_count": "69"
+    }
+  ],
+  "messages": [],
+  "stdout": "venue\tscheduleDay\tscheduleTime\tstudent_count\n精英班道場\t星期日\t12:00-6:30pm\t69\n",
+  "stderr": "",
+  "execution_time_ms": 1545
+}

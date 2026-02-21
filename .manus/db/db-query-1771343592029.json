@@ -1,0 +1,9 @@
+{
+  "query": "DELETE t1 FROM training_schedules t1\nINNER JOIN training_schedules t2 \nWHERE t1.id > t2.id \n  AND DATE(t1.training_date) = DATE(t2.training_date)\n  AND t1.venue = t2.venue \n  AND t1.schedule_day = t2.schedule_day \n  AND t1.schedule_time = t2.schedule_time;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute DELETE t1 FROM training_schedules t1\nINNER JOIN training_schedules t2 \nWHERE t1.id > t2.id \n  AND DATE(t1.training_date) = DATE(t2.training_date)\n  AND t1.venue = t2.venue \n  AND t1.schedule_day = t2.schedule_day \n  AND t1.schedule_time = t2.schedule_time;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1534
+}

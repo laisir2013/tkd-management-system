@@ -1,0 +1,15 @@
+{
+  "query": "SELECT COUNT(*) as total, COUNT(phone) as has_phone, COUNT(CASE WHEN phone IS NOT NULL AND phone != '' THEN 1 END) as non_empty_phone FROM students;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(*) as total, COUNT(phone) as has_phone, COUNT(CASE WHEN phone IS NOT NULL AND phone != '' THEN 1 END) as non_empty_phone FROM students;",
+  "rows": [
+    {
+      "total": "172",
+      "has_phone": "172",
+      "non_empty_phone": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\thas_phone\tnon_empty_phone\n172\t172\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1520
+}

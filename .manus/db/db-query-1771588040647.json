@@ -1,0 +1,15 @@
+{
+  "query": "SELECT \n  COUNT(*) as total,\n  SUM(CASE WHEN phone IS NOT NULL AND phone != '' AND phone != '0' THEN 1 ELSE 0 END) as has_phone,\n  SUM(CASE WHEN phone IS NULL OR phone = '' OR phone = '0' THEN 1 ELSE 0 END) as no_phone\nFROM elite_students;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  COUNT(*) as total,\n  SUM(CASE WHEN phone IS NOT NULL AND phone != '' AND phone != '0' THEN 1 ELSE 0 END) as has_phone,\n  SUM(CASE WHEN phone IS NULL OR phone = '' OR phone = '0' THEN 1 ELSE 0 END) as no_phone\nFROM elite_students;",
+  "rows": [
+    {
+      "total": "77",
+      "has_phone": "22",
+      "no_phone": "55"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\thas_phone\tno_phone\n77\t22\t55\n",
+  "stderr": "",
+  "execution_time_ms": 3053
+}

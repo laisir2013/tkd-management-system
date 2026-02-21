@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, training_date, venue, schedule_day, schedule_time, status FROM training_schedules WHERE venue = '寶林道場' AND schedule_time = '4:00-5:00pm' ORDER BY training_date LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, training_date, venue, schedule_day, schedule_time, status FROM training_schedules WHERE venue = '寶林道場' AND schedule_time = '4:00-5:00pm' ORDER BY training_date LIMIT 10;",
+  "rows": [
+    {
+      "id": "150020",
+      "training_date": "2025-12-31 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "150005",
+      "training_date": "2026-01-05 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "150022",
+      "training_date": "2026-01-07 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "150006",
+      "training_date": "2026-01-12 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "150024",
+      "training_date": "2026-01-14 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "150007",
+      "training_date": "2026-01-19 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "150026",
+      "training_date": "2026-01-21 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "150009",
+      "training_date": "2026-01-26 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "150028",
+      "training_date": "2026-01-28 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "90056",
+      "training_date": "2026-02-02 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttraining_date\tvenue\tschedule_day\tschedule_time\tstatus\n150020\t2025-12-31 00:00:00\t寶林道場\t星期三\t4:00-5:00pm\tactive\n150005\t2026-01-05 00:00:00\t寶林道場\t星期一\t4:00-5:00pm\tactive\n150022\t2026-01-07 00:00:00\t寶林道場\t星期三\t4:00-5:00pm\tactive\n150006\t2026-01-12 00:00:00\t寶林道場\t星期一\t4:00-5:00pm\tactive\n150024\t2026-01-14 00:00:00\t寶林道場\t星期三\t4:00-5:00pm\tactive\n150007\t2026-01-19 00:00:00\t寶林道場\t星期一\t4:00-5:00pm\tactive\n150026\t2026-01-21 00:00:00\t寶林道場\t星期三\t4:00-5:00pm\tactive\n150009\t2026-01-26 00:00:00\t寶林道場\t星期一\t4:00-5:00pm\tactive\n150028\t2026-01-28 00:00:00\t寶林道場\t星期三\t4:00-5:00pm\tactive\n90056\t2026-02-02 00:00:00\t寶林道場\t星期一\t4:00-5:00pm\tactive\n",
+  "stderr": "",
+  "execution_time_ms": 1564
+}

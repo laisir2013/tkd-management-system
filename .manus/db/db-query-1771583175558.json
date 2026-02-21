@@ -1,0 +1,18 @@
+{
+  "query": "SELECT 'schedules' as tbl, COUNT(*) as cnt FROM elite_schedules UNION ALL SELECT 'attendance' as tbl, COUNT(*) as cnt FROM elite_attendance;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT 'schedules' as tbl, COUNT(*) as cnt FROM elite_schedules UNION ALL SELECT 'attendance' as tbl, COUNT(*) as cnt FROM elite_attendance;",
+  "rows": [
+    {
+      "tbl": "schedules",
+      "cnt": "152"
+    },
+    {
+      "tbl": "attendance",
+      "cnt": "3703"
+    }
+  ],
+  "messages": [],
+  "stdout": "tbl\tcnt\nschedules\t152\nattendance\t3703\n",
+  "stderr": "",
+  "execution_time_ms": 1520
+}

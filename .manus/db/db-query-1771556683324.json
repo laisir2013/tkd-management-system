@@ -1,0 +1,82 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'students' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'students' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "name"
+    },
+    {
+      "COLUMN_NAME": "birthDate"
+    },
+    {
+      "COLUMN_NAME": "phone"
+    },
+    {
+      "COLUMN_NAME": "venue"
+    },
+    {
+      "COLUMN_NAME": "scheduleDay"
+    },
+    {
+      "COLUMN_NAME": "scheduleTime"
+    },
+    {
+      "COLUMN_NAME": "feePerQuarter"
+    },
+    {
+      "COLUMN_NAME": "beltLevel"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    },
+    {
+      "COLUMN_NAME": "student_number"
+    },
+    {
+      "COLUMN_NAME": "gender"
+    },
+    {
+      "COLUMN_NAME": "email"
+    },
+    {
+      "COLUMN_NAME": "address"
+    },
+    {
+      "COLUMN_NAME": "emergency_contact"
+    },
+    {
+      "COLUMN_NAME": "emergency_phone"
+    },
+    {
+      "COLUMN_NAME": "dojo_id"
+    },
+    {
+      "COLUMN_NAME": "coach_id"
+    },
+    {
+      "COLUMN_NAME": "current_belt_level_id"
+    },
+    {
+      "COLUMN_NAME": "status"
+    },
+    {
+      "COLUMN_NAME": "join_date"
+    },
+    {
+      "COLUMN_NAME": "notes"
+    },
+    {
+      "COLUMN_NAME": "password"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nname\nbirthDate\nphone\nvenue\nscheduleDay\nscheduleTime\nfeePerQuarter\nbeltLevel\ncreatedAt\nupdatedAt\nstudent_number\ngender\nemail\naddress\nemergency_contact\nemergency_phone\ndojo_id\ncoach_id\ncurrent_belt_level_id\nstatus\njoin_date\nnotes\npassword\n",
+  "stderr": "",
+  "execution_time_ms": 1489
+}

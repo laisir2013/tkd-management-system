@@ -1,0 +1,16 @@
+{
+  "query": "SELECT \n  MONTH(pr.paymentDate) as month,\n  CASE WHEN s.venue = '精英班道場' THEN 'elite' ELSE 'regular' END as class_type,\n  COUNT(*) as payment_count,\n  SUM(pr.amount) as total_amount\nFROM paymentRecords pr\nJOIN students s ON pr.studentId = s.id\nWHERE pr.paymentDate >= '2026-01-01' \n  AND pr.paymentDate <= '2026-03-31'\n  AND pr.status = 'confirmed'\nGROUP BY MONTH(pr.paymentDate), class_type\nORDER BY month, class_type;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  MONTH(pr.paymentDate) as month,\n  CASE WHEN s.venue = '精英班道場' THEN 'elite' ELSE 'regular' END as class_type,\n  COUNT(*) as payment_count,\n  SUM(pr.amount) as total_amount\nFROM paymentRecords pr\nJOIN students s ON pr.studentId = s.id\nWHERE pr.paymentDate >= '2026-01-01' \n  AND pr.paymentDate <= '2026-03-31'\n  AND pr.status = 'confirmed'\nGROUP BY MONTH(pr.paymentDate), class_type\nORDER BY month, class_type;",
+  "rows": [
+    {
+      "month": "1",
+      "class_type": "regular",
+      "payment_count": "61",
+      "total_amount": "105120.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "month\tclass_type\tpayment_count\ttotal_amount\n1\tregular\t61\t105120.00\n",
+  "stderr": "",
+  "execution_time_ms": 1535
+}

@@ -1,0 +1,253 @@
+{
+  "query": "SELECT COUNT(*) as schedule_count FROM elite_schedules; SELECT COUNT(*) as attendance_count FROM elite_attendance; SELECT id, name FROM elite_students ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(*) as schedule_count FROM elite_schedules; SELECT COUNT(*) as attendance_count FROM elite_attendance; SELECT id, name FROM elite_students ORDER BY id;",
+  "rows": [
+    {
+      "schedule_count": "0"
+    },
+    {
+      "schedule_count": "attendance_count"
+    },
+    {
+      "schedule_count": "0"
+    },
+    {
+      "schedule_count": "id\tname"
+    },
+    {
+      "schedule_count": "1\t李泳霖"
+    },
+    {
+      "schedule_count": "2\t黃天愉"
+    },
+    {
+      "schedule_count": "3\t郭俊康"
+    },
+    {
+      "schedule_count": "4\t韓灝南"
+    },
+    {
+      "schedule_count": "5\t龐兆羽"
+    },
+    {
+      "schedule_count": "6\t陳臻軒"
+    },
+    {
+      "schedule_count": "7\t劉玥"
+    },
+    {
+      "schedule_count": "8\t李梓皓"
+    },
+    {
+      "schedule_count": "9\t黃煒庭"
+    },
+    {
+      "schedule_count": "10\t鄧穎翹"
+    },
+    {
+      "schedule_count": "11\t楊惜林"
+    },
+    {
+      "schedule_count": "12\t林恩同"
+    },
+    {
+      "schedule_count": "13\t曾祉媃"
+    },
+    {
+      "schedule_count": "14\t歐航瑋"
+    },
+    {
+      "schedule_count": "15\t吳博立"
+    },
+    {
+      "schedule_count": "16\t林慧玲"
+    },
+    {
+      "schedule_count": "17\t蔡宏鑫"
+    },
+    {
+      "schedule_count": "18\t吳芷媛"
+    },
+    {
+      "schedule_count": "19\t張溰榆"
+    },
+    {
+      "schedule_count": "20\t葉栩靖"
+    },
+    {
+      "schedule_count": "21\t葉駿輝"
+    },
+    {
+      "schedule_count": "22\t施俊杰"
+    },
+    {
+      "schedule_count": "23\t賴柏希"
+    },
+    {
+      "schedule_count": "24\t林諾天"
+    },
+    {
+      "schedule_count": "25\t徐志杰"
+    },
+    {
+      "schedule_count": "26\t李弘正"
+    },
+    {
+      "schedule_count": "27\t蔡御霆"
+    },
+    {
+      "schedule_count": "28\t黃頌琛"
+    },
+    {
+      "schedule_count": "29\t葉晧晴"
+    },
+    {
+      "schedule_count": "30\tLuna Petralia"
+    },
+    {
+      "schedule_count": "31\t鄒曉澄"
+    },
+    {
+      "schedule_count": "32\t鄒詩雅"
+    },
+    {
+      "schedule_count": "33\t袁穗晴"
+    },
+    {
+      "schedule_count": "34\t袁逸朗"
+    },
+    {
+      "schedule_count": "35\t江哲男"
+    },
+    {
+      "schedule_count": "36\t王浩宇"
+    },
+    {
+      "schedule_count": "37\t吳傲天"
+    },
+    {
+      "schedule_count": "38\t陳梓軒"
+    },
+    {
+      "schedule_count": "39\t黃銘軒"
+    },
+    {
+      "schedule_count": "40\t朱棋楓"
+    },
+    {
+      "schedule_count": "41\t丁子聰"
+    },
+    {
+      "schedule_count": "42\t楊廷諄"
+    },
+    {
+      "schedule_count": "43\t譚子鋭"
+    },
+    {
+      "schedule_count": "44\t王嘉楷"
+    },
+    {
+      "schedule_count": "45\t楊猷宸"
+    },
+    {
+      "schedule_count": "46\t周泓謙"
+    },
+    {
+      "schedule_count": "60001\tEnzo"
+    },
+    {
+      "schedule_count": "60002\t余學然"
+    },
+    {
+      "schedule_count": "60003\t侯兆洪"
+    },
+    {
+      "schedule_count": "60004\t劉宇政"
+    },
+    {
+      "schedule_count": "60005\t劉燊政"
+    },
+    {
+      "schedule_count": "60006\t吳卓謙"
+    },
+    {
+      "schedule_count": "60007\t周泳謝"
+    },
+    {
+      "schedule_count": "60008\t林文傑"
+    },
+    {
+      "schedule_count": "60009\t林明慧"
+    },
+    {
+      "schedule_count": "60010\t林煒堯"
+    },
+    {
+      "schedule_count": "60011\t林頴萳"
+    },
+    {
+      "schedule_count": "60012\t梁熙朗"
+    },
+    {
+      "schedule_count": "60013\t梁珀豪"
+    },
+    {
+      "schedule_count": "60014\t江柏僑"
+    },
+    {
+      "schedule_count": "60015\t洪卓斐"
+    },
+    {
+      "schedule_count": "60016\t簡頌曦"
+    },
+    {
+      "schedule_count": "60017\t葉明恩"
+    },
+    {
+      "schedule_count": "60018\t蘇柏霖"
+    },
+    {
+      "schedule_count": "60019\t袁梓睡"
+    },
+    {
+      "schedule_count": "60020\t許雋昇"
+    },
+    {
+      "schedule_count": "60021\t譚子鋐"
+    },
+    {
+      "schedule_count": "60022\t鄧浚濵"
+    },
+    {
+      "schedule_count": "60023\t陳孝謙"
+    },
+    {
+      "schedule_count": "60024\t陳景韜"
+    },
+    {
+      "schedule_count": "60025\t陳雪瑩"
+    },
+    {
+      "schedule_count": "60026\t麥晉維"
+    },
+    {
+      "schedule_count": "60027\t黃曜軯"
+    },
+    {
+      "schedule_count": "60028\t黃柏熙"
+    },
+    {
+      "schedule_count": "60029\t黃銀軯"
+    },
+    {
+      "schedule_count": "60030\t黃璑霜"
+    },
+    {
+      "schedule_count": "60031\t黄顧頕"
+    }
+  ],
+  "messages": [],
+  "stdout": "schedule_count\n0\nattendance_count\n0\nid\tname\n1\t李泳霖\n2\t黃天愉\n3\t郭俊康\n4\t韓灝南\n5\t龐兆羽\n6\t陳臻軒\n7\t劉玥\n8\t李梓皓\n9\t黃煒庭\n10\t鄧穎翹\n11\t楊惜林\n12\t林恩同\n13\t曾祉媃\n14\t歐航瑋\n15\t吳博立\n16\t林慧玲\n17\t蔡宏鑫\n18\t吳芷媛\n19\t張溰榆\n20\t葉栩靖\n21\t葉駿輝\n22\t施俊杰\n23\t賴柏希\n24\t林諾天\n25\t徐志杰\n26\t李弘正\n27\t蔡御霆\n28\t黃頌琛\n29\t葉晧晴\n30\tLuna Petralia\n31\t鄒曉澄\n32\t鄒詩雅\n33\t袁穗晴\n34\t袁逸朗\n35\t江哲男\n36\t王浩宇\n37\t吳傲天\n38\t陳梓軒\n39\t黃銘軒\n40\t朱棋楓\n41\t丁子聰\n42\t楊廷諄\n43\t譚子鋭\n44\t王嘉楷\n45\t楊猷宸\n46\t周泓謙\n60001\tEnzo\n60002\t余學然\n60003\t侯兆洪\n60004\t劉宇政\n60005\t劉燊政\n60006\t吳卓謙\n60007\t周泳謝\n60008\t林文傑\n60009\t林明慧\n60010\t林煒堯\n60011\t林頴萳\n60012\t梁熙朗\n60013\t梁珀豪\n60014\t江柏僑\n60015\t洪卓斐\n60016\t簡頌曦\n60017\t葉明恩\n60018\t蘇柏霖\n60019\t袁梓睡\n60020\t許雋昇\n60021\t譚子鋐\n60022\t鄧浚濵\n60023\t陳孝謙\n60024\t陳景韜\n60025\t陳雪瑩\n60026\t麥晉維\n60027\t黃曜軯\n60028\t黃柏熙\n60029\t黃銀軯\n60030\t黃璑霜\n60031\t黄顧頕\n",
+  "stderr": "",
+  "execution_time_ms": 2061
+}

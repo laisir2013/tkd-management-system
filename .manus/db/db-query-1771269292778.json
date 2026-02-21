@@ -1,0 +1,26 @@
+{
+  "query": "SELECT id, name, venue, scheduleDay, scheduleTime, status FROM students WHERE name LIKE '%測試%' OR name LIKE '%Upsert%' LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, venue, scheduleDay, scheduleTime, status FROM students WHERE name LIKE '%測試%' OR name LIKE '%Upsert%' LIMIT 10;",
+  "rows": [
+    {
+      "id": "30002",
+      "name": "測試學生-Upsert",
+      "venue": "測試道場",
+      "scheduleDay": "Monday",
+      "scheduleTime": "18:00-19:00",
+      "status": "active"
+    },
+    {
+      "id": "30003",
+      "name": "測試學生-Upsert",
+      "venue": "測試道場",
+      "scheduleDay": "Monday",
+      "scheduleTime": "18:00-19:00",
+      "status": "active"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tvenue\tscheduleDay\tscheduleTime\tstatus\n30002\t測試學生-Upsert\t測試道場\tMonday\t18:00-19:00\tactive\n30003\t測試學生-Upsert\t測試道場\tMonday\t18:00-19:00\tactive\n",
+  "stderr": "",
+  "execution_time_ms": 1531
+}

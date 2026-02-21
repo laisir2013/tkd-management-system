@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE students SET phone = '67580607', beltLevel = '黃帶' WHERE name = 'Enzo' AND venue = '精英班道場';\nUPDATE students SET phone = '67580607', beltLevel = '黑帶' WHERE name = 'Luna Petralia' AND venue = '精英班道場';\nUPDATE students SET phone = '61702662', beltLevel = '藍紅帶' WHERE name = '徐志杰' AND venue = '精英班道場';\nUPDATE students SET name = '洪卓斌', phone = '93052574' WHERE name = '洪卓斐' AND venue = '精英班道場';\nUPDATE students SET phone = '61214704', beltLevel = '黑帶' WHERE name = '江哲男' AND venue = '精英班道場';\nUPDATE students SET phone = '62242679', beltLevel = '紅黑帶' WHERE name = '賴柏希' AND venue = '精英班道場';\nUPDATE students SET phone = '92266599', beltLevel = '黑帶' WHERE name = '鄒曉澄' AND venue = '精英班道場';\nUPDATE students SET phone = '92266599', beltLevel = '黑帶' WHERE name = '鄒詩雅' AND venue = '精英班道場';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute UPDATE students SET phone = '67580607', beltLevel = '黃帶' WHERE name = 'Enzo' AND venue = '精英班道場';\nUPDATE students SET phone = '67580607', beltLevel = '黑帶' WHERE name = 'Luna Petralia' AND venue = '精英班道場';\nUPDATE students SET phone = '61702662', beltLevel = '藍紅帶' WHERE name = '徐志杰' AND venue = '精英班道場';\nUPDATE students SET name = '洪卓斌', phone = '93052574' WHERE name = '洪卓斐' AND venue = '精英班道場';\nUPDATE students SET phone = '61214704', beltLevel = '黑帶' WHERE name = '江哲男' AND venue = '精英班道場';\nUPDATE students SET phone = '62242679', beltLevel = '紅黑帶' WHERE name = '賴柏希' AND venue = '精英班道場';\nUPDATE students SET phone = '92266599', beltLevel = '黑帶' WHERE name = '鄒曉澄' AND venue = '精英班道場';\nUPDATE students SET phone = '92266599', beltLevel = '黑帶' WHERE name = '鄒詩雅' AND venue = '精英班道場';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 3180
+}

@@ -1,0 +1,8 @@
+{
+  "query": "SELECT s.id, s.name, s.phone, pr.id as payment_id, pr.paymentPeriod, pr.amount, pr.paymentDate, pr.receiptTransferDate, pr.status, pr.createdAt\nFROM students s \nLEFT JOIN payment_records pr ON s.id = pr.studentId \nWHERE s.name = '黃睿浠'\nORDER BY pr.paymentDate DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT s.id, s.name, s.phone, pr.id as payment_id, pr.paymentPeriod, pr.amount, pr.paymentDate, pr.receiptTransferDate, pr.status, pr.createdAt\nFROM students s \nLEFT JOIN payment_records pr ON s.id = pr.studentId \nWHERE s.name = '黃睿浠'\nORDER BY pr.paymentDate DESC;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table 'rnevhltrlzsn3yag38knkl.payment_records' doesn't exist"
+  ]
+}

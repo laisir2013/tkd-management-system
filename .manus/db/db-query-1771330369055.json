@@ -1,0 +1,60 @@
+{
+  "query": "SELECT id, name, phone, venue, scheduleDay, scheduleTime, feePerQuarter, beltLevel FROM students LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, phone, venue, scheduleDay, scheduleTime, feePerQuarter, beltLevel FROM students LIMIT 5;",
+  "rows": [
+    {
+      "id": "90001",
+      "name": "李泳霖",
+      "phone": "90971420",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "beltLevel": "藍帶"
+    },
+    {
+      "id": "90002",
+      "name": "黃天愉",
+      "phone": "92756760",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "beltLevel": "綠藍帶"
+    },
+    {
+      "id": "90003",
+      "name": "郭俊康",
+      "phone": "67351169",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "beltLevel": "藍帶"
+    },
+    {
+      "id": "90004",
+      "name": "韓灝南",
+      "phone": "62556224",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "beltLevel": "藍紅帶"
+    },
+    {
+      "id": "90005",
+      "name": "龐兆羽",
+      "phone": "96224749",
+      "venue": "寶林道場",
+      "scheduleDay": "星期一",
+      "scheduleTime": "4:00-5:00pm",
+      "feePerQuarter": "1800.00",
+      "beltLevel": "綠藍帶"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tphone\tvenue\tscheduleDay\tscheduleTime\tfeePerQuarter\tbeltLevel\n90001\t李泳霖\t90971420\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t藍帶\n90002\t黃天愉\t92756760\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t綠藍帶\n90003\t郭俊康\t67351169\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t藍帶\n90004\t韓灝南\t62556224\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t藍紅帶\n90005\t龐兆羽\t96224749\t寶林道場\t星期一\t4:00-5:00pm\t1800.00\t綠藍帶\n",
+  "stderr": "",
+  "execution_time_ms": 1664
+}

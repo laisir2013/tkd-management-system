@@ -1,0 +1,22 @@
+{
+  "query": "SELECT venue, COUNT(*) as count FROM students GROUP BY venue ORDER BY count DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT venue, COUNT(*) as count FROM students GROUP BY venue ORDER BY count DESC;",
+  "rows": [
+    {
+      "venue": "寶林道場",
+      "count": "67"
+    },
+    {
+      "venue": "至善道場",
+      "count": "18"
+    },
+    {
+      "venue": "蒲崗村道場",
+      "count": "18"
+    }
+  ],
+  "messages": [],
+  "stdout": "venue\tcount\n寶林道場\t67\n至善道場\t18\n蒲崗村道場\t18\n",
+  "stderr": "",
+  "execution_time_ms": 1566
+}

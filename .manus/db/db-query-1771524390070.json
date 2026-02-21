@@ -1,0 +1,170 @@
+{
+  "query": "SELECT id, training_date, venue, schedule_day, schedule_time, status FROM training_schedules LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, training_date, venue, schedule_day, schedule_time, status FROM training_schedules LIMIT 20;",
+  "rows": [
+    {
+      "id": "180001",
+      "training_date": "2026-02-02 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180002",
+      "training_date": "2026-02-09 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180003",
+      "training_date": "2026-02-16 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180004",
+      "training_date": "2026-02-23 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180005",
+      "training_date": "2026-02-02 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180006",
+      "training_date": "2026-02-09 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180007",
+      "training_date": "2026-02-16 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180008",
+      "training_date": "2026-02-23 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180009",
+      "training_date": "2026-02-05 05:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期四",
+      "schedule_time": "6：00-7：00",
+      "status": "active"
+    },
+    {
+      "id": "180010",
+      "training_date": "2026-02-12 05:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期四",
+      "schedule_time": "6：00-7：00",
+      "status": "active"
+    },
+    {
+      "id": "180011",
+      "training_date": "2026-02-19 05:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期四",
+      "schedule_time": "6：00-7：00",
+      "status": "active"
+    },
+    {
+      "id": "180012",
+      "training_date": "2026-02-26 05:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期四",
+      "schedule_time": "6：00-7：00",
+      "status": "active"
+    },
+    {
+      "id": "180013",
+      "training_date": "2026-02-04 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180014",
+      "training_date": "2026-02-11 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180015",
+      "training_date": "2026-02-18 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180016",
+      "training_date": "2026-02-25 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "status": "active"
+    },
+    {
+      "id": "180017",
+      "training_date": "2026-02-04 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "180018",
+      "training_date": "2026-02-11 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "180019",
+      "training_date": "2026-02-18 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "status": "active"
+    },
+    {
+      "id": "180020",
+      "training_date": "2026-02-25 05:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "status": "active"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttraining_date\tvenue\tschedule_day\tschedule_time\tstatus\n180001\t2026-02-02 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\tactive\n180002\t2026-02-09 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\tactive\n180003\t2026-02-16 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\tactive\n180004\t2026-02-23 05:00:00\t寶林道場\t星期一\t4:00-5:00pm\tactive\n180005\t2026-02-02 05:00:00\t寶林道場\t星期一\t5:00-6:00pm\tactive\n180006\t2026-02-09 05:00:00\t寶林道場\t星期一\t5:00-6:00pm\tactive\n180007\t2026-02-16 05:00:00\t寶林道場\t星期一\t5:00-6:00pm\tactive\n180008\t2026-02-23 05:00:00\t寶林道場\t星期一\t5:00-6:00pm\tactive\n180009\t2026-02-05 05:00:00\t至善道場\t星期四\t6：00-7：00\tactive\n180010\t2026-02-12 05:00:00\t至善道場\t星期四\t6：00-7：00\tactive\n180011\t2026-02-19 05:00:00\t至善道場\t星期四\t6：00-7：00\tactive\n180012\t2026-02-26 05:00:00\t至善道場\t星期四\t6：00-7：00\tactive\n180013\t2026-02-04 05:00:00\t寶林道場\t星期三\t4:00-5:00pm\tactive\n180014\t2026-02-11 05:00:00\t寶林道場\t星期三\t4:00-5:00pm\tactive\n180015\t2026-02-18 05:00:00\t寶林道場\t星期三\t4:00-5:00pm\tactive\n180016\t2026-02-25 05:00:00\t寶林道場\t星期三\t4:00-5:00pm\tactive\n180017\t2026-02-04 05:00:00\t寶林道場\t星期三\t5:00-6:30pm\tactive\n180018\t2026-02-11 05:00:00\t寶林道場\t星期三\t5:00-6:30pm\tactive\n180019\t2026-02-18 05:00:00\t寶林道場\t星期三\t5:00-6:30pm\tactive\n180020\t2026-02-25 05:00:00\t寶林道場\t星期三\t5:00-6:30pm\tactive\n",
+  "stderr": "",
+  "execution_time_ms": 1567
+}

@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE dojos SET coach_name = '賴政堡教練' WHERE coach_name = '賴教練';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute UPDATE dojos SET coach_name = '賴政堡教練' WHERE coach_name = '賴教練';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1534
+}

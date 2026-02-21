@@ -1,0 +1,80 @@
+{
+  "query": "SELECT name, phone, birthDate, beltLevel, venue\nFROM students \nWHERE venue = '精英班道場'\nAND name IN (SELECT name FROM students WHERE venue != '精英班道場')\nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT name, phone, birthDate, beltLevel, venue\nFROM students \nWHERE venue = '精英班道場'\nAND name IN (SELECT name FROM students WHERE venue != '精英班道場')\nLIMIT 10;",
+  "rows": [
+    {
+      "name": "陳梓軒",
+      "phone": "61521528",
+      "birthDate": "NULL",
+      "beltLevel": "綠藍帶",
+      "venue": "精英班道場"
+    },
+    {
+      "name": "王浩宇",
+      "phone": "92507585",
+      "birthDate": "NULL",
+      "beltLevel": "藍紅帶",
+      "venue": "精英班道場"
+    },
+    {
+      "name": "曾祉媃",
+      "phone": "94498987",
+      "birthDate": "2016-10-31",
+      "beltLevel": "紅黑帶",
+      "venue": "精英班道場"
+    },
+    {
+      "name": "龐兆羽",
+      "phone": "96224749",
+      "birthDate": "2017-10-18",
+      "beltLevel": "綠藍帶",
+      "venue": "精英班道場"
+    },
+    {
+      "name": "李弘正",
+      "phone": "98350858",
+      "birthDate": "2015-06-07",
+      "beltLevel": "紅黑帶",
+      "venue": "精英班道場"
+    },
+    {
+      "name": "簡頌曦",
+      "phone": "98356407",
+      "birthDate": "2019-10-22",
+      "beltLevel": "綠帶",
+      "venue": "精英班道場"
+    },
+    {
+      "name": "林恩同",
+      "phone": "55792767",
+      "birthDate": "NULL",
+      "beltLevel": "紅黑帶",
+      "venue": "精英班道場"
+    },
+    {
+      "name": "陳景韜",
+      "phone": "90965636",
+      "birthDate": "2017-11-20",
+      "beltLevel": "綠藍帶",
+      "venue": "精英班道場"
+    },
+    {
+      "name": "鄧穎翹",
+      "phone": "92355055",
+      "birthDate": "NULL",
+      "beltLevel": "藍帶",
+      "venue": "精英班道場"
+    },
+    {
+      "name": "陳孝謙",
+      "phone": "60777261",
+      "birthDate": "2016-03-03",
+      "beltLevel": "藍帶",
+      "venue": "精英班道場"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tphone\tbirthDate\tbeltLevel\tvenue\n陳梓軒\t61521528\tNULL\t綠藍帶\t精英班道場\n王浩宇\t92507585\tNULL\t藍紅帶\t精英班道場\n曾祉媃\t94498987\t2016-10-31\t紅黑帶\t精英班道場\n龐兆羽\t96224749\t2017-10-18\t綠藍帶\t精英班道場\n李弘正\t98350858\t2015-06-07\t紅黑帶\t精英班道場\n簡頌曦\t98356407\t2019-10-22\t綠帶\t精英班道場\n林恩同\t55792767\tNULL\t紅黑帶\t精英班道場\n陳景韜\t90965636\t2017-11-20\t綠藍帶\t精英班道場\n鄧穎翹\t92355055\tNULL\t藍帶\t精英班道場\n陳孝謙\t60777261\t2016-03-03\t藍帶\t精英班道場\n",
+  "stderr": "",
+  "execution_time_ms": 1508
+}

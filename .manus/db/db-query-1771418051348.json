@@ -1,0 +1,14 @@
+{
+  "query": "SELECT \n  COUNT(*) as student_count,\n  SUM(s.feePerQuarter) as total_quarterly_fee\nFROM students s\nLEFT JOIN dojos d ON s.venue = d.name\nWHERE (d.coach_name = '賴政堡教練' OR s.venue IN ('寶林道場 ', '至善道場', '蒲崗村道場'))\n  AND s.venue != '精英班道場';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT \n  COUNT(*) as student_count,\n  SUM(s.feePerQuarter) as total_quarterly_fee\nFROM students s\nLEFT JOIN dojos d ON s.venue = d.name\nWHERE (d.coach_name = '賴政堡教練' OR s.venue IN ('寶林道場 ', '至善道場', '蒲崗村道場'))\n  AND s.venue != '精英班道場';",
+  "rows": [
+    {
+      "student_count": "657",
+      "total_quarterly_fee": "1176120.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "student_count\ttotal_quarterly_fee\n657\t1176120.00\n",
+  "stderr": "",
+  "execution_time_ms": 1562
+}

@@ -1,0 +1,21 @@
+module.exports = {
+  apps: [
+    {
+      name: 'taekwondo',
+      script: 'npx',
+      args: 'tsx watch server/_core/index.ts',
+      cwd: '/home/user/webapp',
+      env: {
+        NODE_ENV: 'development',
+        PORT: 3000,
+        DATABASE_URL: 'mysql://tkd_user:tkd_pass_2026@localhost:3306/taekwondo',
+        JWT_SECRET: 'taekwondo-local-dev-secret-key-2026',
+        VITE_APP_ID: 'local-dev',
+        OWNER_OPEN_ID: 'admin-local',
+      },
+      watch: false,
+      instances: 1,
+      exec_mode: 'fork',
+    }
+  ]
+}

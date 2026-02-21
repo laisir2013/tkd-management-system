@@ -1,0 +1,1 @@
+ALTER TABLE `elite_students` ADD `join_date` timestamp;

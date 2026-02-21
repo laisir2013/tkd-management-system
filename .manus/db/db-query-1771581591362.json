@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM elite_attendance WHERE student_id > 46; DELETE FROM elite_students WHERE name IN ('Enzo','余學然','侯兆洪','劉宇政','劉燊政','吳卓謙','周泳謝','林文傑','林明慧','林煒堯','林頴萳','梁熙朗','梁珀豪','江柏僑','洪卓斐','簡頌曦','葉明恩','蘇柏霖','袁梓睡','許雋昇','譚子鋐','鄧浚濵','陳孝謙','陳景韜','陳雪瑩','麥晉維','黃曜軯','黃柏熙','黃銀軯','黃璑霜','黄顧頕');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute DELETE FROM elite_attendance WHERE student_id > 46; DELETE FROM elite_students WHERE name IN ('Enzo','余學然','侯兆洪','劉宇政','劉燊政','吳卓謙','周泳謝','林文傑','林明慧','林煒堯','林頴萳','梁熙朗','梁珀豪','江柏僑','洪卓斐','簡頌曦','葉明恩','蘇柏霖','袁梓睡','許雋昇','譚子鋐','鄧浚濵','陳孝謙','陳景韜','陳雪瑩','麥晉維','黃曜軯','黃柏熙','黃銀軯','黃璑霜','黄顧頕');",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1846
+}

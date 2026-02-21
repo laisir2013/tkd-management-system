@@ -1,0 +1,15 @@
+{
+  "query": "SELECT COUNT(*) as total, MIN(training_date) as earliest, MAX(training_date) as latest FROM elite_schedules;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT COUNT(*) as total, MIN(training_date) as earliest, MAX(training_date) as latest FROM elite_schedules;",
+  "rows": [
+    {
+      "total": "0",
+      "earliest": "NULL",
+      "latest": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tearliest\tlatest\n0\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1495
+}

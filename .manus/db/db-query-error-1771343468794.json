@@ -1,0 +1,8 @@
+{
+  "query": "SELECT class_id, training_date, COUNT(*) as count \nFROM training_schedules \nGROUP BY class_id, training_date \nHAVING COUNT(*) > 1 \nORDER BY class_id, training_date \nLIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT class_id, training_date, COUNT(*) as count \nFROM training_schedules \nGROUP BY class_id, training_date \nHAVING COUNT(*) > 1 \nORDER BY class_id, training_date \nLIMIT 20;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'class_id' in 'group statement'"
+  ]
+}

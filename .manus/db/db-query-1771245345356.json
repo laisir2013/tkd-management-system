@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, name, phone, role FROM users WHERE phone = '94839882';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, phone, role FROM users WHERE phone = '94839882';",
+  "rows": [
+    {
+      "id": "150004",
+      "name": "賴政堡教練",
+      "phone": "94839882",
+      "role": "admin"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tphone\trole\n150004\t賴政堡教練\t94839882\tadmin\n",
+  "stderr": "",
+  "execution_time_ms": 1609
+}

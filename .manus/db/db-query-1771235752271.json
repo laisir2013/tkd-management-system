@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS attendance_records (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  course_id INT NOT NULL,\n  student_id INT NOT NULL,\n  attendance_date TIMESTAMP NOT NULL,\n  status ENUM('present', 'absent', 'late', 'excused') DEFAULT 'present' NOT NULL,\n  notes TEXT,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  FOREIGN KEY (course_id) REFERENCES courses(id),\n  FOREIGN KEY (student_id) REFERENCES students(id)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute CREATE TABLE IF NOT EXISTS attendance_records (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  course_id INT NOT NULL,\n  student_id INT NOT NULL,\n  attendance_date TIMESTAMP NOT NULL,\n  status ENUM('present', 'absent', 'late', 'excused') DEFAULT 'present' NOT NULL,\n  notes TEXT,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  FOREIGN KEY (course_id) REFERENCES courses(id),\n  FOREIGN KEY (student_id) REFERENCES students(id)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1475
+}

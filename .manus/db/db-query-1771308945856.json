@@ -1,0 +1,9 @@
+{
+  "query": "SELECT id, name, venue, scheduleDay, scheduleTime, status FROM students WHERE scheduleDay IN ('星期一', 'Monday') AND (scheduleTime LIKE '%5%6%' OR scheduleTime LIKE '%17%18%') AND status = 'active' LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, name, venue, scheduleDay, scheduleTime, status FROM students WHERE scheduleDay IN ('星期一', 'Monday') AND (scheduleTime LIKE '%5%6%' OR scheduleTime LIKE '%17%18%') AND status = 'active' LIMIT 20;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1512
+}

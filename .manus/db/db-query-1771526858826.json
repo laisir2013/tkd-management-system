@@ -1,0 +1,19 @@
+{
+  "query": "SELECT ar.id, ar.student_id, ar.course_id, ar.attendance_date, ar.status, ts.id as ts_id, ts.training_date FROM attendance_records ar LEFT JOIN training_schedules ts ON ar.course_id = ts.id LIMIT 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT ar.id, ar.student_id, ar.course_id, ar.attendance_date, ar.status, ts.id as ts_id, ts.training_date FROM attendance_records ar LEFT JOIN training_schedules ts ON ar.course_id = ts.id LIMIT 10",
+  "rows": [
+    {
+      "id": "180001",
+      "student_id": "150105",
+      "course_id": "1",
+      "attendance_date": "2026-02-17 00:00:00",
+      "status": "absent",
+      "ts_id": "NULL",
+      "training_date": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstudent_id\tcourse_id\tattendance_date\tstatus\tts_id\ttraining_date\n180001\t150105\t1\t2026-02-17 00:00:00\tabsent\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1539
+}

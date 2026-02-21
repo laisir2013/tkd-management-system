@@ -1,0 +1,370 @@
+{
+  "query": "SELECT id, training_date, venue, schedule_day, schedule_time, MONTH(training_date) as db_month, DAY(training_date) as db_day FROM training_schedules WHERE YEAR(training_date) = 2026 ORDER BY training_date ASC LIMIT 40",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2EXptzaLNwUU4Aa.102538414273 --database RnEVHLtrLZsN3YAG38kNKL --execute SELECT id, training_date, venue, schedule_day, schedule_time, MONTH(training_date) as db_month, DAY(training_date) as db_day FROM training_schedules WHERE YEAR(training_date) = 2026 ORDER BY training_date ASC LIMIT 40",
+  "rows": [
+    {
+      "id": "360135",
+      "training_date": "2026-01-01 00:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期四",
+      "schedule_time": "6：00-7：00",
+      "db_month": "1",
+      "db_day": "1"
+    },
+    {
+      "id": "360354",
+      "training_date": "2026-01-02 00:00:00",
+      "venue": "蒲崗村道場",
+      "schedule_day": "星期五",
+      "schedule_time": "6：00-7：00",
+      "db_month": "1",
+      "db_day": "2"
+    },
+    {
+      "id": "360224",
+      "training_date": "2026-01-03 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "db_month": "1",
+      "db_day": "3"
+    },
+    {
+      "id": "360398",
+      "training_date": "2026-01-03 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "db_month": "1",
+      "db_day": "3"
+    },
+    {
+      "id": "360485",
+      "training_date": "2026-01-04 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "db_month": "1",
+      "db_day": "4"
+    },
+    {
+      "id": "360442",
+      "training_date": "2026-01-04 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "db_month": "1",
+      "db_day": "4"
+    },
+    {
+      "id": "360268",
+      "training_date": "2026-01-04 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "db_month": "1",
+      "db_day": "4"
+    },
+    {
+      "id": "360048",
+      "training_date": "2026-01-05 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "db_month": "1",
+      "db_day": "5"
+    },
+    {
+      "id": "360005",
+      "training_date": "2026-01-05 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "db_month": "1",
+      "db_day": "5"
+    },
+    {
+      "id": "360528",
+      "training_date": "2026-01-05 00:00:00",
+      "venue": "測試道場",
+      "schedule_day": "Monday",
+      "schedule_time": "18:00-19:00",
+      "db_month": "1",
+      "db_day": "5"
+    },
+    {
+      "id": "360311",
+      "training_date": "2026-01-06 00:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期二",
+      "schedule_time": "6：00-7：00",
+      "db_month": "1",
+      "db_day": "6"
+    },
+    {
+      "id": "360091",
+      "training_date": "2026-01-07 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "db_month": "1",
+      "db_day": "7"
+    },
+    {
+      "id": "360180",
+      "training_date": "2026-01-07 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "db_month": "1",
+      "db_day": "7"
+    },
+    {
+      "id": "360136",
+      "training_date": "2026-01-08 00:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期四",
+      "schedule_time": "6：00-7：00",
+      "db_month": "1",
+      "db_day": "8"
+    },
+    {
+      "id": "360355",
+      "training_date": "2026-01-09 00:00:00",
+      "venue": "蒲崗村道場",
+      "schedule_day": "星期五",
+      "schedule_time": "6：00-7：00",
+      "db_month": "1",
+      "db_day": "9"
+    },
+    {
+      "id": "360225",
+      "training_date": "2026-01-10 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "db_month": "1",
+      "db_day": "10"
+    },
+    {
+      "id": "360399",
+      "training_date": "2026-01-10 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "db_month": "1",
+      "db_day": "10"
+    },
+    {
+      "id": "360486",
+      "training_date": "2026-01-11 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "db_month": "1",
+      "db_day": "11"
+    },
+    {
+      "id": "360443",
+      "training_date": "2026-01-11 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "db_month": "1",
+      "db_day": "11"
+    },
+    {
+      "id": "360269",
+      "training_date": "2026-01-11 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "db_month": "1",
+      "db_day": "11"
+    },
+    {
+      "id": "360049",
+      "training_date": "2026-01-12 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "db_month": "1",
+      "db_day": "12"
+    },
+    {
+      "id": "360529",
+      "training_date": "2026-01-12 00:00:00",
+      "venue": "測試道場",
+      "schedule_day": "Monday",
+      "schedule_time": "18:00-19:00",
+      "db_month": "1",
+      "db_day": "12"
+    },
+    {
+      "id": "360006",
+      "training_date": "2026-01-12 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "db_month": "1",
+      "db_day": "12"
+    },
+    {
+      "id": "360312",
+      "training_date": "2026-01-13 00:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期二",
+      "schedule_time": "6：00-7：00",
+      "db_month": "1",
+      "db_day": "13"
+    },
+    {
+      "id": "360092",
+      "training_date": "2026-01-14 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "db_month": "1",
+      "db_day": "14"
+    },
+    {
+      "id": "360181",
+      "training_date": "2026-01-14 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "db_month": "1",
+      "db_day": "14"
+    },
+    {
+      "id": "360137",
+      "training_date": "2026-01-15 00:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期四",
+      "schedule_time": "6：00-7：00",
+      "db_month": "1",
+      "db_day": "15"
+    },
+    {
+      "id": "360356",
+      "training_date": "2026-01-16 00:00:00",
+      "venue": "蒲崗村道場",
+      "schedule_day": "星期五",
+      "schedule_time": "6：00-7：00",
+      "db_month": "1",
+      "db_day": "16"
+    },
+    {
+      "id": "360226",
+      "training_date": "2026-01-17 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期六",
+      "schedule_time": "10:00-11:30am",
+      "db_month": "1",
+      "db_day": "17"
+    },
+    {
+      "id": "360400",
+      "training_date": "2026-01-17 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期六",
+      "schedule_time": "10：00-11：30",
+      "db_month": "1",
+      "db_day": "17"
+    },
+    {
+      "id": "360487",
+      "training_date": "2026-01-18 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "11：00-12：00",
+      "db_month": "1",
+      "db_day": "18"
+    },
+    {
+      "id": "360444",
+      "training_date": "2026-01-18 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "10：00-11：00",
+      "db_month": "1",
+      "db_day": "18"
+    },
+    {
+      "id": "360270",
+      "training_date": "2026-01-18 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期日",
+      "schedule_time": "3：00-4：30",
+      "db_month": "1",
+      "db_day": "18"
+    },
+    {
+      "id": "360530",
+      "training_date": "2026-01-19 00:00:00",
+      "venue": "測試道場",
+      "schedule_day": "Monday",
+      "schedule_time": "18:00-19:00",
+      "db_month": "1",
+      "db_day": "19"
+    },
+    {
+      "id": "360007",
+      "training_date": "2026-01-19 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "4:00-5:00pm",
+      "db_month": "1",
+      "db_day": "19"
+    },
+    {
+      "id": "360050",
+      "training_date": "2026-01-19 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期一",
+      "schedule_time": "5:00-6:00pm",
+      "db_month": "1",
+      "db_day": "19"
+    },
+    {
+      "id": "360313",
+      "training_date": "2026-01-20 00:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期二",
+      "schedule_time": "6：00-7：00",
+      "db_month": "1",
+      "db_day": "20"
+    },
+    {
+      "id": "360093",
+      "training_date": "2026-01-21 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "5:00-6:30pm",
+      "db_month": "1",
+      "db_day": "21"
+    },
+    {
+      "id": "360182",
+      "training_date": "2026-01-21 00:00:00",
+      "venue": "寶林道場",
+      "schedule_day": "星期三",
+      "schedule_time": "4:00-5:00pm",
+      "db_month": "1",
+      "db_day": "21"
+    },
+    {
+      "id": "360138",
+      "training_date": "2026-01-22 00:00:00",
+      "venue": "至善道場",
+      "schedule_day": "星期四",
+      "schedule_time": "6：00-7：00",
+      "db_month": "1",
+      "db_day": "22"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttraining_date\tvenue\tschedule_day\tschedule_time\tdb_month\tdb_day\n360135\t2026-01-01 00:00:00\t至善道場\t星期四\t6：00-7：00\t1\t1\n360354\t2026-01-02 00:00:00\t蒲崗村道場\t星期五\t6：00-7：00\t1\t2\n360224\t2026-01-03 00:00:00\t寶林道場\t星期六\t10:00-11:30am\t1\t3\n360398\t2026-01-03 00:00:00\t寶林道場\t星期六\t10：00-11：30\t1\t3\n360485\t2026-01-04 00:00:00\t寶林道場\t星期日\t11：00-12：00\t1\t4\n360442\t2026-01-04 00:00:00\t寶林道場\t星期日\t10：00-11：00\t1\t4\n360268\t2026-01-04 00:00:00\t寶林道場\t星期日\t3：00-4：30\t1\t4\n360048\t2026-01-05 00:00:00\t寶林道場\t星期一\t5:00-6:00pm\t1\t5\n360005\t2026-01-05 00:00:00\t寶林道場\t星期一\t4:00-5:00pm\t1\t5\n360528\t2026-01-05 00:00:00\t測試道場\tMonday\t18:00-19:00\t1\t5\n360311\t2026-01-06 00:00:00\t至善道場\t星期二\t6：00-7：00\t1\t6\n360091\t2026-01-07 00:00:00\t寶林道場\t星期三\t5:00-6:30pm\t1\t7\n360180\t2026-01-07 00:00:00\t寶林道場\t星期三\t4:00-5:00pm\t1\t7\n360136\t2026-01-08 00:00:00\t至善道場\t星期四\t6：00-7：00\t1\t8\n360355\t2026-01-09 00:00:00\t蒲崗村道場\t星期五\t6：00-7：00\t1\t9\n360225\t2026-01-10 00:00:00\t寶林道場\t星期六\t10:00-11:30am\t1\t10\n360399\t2026-01-10 00:00:00\t寶林道場\t星期六\t10：00-11：30\t1\t10\n360486\t2026-01-11 00:00:00\t寶林道場\t星期日\t11：00-12：00\t1\t11\n360443\t2026-01-11 00:00:00\t寶林道場\t星期日\t10：00-11：00\t1\t11\n360269\t2026-01-11 00:00:00\t寶林道場\t星期日\t3：00-4：30\t1\t11\n360049\t2026-01-12 00:00:00\t寶林道場\t星期一\t5:00-6:00pm\t1\t12\n360529\t2026-01-12 00:00:00\t測試道場\tMonday\t18:00-19:00\t1\t12\n360006\t2026-01-12 00:00:00\t寶林道場\t星期一\t4:00-5:00pm\t1\t12\n360312\t2026-01-13 00:00:00\t至善道場\t星期二\t6：00-7：00\t1\t13\n360092\t2026-01-14 00:00:00\t寶林道場\t星期三\t5:00-6:30pm\t1\t14\n360181\t2026-01-14 00:00:00\t寶林道場\t星期三\t4:00-5:00pm\t1\t14\n360137\t2026-01-15 00:00:00\t至善道場\t星期四\t6：00-7：00\t1\t15\n360356\t2026-01-16 00:00:00\t蒲崗村道場\t星期五\t6：00-7：00\t1\t16\n360226\t2026-01-17 00:00:00\t寶林道場\t星期六\t10:00-11:30am\t1\t17\n360400\t2026-01-17 00:00:00\t寶林道場\t星期六\t10：00-11：30\t1\t17\n360487\t2026-01-18 00:00:00\t寶林道場\t星期日\t11：00-12：00\t1\t18\n360444\t2026-01-18 00:00:00\t寶林道場\t星期日\t10：00-11：00\t1\t18\n360270\t2026-01-18 00:00:00\t寶林道場\t星期日\t3：00-4：30\t1\t18\n360530\t2026-01-19 00:00:00\t測試道場\tMonday\t18:00-19:00\t1\t19\n360007\t2026-01-19 00:00:00\t寶林道場\t星期一\t4:00-5:00pm\t1\t19\n360050\t2026-01-19 00:00:00\t寶林道場\t星期一\t5:00-6:00pm\t1\t19\n360313\t2026-01-20 00:00:00\t至善道場\t星期二\t6：00-7：00\t1\t20\n360093\t2026-01-21 00:00:00\t寶林道場\t星期三\t5:00-6:30pm\t1\t21\n360182\t2026-01-21 00:00:00\t寶林道場\t星期三\t4:00-5:00pm\t1\t21\n360138\t2026-01-22 00:00:00\t至善道場\t星期四\t6：00-7：00\t1\t22\n",
+  "stderr": "",
+  "execution_time_ms": 1594
+}
