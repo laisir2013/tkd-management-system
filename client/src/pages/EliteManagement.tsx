@@ -652,6 +652,8 @@ function EliteFinanceTab() {
 
   const totalRemaining = balances.reduce((sum: number, b: any) => sum + (b?.remainingClasses || 0), 0);
   const lowBalanceStudents = balances.filter((b: any) => b && b.remainingClasses <= 2);
+  const totalAmountDue = balances.reduce((sum: number, b: any) => sum + (b?.amountDue || 0), 0);
+  const studentsWithDue = balances.filter((b: any) => b && b.amountDue > 0);
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
@@ -673,8 +675,9 @@ function EliteFinanceTab() {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-sm text-muted-foreground">堂數不足 (≤2)</p>
-            <p className="text-2xl font-bold text-red-600">{lowBalanceStudents.length}</p>
+            <p className="text-sm text-muted-foreground">應繳費用</p>
+            <p className={`text-2xl font-bold ${totalAmountDue > 0 ? 'text-orange-600' : ''}`}>${totalAmountDue.toLocaleString()}</p>
+            {studentsWithDue.length > 0 && <p className="text-xs text-muted-foreground">{studentsWithDue.length} 位學生</p>}
           </CardContent>
         </Card>
         <Card>
@@ -720,13 +723,14 @@ function EliteFinanceTab() {
                   <TableHead className="text-center">已繳堂數</TableHead>
                   <TableHead className="text-center">已上堂數</TableHead>
                   <TableHead className="text-center">剩餘堂數</TableHead>
+                  <TableHead className="text-right">應繳費用</TableHead>
                   <TableHead className="text-right">累計繳費</TableHead>
                   <TableHead className="text-center">通知</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {balances.map((b: any) => b && (
-                  <TableRow key={b.studentId} className={b.remainingClasses <= 0 ? "bg-red-50" : b.remainingClasses <= 2 ? "bg-yellow-50" : ""}>
+                {[...balances].sort((a: any, b: any) => (b?.amountDue || 0) - (a?.amountDue || 0) || (a?.remainingClasses || 0) - (b?.remainingClasses || 0)).map((b: any) => b && (
+                  <TableRow key={b.studentId} className={b.amountDue > 0 ? "bg-orange-50" : b.remainingClasses <= 0 ? "bg-red-50" : b.remainingClasses <= 2 ? "bg-yellow-50" : ""}>
                     <TableCell className="font-medium">{b.studentName}</TableCell>
                     <TableCell className="text-center">{b.paidClasses}</TableCell>
                     <TableCell className="text-center">{b.attendedClasses}</TableCell>
@@ -734,6 +738,16 @@ function EliteFinanceTab() {
                       <Badge variant={b.remainingClasses > 4 ? "default" : b.remainingClasses > 0 ? "secondary" : "destructive"}>
                         {b.remainingClasses} 堂
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {b.amountDue > 0 ? (
+                        <span className="font-semibold text-orange-600">
+                          ${b.amountDue.toLocaleString()}
+                          {b.owedPeriods > 1 && <span className="text-xs ml-1">({b.owedPeriods}期)</span>}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">${b.totalPaid.toLocaleString()}</TableCell>
                     <TableCell className="text-center">
@@ -758,7 +772,7 @@ function EliteFinanceTab() {
                   </TableRow>
                 ))}
                 {balances.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">暫無資料</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">暫無資料</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

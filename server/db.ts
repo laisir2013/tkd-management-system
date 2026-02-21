@@ -1117,13 +1117,24 @@ export async function getEliteStudentBalance(studentId: number) {
   const attendance = await getEliteAttendanceRecords({ studentId });
   const attendedClasses = attendance.filter(a => a.status === 'present' || a.status === 'late').length;
   
+  // 計算應繳費用：當上到已繳費的第 10 堂時，要交下一期 $2400
+  // 邏輯：每 12 堂為一期，當 remaining <= 2（即已用到第 10 堂或以上）就觸發
+  const remainingClasses = paidClasses - attendedClasses;
+  const FEE_PER_CYCLE = 2400;
+  const CYCLE_SIZE = 12;
+  // 計算應繳期數：ceil((attended - paid + 3) / 12)，最少 0
+  const owedPeriods = attendedClasses === 0 ? 0 : Math.max(0, Math.ceil((attendedClasses - paidClasses + 3) / CYCLE_SIZE));
+  const amountDue = owedPeriods * FEE_PER_CYCLE;
+
   return {
     studentId,
     studentName: student.name,
     paidClasses,
     attendedClasses,
-    remainingClasses: paidClasses - attendedClasses,
+    remainingClasses,
     totalPaid: payments.filter(p => p.status === 'confirmed').reduce((sum, p) => sum + Number(p.amount), 0),
+    amountDue,
+    owedPeriods,
   };
 }
 
