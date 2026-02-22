@@ -1178,6 +1178,11 @@ export async function getEliteCycleInfo(studentId: number) {
     }
   }
   
+  // 最近一次上堂日期
+  const lastAttendedDate = attendedCount > 0
+    ? attendedRecords[attendedCount - 1].trainingDate?.toISOString() || null
+    : null;
+  
   return {
     studentId,
     studentName: student.name,
@@ -1187,6 +1192,7 @@ export async function getEliteCycleInfo(studentId: number) {
     completedCycles,
     needPaymentReminder,
     cycleStartDate,
+    lastAttendedDate,
     feePerCycle: 2400, // 每 12 堂 $2,400
   };
 }

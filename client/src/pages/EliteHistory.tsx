@@ -453,6 +453,7 @@ export default function EliteHistory() {
                             studentPhone={student.phone || ''}
                             cycleNumber={cycleNum}
                             totalAttended={cycle?.totalAttended || 0}
+                            lastAttendedDate={cycle?.lastAttendedDate || null}
                             amountDue={amountDue}
                           />
                         </td>

@@ -8,6 +8,7 @@ interface EliteAttendanceWhatsAppButtonProps {
   studentPhone: string;
   cycleNumber: number; // 當前循環中的堂數 (1-12)
   totalAttended: number; // 總出席堂數
+  lastAttendedDate?: string | null; // 最近一次上堂日期
   amountDue?: number; // 應繳費用
 }
 
@@ -17,6 +18,7 @@ export function EliteAttendanceWhatsAppButton({
   studentPhone,
   cycleNumber,
   totalAttended,
+  lastAttendedDate,
   amountDue = 0,
 }: EliteAttendanceWhatsAppButtonProps) {
   const [lastSentAt, setLastSentAt] = useState<number | null>(null);
@@ -29,6 +31,12 @@ export function EliteAttendanceWhatsAppButton({
     }
   }, [studentId]);
 
+  const formatDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return "N/A";
+    const d = new Date(dateStr);
+    return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
+  };
+
   const handleWhatsAppClick = (e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -37,75 +45,16 @@ export function EliteAttendanceWhatsAppButton({
       return;
     }
 
-    // 根據堂數位置決定訊息內容
-    let message = "";
+    const dateText = formatDate(lastAttendedDate);
 
-    if (cycleNumber >= 10) {
-      // 接近 12 堂循環尾聲，提醒繳費
-      message = `🥋 ${studentName} 家長您好！
+    const message = `🥋 ${studentName} 家長您好！
 
-📌 *精英班堂數通知*
+📌 *【精英班堂數通知】*
+日期：${dateText}
 
-您的孩子目前已上到今期第 *${cycleNumber} 堂*（共 12 堂）。
-累計總出席：*${totalAttended} 堂*
-
-⚠️ *今期即將完結，請準備繳交下期費用。*
-
-💰 *下期費用：$2,400（12堂）*
-
-───────────────
-💳 *繳費方式*
-
-銀行轉帳：
-• 銀行：中國銀行
-• 帳戶號碼：012-692-2-0114816
-• 帳戶名稱：Chong Mo Company Limited
-
-轉數快 (FPS)：
-• ID：164577132
-───────────────
-
-如有任何疑問，歡迎隨時聯絡我們！
-謝謝您的配合！🙏`;
-    } else if (amountDue > 0) {
-      // 已欠費
-      message = `🥋 ${studentName} 家長您好！
-
-📌 *精英班堂數通知*
-
-您的孩子目前已上到今期第 *${cycleNumber} 堂*（共 12 堂）。
-累計總出席：*${totalAttended} 堂*
-
-⚠️ *目前尚有未繳費用：$${amountDue.toLocaleString()}*
-請盡快繳費以確保孩子能繼續上課。
-
-💰 *繳費金額：$2,400（12堂）*
-
-───────────────
-💳 *繳費方式*
-
-銀行轉帳：
-• 銀行：中國銀行
-• 帳戶號碼：012-692-2-0114816
-• 帳戶名稱：Chong Mo Company Limited
-
-轉數快 (FPS)：
-• ID：164577132
-───────────────
-
-如有任何疑問，歡迎隨時聯絡我們！
-謝謝您的配合！🙏`;
-    } else {
-      // 正常堂數通知
-      message = `🥋 ${studentName} 家長您好！
-
-📌 *精英班堂數通知*
-
-您的孩子目前已上到今期第 *${cycleNumber} 堂*（共 12 堂）。
-累計總出席：*${totalAttended} 堂*
-
-感謝您的支持！如有任何疑問，歡迎隨時聯絡我們！🙏`;
-    }
+．您的小朋友目前已上到今期第 *${cycleNumber} 堂*（共 12 堂）
+．方便大家紀錄番堂數
+．如有錯誤，可即時通知我地`;
 
     const whatsappUrl = `https://wa.me/852${studentPhone}?text=${encodeURIComponent(message)}`;
 
