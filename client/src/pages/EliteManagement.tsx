@@ -866,7 +866,7 @@ function EliteFinanceTab() {
                             feePerClass={student?.feePerClass || '200'}
                             size="sm"
                             variant="ghost"
-                            showLabel={b.remainingClasses <= 3}
+                            showLabel={true}
                           />
                         );
                       })()}

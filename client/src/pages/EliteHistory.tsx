@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, MessageCircle } from "lucide-react";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
+import { EliteAttendanceWhatsAppButton } from "@/components/EliteAttendanceWhatsAppButton";
 
 export default function EliteHistory() {
   const utils = trpc.useUtils();
@@ -355,6 +356,7 @@ export default function EliteHistory() {
                     <th className="px-2 py-2 text-center font-medium min-w-[50px] bg-blue-100 border-r border-b">出席</th>
                     <th className="px-2 py-2 text-center font-medium min-w-[50px] bg-red-100 border-r border-b">請假</th>
                     <th className="px-2 py-2 text-center font-medium min-w-[55px] bg-purple-100 border-r border-b">循環</th>
+                    <th className="px-2 py-2 text-center font-medium min-w-[42px] bg-green-100 border-r border-b" title="WhatsApp 通知上了第幾堂">通知</th>
                     <th className="px-2 py-2 text-center font-medium min-w-[68px] bg-indigo-100 border-r border-b">今期開始</th>
                     <th className="px-2 py-2 text-center font-medium min-w-[55px] bg-orange-100 border-b">應繳</th>
                   </tr>
@@ -442,6 +444,17 @@ export default function EliteHistory() {
                           ) : (
                             <span className="text-gray-400 text-[10px]">0堂/12堂</span>
                           )}
+                        </td>
+                        {/* WhatsApp 通知堂數 */}
+                        <td className="px-1 py-1.5 text-center bg-green-50 border-r border-b">
+                          <EliteAttendanceWhatsAppButton
+                            studentId={student.id}
+                            studentName={student.name}
+                            studentPhone={student.phone || ''}
+                            cycleNumber={cycleNum}
+                            totalAttended={cycle?.totalAttended || 0}
+                            amountDue={amountDue}
+                          />
                         </td>
                         {/* 今期開始日期 */}
                         <td className="px-1 py-1.5 text-center bg-indigo-50 border-r border-b">
