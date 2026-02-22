@@ -45,43 +45,30 @@ export function EliteWhatsAppButton({
       return;
     }
 
-    let statusText = "";
-    if (remainingClasses < 0) {
-      statusText = `已超用 ${Math.abs(remainingClasses)} 堂`;
-    } else if (remainingClasses === 0) {
-      statusText = "堂數已用完";
-    } else {
-      statusText = `剩餘 ${remainingClasses} 堂`;
-    }
-
     const systemUrl = window.location.origin;
-    const fee12Classes = parseFloat(feePerClass) * 12;
 
-    const message = `🥋 ${studentName} 家長您好！
+    const message = `📌 *【精英班繳費】*
 
-📌 *精英班繳費通知*
+你好呀，${studentName} 家長，
 
-目前堂數狀況：
-• 已繳堂數：${paidClasses} 堂
-• 已上堂數：${attendedClasses} 堂
-• ${statusText}
-
-請及時繳費以確保孩子能繼續上課。
-
-💰 *繳費金額：$${fee12Classes.toLocaleString()} (12堂)*
+．上期已上堂數：*${attendedClasses} 堂*
+．剩餘堂數：*${remainingClasses} 堂*
+．繳費金額：*$2,400（12堂）*
 
 ───────────────
-💳 *繳費方式*
+💳 *入帳資料：*
 
-銀行轉帳：
-• 銀行：中國銀行
-• 帳戶號碼：012-692-2-0114816
-• 帳戶名稱：Chong Mo Company Limited
+銀行：匯豐銀行
+帳戶號碼：484-287123-838
 
-轉數快 (FPS)：
-• ID：164577132
+銀行：中國銀行
+帳戶號碼：012-692-2-0114816
 
+轉數快ID：164577132
+
+帳戶名稱：Chong Mo Company Limited
 ───────────────
+
 📱 *上傳收據步驟*
 
 1️⃣ 完成轉帳並截圖
@@ -89,15 +76,11 @@ export function EliteWhatsAppButton({
 3️⃣ 使用您的電話號碼登入
    · 帳號：${studentPhone}
    · 密碼：${studentPhone}
-   (登入後可自行修改密碼)
+   （登入後可自行修改密碼）
 4️⃣ 上傳收據截圖
 5️⃣ 完成！
 
-───────────────
-ℹ️ 如有任何疑問，歡迎隨時聯絡我們！
-
-✅ *已繳費者請忽略此訊息*
-謝謝您的配合！🙏`;
+如有任何疑問，歡迎隨時聯絡我們！🙏`;
 
     const whatsappUrl = `https://wa.me/852${studentPhone}?text=${encodeURIComponent(message)}`;
 
