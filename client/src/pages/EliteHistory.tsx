@@ -355,6 +355,7 @@ export default function EliteHistory() {
                     <th className="px-2 py-2 text-center font-medium min-w-[50px] bg-blue-100 border-r border-b">出席</th>
                     <th className="px-2 py-2 text-center font-medium min-w-[50px] bg-red-100 border-r border-b">請假</th>
                     <th className="px-2 py-2 text-center font-medium min-w-[55px] bg-purple-100 border-r border-b">循環</th>
+                    <th className="px-2 py-2 text-center font-medium min-w-[68px] bg-indigo-100 border-r border-b">今期開始</th>
                     <th className="px-2 py-2 text-center font-medium min-w-[55px] bg-orange-100 border-b">應繳</th>
                   </tr>
                 </thead>
@@ -436,10 +437,23 @@ export default function EliteHistory() {
                                   : ""
                               }`}
                             >
-                              {cycleNum}/12
+                              {cycleNum}堂/12堂
                             </Badge>
                           ) : (
-                            <span className="text-gray-400 text-[10px]">0/12</span>
+                            <span className="text-gray-400 text-[10px]">0堂/12堂</span>
+                          )}
+                        </td>
+                        {/* 今期開始日期 */}
+                        <td className="px-1 py-1.5 text-center bg-indigo-50 border-r border-b">
+                          {cycle?.cycleStartDate ? (
+                            <span className="text-[10px] text-indigo-700 font-medium whitespace-nowrap">
+                              {(() => {
+                                const d = new Date(cycle.cycleStartDate);
+                                return `${d.getUTCDate()}/${d.getUTCMonth() + 1}/${d.getUTCFullYear()}`;
+                              })()}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-[10px]">-</span>
                           )}
                         </td>
                         {/* 應繳 */}
@@ -501,9 +515,9 @@ export default function EliteHistory() {
       </div>
       <div className="flex gap-4 text-xs flex-wrap">
         <span className="text-muted-foreground">循環：</span>
-        <span><Badge variant="outline" className="text-[10px]">1-6/12</Badge> 正常</span>
-        <span><Badge variant="outline" className="text-[10px] bg-yellow-100 text-yellow-800 border-yellow-400">7-9/12</Badge> 接近</span>
-        <span><Badge variant="outline" className="text-[10px] bg-orange-500 text-white border-orange-500">10-12/12</Badge> 需繳費 $2,400</span>
+        <span><Badge variant="outline" className="text-[10px]">1-6堂/12堂</Badge> 正常</span>
+        <span><Badge variant="outline" className="text-[10px] bg-yellow-100 text-yellow-800 border-yellow-400">7-9堂/12堂</Badge> 接近</span>
+        <span><Badge variant="outline" className="text-[10px] bg-orange-500 text-white border-orange-500">10-12堂/12堂</Badge> 需繳費 $2,400</span>
       </div>
     </div>
   );

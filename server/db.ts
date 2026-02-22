@@ -1146,9 +1146,21 @@ export async function getEliteCycleInfo(studentId: number) {
   const student = await getEliteStudentById(studentId);
   if (!student) return null;
   
-  // 取得所有出席記錄（present 和 late 算出席）
-  const attendance = await getEliteAttendanceRecords({ studentId });
-  const attendedCount = attendance.filter(a => a.status === 'present' || a.status === 'late').length;
+  // 取得所有出席記錄，並 join 訓練日期以獲取日期排序
+  const attendanceWithDates = await db.select({
+    attendanceId: eliteAttendanceRecords.id,
+    scheduleId: eliteAttendanceRecords.scheduleId,
+    status: eliteAttendanceRecords.status,
+    trainingDate: eliteTrainingSchedules.trainingDate,
+  })
+    .from(eliteAttendanceRecords)
+    .innerJoin(eliteTrainingSchedules, eq(eliteAttendanceRecords.scheduleId, eliteTrainingSchedules.id))
+    .where(eq(eliteAttendanceRecords.studentId, studentId))
+    .orderBy(asc(eliteTrainingSchedules.trainingDate));
+  
+  // 只算 present 和 late
+  const attendedRecords = attendanceWithDates.filter(a => a.status === 'present' || a.status === 'late');
+  const attendedCount = attendedRecords.length;
   
   // 計算當前循環中的堂數 (1-12)
   const cycleNumber = attendedCount === 0 ? 0 : ((attendedCount - 1) % 12) + 1;
@@ -1156,6 +1168,15 @@ export async function getEliteCycleInfo(studentId: number) {
   const completedCycles = Math.floor(attendedCount / 12);
   // 是否需要繳費提醒 (第 10-12 堂)
   const needPaymentReminder = cycleNumber >= 10;
+  
+  // 今期第 1 堂的日期
+  let cycleStartDate: string | null = null;
+  if (attendedCount > 0) {
+    const cycleStartIndex = completedCycles * 12;
+    if (cycleStartIndex < attendedRecords.length) {
+      cycleStartDate = attendedRecords[cycleStartIndex].trainingDate?.toISOString() || null;
+    }
+  }
   
   return {
     studentId,
@@ -1165,6 +1186,7 @@ export async function getEliteCycleInfo(studentId: number) {
     cycleNumber,
     completedCycles,
     needPaymentReminder,
+    cycleStartDate,
     feePerCycle: 2400, // 每 12 堂 $2,400
   };
 }
