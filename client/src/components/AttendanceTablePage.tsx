@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Check, X, ChevronLeft, ChevronRight, Ban, RotateCcw } from "lucide-react";
+import { ArrowLeft, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import { trpc } from "@/lib/trpc";
@@ -243,19 +243,19 @@ export function AttendanceTablePage({
                         <button
                           onClick={() => handleActivateSchedule(td.scheduleId)}
                           disabled={activateScheduleMutation.isPending}
-                          className="inline-flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 rounded bg-green-100 hover:bg-green-200 text-green-700 transition-colors"
+                          className="inline-flex items-center justify-center px-1.5 h-6 sm:h-7 rounded bg-green-100 hover:bg-green-200 text-green-700 transition-colors text-[9px] sm:text-xs font-medium"
                           title="恢復此課堂"
                         >
-                          <RotateCcw className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                          恢復
                         </button>
                       ) : (
                         <button
                           onClick={() => handleCancelSchedule(td.scheduleId)}
                           disabled={cancelScheduleMutation.isPending}
-                          className="inline-flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 rounded bg-red-100 hover:bg-red-200 text-red-600 transition-colors"
+                          className="inline-flex items-center justify-center px-1.5 h-6 sm:h-7 rounded bg-red-100 hover:bg-red-200 text-red-600 transition-colors text-[9px] sm:text-xs font-medium"
                           title="取消此課堂（休息日）"
                         >
-                          <Ban className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                          取消
                         </button>
                       )}
                     </th>
@@ -369,15 +369,11 @@ export function AttendanceTablePage({
             <span className="text-gray-600 dark:text-gray-400 font-medium">未點名</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded bg-red-100 flex items-center justify-center">
-              <Ban className="h-3 w-3 text-red-600" />
-            </span>
+            <span className="px-1.5 h-5 rounded bg-red-100 flex items-center justify-center text-[9px] font-medium text-red-600">取消</span>
             <span className="text-red-600 dark:text-red-400 font-medium">取消課堂</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded bg-green-100 flex items-center justify-center">
-              <RotateCcw className="h-3 w-3 text-green-700" />
-            </span>
+            <span className="px-1.5 h-5 rounded bg-green-100 flex items-center justify-center text-[9px] font-medium text-green-700">恢復</span>
             <span className="text-green-700 dark:text-green-300 font-medium">恢復課堂</span>
           </span>
         </div>
