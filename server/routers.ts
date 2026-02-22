@@ -77,6 +77,7 @@ import {
   getEliteCycleInfo,
   getAllEliteCycleInfo,
   getParentEliteInfo,
+  getCoachStatsWithElite,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -1550,6 +1551,17 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         return getEliteClassStatistics();
+      }),
+  }),
+
+  // 教練統計（含精英班）
+  coachStats: router({
+    getAll: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return getCoachStatsWithElite();
       }),
   }),
 

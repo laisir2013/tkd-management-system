@@ -1139,6 +1139,85 @@ export async function getEliteStudentBalance(studentId: number) {
 }
 
 // ============ 精英班 12 堂循環計算 ============
+
+// ============ 教練統計（含精英班） ============
+export async function getCoachStatsWithElite() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // 5 位教練名單
+  const COACHES = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
+  
+  const allStudents = await getAllStudents();
+  const allDojos = await getAllDojos();
+  const allEliteStudents = await getAllEliteStudents();
+  const allElitePayments = await db.select().from(elitePaymentRecords).orderBy(desc(elitePaymentRecords.paymentDate));
+  
+  // 建立道場→教練對應 map
+  // key: "venue|day|time" → coachName
+  const dojoCoachMap: Record<string, string> = {};
+  allDojos.forEach(dojo => {
+    if (dojo.coachName && dojo.name && dojo.scheduleDay && dojo.scheduleTime) {
+      const key = `${dojo.name.trim()}|${dojo.scheduleDay.trim()}|${(dojo.scheduleTime || '').replace(/\uff1a/g, ':').replace(/\s+/g, '')}`;
+      dojoCoachMap[key] = dojo.coachName;
+    }
+  });
+  
+  // 為每位恆常班學生找到所屬教練
+  function getStudentCoach(student: any): string | null {
+    if (!student.venue || !student.scheduleDay || !student.scheduleTime) return null;
+    const key = `${student.venue.trim()}|${student.scheduleDay.trim()}|${(student.scheduleTime || '').replace(/\uff1a/g, ':').replace(/\s+/g, '')}`;
+    return dojoCoachMap[key] || null;
+  }
+  
+  return COACHES.map(coachName => {
+    // --- 恆常班統計 ---
+    const regularStudents = allStudents.filter(s => {
+      if (s.venue === '精英班道場') return false;
+      return getStudentCoach(s) === coachName;
+    });
+    const regularStudentCount = regularStudents.length;
+    const regularTotalFee = regularStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
+    
+    // --- 精英班統計（根據 coach 欄位） ---
+    const eliteStudentsForCoach = allEliteStudents.filter(s => 
+      s.status === 'active' && s.coach === coachName
+    );
+    const eliteStudentCount = eliteStudentsForCoach.length;
+    
+    // 計算精英班已收學費（該教練負責的學生的已確認付款總額）
+    const eliteStudentIds = new Set(eliteStudentsForCoach.map(s => s.id));
+    const eliteConfirmedPayments = allElitePayments.filter(p => 
+      eliteStudentIds.has(p.studentId) && 
+      p.status === 'confirmed' &&
+      p.classCount !== 99999 // 排除免學費
+    );
+    const eliteTotalPaid = eliteConfirmedPayments.reduce((sum, p) => sum + parseFloat(p.amount as any || '0'), 0);
+    const eliteTotalClasses = eliteConfirmedPayments.reduce((sum, p) => sum + (p.classCount || 0), 0);
+    
+    return {
+      coachName,
+      // 恆常班
+      regularStudentCount,
+      regularTotalFee,
+      // 精英班
+      eliteStudentCount,
+      eliteTotalPaid,
+      eliteTotalClasses,
+      eliteStudents: eliteStudentsForCoach.map(s => ({
+        id: s.id,
+        name: s.name,
+        phone: s.phone,
+        beltLevel: s.beltLevel,
+      })),
+      // 總計
+      totalStudentCount: regularStudentCount + eliteStudentCount,
+      totalRevenue: regularTotalFee + eliteTotalPaid,
+    };
+  });
+}
+
+
 export async function getEliteCycleInfo(studentId: number) {
   const db = await getDb();
   if (!db) return null;

@@ -26,6 +26,7 @@ import { AttendanceManagementContent } from "@/components/AttendanceManagementCo
 import { StudentEditDialog } from "@/components/StudentEditDialog";
 import { QuarterlyPaymentRecords } from "@/components/QuarterlyPaymentRecords";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import CoachStatsWithElite from "@/components/CoachStatsWithElite";
 
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -378,22 +379,32 @@ export default function Admin() {
           </div>
         </div>
 
-        <Tabs defaultValue="students" className="space-y-6">
-          <TabsList className="grid grid-cols-4 sm:grid-cols-5 h-auto gap-1.5 sm:gap-2 p-2 w-full bg-muted/50 rounded-lg">
-            <TabsTrigger value="students" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">學生名單</TabsTrigger>
-            <TabsTrigger value="payments" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">繳費紀錄</TabsTrigger>
-            <TabsTrigger value="attendance" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">點名紀錄</TabsTrigger>
-
-            <TabsTrigger value="dojos" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">道場管理</TabsTrigger>
+        <Tabs defaultValue="regular" className="space-y-6">
+          {/* 主導航標籤 */}
+          <TabsList className="grid grid-cols-3 sm:grid-cols-5 h-auto gap-1.5 sm:gap-2 p-2 w-full bg-muted/50 rounded-lg">
+            <TabsTrigger value="regular" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-md data-[state=active]:border-blue-500 data-[state=active]:bg-blue-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📋 恆常班管理</TabsTrigger>
+            <TabsTrigger value="elite-link" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-amber-400 bg-amber-50 text-amber-700 rounded-md data-[state=active]:border-amber-500 data-[state=active]:bg-amber-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold" onClick={() => window.location.href = '/elite'}>🥋 精英班管理</TabsTrigger>
+            <TabsTrigger value="coach-stats" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-green-300 bg-green-50 text-green-700 rounded-md data-[state=active]:border-green-500 data-[state=active]:bg-green-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📊 教練統計</TabsTrigger>
             <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">用戶管理</TabsTrigger>
-            <TabsTrigger value="statistics" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">統計報表</TabsTrigger>
-            <TabsTrigger value="import" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">匯入資料</TabsTrigger>
-            <TabsTrigger value="whatsapp" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform col-span-2 sm:col-span-1">WhatsApp信息範本</TabsTrigger>
-            <TabsTrigger value="elite" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-amber-400 bg-amber-50 text-amber-700 rounded-md data-[state=active]:border-amber-500 data-[state=active]:bg-amber-100 data-[state=active]:shadow-sm active:scale-95 transition-transform" onClick={() => window.location.href = '/elite'}>🥋 精英班管理</TabsTrigger>
+            <TabsTrigger value="whatsapp" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">WhatsApp範本</TabsTrigger>
           </TabsList>
 
+          {/* ========= 恆常班管理 (內含子分頁) ========= */}
+          <TabsContent value="regular">
+            <Tabs defaultValue="students" className="space-y-4">
+              <TabsList className="flex flex-wrap h-auto gap-1 p-1.5 bg-blue-50/80 rounded-lg border border-blue-200">
+                <TabsTrigger value="students" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">學生名單</TabsTrigger>
+                <TabsTrigger value="payments" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">繳費紀錄</TabsTrigger>
+                <TabsTrigger value="attendance" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">點名紀錄</TabsTrigger>
+                <TabsTrigger value="finance" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">財務管理</TabsTrigger>
+                <TabsTrigger value="dojos" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">道場管理</TabsTrigger>
+                <TabsTrigger value="import" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">匯入資料</TabsTrigger>
+              </TabsList>
+
+              {/* 學生名單 */}
+              <TabsContent value="students">
+
           {/* 學生管理 */}
-          <TabsContent value="students">
             <Card>
               <CardHeader>
                 <div className="space-y-4">
@@ -577,215 +588,21 @@ export default function Admin() {
           </TabsContent>
 
           {/* 繳費記錄 */}
-          <TabsContent value="payments">
+              <TabsContent value="payments">
             <QuarterlyPaymentRecords />
-            {/* 舊的繳費記錄顯示，保留作為參考 */}
-            {/*
+          </TabsContent>
+
+              {/* 點名管理 */}
+              <TabsContent value="attendance">
+            <AttendanceManagementContent />
+          </TabsContent>
+
+              {/* 財務管理（原統計報表） */}
+              <TabsContent value="finance">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Receipt className="w-5 h-5" />
-                    所有繳費記錄
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant={showPendingOnly ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setShowPendingOnly(!showPendingOnly)}
-                    >
-                      <Filter className="w-4 h-4 mr-2" />
-                      {showPendingOnly ? "顯示全部" : "只顯示待審核"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // 展開全部 / 收起全部
-                        if (expandedStudents.size > 0) {
-                          setExpandedStudents(new Set());
-                        } else {
-                          const allIds = new Set<number>();
-                          paymentsData?.forEach(item => allIds.add(item.student.id));
-                          setExpandedStudents(allIds);
-                        }
-                      }}
-                    >
-                      {expandedStudents.size > 0 ? "全部收起" : "全部展開"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleExportExcel}
-                    >
-                      <FileSpreadsheet className="w-4 h-4 mr-2" />
-                      匯出 Excel
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-16">編號</TableHead>
-                        <TableHead>學生姓名</TableHead>
-                        <TableHead>繳費期間</TableHead>
-                        <TableHead>金額</TableHead>
-                        <TableHead>轉帳日期</TableHead>
-                        <TableHead>記錄日期</TableHead>
-                        <TableHead>收據</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paymentsData?.map((item, itemIndex) => {
-                        if (!item.payments || item.payments === 'null') return null;
-                        let payments: any[] = [];
-                        try {
-                          payments = typeof item.payments === 'string' ? JSON.parse(item.payments) : item.payments;
-                          if (!Array.isArray(payments)) payments = [];
-                        } catch (e) {
-                          console.error('Failed to parse payments:', e, item.payments);
-                          return null;
-                        }
-                        
-                        // 過濾有效的繳費紀錄
-                        let validPayments = payments.filter((p: any) => p.id !== null);
-                        if (showPendingOnly) {
-                          validPayments = validPayments.filter((p: any) => p.status === 'pending' || parseFloat(p.amount) <= 0);
-                        }
-                        if (validPayments.length === 0) return null;
-                        
-                        // 按日期排序（最新在前）
-                        validPayments.sort((a: any, b: any) => {
-                          const dateA = new Date(a.paymentDate || a.createdAt).getTime();
-                          const dateB = new Date(b.paymentDate || b.createdAt).getTime();
-                          return dateB - dateA;
-                        });
-                        
-                        const isExpanded = expandedStudents.has(item.student.id);
-                        const displayPayments = isExpanded ? validPayments : [validPayments[0]];
-                        const hasMore = validPayments.length > 1;
-                        
-                        const toggleExpand = () => {
-                          setExpandedStudents(prev => {
-                            const next = new Set(prev);
-                            if (next.has(item.student.id)) {
-                              next.delete(item.student.id);
-                            } else {
-                              next.add(item.student.id);
-                            }
-                            return next;
-                          });
-                        };
-                        
-                        return displayPayments.map((payment: any, idx: number) => (
-                          <TableRow 
-                            key={payment.id}
-                            className={`${(payment.status === 'pending' || parseFloat(payment.amount) <= 0) ? 'bg-yellow-50' : ''} ${idx > 0 ? 'bg-gray-50/50' : ''}`}
-                          >
-                            <TableCell className="text-muted-foreground">
-                              {idx === 0 ? itemIndex + 1 : ''}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {idx === 0 ? (
-                                <button
-                                  onClick={toggleExpand}
-                                  className={`flex items-center gap-1.5 text-left font-medium transition-colors ${hasMore ? 'hover:text-primary cursor-pointer' : 'cursor-default'}`}
-                                >
-                                  {hasMore && (
-                                    isExpanded 
-                                      ? <ChevronDown className="w-4 h-4 text-primary flex-shrink-0" />
-                                      : <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                                  )}
-                                  <span>{item.student.name}</span>
-                                  {hasMore && !isExpanded && (
-                                    <span className="text-xs text-muted-foreground ml-1">({validPayments.length}筆)</span>
-                                  )}
-                                  {(payment.status === 'pending' || parseFloat(payment.amount) <= 0) && (
-                                    <span className="text-xs font-semibold text-yellow-700 bg-yellow-200 px-2 py-0.5 rounded flex items-center gap-1 ml-1">
-                                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                      </svg>
-                                      需審核
-                                    </span>
-                                  )}
-                                </button>
-                              ) : (
-                                <div className="flex items-center gap-2 pl-5.5">
-                                  <span className="text-muted-foreground">└</span>
-                                  <span className="text-muted-foreground">{item.student.name}</span>
-                                  {(payment.status === 'pending' || parseFloat(payment.amount) <= 0) && (
-                                    <span className="text-xs font-semibold text-yellow-700 bg-yellow-200 px-2 py-0.5 rounded flex items-center gap-1">
-                                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                      </svg>
-                                      需審核
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {(() => {
-                                const colors = PERIOD_COLORS[payment.paymentPeriod] || PERIOD_COLORS.CUSTOM;
-                                return (
-                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${colors.bg} ${colors.text} ${colors.border}`}>
-                                    {PERIOD_LABELS[payment.paymentPeriod] || payment.paymentPeriod}
-                                  </span>
-                                );
-                              })()}
-                            </TableCell>
-                            <TableCell>${payment.amount}</TableCell>
-                            <TableCell>
-                              {payment.receiptTransferDate 
-                                ? format(new Date(payment.receiptTransferDate), "yyyy-MM-dd", { locale: zhTW })
-                                : "-"}
-                            </TableCell>
-                            <TableCell className="text-xs text-gray-500">
-                              {format(new Date(payment.paymentDate), "yyyy-MM-dd", { locale: zhTW })}
-                            </TableCell>
-                            <TableCell>
-                              {payment.receiptUrl && (
-                                <a
-                                  href={payment.receiptUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline"
-                                >
-                                  查看
-                                </a>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ));
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-            */}
-          </TabsContent>
-
-          {/* 道場管理 */}
-          <TabsContent value="dojos">
-            <DojoManagementContent />
-          </TabsContent>
-
-          {/* 用戶管理 */}
-          <TabsContent value="users">
-            <UserManagementContent />
-          </TabsContent>
-
-
-
-          {/* 教練統計 */}
-          <TabsContent value="statistics">
-            <Card>
-              <CardHeader>
-                <CardTitle>教練統計</CardTitle>
+                <CardTitle>財務管理</CardTitle>
+                <CardDescription>恆常班教練收入統計</CardDescription>
               </CardHeader>
               <CardContent>
                 <CoachStatisticsContent />
@@ -793,13 +610,13 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
-          {/* 點名管理 */}
-          <TabsContent value="attendance">
-            <AttendanceManagementContent />
+              {/* 道場管理 */}
+              <TabsContent value="dojos">
+            <DojoManagementContent />
           </TabsContent>
 
-          {/* 匯入資料 */}
-          <TabsContent value="import">
+              {/* 匯入資料 */}
+              <TabsContent value="import">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -859,9 +676,20 @@ export default function Admin() {
               </CardContent>
             </Card>
           </TabsContent>
+            </Tabs>
+          </TabsContent>
 
+          {/* ========= 教練統計 ========= */}
+          <TabsContent value="coach-stats">
+            <CoachStatsWithElite />
+          </TabsContent>
 
-          {/* WhatsApp 範本 */}
+          {/* ========= 用戶管理 ========= */}
+          <TabsContent value="users">
+            <UserManagementContent />
+          </TabsContent>
+
+          {/* ========= WhatsApp 範本 ========= */}
           <TabsContent value="whatsapp">
             <WhatsAppTemplates />
           </TabsContent>
