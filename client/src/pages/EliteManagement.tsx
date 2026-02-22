@@ -26,14 +26,7 @@ import EliteHistory from "@/pages/EliteHistory";
 function EliteStudentsTab() {
   const utils = trpc.useUtils();
   const { data: students = [], isLoading } = trpc.elite.getStudents.useQuery();
-  const { data: balances = [] } = trpc.elite.getAllBalances.useQuery();
 
-  // 建立 balance map 方便查找
-  const balanceMap = useMemo(() => {
-    const map: Record<number, any> = {};
-    balances.forEach((b: any) => { if (b) map[b.studentId] = b; });
-    return map;
-  }, [balances]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingStudent, setEditingStudent] = useState<any>(null);
   const [resetPasswordStudent, setResetPasswordStudent] = useState<any>(null);
@@ -45,7 +38,7 @@ function EliteStudentsTab() {
 
   // Form state
   const [formData, setFormData] = useState({
-    name: "", phone: "", beltLevel: "", scheduleDay: "", scheduleTime: "", feePerClass: "200", notes: "",
+    name: "", phone: "", beltLevel: "", coach: "", scheduleDay: "", scheduleTime: "", feePerClass: "200", notes: "",
   });
 
   const createMutation = trpc.elite.createStudent.useMutation({
@@ -86,12 +79,13 @@ function EliteStudentsTab() {
   });
 
   function resetForm() {
-    setFormData({ name: "", phone: "", beltLevel: "", scheduleDay: "", scheduleTime: "", feePerClass: "200", notes: "" });
+    setFormData({ name: "", phone: "", beltLevel: "", coach: "", scheduleDay: "", scheduleTime: "", feePerClass: "200", notes: "" });
   }
 
   function openEdit(student: any) {
     setFormData({
       name: student.name, phone: student.phone, beltLevel: student.beltLevel || "",
+      coach: student.coach || "",
       scheduleDay: student.scheduleDay || "", scheduleTime: student.scheduleTime || "",
       feePerClass: student.feePerClass || "200", notes: student.notes || "",
     });
@@ -126,10 +120,8 @@ function EliteStudentsTab() {
               <TableHead className="w-[60px]">編號</TableHead>
               <TableHead>姓名</TableHead>
               <TableHead>電話</TableHead>
-              <TableHead>帶級</TableHead>
-              <TableHead>每堂費用</TableHead>
-              <TableHead>剩餘堂數</TableHead>
-              <TableHead>通知</TableHead>
+              <TableHead>色帶</TableHead>
+              <TableHead>負責教練</TableHead>
               <TableHead className="w-[100px]">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -177,32 +169,7 @@ function EliteStudentsTab() {
                   )}
                 </TableCell>
                 <TableCell>{s.beltLevel || "-"}</TableCell>
-                <TableCell>${s.feePerClass}</TableCell>
-                <TableCell>
-                  <Badge variant={s.remainingClasses > 4 ? "default" : s.remainingClasses > 0 ? "secondary" : "destructive"}>
-                    {s.remainingClasses} 堂
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {(() => {
-                    const bal = balanceMap[s.id];
-                    const remaining = bal?.remainingClasses ?? s.remainingClasses ?? 0;
-                    return (
-                      <EliteWhatsAppButton
-                        studentId={s.id}
-                        studentName={s.name}
-                        studentPhone={s.phone || ''}
-                        remainingClasses={remaining}
-                        paidClasses={bal?.paidClasses ?? 0}
-                        attendedClasses={bal?.attendedClasses ?? 0}
-                        feePerClass={s.feePerClass || '200'}
-                        size="sm"
-                        variant="ghost"
-                        showLabel={remaining <= 3}
-                      />
-                    );
-                  })()}
-                </TableCell>
+                <TableCell>{s.coach || "-"}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <Button
@@ -232,7 +199,7 @@ function EliteStudentsTab() {
               </TableRow>
             ))}
             {classStudents.length === 0 && (
-              <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">暫無學生</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">暫無學生</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -294,6 +261,9 @@ function EliteStudentsTab() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>帶級</Label><Input value={formData.beltLevel} onChange={(e) => setFormData(p => ({ ...p, beltLevel: e.target.value }))} placeholder="例如: 黑帶一段" /></div>
+              <div><Label>負責教練</Label><Input value={formData.coach} onChange={(e) => setFormData(p => ({ ...p, coach: e.target.value }))} placeholder="例如: 陳教練" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div><Label>每堂費用 ($)</Label><Input value={formData.feePerClass} onChange={(e) => setFormData(p => ({ ...p, feePerClass: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-4">

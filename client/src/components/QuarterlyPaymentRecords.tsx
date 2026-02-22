@@ -49,7 +49,7 @@ export function QuarterlyPaymentRecords() {
     const systemUrl = window.location.origin;
     const message = `🥋 ${student.studentName} 家長您好！\n\n📌 *${selectedYear}年${defaultQuarter}學費通知*\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\n📱 *上傳收據步驟*\n\n1️⃣ 完成轉帳並截圖\n2️⃣ 登入系統：${systemUrl}\n3️⃣ 使用您的電話號碼登入\n   · 帳號：${student.phone}\n   · 密碼：${student.phone}\n   (登入後可自行修改密碼)\n4️⃣ 上傳收據截圖\n5️⃣ 完成！可隨時查閱繳費記錄\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
 
-    const whatsappUrl = `https://wa.me/852${student.phone}?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://web.whatsapp.com/send?phone=852${student.phone}&text=${encodeURIComponent(message)}`;
     
     const newWindow = window.open(whatsappUrl, "_blank");
     if (!newWindow) {

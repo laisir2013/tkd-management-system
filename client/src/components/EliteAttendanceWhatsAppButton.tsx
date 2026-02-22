@@ -56,7 +56,7 @@ export function EliteAttendanceWhatsAppButton({
 ．方便大家紀錄番堂數
 ．如有錯誤，可即時通知我地`;
 
-    const whatsappUrl = `https://wa.me/852${studentPhone}?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://web.whatsapp.com/send?phone=852${studentPhone}&text=${encodeURIComponent(message)}`;
 
     // 記錄發送時間到 localStorage
     const now = Date.now();

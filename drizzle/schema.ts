@@ -248,6 +248,7 @@ export const eliteStudents = mysqlTable("elite_students", {
   phone: varchar("phone", { length: 50 }).notNull(),
   password: varchar("password", { length: 255 }), // 密碼(加密後),預設為電話號碼
   beltLevel: varchar("belt_level", { length: 50 }),
+  coach: varchar("coach", { length: 100 }), // 負責教練
   scheduleDay: varchar("schedule_day", { length: 50 }), // 訓練日(例如: 星期六)
   scheduleTime: varchar("schedule_time", { length: 50 }), // 訓練時間(例如: 2:00-4:00pm)
   feePerClass: decimal("fee_per_class", { precision: 10, scale: 2 }).notNull().default("0"), // 每堂費用
