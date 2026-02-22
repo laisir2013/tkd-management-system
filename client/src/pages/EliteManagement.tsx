@@ -38,6 +38,8 @@ function EliteStudentsTab() {
   const [editingStudent, setEditingStudent] = useState<any>(null);
   const [resetPasswordStudent, setResetPasswordStudent] = useState<any>(null);
   const [deleteStudent, setDeleteStudent] = useState<any>(null);
+  const [deactivateStudent, setDeactivateStudent] = useState<any>(null);
+  const [reactivateStudent, setReactivateStudent] = useState<any>(null);
   const [editingPhoneId, setEditingPhoneId] = useState<number | null>(null);
   const [editingPhoneValue, setEditingPhoneValue] = useState("");
 
@@ -72,6 +74,14 @@ function EliteStudentsTab() {
   });
   const updatePhoneMutation = trpc.elite.updateStudent.useMutation({
     onSuccess: () => { utils.elite.getStudents.invalidate(); setEditingPhoneId(null); toast.success("電話號碼已更新"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const deactivateMutation = trpc.elite.updateStudent.useMutation({
+    onSuccess: () => { utils.elite.getStudents.invalidate(); utils.elite.getAllBalances.invalidate(); setDeactivateStudent(null); toast.success("學生已停用"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const reactivateMutation = trpc.elite.updateStudent.useMutation({
+    onSuccess: () => { utils.elite.getStudents.invalidate(); utils.elite.getAllBalances.invalidate(); setReactivateStudent(null); toast.success("學生已恢復"); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -213,6 +223,7 @@ function EliteStudentsTab() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(s)}>編輯資料</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setResetPasswordStudent(s)}>重置密碼</DropdownMenuItem>
+                        <DropdownMenuItem className="text-orange-600" onClick={() => setDeactivateStudent(s)}>取消學生</DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive" onClick={() => setDeleteStudent(s)}>刪除學生</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -336,6 +347,38 @@ function EliteStudentsTab() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* 取消學生確認 */}
+      <AlertDialog open={!!deactivateStudent} onOpenChange={(open) => { if (!open) setDeactivateStudent(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>取消學生</AlertDialogTitle>
+            <AlertDialogDescription>
+              確定要將 <strong>{deactivateStudent?.name}</strong> 設為非活躍嗎？學生將從名單中移除，但出席和繳費記錄會保留。可隨時恢復。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>返回</AlertDialogCancel>
+            <AlertDialogAction className="bg-orange-600 text-white hover:bg-orange-700" onClick={() => deactivateMutation.mutate({ id: deactivateStudent.id, status: 'inactive' })}>確認取消</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 恢復學生確認 */}
+      <AlertDialog open={!!reactivateStudent} onOpenChange={(open) => { if (!open) setReactivateStudent(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>恢復學生</AlertDialogTitle>
+            <AlertDialogDescription>
+              確定要將 <strong>{reactivateStudent?.name}</strong> 恢復為活躍狀態嗎？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>返回</AlertDialogCancel>
+            <AlertDialogAction className="bg-green-600 text-white hover:bg-green-700" onClick={() => reactivateMutation.mutate({ id: reactivateStudent.id, status: 'active' })}>確認恢復</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* 刪除確認 */}
       <AlertDialog open={!!deleteStudent} onOpenChange={(open) => { if (!open) setDeleteStudent(null); }}>
         <AlertDialogContent>
@@ -351,6 +394,65 @@ function EliteStudentsTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 非活躍學生列表 */}
+      {inactiveStudents.length > 0 && (
+        <Card className="border-gray-300">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Ban className="h-4 w-4 text-gray-500" />
+              非活躍學生 ({inactiveStudents.length} 人)
+            </CardTitle>
+            <CardDescription>已取消的學生，可點擊「恢復」重新加入名單</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-lg overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>姓名</TableHead>
+                    <TableHead>電話</TableHead>
+                    <TableHead>帶級</TableHead>
+                    <TableHead>班別</TableHead>
+                    <TableHead className="w-[120px]">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {inactiveStudents.map((s: any) => (
+                    <TableRow key={s.id} className="bg-gray-50">
+                      <TableCell className="font-medium text-gray-500">{s.name}</TableCell>
+                      <TableCell className="text-gray-500">{s.phone || '未填寫'}</TableCell>
+                      <TableCell className="text-gray-500">{s.beltLevel || '-'}</TableCell>
+                      <TableCell className="text-gray-500">{getStudentClass(s) === 'A' ? 'A班' : 'B班'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs text-green-600 border-green-300 hover:bg-green-50"
+                            onClick={() => setReactivateStudent(s)}
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            恢復
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs text-red-600 border-red-300 hover:bg-red-50"
+                            onClick={() => setDeleteStudent(s)}
+                          >
+                            刪除
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -506,12 +608,12 @@ function EliteAttendanceTab() {
                           {date.getUTCDate()}/{currentMonth}
                         </span>
                         {isCancelled ? (
-                          <button onClick={() => activateScheduleMutation.mutate({ id: s.id })} className="text-green-500 hover:text-green-700 p-0.5 rounded hover:bg-green-50" title="恢復課堂">
-                            <RotateCcw className="h-3.5 w-3.5" />
+                          <button onClick={() => activateScheduleMutation.mutate({ id: s.id })} className="text-green-600 hover:text-green-800 text-[10px] font-bold px-1 py-0.5 rounded hover:bg-green-50 border border-green-300" title="恢復課堂">
+                            【恢復】
                           </button>
                         ) : (
-                          <button onClick={() => cancelScheduleMutation.mutate({ id: s.id })} className="text-red-400 hover:text-red-600 p-0.5 rounded hover:bg-red-50" title="取消課堂">
-                            <Ban className="h-3.5 w-3.5" />
+                          <button onClick={() => cancelScheduleMutation.mutate({ id: s.id })} className="text-red-500 hover:text-red-700 text-[10px] font-bold px-1 py-0.5 rounded hover:bg-red-50 border border-red-300" title="取消課堂">
+                            【取消】
                           </button>
                         )}
                         {isCancelled && <span className="text-[10px] text-red-400 font-medium">休息</span>}
@@ -594,8 +696,8 @@ function EliteAttendanceTab() {
       {/* 圖例 */}
       <div className="flex gap-4 text-sm text-muted-foreground flex-wrap">
         <span>✅ 出席</span><span>❌ 缺席</span><span>⏰ 遲到</span><span>· 未記錄（點擊切換）</span>
-        <span><Ban className="h-3 w-3 inline text-red-400" /> 取消課堂</span>
-        <span><RotateCcw className="h-3 w-3 inline text-green-500" /> 恢復課堂</span>
+        <span className="text-red-500 font-bold">【取消】</span><span className="text-sm"> 取消課堂</span>
+        <span className="text-green-600 font-bold">【恢復】</span><span className="text-sm"> 恢復課堂</span>
       </div>
       <div className="flex gap-4 text-sm flex-wrap">
         <span className="text-muted-foreground">堂數循環：</span>
