@@ -434,7 +434,7 @@ export const appRouter = router({
     
     getAll: protectedProcedure
       .query(async ({ ctx }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         return getAllStudents();
@@ -1240,6 +1240,44 @@ export const appRouter = router({
         }
         return all;
       }),
+
+    // 教練/管理員確認繳費（不需要收據圖片）
+    confirmPayment: protectedProcedure
+      .input(z.object({
+        studentId: z.number(),
+        year: z.number(),
+        quarter: z.enum(['Q1', 'Q2', 'Q3', 'Q4']),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        // 獲取學生的學費金額
+        const student = await getStudentById(input.studentId);
+        if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: '學生不存在' });
+        
+        // 確保教練只能確認自己的學生
+        // @ts-ignore
+        if (ctx.user.role === 'coach' && ctx.user.coachName && student.coach !== ctx.user.coachName) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只能確認您自己的學生' });
+        }
+
+        await insertPaymentRecord({
+          studentId: input.studentId,
+          year: input.year,
+          paymentPeriod: input.quarter,
+          customMonths: null,
+          amount: student.feePerQuarter,
+          classCount: null,
+          receiptUrl: null,
+          receiptKey: null,
+          receiptTransferDate: null,
+          paymentDate: new Date(),
+          status: 'confirmed',
+          confirmedBy: 'admin_approved',
+        });
+        return { success: true };
+      }),
   }),
 
   users: router({
@@ -1514,7 +1552,7 @@ export const appRouter = router({
         month: z.number(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const totalGenerated = await generateMonthlyTrainingSchedules(input.year, input.month);
@@ -1930,7 +1968,7 @@ export const appRouter = router({
         notes: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') throw new TRPCError({ code: 'FORBIDDEN' });
         const id = await insertElitePaymentRecord({
           ...input,
           amount: input.amount,
