@@ -1154,7 +1154,7 @@ export async function getCoachStatsWithElite() {
   const allElitePayments = await db.select().from(elitePaymentRecords).orderBy(desc(elitePaymentRecords.paymentDate));
   
   // 建立道場→教練對應 map
-  // key: "venue|day|time" → coachName
+  // 方式1: 透過 dojos 表的 venue|day|time → coach_name
   const dojoCoachMap: Record<string, string> = {};
   allDojos.forEach(dojo => {
     if (dojo.coachName && dojo.name && dojo.scheduleDay && dojo.scheduleTime) {
@@ -1163,21 +1163,50 @@ export async function getCoachStatsWithElite() {
     }
   });
   
+  // 方式2: 如果道場表沒有班別對應，嘗試用道場名稱直接對應教練
+  const dojoNameCoachMap: Record<string, string> = {};
+  allDojos.forEach(dojo => {
+    if (dojo.coachName && dojo.name) {
+      dojoNameCoachMap[dojo.name.trim()] = dojo.coachName;
+    }
+  });
+  
   // 為每位恆常班學生找到所屬教練
   function getStudentCoach(student: any): string | null {
-    if (!student.venue || !student.scheduleDay || !student.scheduleTime) return null;
-    const key = `${student.venue.trim()}|${student.scheduleDay.trim()}|${(student.scheduleTime || '').replace(/\uff1a/g, ':').replace(/\s+/g, '')}`;
-    return dojoCoachMap[key] || null;
+    if (!student.venue) return null;
+    // 先嘗試精確匹配 venue|day|time
+    if (student.scheduleDay && student.scheduleTime) {
+      const key = `${student.venue.trim()}|${student.scheduleDay.trim()}|${(student.scheduleTime || '').replace(/\uff1a/g, ':').replace(/\s+/g, '')}`;
+      if (dojoCoachMap[key]) return dojoCoachMap[key];
+    }
+    // 再嘗試只用道場名稱匹配
+    if (dojoNameCoachMap[student.venue.trim()]) return dojoNameCoachMap[student.venue.trim()];
+    return null;
   }
+  
+  // 恆常班全體學生（排除精英班道場）
+  const allRegularStudents = allStudents.filter(s => s.venue !== '精英班道場' && s.status === 'active');
+  const totalRegularStudentCount = allRegularStudents.length;
+  const totalRegularFee = allRegularStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
+  
+  // 檢查道場→教練對應是否有資料
+  const hasDojoMapping = Object.keys(dojoCoachMap).length > 0 || Object.keys(dojoNameCoachMap).length > 0;
   
   return COACHES.map(coachName => {
     // --- 恆常班統計 ---
-    const regularStudents = allStudents.filter(s => {
-      if (s.venue === '精英班道場') return false;
-      return getStudentCoach(s) === coachName;
-    });
-    const regularStudentCount = regularStudents.length;
-    const regularTotalFee = regularStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
+    let regularStudentCount: number;
+    let regularTotalFee: number;
+    
+    if (hasDojoMapping) {
+      // 有道場→教練對應：按教練分開計
+      const regularStudents = allRegularStudents.filter(s => getStudentCoach(s) === coachName);
+      regularStudentCount = regularStudents.length;
+      regularTotalFee = regularStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
+    } else {
+      // 沒有道場→教練對應：顯示全體恆常班學生總數（標記為尚未分配）
+      regularStudentCount = totalRegularStudentCount;
+      regularTotalFee = totalRegularFee;
+    }
     
     // --- 精英班統計（根據 coach 欄位） ---
     const eliteStudentsForCoach = allEliteStudents.filter(s => 
@@ -1200,6 +1229,7 @@ export async function getCoachStatsWithElite() {
       // 恆常班
       regularStudentCount,
       regularTotalFee,
+      hasDojoMapping, // 前端可用來顯示「尚未分配」提示
       // 精英班
       eliteStudentCount,
       eliteTotalPaid,
