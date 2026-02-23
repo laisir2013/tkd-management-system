@@ -98,7 +98,8 @@ export const students = mysqlTable("students", {
   emergencyContact: varchar("emergency_contact", { length: 100 }),
   emergencyPhone: varchar("emergency_phone", { length: 20 }),
   dojoId: int("dojo_id").references(() => dojos.id), // 所屬道場(可選,將來取代 venue)
-  coachId: int("coach_id").references(() => coaches.id), // 所屬教練
+  coach: varchar("coach", { length: 100 }).default('賴政堡教練'), // 負責教練名稱
+  coachId: int("coach_id").references(() => coaches.id), // 所屬教練(舊欄位)
   currentBeltLevelId: int("current_belt_level_id").references(() => beltLevels.id), // 當前帶級(可選,將來取代 beltLevel)
   status: mysqlEnum("status", ["active", "inactive", "suspended"]).default("active").notNull(),
   joinDate: timestamp("join_date"), // 加入日期

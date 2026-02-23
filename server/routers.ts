@@ -591,6 +591,7 @@ export const appRouter = router({
           scheduleTime: z.string().optional(),
           feePerQuarter: z.string(),
           beltLevel: z.string().optional(),
+          coach: z.string().optional(),
         }))
       }))
       .mutation(async ({ input, ctx }) => {
@@ -607,6 +608,7 @@ export const appRouter = router({
           scheduleTime: s.scheduleTime || null,
           feePerQuarter: s.feePerQuarter,
           beltLevel: s.beltLevel || null,
+          coach: s.coach || '賴政堡教練',
         }));
         
         await bulkInsertStudents(studentsToInsert);
@@ -625,6 +627,7 @@ export const appRouter = router({
         scheduleTime: z.string().optional(),
         feePerQuarter: z.string().optional(),
         beltLevel: z.string().optional(),
+        coach: z.string().optional(),
         status: z.enum(['active', 'inactive']).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -646,9 +649,24 @@ export const appRouter = router({
         if (data.scheduleTime !== undefined) updateData.scheduleTime = data.scheduleTime;
         if (data.feePerQuarter !== undefined) updateData.feePerQuarter = data.feePerQuarter as any;
         if (data.beltLevel !== undefined) updateData.beltLevel = data.beltLevel;
+        if (data.coach !== undefined) updateData.coach = data.coach;
         if (data.status !== undefined) updateData.status = data.status;
         
         await updateStudent(id, updateData);
+        return { success: true };
+      }),
+
+    // 行內更新學生負責教練
+    updateCoach: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        coach: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await updateStudent(input.id, { coach: input.coach } as any);
         return { success: true };
       }),
     
@@ -1234,15 +1252,10 @@ export const appRouter = router({
         // 獲取所有活躍學生
         const allStudents = await db.select().from(schema.students).where(eq(schema.students.status, 'active'));
         
-        // 如果指定教練，過濾出該教練的道場
+        // 如果指定教練，直接用學生的 coach 欄位過濾
         let filteredStudents = allStudents;
         if (effectiveCoachName) {
-          const dojosWithCoach = await db
-            .select()
-            .from(schema.dojos)
-            .where(eq(schema.dojos.coachName, effectiveCoachName));
-          const coachVenues = dojosWithCoach.map(d => d.name);
-          filteredStudents = allStudents.filter(s => coachVenues.includes(s.venue));
+          filteredStudents = allStudents.filter(s => s.coach === effectiveCoachName);
         }
         
         // 獲取該年度該季度的所有繳費記錄（使用 year 欄位）

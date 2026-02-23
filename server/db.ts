@@ -434,18 +434,13 @@ export async function getCoachStatistics(coachName?: string) {
   if (!db) return [];
   
   const allStudents = await getAllStudents();
-  const allDojos = await getAllDojos();
   
-  // 從 dojos 表獲取所有教練名稱
-  const coachNames = new Set<string>();
-  allDojos.forEach(dojo => {
-    if (dojo.coachName) coachNames.add(dojo.coachName);
+  // 從學生的 coach 欄位取得所有教練名稱
+  const COACHES = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
+  const coachNames = new Set<string>(COACHES);
+  allStudents.forEach(s => {
+    if (s.coach) coachNames.add(s.coach);
   });
-  
-  // 如果沒有教練，使用預設教練名稱
-  if (coachNames.size === 0) {
-    coachNames.add('賴政堡');
-  }
   
   // 如果指定了教練名稱，只統計該教練
   if (coachName) {
@@ -453,25 +448,12 @@ export async function getCoachStatistics(coachName?: string) {
     coachNames.add(coachName);
   }
   
-  // 建立道場名稱→教練對應 map
-  const dojoNameCoachMap: Record<string, string> = {};
-  allDojos.forEach(dojo => {
-    if (dojo.coachName && dojo.name) {
-      dojoNameCoachMap[dojo.name.trim()] = dojo.coachName;
-    }
-  });
-  
   // 只計算活躍學生，排除精英班道場
   const activeRegularStudents = allStudents.filter(s => s.status === 'active' && s.venue !== '精英班道場');
   
   return Array.from(coachNames).map(name => {
-    // 按道場→教練對應過濾出該教練的學生
-    const coachVenues = allDojos
-      .filter(d => d.coachName === name)
-      .map(d => d.name);
-    
-    // 按教練道場過濾學生（如果教練無道場，則為 0 人）
-    const coachStudents = activeRegularStudents.filter(s => coachVenues.includes(s.venue));
+    // 直接用學生的 coach 欄位過濾
+    const coachStudents = activeRegularStudents.filter(s => s.coach === name);
     
     return {
       coachName: name,
@@ -487,17 +469,11 @@ export async function getQuarterlyFeeStatistics(year: number, quarter: 'Q1' | 'Q
   
   const allStudents = await getAllStudents();
   const allPayments = await getAllPaymentRecords();
-  const allDojos = await getAllDojos();
   
-  // 根據教練名稱過濾學生：透過 dojos 表的 coach_name 找到對應 venue
-  let filteredStudents = allStudents.filter(s => s.status === 'active');
+  // 根據教練名稱過濾學生：直接用學生的 coach 欄位
+  let filteredStudents = allStudents.filter(s => s.status === 'active' && s.venue !== '精英班道場');
   if (coachName) {
-    // 先從 dojos 表找到該教練負責的所有道場名稱
-    const coachVenues = allDojos
-      .filter(d => d.coachName === coachName)
-      .map(d => d.name);
-    // 按 venue 過濾學生（如果該教練無道場，則為 0 人）
-    filteredStudents = filteredStudents.filter(s => coachVenues.includes(s.venue));
+    filteredStudents = filteredStudents.filter(s => s.coach === coachName);
   }
   
   // 計算應收總額（該季度所有學生的季度學費總和）
@@ -1174,64 +1150,17 @@ export async function getCoachStatsWithElite() {
   const COACHES = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
   
   const allStudents = await getAllStudents();
-  const allDojos = await getAllDojos();
   const allEliteStudents = await getAllEliteStudents();
   const allElitePayments = await db.select().from(elitePaymentRecords).orderBy(desc(elitePaymentRecords.paymentDate));
   
-  // 建立道場→教練對應 map
-  // 方式1: 透過 dojos 表的 venue|day|time → coach_name
-  const dojoCoachMap: Record<string, string> = {};
-  allDojos.forEach(dojo => {
-    if (dojo.coachName && dojo.name && dojo.scheduleDay && dojo.scheduleTime) {
-      const key = `${dojo.name.trim()}|${dojo.scheduleDay.trim()}|${(dojo.scheduleTime || '').replace(/\uff1a/g, ':').replace(/\s+/g, '')}`;
-      dojoCoachMap[key] = dojo.coachName;
-    }
-  });
-  
-  // 方式2: 如果道場表沒有班別對應，嘗試用道場名稱直接對應教練
-  const dojoNameCoachMap: Record<string, string> = {};
-  allDojos.forEach(dojo => {
-    if (dojo.coachName && dojo.name) {
-      dojoNameCoachMap[dojo.name.trim()] = dojo.coachName;
-    }
-  });
-  
-  // 為每位恆常班學生找到所屬教練
-  function getStudentCoach(student: any): string | null {
-    if (!student.venue) return null;
-    // 先嘗試精確匹配 venue|day|time
-    if (student.scheduleDay && student.scheduleTime) {
-      const key = `${student.venue.trim()}|${student.scheduleDay.trim()}|${(student.scheduleTime || '').replace(/\uff1a/g, ':').replace(/\s+/g, '')}`;
-      if (dojoCoachMap[key]) return dojoCoachMap[key];
-    }
-    // 再嘗試只用道場名稱匹配
-    if (dojoNameCoachMap[student.venue.trim()]) return dojoNameCoachMap[student.venue.trim()];
-    return null;
-  }
-  
   // 恆常班全體學生（排除精英班道場）
   const allRegularStudents = allStudents.filter(s => s.venue !== '精英班道場' && s.status === 'active');
-  const totalRegularStudentCount = allRegularStudents.length;
-  const totalRegularFee = allRegularStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
-  
-  // 檢查道場→教練對應是否有資料
-  const hasDojoMapping = Object.keys(dojoCoachMap).length > 0 || Object.keys(dojoNameCoachMap).length > 0;
   
   return COACHES.map(coachName => {
-    // --- 恆常班統計 ---
-    let regularStudentCount: number;
-    let regularTotalFee: number;
-    
-    if (hasDojoMapping) {
-      // 有道場→教練對應：按教練分開計
-      const regularStudents = allRegularStudents.filter(s => getStudentCoach(s) === coachName);
-      regularStudentCount = regularStudents.length;
-      regularTotalFee = regularStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
-    } else {
-      // 沒有道場→教練對應：顯示全體恆常班學生總數（標記為尚未分配）
-      regularStudentCount = totalRegularStudentCount;
-      regularTotalFee = totalRegularFee;
-    }
+    // --- 恆常班統計：直接用學生的 coach 欄位 ---
+    const regularStudents = allRegularStudents.filter(s => s.coach === coachName);
+    const regularStudentCount = regularStudents.length;
+    const regularTotalFee = regularStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
     
     // --- 精英班統計（根據 coach 欄位） ---
     const eliteStudentsForCoach = allEliteStudents.filter(s => 
@@ -1254,7 +1183,6 @@ export async function getCoachStatsWithElite() {
       // 恆常班
       regularStudentCount,
       regularTotalFee,
-      hasDojoMapping, // 前端可用來顯示「尚未分配」提示
       // 精英班
       eliteStudentCount,
       eliteTotalPaid,

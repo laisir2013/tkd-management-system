@@ -94,6 +94,11 @@ export default function Admin() {
   });
 
   const importMutation = trpc.students.importFromExcel.useMutation();
+  const updateCoachMutation = trpc.students.updateCoach.useMutation({
+    onSuccess: () => {
+      refetchStudents();
+    },
+  });
   const resetPasswordMutation = trpc.students.resetPassword.useMutation({
     onSuccess: (data) => {
       toast.success(data.message);
@@ -167,8 +172,7 @@ export default function Admin() {
             const recordDate = format(new Date(payment.paymentDate), 'yyyy-MM-dd', { locale: zhTW });
             
             // 查詢學生的教練
-            const matchedDojo = getMatchedDojo(item.student);
-            const coachName = matchedDojo?.coachName || '-';
+            const coachName = item.student.coach || '-';
             
             exportData.push({
               '學生姓名': item.student.name,
@@ -244,6 +248,7 @@ export default function Admin() {
         scheduleTime: row["道場時間"] || "",
         feePerQuarter: String(row["3個月學費"] || "0"),
         beltLevel: row["學生級數"] || "",
+        coach: row["負責教練"] || row["教練"] || "賴政堡教練",
       }));
 
       await importMutation.mutateAsync({ students: studentsToImport });
@@ -302,13 +307,12 @@ export default function Admin() {
 
   const venues = Array.from(new Set(students?.map(s => s.venue) || []));
   
-  // 取得所有教練名稱
-  const coaches = Array.from(new Set(
-    students?.map(s => {
-      const matchedDojo = getMatchedDojo(s);
-      return matchedDojo?.coachName;
-    }).filter(Boolean) || []
-  ));
+  // 教練名單（固定 5 位 + 從學生資料中取得的其他教練）
+  const COACH_LIST = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
+  const coaches = Array.from(new Set([
+    ...COACH_LIST,
+    ...(students?.map(s => s.coach).filter(Boolean) || [])
+  ]));
   
   // 篩選學生(道場 + 教練 + 上課日期 + 繳費情況)，排除精英班學生
   const filteredStudents = students?.filter(s => {
@@ -316,8 +320,7 @@ export default function Admin() {
     if (s.venue === '精英班道場') return false;
     
     const venueMatch = venueFilter === "all" || s.venue === venueFilter;
-    const matchedDojo = getMatchedDojo(s);
-    const coachMatch = coachFilter === "all" || matchedDojo?.coachName === coachFilter;
+    const coachMatch = coachFilter === "all" || s.coach === coachFilter;
     
     // 上課日期篩選
     const dayMap: Record<string, string> = {
@@ -498,8 +501,6 @@ export default function Admin() {
                     </TableHeader>
                     <TableBody>
                       {filteredStudents?.map((student, index) => {
-                        const matchedDojo = getMatchedDojo(student);
-                        const coachName = matchedDojo?.coachName || "-";
                         const venueColor = VENUE_COLORS[student.venue] || "";
                         
                          return (
@@ -511,7 +512,23 @@ export default function Admin() {
                             <TableCell>
                               {student.scheduleDay} {student.scheduleTime}
                             </TableCell>
-                            <TableCell>{coachName}</TableCell>
+                            <TableCell>
+                              <Select
+                                value={student.coach || ''}
+                                onValueChange={(val) => {
+                                  updateCoachMutation.mutate({ id: student.id, coach: val });
+                                }}
+                              >
+                                <SelectTrigger className="h-8 w-[130px] text-xs">
+                                  <SelectValue placeholder="選擇教練" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {COACH_LIST.map(c => (
+                                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
                             <TableCell>{student.beltLevel}</TableCell>
                             <TableCell className="text-right">${student.feePerQuarter}</TableCell>
                             <TableCell className="text-center">
