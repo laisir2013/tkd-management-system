@@ -69,6 +69,11 @@ function EliteStudentsTab() {
     onSuccess: () => { utils.elite.getStudents.invalidate(); setEditingPhoneId(null); toast.success("電話號碼已更新"); },
     onError: (e) => toast.error(e.message),
   });
+  const updateCoachMutation = trpc.elite.updateStudent.useMutation({
+    onSuccess: () => { utils.elite.getStudents.invalidate(); toast.success("負責教練已更新"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const COACH_OPTIONS = ["賴政堡教練","鄺富華教練","林學曉教練","何翰錕教練","許悠教練"];
   const deactivateMutation = trpc.elite.updateStudent.useMutation({
     onSuccess: () => { utils.elite.getStudents.invalidate(); utils.elite.getAllBalances.invalidate(); setDeactivateStudent(null); toast.success("學生已停用"); },
     onError: (e) => toast.error(e.message),
@@ -169,7 +174,21 @@ function EliteStudentsTab() {
                   )}
                 </TableCell>
                 <TableCell>{s.beltLevel || "-"}</TableCell>
-                <TableCell>{s.coach || "-"}</TableCell>
+                <TableCell>
+                  <Select
+                    value={s.coach || ""}
+                    onValueChange={(v) => updateCoachMutation.mutate({ id: s.id, coach: v })}
+                  >
+                    <SelectTrigger className="h-7 w-[130px] text-xs">
+                      <SelectValue placeholder="選擇教練" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COACH_OPTIONS.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <Button
