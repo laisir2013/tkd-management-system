@@ -242,34 +242,65 @@ export default function Admin() {
       // 顯示 Excel 欄位名稱，方便偵錯
       const excelColumns = Object.keys(jsonData[0]);
       console.log("Excel 欄位:", excelColumns);
+      console.log("第一筆資料:", jsonData[0]);
 
       const studentsToImport = jsonData.map((row) => {
+        const keys = Object.keys(row);
+        
+        // 精確欄位映射表：依優先順序匹配，避免模糊匹配誤判
+        const fieldMap: Record<string, string[]> = {
+          name: ["姓名"],
+          birthDate: ["出生日期", "出生", "生日"],
+          phone: ["電話", "手機", "聯絡電話"],
+          venue: ["道場", "場地"],
+          scheduleDay: ["上課日", "道場日期", "星期"],
+          scheduleTime: ["上課時間", "道場時間"],
+          feePerQuarter: ["季度學費", "3個月學費", "學費", "費用"],
+          beltLevel: ["級數", "帶級", "級別", "學生級數"],
+          coach: ["教練姓名", "負責教練", "所屬教練", "教練"],
+        };
+
+        // 根據映射表查找欄位值：優先完全匹配，再模糊匹配
+        const getField = (fieldName: string) => {
+          const patterns = fieldMap[fieldName] || [];
+          // 先嘗試完全匹配
+          for (const pattern of patterns) {
+            const exactKey = keys.find(k => k.trim() === pattern);
+            if (exactKey) return row[exactKey];
+          }
+          // 再嘗試包含匹配
+          for (const pattern of patterns) {
+            const partialKey = keys.find(k => k.trim().includes(pattern));
+            if (partialKey) return row[partialKey];
+          }
+          return undefined;
+        };
+
         // 處理出生日期：Excel 日期可能是數字序號，需轉換為字串
         let birthDate: string | null = null;
-        if (row["出生日期"] != null) {
-          if (typeof row["出生日期"] === "number") {
-            // Excel 日期序號 → JS Date → YYYY-MM-DD
-            const d = XLSX.SSF.parse_date_code(row["出生日期"]);
+        const rawBirth = getField("birthDate");
+        if (rawBirth != null) {
+          if (typeof rawBirth === "number") {
+            const d = XLSX.SSF.parse_date_code(rawBirth);
             birthDate = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
           } else {
-            birthDate = String(row["出生日期"]);
+            birthDate = String(rawBirth);
           }
         }
         
-        // 模糊匹配教練欄位（支援「負責教練」「教練」及可能含空格的變體）
-        const keys = Object.keys(row);
-        const coachKey = keys.find(k => k.trim().includes("教練"));
-        const coachValue = coachKey ? String(row[coachKey]).trim() : "";
+        // 教練欄位
+        const coachRaw = getField("coach");
+        const coachValue = coachRaw ? String(coachRaw).trim() : "";
         
         return {
-        name: row["姓名"] || "",
+        name: (getField("name") || "").toString().trim(),
         birthDate,
-        phone: String(row["電話"] || ""),
-        venue: row["道場"] || "",
-        scheduleDay: row["道場日期"] || "",
-        scheduleTime: row["道場時間"] || "",
-        feePerQuarter: String(row["3個月學費"] || "0"),
-        beltLevel: row["學生級數"] || "",
+        phone: String(getField("phone") || "").trim(),
+        venue: (getField("venue") || "").toString().trim(),
+        scheduleDay: (getField("scheduleDay") || "").toString().trim(),
+        scheduleTime: (getField("scheduleTime") || "").toString().trim(),
+        feePerQuarter: String(getField("feePerQuarter") || "0").trim(),
+        beltLevel: (getField("beltLevel") || "").toString().trim(),
         coach: coachValue || "賴政堡教練",
       };
       });
@@ -714,9 +745,9 @@ export default function Admin() {
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                   <h4 className="font-semibold text-blue-900 mb-2">Excel 格式說明:</h4>
                   <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• 必要欄位: 姓名、電話、道場、3個月學費</li>
-                    <li>• 選填欄位: 出生日期、道場日期、道場時間、學生級數</li>
-                    <li>• <strong>教練欄位</strong>: 欄位名稱含「教練」即可（如「負責教練」「教練」），未填則預設賴政堡教練</li>
+                    <li>• 必要欄位: 姓名、電話、道場、學費（欄位名稱含關鍵字即可）</li>
+                    <li>• 選填欄位: 出生日期、上課日/道場日期、上課時間/道場時間、級數/學生級數</li>
+                    <li>• <strong>教練欄位</strong>: 欄位名稱含「教練」即可（如「教練姓名」「負責教練」），未填則預設賴政堡教練</li>
                     <li>• 電話格式: 純數字,例如 90971420</li>
                     <li>• 學費格式: 純數字,例如 1800</li>
                   </ul>
