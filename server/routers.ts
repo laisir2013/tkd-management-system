@@ -953,23 +953,26 @@ export const appRouter = router({
         const receiptKey = `receipts/${input.studentId}-${Date.now()}.${fileExt}`;
         const { url: receiptUrl } = await storagePut(receiptKey, receiptBuffer, input.receiptMimeType);
         
-        // OCR to extract amount and transfer date from receipt
+        // OCR to extract amount, bank, transfer status, and transfer date/time from receipt
         let extractedAmount = input.amount;
         let receiptTransferDate: Date | null = null;
+        let extractedBank: string | null = null;
+        let extractedStatus: string | null = null;
+        let extractedDateTime: string | null = null;
         
         try {
           const ocrResponse = await invokeLLM({
             messages: [
               {
                 role: "system",
-                content: "你是一個收據識別助手。請從收據圖片中提取金額和轉帳日期。請以JSON格式回傳: {\"amount\": \"金額數字\", \"date\": \"YYYY-MM-DD\"}。如果無法識別某個欄位,請回傳 null。"
+                content: "你是一個銀行轉帳收據識別助手。請從收據/截圖中提取以下資訊並以JSON格式回傳:\n- amount: 轉帳金額（純數字字串，例如 \"1800.00\"）\n- bank: 銀行名稱（例如 \"中國銀行\", \"匯豐銀行\", \"恒生銀行\" 等，如果有收款方和付款方銀行都顯示，優先提取付款方銀行）\n- status: 轉帳狀態（例如 \"成功\", \"已完成\", \"處理中\", \"失敗\" 等，從收據上的狀態文字判斷）\n- date: 轉帳日期（YYYY-MM-DD 格式）\n- time: 轉帳時間（HH:mm:ss 或 HH:mm 格式，24小時制）\n\n如果某個欄位無法識別，請回傳 null。"
               },
               {
                 role: "user",
                 content: [
                   {
                     type: "text",
-                    text: "請識別這張收據的金額和轉帳日期(交易日期):"
+                    text: "請識別這張轉帳收據/截圖的金額、銀行名稱、轉帳是否成功、以及轉帳日期和時間:"
                   },
                   {
                     type: "image_url",
@@ -990,9 +993,12 @@ export const appRouter = router({
                   type: "object",
                   properties: {
                     amount: { type: ["string", "null"], description: "轉帳金額" },
-                    date: { type: ["string", "null"], description: "轉帳日期 YYYY-MM-DD 格式" }
+                    bank: { type: ["string", "null"], description: "銀行名稱" },
+                    status: { type: ["string", "null"], description: "轉帳狀態（成功/失敗/處理中）" },
+                    date: { type: ["string", "null"], description: "轉帳日期 YYYY-MM-DD 格式" },
+                    time: { type: ["string", "null"], description: "轉帳時間 HH:mm:ss 或 HH:mm 格式" }
                   },
-                  required: ["amount", "date"],
+                  required: ["amount", "bank", "status", "date", "time"],
                   additionalProperties: false
                 }
               }
@@ -1011,12 +1017,25 @@ export const appRouter = router({
               }
             }
             
-            // Extract transfer date
+            // Extract bank name
+            if (ocrData.bank) {
+              extractedBank = ocrData.bank;
+            }
+            
+            // Extract transfer status
+            if (ocrData.status) {
+              extractedStatus = ocrData.status;
+            }
+            
+            // Extract transfer date and time
             if (ocrData.date) {
-              const parsedDate = new Date(ocrData.date);
+              const dateStr = ocrData.time ? `${ocrData.date}T${ocrData.time}` : ocrData.date;
+              const parsedDate = new Date(dateStr);
               if (!isNaN(parsedDate.getTime())) {
                 receiptTransferDate = parsedDate;
               }
+              // Store formatted date/time string for frontend display
+              extractedDateTime = ocrData.time ? `${ocrData.date} ${ocrData.time}` : ocrData.date;
             }
           }
         } catch (error) {
@@ -1053,7 +1072,10 @@ export const appRouter = router({
         
         return { 
           success: true,
-          extractedAmount 
+          extractedAmount,
+          extractedBank,
+          extractedStatus,
+          extractedDateTime,
         };
       }),
     

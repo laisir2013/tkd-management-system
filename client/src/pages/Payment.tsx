@@ -479,6 +479,9 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   const [receiptPreview, setReceiptPreview] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [extractedAmount, setExtractedAmount] = useState<string>("");
+  const [extractedBank, setExtractedBank] = useState<string>("");
+  const [extractedStatus, setExtractedStatus] = useState<string>("");
+  const [extractedDateTime, setExtractedDateTime] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const createPayment = trpc.payments.create.useMutation();
@@ -568,6 +571,9 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
             receiptMimeType: receiptFile.type,
           });
           if (result.extractedAmount) setExtractedAmount(result.extractedAmount);
+          if (result.extractedBank) setExtractedBank(result.extractedBank);
+          if (result.extractedStatus) setExtractedStatus(result.extractedStatus);
+          if (result.extractedDateTime) setExtractedDateTime(result.extractedDateTime);
         }
         toast.success("繳費記錄已成功提交!");
         setTimeout(() => setLocation(`/history?phone=${encodeURIComponent(phone)}`), 1500);
@@ -698,12 +704,67 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
               </div>
             </Button>
           )}
-          {extractedAmount && (
-            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-2 text-green-700">
+          {(extractedAmount || extractedBank || extractedStatus || extractedDateTime) && (
+            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg space-y-2">
+              <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
                 <CheckCircle2 className="w-5 h-5" />
-                <span className="font-medium">已識別金額: ${extractedAmount}</span>
+                <span>收據識別結果</span>
               </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {extractedAmount && (
+                  <div className="flex items-center gap-2 p-2 bg-white rounded border border-green-100">
+                    <DollarSign className="w-4 h-4 text-green-600 shrink-0" />
+                    <div>
+                      <div className="text-xs text-gray-500">金額</div>
+                      <div className="font-semibold text-green-700">${extractedAmount}</div>
+                    </div>
+                  </div>
+                )}
+                {extractedBank && (
+                  <div className="flex items-center gap-2 p-2 bg-white rounded border border-green-100">
+                    <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <div>
+                      <div className="text-xs text-gray-500">銀行</div>
+                      <div className="font-semibold text-blue-700">{extractedBank}</div>
+                    </div>
+                  </div>
+                )}
+                {extractedStatus && (
+                  <div className="flex items-center gap-2 p-2 bg-white rounded border border-green-100">
+                    {extractedStatus.includes('成功') || extractedStatus.includes('完成') ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                    ) : extractedStatus.includes('失敗') ? (
+                      <XCircle className="w-4 h-4 text-red-600 shrink-0" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                    )}
+                    <div>
+                      <div className="text-xs text-gray-500">轉帳狀態</div>
+                      <div className={`font-semibold ${
+                        extractedStatus.includes('成功') || extractedStatus.includes('完成') ? 'text-green-700'
+                        : extractedStatus.includes('失敗') ? 'text-red-700'
+                        : 'text-amber-700'
+                      }`}>{extractedStatus}</div>
+                    </div>
+                  </div>
+                )}
+                {extractedDateTime && (
+                  <div className="flex items-center gap-2 p-2 bg-white rounded border border-green-100">
+                    <CalendarDays className="w-4 h-4 text-purple-600 shrink-0" />
+                    <div>
+                      <div className="text-xs text-gray-500">轉帳日期時間</div>
+                      <div className="font-semibold text-purple-700">{extractedDateTime}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {extractedStatus && (extractedStatus.includes('失敗') || extractedStatus.includes('不成功')) && (
+                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                  ⚠️ 識別到轉帳可能未成功，請確認收據是否正確。如有疑問請聯絡管理員。
+                </div>
+              )}
             </div>
           )}
         </CardContent>
