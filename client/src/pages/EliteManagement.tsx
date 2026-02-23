@@ -261,7 +261,17 @@ function EliteStudentsTab() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>帶級</Label><Input value={formData.beltLevel} onChange={(e) => setFormData(p => ({ ...p, beltLevel: e.target.value }))} placeholder="例如: 黑帶一段" /></div>
-              <div><Label>負責教練</Label><Input value={formData.coach} onChange={(e) => setFormData(p => ({ ...p, coach: e.target.value }))} placeholder="例如: 陳教練" /></div>
+              <div>
+                <Label>負責教練</Label>
+                <Select value={formData.coach} onValueChange={(v) => setFormData(p => ({ ...p, coach: v }))}>
+                  <SelectTrigger><SelectValue placeholder="選擇教練" /></SelectTrigger>
+                  <SelectContent>
+                    {["賴政堡教練","鄺富華教練","林學曉教練","何翰錕教練","許悠教練"].map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>每堂費用 ($)</Label><Input value={formData.feePerClass} onChange={(e) => setFormData(p => ({ ...p, feePerClass: e.target.value }))} /></div>

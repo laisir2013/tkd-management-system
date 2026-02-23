@@ -215,17 +215,18 @@ export default function EliteHistory() {
   return (
     <div className="space-y-4 px-3 md:px-0">
       {/* 標題 + 年份選擇 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-bold flex items-center gap-2">
           <Calendar className="h-5 w-5" />
           精英班點名表
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {(availableYears || []).map((year: number) => (
             <Button
               key={year}
               variant={selectedYear === year ? "default" : "outline"}
               size="sm"
+              className="h-8 px-2.5 text-xs"
               onClick={() => { setSelectedYear(year); }}
             >
               {year}
@@ -235,16 +236,16 @@ export default function EliteHistory() {
       </div>
 
       {/* 月份導航 */}
-      <div className="flex items-center justify-between bg-muted/30 rounded-lg px-4 py-3">
-        <Button variant="ghost" size="sm" onClick={goPreMonth} disabled={!canGoPrev}>
-          <ChevronLeft className="h-4 w-4 mr-1" />上月
+      <div className="flex items-center justify-between bg-muted/30 rounded-lg px-2 sm:px-4 py-3">
+        <Button variant="ghost" size="sm" className="px-2 sm:px-3 shrink-0" onClick={goPreMonth} disabled={!canGoPrev}>
+          <ChevronLeft className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">上月</span>
         </Button>
-        <div className="text-center">
-          <span className="text-xl font-bold">{selectedYear}年 {MONTH_NAMES[selectedMonth]}</span>
-          <span className="text-sm text-muted-foreground ml-2">（{monthActiveSchedules.length} 堂）</span>
+        <div className="text-center min-w-0">
+          <span className="text-lg sm:text-xl font-bold">{selectedYear}年 {MONTH_NAMES[selectedMonth]}</span>
+          <span className="text-xs sm:text-sm text-muted-foreground ml-1 sm:ml-2">（{monthActiveSchedules.length} 堂）</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={goNextMonth} disabled={!canGoNext}>
-          下月<ChevronRight className="h-4 w-4 ml-1" />
+        <Button variant="ghost" size="sm" className="px-2 sm:px-3 shrink-0" onClick={goNextMonth} disabled={!canGoNext}>
+          <span className="hidden sm:inline">下月</span><ChevronRight className="h-4 w-4 sm:ml-1" />
         </Button>
       </div>
 
