@@ -23,6 +23,20 @@ export function QuarterlyPaymentRecords() {
   const [receiptUrl, setReceiptUrl] = useState<string>("");
   const [receiptInfo, setReceiptInfo] = useState<{ studentName: string; quarter: string } | null>(null);
 
+  // 教練列表（從資料中取得）— 必須在所有 early return 之前
+  const coachList = useMemo(() => {
+    if (!statuses) return [];
+    const coaches = [...new Set(statuses.map((s: any) => s.coach).filter(Boolean))];
+    return coaches.sort();
+  }, [statuses]);
+
+  // 篩選後的學生
+  const filteredStatuses = useMemo(() => {
+    if (!statuses) return [];
+    if (coachFilter === 'all') return statuses;
+    return statuses.filter((s: any) => s.coach === coachFilter);
+  }, [statuses, coachFilter]);
+
   if (isLoading) {
     return <div className="text-center py-8">載入中...</div>;
   }
@@ -126,20 +140,6 @@ export function QuarterlyPaymentRecords() {
       );
     }
   };
-
-  // 教練列表（從資料中取得）
-  const coachList = useMemo(() => {
-    if (!statuses) return [];
-    const coaches = [...new Set(statuses.map((s: any) => s.coach).filter(Boolean))];
-    return coaches.sort();
-  }, [statuses]);
-
-  // 篩選後的學生
-  const filteredStatuses = useMemo(() => {
-    if (!statuses) return [];
-    if (coachFilter === 'all') return statuses;
-    return statuses.filter((s: any) => s.coach === coachFilter);
-  }, [statuses, coachFilter]);
 
   const quarterLabels = ['1-3月', '4-6月', '7-9月', '10-12月'];
 
