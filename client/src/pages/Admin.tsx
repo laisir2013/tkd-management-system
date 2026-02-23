@@ -216,37 +216,46 @@ export default function Admin() {
     setIsImporting(true);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+      // 使用 Promise 包裝 FileReader，確保 async/await 能正確處理
+      const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
+        reader.onerror = () => reject(new Error("讀取檔案失敗"));
+        reader.readAsArrayBuffer(excelFile);
+      });
 
-        const studentsToImport = jsonData.map((row) => ({
-          name: row["姓名"] || "",
-          birthDate: row["出生日期"] || null,
-          phone: String(row["電話"] || ""),
-          venue: row["道場"] || "",
-          scheduleDay: row["道場日期"] || "",
-          scheduleTime: row["道場時間"] || "",
-          feePerQuarter: String(row["3個月學費"] || "0"),
-          beltLevel: row["學生級數"] || "",
-        }));
+      const data = new Uint8Array(arrayBuffer);
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
 
-        await importMutation.mutateAsync({ students: studentsToImport });
-        toast.success(`成功匯入 ${studentsToImport.length} 位學生資料`);
-        refetchStudents();
-        setExcelFile(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-      };
-      reader.readAsArrayBuffer(excelFile);
-    } catch (error) {
+      if (jsonData.length === 0) {
+        toast.error("Excel 檔案中沒有資料");
+        return;
+      }
+
+      const studentsToImport = jsonData.map((row) => ({
+        name: row["姓名"] || "",
+        birthDate: row["出生日期"] || null,
+        phone: String(row["電話"] || ""),
+        venue: row["道場"] || "",
+        scheduleDay: row["道場日期"] || "",
+        scheduleTime: row["道場時間"] || "",
+        feePerQuarter: String(row["3個月學費"] || "0"),
+        beltLevel: row["學生級數"] || "",
+      }));
+
+      await importMutation.mutateAsync({ students: studentsToImport });
+      toast.success(`成功匯入 ${studentsToImport.length} 位學生資料`);
+      refetchStudents();
+      setExcelFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (error: any) {
       console.error("匯入失敗:", error);
-      toast.error("匯入失敗,請檢查檔案格式");
+      toast.error(error?.message || "匯入失敗,請檢查檔案格式");
     } finally {
       setIsImporting(false);
     }
