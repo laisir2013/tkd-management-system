@@ -965,7 +965,7 @@ export const appRouter = router({
             messages: [
               {
                 role: "system",
-                content: "你是一個銀行轉帳收據識別助手。請從收據/截圖中提取以下資訊並以JSON格式回傳:\n- amount: 轉帳金額（純數字字串，例如 \"1800.00\"）\n- bank: 銀行名稱（例如 \"中國銀行\", \"匯豐銀行\", \"恒生銀行\" 等，如果有收款方和付款方銀行都顯示，優先提取付款方銀行）\n- status: 轉帳狀態（例如 \"成功\", \"已完成\", \"處理中\", \"失敗\" 等，從收據上的狀態文字判斷）\n- date: 轉帳日期（YYYY-MM-DD 格式）\n- time: 轉帳時間（HH:mm:ss 或 HH:mm 格式，24小時制）\n\n如果某個欄位無法識別，請回傳 null。"
+                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以JSON格式回傳:\n- amount: 轉帳金額（純數字字串，例如 \"1800.00\"，注意識別 HKD/HK$/$ 等貨幣符號後的數字）\n- bank: 銀行名稱（中文或英文皆可，例如 \"中國銀行\"/\"Bank of China\", \"匯豐銀行\"/\"HSBC\", \"恒生銀行\"/\"Hang Seng Bank\", \"渣打銀行\"/\"Standard Chartered\", \"星展銀行\"/\"DBS\", \"東亞銀行\"/\"BEA\", \"Wise\", \"PayMe\", \"FPS轉數快\" 等，如果有收款方和付款方銀行都顯示，優先提取付款方銀行）\n- status: 轉帳狀態，統一以中文回傳（\"成功\"/\"已完成\"/\"處理中\"/\"失敗\"）。英文收據請將 Successful/Completed/Done/Confirmed 翻譯為 \"成功\"，Processing/Pending 翻譯為 \"處理中\"，Failed/Rejected/Declined 翻譯為 \"失敗\"\n- date: 轉帳日期（YYYY-MM-DD 格式，注意英文日期格式如 23 Feb 2026 / Feb 23, 2026 / 23/02/2026 等都要轉換）\n- time: 轉帳時間（HH:mm:ss 或 HH:mm 格式，24小時制，注意 AM/PM 要轉換為24小時制）\n\n如果某個欄位無法識別，請回傳 null。"
               },
               {
                 role: "user",

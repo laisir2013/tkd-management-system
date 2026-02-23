@@ -733,9 +733,9 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
                 )}
                 {extractedStatus && (
                   <div className="flex items-center gap-2 p-2 bg-white rounded border border-green-100">
-                    {extractedStatus.includes('成功') || extractedStatus.includes('完成') ? (
+                    {/成功|完成|Successful|Completed|Done|Confirmed/i.test(extractedStatus) ? (
                       <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                    ) : extractedStatus.includes('失敗') ? (
+                    ) : /失敗|Failed|Rejected|Declined/i.test(extractedStatus) ? (
                       <XCircle className="w-4 h-4 text-red-600 shrink-0" />
                     ) : (
                       <Clock className="w-4 h-4 text-amber-600 shrink-0" />
@@ -743,8 +743,8 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
                     <div>
                       <div className="text-xs text-gray-500">轉帳狀態</div>
                       <div className={`font-semibold ${
-                        extractedStatus.includes('成功') || extractedStatus.includes('完成') ? 'text-green-700'
-                        : extractedStatus.includes('失敗') ? 'text-red-700'
+                        /成功|完成|Successful|Completed|Done|Confirmed/i.test(extractedStatus) ? 'text-green-700'
+                        : /失敗|Failed|Rejected|Declined/i.test(extractedStatus) ? 'text-red-700'
                         : 'text-amber-700'
                       }`}>{extractedStatus}</div>
                     </div>
@@ -760,7 +760,7 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
                   </div>
                 )}
               </div>
-              {extractedStatus && (extractedStatus.includes('失敗') || extractedStatus.includes('不成功')) && (
+              {extractedStatus && /失敗|不成功|Failed|Rejected|Declined/i.test(extractedStatus) && (
                 <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
                   ⚠️ 識別到轉帳可能未成功，請確認收據是否正確。如有疑問請聯絡管理員。
                 </div>
