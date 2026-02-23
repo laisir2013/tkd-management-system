@@ -213,7 +213,7 @@ export default function EliteHistory() {
   const MONTH_NAMES = ['', '1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-3 md:px-0">
       {/* 標題 + 年份選擇 */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold flex items-center gap-2">
@@ -316,6 +316,18 @@ export default function EliteHistory() {
             <div ref={tableContainerRef} className="overflow-auto max-h-[70vh]">
               <table className="w-full text-xs border-collapse">
                 <thead className="sticky top-0 z-30">
+                  {/* 年月標題 bar */}
+                  <tr className="bg-slate-700 text-white">
+                    <th className="sticky left-0 z-40 bg-slate-700 px-2 py-1.5 border-r border-b border-slate-600" rowSpan={1}></th>
+                    <th className="sticky left-[40px] z-40 bg-slate-700 px-2 py-1.5 border-r border-b border-slate-600" rowSpan={1}></th>
+                    <th
+                      colSpan={monthSchedules.length}
+                      className="px-2 py-1.5 text-center font-bold text-sm tracking-wider border-r border-b border-slate-600"
+                    >
+                      {selectedYear}年{selectedMonth}月
+                    </th>
+                    <th colSpan={6} className="px-2 py-1.5 text-center text-[10px] font-medium border-b border-slate-600 text-slate-300">統計</th>
+                  </tr>
                   <tr className="bg-muted border-b">
                     <th className="sticky left-0 z-40 bg-muted px-2 py-2 text-left font-medium w-[40px] min-w-[40px] border-r border-b">#</th>
                     <th className="sticky left-[40px] z-40 bg-muted px-2 py-2 text-left font-medium w-[90px] min-w-[90px] border-r border-b">姓名</th>

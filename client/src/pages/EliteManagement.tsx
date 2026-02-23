@@ -988,7 +988,7 @@ export default function EliteManagement() {
       </div>
 
       {/* Content */}
-      <div className="container py-6">
+      <div className="container px-4 md:px-8 py-6">
         <Tabs defaultValue="students" className="space-y-6">
           <TabsList className="grid grid-cols-3 w-full max-w-lg">
             <TabsTrigger value="students" className="flex items-center gap-1"><Users className="h-4 w-4" />學生管理</TabsTrigger>
