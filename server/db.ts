@@ -470,9 +470,8 @@ export async function getCoachStatistics(coachName?: string) {
       .filter(d => d.coachName === name)
       .map(d => d.name);
     
-    const coachStudents = coachVenues.length > 0
-      ? activeRegularStudents.filter(s => coachVenues.includes(s.venue))
-      : activeRegularStudents; // 如果沒有道場對應，fallback 全部
+    // 按教練道場過濾學生（如果教練無道場，則為 0 人）
+    const coachStudents = activeRegularStudents.filter(s => coachVenues.includes(s.venue));
     
     return {
       coachName: name,
@@ -497,10 +496,8 @@ export async function getQuarterlyFeeStatistics(year: number, quarter: 'Q1' | 'Q
     const coachVenues = allDojos
       .filter(d => d.coachName === coachName)
       .map(d => d.name);
-    // 如果找到對應道場，按 venue 過濾學生
-    if (coachVenues.length > 0) {
-      filteredStudents = filteredStudents.filter(s => coachVenues.includes(s.venue));
-    }
+    // 按 venue 過濾學生（如果該教練無道場，則為 0 人）
+    filteredStudents = filteredStudents.filter(s => coachVenues.includes(s.venue));
   }
   
   // 計算應收總額（該季度所有學生的季度學費總和）
