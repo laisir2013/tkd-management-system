@@ -251,6 +251,12 @@ export default function Admin() {
             birthDate = String(row["出生日期"]);
           }
         }
+        
+        // 模糊匹配教練欄位（支援「負責教練」「教練」及可能含空格的變體）
+        const keys = Object.keys(row);
+        const coachKey = keys.find(k => k.trim().includes("教練"));
+        const coachValue = coachKey ? String(row[coachKey]).trim() : "";
+        
         return {
         name: row["姓名"] || "",
         birthDate,
@@ -260,7 +266,7 @@ export default function Admin() {
         scheduleTime: row["道場時間"] || "",
         feePerQuarter: String(row["3個月學費"] || "0"),
         beltLevel: row["學生級數"] || "",
-        coach: row["負責教練"] || row["教練"] || "賴政堡教練",
+        coach: coachValue || "賴政堡教練",
       };
       });
 
