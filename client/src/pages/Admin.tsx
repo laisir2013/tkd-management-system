@@ -599,16 +599,8 @@ export default function Admin() {
 
               {/* 財務管理（原統計報表） */}
               <TabsContent value="finance">
-            <Card>
-              <CardHeader>
-                <CardTitle>財務管理</CardTitle>
-                <CardDescription>恆常班教練收入統計</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CoachStatisticsContent />
-              </CardContent>
-            </Card>
-          </TabsContent>
+                <CoachStatsWithElite />
+              </TabsContent>
 
               {/* 道場管理 */}
               <TabsContent value="dojos">
