@@ -52,6 +52,9 @@ export function AttendanceManagementContent() {
   // 查詢所有學生
   const { data: allStudents } = trpc.students.getAll.useQuery();
 
+  // 查詢道場列表（用於取得教練對應）
+  const { data: dojos } = trpc.dojos.getAll.useQuery();
+
   // 自動生成當月訓練日期的 mutation
   const generateMonthly = trpc.attendance.generateMonthlySchedules.useMutation({
     onSuccess: () => {
@@ -102,21 +105,33 @@ export function AttendanceManagementContent() {
   const classesForSelection = useMemo(() => {
     if (!classGroups || !allStudents) return [];
 
+    // 建立道場→教練的對應
+    const dojoCoachMap = new Map<string, string>();
+    (dojos || []).forEach((d: any) => {
+      if (d.name && d.coachName) dojoCoachMap.set(d.name, d.coachName);
+    });
+
     return classGroups
       .filter((group: { venue: string; scheduleDay: string; scheduleTime: string }) => 
         group.venue !== '精英班道場' // 排除精英班
       )
-      .map((group: { venue: string; scheduleDay: string; scheduleTime: string }) => ({
-        venue: group.venue,
-        day: group.scheduleDay,
-        time: group.scheduleTime,
-        studentCount: allStudents.filter(
+      .map((group: { venue: string; scheduleDay: string; scheduleTime: string }) => {
+        const classStudents = allStudents.filter(
           (s) =>
             s.venue === group.venue &&
             s.scheduleDay === group.scheduleDay &&
             s.scheduleTime === group.scheduleTime
-        ).length,
-      }));
+        );
+        // 優先使用學生的 coach，其次使用道場的 coachName
+        const coach = classStudents[0]?.coach || dojoCoachMap.get(group.venue) || '';
+        return {
+          venue: group.venue,
+          day: group.scheduleDay,
+          time: group.scheduleTime,
+          studentCount: classStudents.length,
+          coach,
+        };
+      });
   }, [classGroups, allStudents]);
 
   // 準備點名表格頁的資料

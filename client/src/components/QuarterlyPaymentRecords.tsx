@@ -3,13 +3,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { MessageCircle, Image, Upload, ShieldCheck, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export function QuarterlyPaymentRecords() {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [coachFilter, setCoachFilter] = useState<string>("all");
   const { data: statuses, isLoading } = trpc.payments.getQuarterlyStatuses.useQuery({ year: selectedYear });
   
   // 生成年份選項（從 2026 到當前年份 + 1）
@@ -126,21 +127,47 @@ export function QuarterlyPaymentRecords() {
     }
   };
 
+  // 教練列表（從資料中取得）
+  const coachList = useMemo(() => {
+    if (!statuses) return [];
+    const coaches = [...new Set(statuses.map((s: any) => s.coach).filter(Boolean))];
+    return coaches.sort();
+  }, [statuses]);
+
+  // 篩選後的學生
+  const filteredStatuses = useMemo(() => {
+    if (!statuses) return [];
+    if (coachFilter === 'all') return statuses;
+    return statuses.filter((s: any) => s.coach === coachFilter);
+  }, [statuses, coachFilter]);
+
   const quarterLabels = ['1-3月', '4-6月', '7-9月', '10-12月'];
 
   return (
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <CardTitle>繳費紀錄（季度顯示）</CardTitle>
               <CardDescription>查看所有學生的季度繳費狀態，含繳費來源和收據</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">篩選年份：</label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-sm font-medium">教練：</label>
+              <Select value={coachFilter} onValueChange={setCoachFilter}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部教練</SelectItem>
+                  {coachList.map((coach: string) => (
+                    <SelectItem key={coach} value={coach}>{coach}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <label className="text-sm font-medium">年份：</label>
               <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-28">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -186,7 +213,7 @@ export function QuarterlyPaymentRecords() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {statuses.map((student, index) => (
+                {filteredStatuses.map((student, index) => (
                   <TableRow key={student.studentId}>
                     <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                     <TableCell className="font-medium">{student.studentName}</TableCell>

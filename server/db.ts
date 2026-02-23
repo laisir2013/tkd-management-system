@@ -202,6 +202,8 @@ export interface QuarterlyPaymentStatus {
   studentId: number;
   studentName: string;
   phone: string;
+  venue: string;
+  coach: string;
   Q1: 'paid' | 'unpaid' | 'not_due'; // 1-3月
   Q2: 'paid' | 'unpaid' | 'not_due'; // 4-6月
   Q3: 'paid' | 'unpaid' | 'not_due'; // 7-9月
@@ -256,6 +258,8 @@ export async function getQuarterlyPaymentStatuses(year?: number): Promise<Quarte
       studentId: student.id,
       studentName: student.name,
       phone: student.phone || '',
+      venue: student.venue || '',
+      coach: (student as any).coach || '',
       Q1: 'not_due',
       Q2: 'not_due',
       Q3: 'not_due',
