@@ -239,6 +239,10 @@ export default function Admin() {
         return;
       }
 
+      // 顯示 Excel 欄位名稱，方便偵錯
+      const excelColumns = Object.keys(jsonData[0]);
+      console.log("Excel 欄位:", excelColumns);
+
       const studentsToImport = jsonData.map((row) => {
         // 處理出生日期：Excel 日期可能是數字序號，需轉換為字串
         let birthDate: string | null = null;
@@ -271,7 +275,13 @@ export default function Admin() {
       });
 
       await importMutation.mutateAsync({ students: studentsToImport });
-      toast.success(`成功匯入 ${studentsToImport.length} 位學生資料`);
+      // 統計各教練的匯入人數
+      const coachCounts: Record<string, number> = {};
+      studentsToImport.forEach(s => {
+        coachCounts[s.coach] = (coachCounts[s.coach] || 0) + 1;
+      });
+      const coachSummary = Object.entries(coachCounts).map(([c, n]) => `${c}: ${n}人`).join('、');
+      toast.success(`成功匯入 ${studentsToImport.length} 位學生（${coachSummary}）`);
       refetchStudents();
       setExcelFile(null);
       if (fileInputRef.current) {
@@ -706,6 +716,7 @@ export default function Admin() {
                   <ul className="text-sm text-blue-800 space-y-1">
                     <li>• 必要欄位: 姓名、電話、道場、3個月學費</li>
                     <li>• 選填欄位: 出生日期、道場日期、道場時間、學生級數</li>
+                    <li>• <strong>教練欄位</strong>: 欄位名稱含「教練」即可（如「負責教練」「教練」），未填則預設賴政堡教練</li>
                     <li>• 電話格式: 純數字,例如 90971420</li>
                     <li>• 學費格式: 純數字,例如 1800</li>
                   </ul>
