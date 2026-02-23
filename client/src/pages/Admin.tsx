@@ -325,13 +325,23 @@ export default function Admin() {
     
     setIsImporting(true);
     try {
-      await importMutation.mutateAsync({ students: importPreview });
+      const result = await importMutation.mutateAsync({ students: importPreview });
       const coachCounts: Record<string, number> = {};
       importPreview.forEach(s => {
         coachCounts[s.coach] = (coachCounts[s.coach] || 0) + 1;
       });
       const coachSummary = Object.entries(coachCounts).map(([c, n]) => `${c}: ${n}人`).join('、');
-      toast.success(`成功匯入 ${importPreview.length} 位學生（${coachSummary}）`);
+      
+      // 組合完整的成功訊息
+      let msg = `成功匯入 ${importPreview.length} 位學生（${coachSummary}）`;
+      if (result.newDojos && result.newDojos.length > 0) {
+        msg += `\n新增道場: ${result.newDojos.join('、')}`;
+      }
+      if (result.schedulesGenerated && result.schedulesGenerated > 0) {
+        msg += `\n已自動生成 ${result.schedulesGenerated} 個訓練日程`;
+      }
+      toast.success(msg, { duration: 6000 });
+      
       refetchStudents();
       setExcelFile(null);
       setImportPreview(null);
@@ -802,7 +812,7 @@ export default function Admin() {
                     </div>
                     
                     {/* 統計摘要 */}
-                    <div className="p-3 bg-green-50 rounded-lg text-sm">
+                    <div className="p-3 bg-green-50 rounded-lg text-sm space-y-1">
                       <p><strong>教練分佈：</strong>{
                         (() => {
                           const counts: Record<string, number> = {};
@@ -811,6 +821,19 @@ export default function Admin() {
                         })()
                       }</p>
                       <p><strong>缺少時段：</strong>{importPreview.filter(s => !s.scheduleDay && !s.scheduleTime).length} 人</p>
+                      {/* 新道場偵測 */}
+                      {(() => {
+                        const existingNames = new Set((dojos || []).map((d: any) => d.name));
+                        const newVenues = [...new Set(importPreview.map(s => s.venue).filter(v => v && !existingNames.has(v)))];
+                        if (newVenues.length === 0) return null;
+                        return (
+                          <div className="mt-1 p-2 bg-blue-100 rounded text-blue-800">
+                            <strong>將自動新增道場：</strong>{newVenues.join('、')}
+                            <br />
+                            <span className="text-xs">匯入後會自動建立道場記錄並生成訓練日程</span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* 步驟二：確認匯入按鈕 */}

@@ -613,7 +613,93 @@ export const appRouter = router({
         
         await bulkInsertStudents(studentsToInsert);
         
-        return { success: true, count: studentsToInsert.length };
+        // === 自動同步：偵測新道場、建立道場、生成訓練日程 ===
+        const existingDojos = await getAllDojos();
+        const existingDojoNames = new Set(existingDojos.map(d => d.name));
+        
+        // 收集所有唯一的 venue + scheduleDay + scheduleTime + coach 組合
+        const classGroupMap = new Map<string, { venue: string; scheduleDay: string; scheduleTime: string; coach: string }>();
+        input.students.forEach(s => {
+          if (s.venue && s.scheduleDay && s.scheduleTime) {
+            const key = `${s.venue}|${s.scheduleDay}|${s.scheduleTime}`;
+            if (!classGroupMap.has(key)) {
+              classGroupMap.set(key, {
+                venue: s.venue,
+                scheduleDay: s.scheduleDay,
+                scheduleTime: s.scheduleTime,
+                coach: s.coach || '賴政堡教練',
+              });
+            }
+          }
+        });
+        
+        const newDojoNames: string[] = [];
+        let schedulesGenerated = 0;
+        
+        // 1. 為新道場建立 dojos 記錄，更新現有道場的教練名稱
+        const newVenueCoachMap = new Map<string, string>(); // venue -> coach
+        for (const group of classGroupMap.values()) {
+          if (!existingDojoNames.has(group.venue)) {
+            newVenueCoachMap.set(group.venue, group.coach);
+          }
+        }
+        
+        for (const [venueName, coachName] of newVenueCoachMap) {
+          try {
+            await insertDojo({
+              name: venueName,
+              coachName: coachName,
+              status: 'active',
+            });
+            existingDojoNames.add(venueName);
+            newDojoNames.push(venueName);
+            console.log(`[importFromExcel] 自動建立新道場: ${venueName} (教練: ${coachName})`);
+          } catch (e) {
+            console.error(`[importFromExcel] 建立道場失敗: ${venueName}`, e);
+          }
+        }
+        
+        // 更新現有道場的教練名稱（如果匯入資料中教練不同）
+        for (const group of classGroupMap.values()) {
+          const existingDojo = existingDojos.find(d => d.name === group.venue);
+          if (existingDojo && existingDojo.coachName !== group.coach) {
+            try {
+              await updateDojo(existingDojo.id, { coachName: group.coach });
+              console.log(`[importFromExcel] 更新道場教練: ${group.venue} → ${group.coach}`);
+            } catch (e) {
+              console.error(`[importFromExcel] 更新道場教練失敗: ${group.venue}`, e);
+            }
+          }
+        }
+        
+        // 2. 為所有班別組合生成當前月份及剩餘月份的訓練日程
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        
+        for (const group of classGroupMap.values()) {
+          // 生成當前月份到 12 月的訓練日程
+          for (let m = currentMonth; m <= 12; m++) {
+            try {
+              const schedules = await generateTrainingSchedules(
+                currentYear, m, group.venue, group.scheduleDay, group.scheduleTime
+              );
+              schedulesGenerated += schedules.length;
+            } catch (e) {
+              // 已存在的日程會直接跳過，所以這裡不需要額外處理
+              console.error(`[importFromExcel] 生成日程失敗: ${group.venue} ${group.scheduleDay} ${group.scheduleTime} ${currentYear}/${m}`, e);
+            }
+          }
+        }
+        
+        console.log(`[importFromExcel] 匯入完成: ${input.students.length} 學生, ${newDojoNames.length} 新道場, ${schedulesGenerated} 訓練日程`);
+        
+        return { 
+          success: true, 
+          count: studentsToInsert.length,
+          newDojos: newDojoNames,
+          schedulesGenerated,
+        };
       }),
     
     update: protectedProcedure
