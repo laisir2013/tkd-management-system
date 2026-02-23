@@ -64,6 +64,7 @@ export default function Admin() {
   const { user, loading } = useAuth();
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[] | null>(null);
   const [venueFilter, setVenueFilter] = useState<string>("all");
   const [coachFilter, setCoachFilter] = useState<string>("all");
   const [trainingDayFilter, setTrainingDayFilter] = useState<string>("all");
@@ -211,110 +212,129 @@ export default function Admin() {
     toast.success(`成功匯出 ${exportData.length} 筆記錄`);
   };
 
-  const handleImport = async () => {
+  // 解析 Excel 並建立預覽數據
+  const parseExcel = (file: File): Promise<any[]> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const arrayBuffer = await new Promise<ArrayBuffer>((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = (e) => res(e.target?.result as ArrayBuffer);
+          reader.onerror = () => rej(new Error("讀取檔案失敗"));
+          reader.readAsArrayBuffer(file);
+        });
+
+        const data = new Uint8Array(arrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+        if (jsonData.length === 0) {
+          reject(new Error("Excel 檔案中沒有資料"));
+          return;
+        }
+
+        // 顯示 Excel 欄位名稱，方便偵錯
+        const excelColumns = Object.keys(jsonData[0]);
+        console.log("Excel 欄位:", excelColumns);
+        console.log("第一筆原始資料:", jsonData[0]);
+
+        const studentsToImport = jsonData.map((row) => {
+          const keys = Object.keys(row);
+          
+          // 精確欄位映射表：依優先順序匹配，避免模糊匹配誤判
+          const fieldMap: Record<string, string[]> = {
+            name: ["姓名"],
+            birthDate: ["出生日期", "出生", "生日"],
+            phone: ["電話", "手機", "聯絡電話"],
+            venue: ["道場", "場地"],
+            scheduleDay: ["上課日", "道場日期", "星期"],
+            scheduleTime: ["上課時間", "道場時間"],
+            feePerQuarter: ["季度學費", "3個月學費", "學費", "費用"],
+            beltLevel: ["級數", "帶級", "級別", "學生級數"],
+            coach: ["教練姓名", "負責教練", "所屬教練", "教練"],
+          };
+
+          // 根據映射表查找欄位值：優先完全匹配，再模糊匹配
+          const getField = (fieldName: string) => {
+            const patterns = fieldMap[fieldName] || [];
+            for (const pattern of patterns) {
+              const exactKey = keys.find(k => k.trim() === pattern);
+              if (exactKey) return row[exactKey];
+            }
+            for (const pattern of patterns) {
+              const partialKey = keys.find(k => k.trim().includes(pattern));
+              if (partialKey) return row[partialKey];
+            }
+            return undefined;
+          };
+
+          // 處理出生日期
+          let birthDate: string | null = null;
+          const rawBirth = getField("birthDate");
+          if (rawBirth != null) {
+            if (typeof rawBirth === "number") {
+              const d = XLSX.SSF.parse_date_code(rawBirth);
+              birthDate = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
+            } else {
+              birthDate = String(rawBirth);
+            }
+          }
+          
+          const coachRaw = getField("coach");
+          const coachValue = coachRaw ? String(coachRaw).trim() : "";
+          
+          return {
+            name: (getField("name") || "").toString().trim(),
+            birthDate,
+            phone: String(getField("phone") || "").trim(),
+            venue: (getField("venue") || "").toString().trim(),
+            scheduleDay: (getField("scheduleDay") || "").toString().trim(),
+            scheduleTime: (getField("scheduleTime") || "").toString().trim(),
+            feePerQuarter: String(getField("feePerQuarter") || "0").trim(),
+            beltLevel: (getField("beltLevel") || "").toString().trim(),
+            coach: coachValue || "賴政堡教練",
+          };
+        });
+
+        resolve(studentsToImport);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  };
+
+  // 第一步：預覽
+  const handlePreview = async () => {
     if (!excelFile) {
       toast.error("請選擇 Excel 檔案");
       return;
     }
-
-    setIsImporting(true);
-
     try {
-      // 使用 Promise 包裝 FileReader，確保 async/await 能正確處理
-      const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
-        reader.onerror = () => reject(new Error("讀取檔案失敗"));
-        reader.readAsArrayBuffer(excelFile);
-      });
+      const parsed = await parseExcel(excelFile);
+      setImportPreview(parsed);
+      toast.success(`已解析 ${parsed.length} 筆資料，請確認後匯入`);
+    } catch (error: any) {
+      toast.error(error?.message || "解析失敗,請檢查檔案格式");
+    }
+  };
 
-      const data = new Uint8Array(arrayBuffer);
-      const workbook = XLSX.read(data, { type: "array" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
-
-      if (jsonData.length === 0) {
-        toast.error("Excel 檔案中沒有資料");
-        return;
-      }
-
-      // 顯示 Excel 欄位名稱，方便偵錯
-      const excelColumns = Object.keys(jsonData[0]);
-      console.log("Excel 欄位:", excelColumns);
-      console.log("第一筆資料:", jsonData[0]);
-
-      const studentsToImport = jsonData.map((row) => {
-        const keys = Object.keys(row);
-        
-        // 精確欄位映射表：依優先順序匹配，避免模糊匹配誤判
-        const fieldMap: Record<string, string[]> = {
-          name: ["姓名"],
-          birthDate: ["出生日期", "出生", "生日"],
-          phone: ["電話", "手機", "聯絡電話"],
-          venue: ["道場", "場地"],
-          scheduleDay: ["上課日", "道場日期", "星期"],
-          scheduleTime: ["上課時間", "道場時間"],
-          feePerQuarter: ["季度學費", "3個月學費", "學費", "費用"],
-          beltLevel: ["級數", "帶級", "級別", "學生級數"],
-          coach: ["教練姓名", "負責教練", "所屬教練", "教練"],
-        };
-
-        // 根據映射表查找欄位值：優先完全匹配，再模糊匹配
-        const getField = (fieldName: string) => {
-          const patterns = fieldMap[fieldName] || [];
-          // 先嘗試完全匹配
-          for (const pattern of patterns) {
-            const exactKey = keys.find(k => k.trim() === pattern);
-            if (exactKey) return row[exactKey];
-          }
-          // 再嘗試包含匹配
-          for (const pattern of patterns) {
-            const partialKey = keys.find(k => k.trim().includes(pattern));
-            if (partialKey) return row[partialKey];
-          }
-          return undefined;
-        };
-
-        // 處理出生日期：Excel 日期可能是數字序號，需轉換為字串
-        let birthDate: string | null = null;
-        const rawBirth = getField("birthDate");
-        if (rawBirth != null) {
-          if (typeof rawBirth === "number") {
-            const d = XLSX.SSF.parse_date_code(rawBirth);
-            birthDate = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
-          } else {
-            birthDate = String(rawBirth);
-          }
-        }
-        
-        // 教練欄位
-        const coachRaw = getField("coach");
-        const coachValue = coachRaw ? String(coachRaw).trim() : "";
-        
-        return {
-        name: (getField("name") || "").toString().trim(),
-        birthDate,
-        phone: String(getField("phone") || "").trim(),
-        venue: (getField("venue") || "").toString().trim(),
-        scheduleDay: (getField("scheduleDay") || "").toString().trim(),
-        scheduleTime: (getField("scheduleTime") || "").toString().trim(),
-        feePerQuarter: String(getField("feePerQuarter") || "0").trim(),
-        beltLevel: (getField("beltLevel") || "").toString().trim(),
-        coach: coachValue || "賴政堡教練",
-      };
-      });
-
-      await importMutation.mutateAsync({ students: studentsToImport });
-      // 統計各教練的匯入人數
+  // 第二步：確認匯入
+  const handleConfirmImport = async () => {
+    if (!importPreview || importPreview.length === 0) return;
+    
+    setIsImporting(true);
+    try {
+      await importMutation.mutateAsync({ students: importPreview });
       const coachCounts: Record<string, number> = {};
-      studentsToImport.forEach(s => {
+      importPreview.forEach(s => {
         coachCounts[s.coach] = (coachCounts[s.coach] || 0) + 1;
       });
       const coachSummary = Object.entries(coachCounts).map(([c, n]) => `${c}: ${n}人`).join('、');
-      toast.success(`成功匯入 ${studentsToImport.length} 位學生（${coachSummary}）`);
+      toast.success(`成功匯入 ${importPreview.length} 位學生（${coachSummary}）`);
       refetchStudents();
       setExcelFile(null);
+      setImportPreview(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -702,7 +722,7 @@ export default function Admin() {
                   匯入學生資料
                 </CardTitle>
                 <CardDescription>
-                  上傳 Excel 檔案以批次匯入學生資料 (需包含: 姓名、電話、道場、3個月學費等欄位)
+                  上傳 Excel 檔案以批次匯入學生資料 (需包含: 姓名、電話、道場、學費等欄位)
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -713,7 +733,7 @@ export default function Admin() {
                     ref={fileInputRef}
                     type="file"
                     accept=".xlsx,.xls"
-                    onChange={handleFileChange}
+                    onChange={(e) => { handleFileChange(e); setImportPreview(null); }}
                     className="mt-2"
                   />
                   {excelFile && (
@@ -723,24 +743,97 @@ export default function Admin() {
                   )}
                 </div>
 
-                <Button
-                  onClick={handleImport}
-                  disabled={!excelFile || isImporting}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isImporting ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      匯入中...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-5 h-5 mr-2" />
-                      開始匯入
-                    </>
-                  )}
-                </Button>
+                {/* 步驟一：預覽按鈕 */}
+                {!importPreview && (
+                  <Button
+                    onClick={handlePreview}
+                    disabled={!excelFile}
+                    className="w-full"
+                    size="lg"
+                    variant="outline"
+                  >
+                    <FileSpreadsheet className="w-5 h-5 mr-2" />
+                    解析並預覽
+                  </Button>
+                )}
+
+                {/* 預覽表格 */}
+                {importPreview && importPreview.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-green-800">
+                        已解析 {importPreview.length} 筆資料，請確認以下內容：
+                      </h4>
+                      <Button variant="ghost" size="sm" onClick={() => setImportPreview(null)}>
+                        取消
+                      </Button>
+                    </div>
+                    <div className="max-h-80 overflow-auto border rounded-lg">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-100 sticky top-0">
+                          <tr>
+                            <th className="px-2 py-1.5 text-left">#</th>
+                            <th className="px-2 py-1.5 text-left">姓名</th>
+                            <th className="px-2 py-1.5 text-left">電話</th>
+                            <th className="px-2 py-1.5 text-left">道場</th>
+                            <th className="px-2 py-1.5 text-left">上課日</th>
+                            <th className="px-2 py-1.5 text-left">上課時間</th>
+                            <th className="px-2 py-1.5 text-left">學費</th>
+                            <th className="px-2 py-1.5 text-left">級數</th>
+                            <th className="px-2 py-1.5 text-left">教練</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importPreview.map((s, i) => (
+                            <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                              <td className="px-2 py-1">{i + 1}</td>
+                              <td className="px-2 py-1 font-medium">{s.name || <span className="text-red-500">缺少</span>}</td>
+                              <td className="px-2 py-1">{s.phone || <span className="text-red-500">缺少</span>}</td>
+                              <td className="px-2 py-1">{s.venue || <span className="text-red-500">缺少</span>}</td>
+                              <td className="px-2 py-1">{s.scheduleDay || <span className="text-orange-500">-</span>}</td>
+                              <td className="px-2 py-1">{s.scheduleTime || <span className="text-orange-500">-</span>}</td>
+                              <td className="px-2 py-1">${s.feePerQuarter}</td>
+                              <td className="px-2 py-1">{s.beltLevel || "-"}</td>
+                              <td className="px-2 py-1">{s.coach}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {/* 統計摘要 */}
+                    <div className="p-3 bg-green-50 rounded-lg text-sm">
+                      <p><strong>教練分佈：</strong>{
+                        (() => {
+                          const counts: Record<string, number> = {};
+                          importPreview.forEach(s => { counts[s.coach] = (counts[s.coach] || 0) + 1; });
+                          return Object.entries(counts).map(([c, n]) => `${c}: ${n}人`).join('、');
+                        })()
+                      }</p>
+                      <p><strong>缺少時段：</strong>{importPreview.filter(s => !s.scheduleDay && !s.scheduleTime).length} 人</p>
+                    </div>
+
+                    {/* 步驟二：確認匯入按鈕 */}
+                    <Button
+                      onClick={handleConfirmImport}
+                      disabled={isImporting}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      size="lg"
+                    >
+                      {isImporting ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          匯入中...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-5 h-5 mr-2" />
+                          確認匯入 {importPreview.length} 位學生
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
 
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                   <h4 className="font-semibold text-blue-900 mb-2">Excel 格式說明:</h4>
