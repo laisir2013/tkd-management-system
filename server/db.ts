@@ -453,16 +453,33 @@ export async function getCoachStatistics(coachName?: string) {
     coachNames.add(coachName);
   }
   
-  // 直接從 students 表計算所有學生的總學費
-  // 因為所有學生都屬於同一位教練，不需要通過 dojos 表匹配
-  const totalStudentCount = allStudents.length;
-  const totalFee = allStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
+  // 建立道場名稱→教練對應 map
+  const dojoNameCoachMap: Record<string, string> = {};
+  allDojos.forEach(dojo => {
+    if (dojo.coachName && dojo.name) {
+      dojoNameCoachMap[dojo.name.trim()] = dojo.coachName;
+    }
+  });
   
-  return Array.from(coachNames).map(name => ({
-    coachName: name,
-    studentCount: totalStudentCount,
-    totalFee: totalFee,
-  }));
+  // 只計算活躍學生，排除精英班道場
+  const activeRegularStudents = allStudents.filter(s => s.status === 'active' && s.venue !== '精英班道場');
+  
+  return Array.from(coachNames).map(name => {
+    // 按道場→教練對應過濾出該教練的學生
+    const coachVenues = allDojos
+      .filter(d => d.coachName === name)
+      .map(d => d.name);
+    
+    const coachStudents = coachVenues.length > 0
+      ? activeRegularStudents.filter(s => coachVenues.includes(s.venue))
+      : activeRegularStudents; // 如果沒有道場對應，fallback 全部
+    
+    return {
+      coachName: name,
+      studentCount: coachStudents.length,
+      totalFee: coachStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0),
+    };
+  });
 }
 
 export async function getQuarterlyFeeStatistics(year: number, quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4', coachName?: string) {
