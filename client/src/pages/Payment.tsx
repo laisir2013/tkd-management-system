@@ -216,7 +216,7 @@ function OverviewTab({ students, eliteInfo, hasRegular, hasElite, onNavigate, ph
           <CardContent className="space-y-3">
             {students.map(student => {
               const hasPaid = existingPayments?.some(
-                p => p.studentId === student.id && p.paymentPeriod === currentQuarter && p.status === 'confirmed' && parseFloat(p.amount) > 0
+                p => p.studentId === student.id && p.paymentPeriod === currentQuarter && p.status === 'confirmed'
               );
               return (
                 <div key={student.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -471,7 +471,9 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   );
 
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([]);
-  const [period, setPeriod] = useState<PaymentPeriod>("Q1");
+  // 自動選擇當前季度
+  const currentQ = `Q${Math.ceil((new Date().getMonth() + 1) / 3)}` as PaymentPeriod;
+  const [period, setPeriod] = useState<PaymentPeriod>(currentQ);
   const [customMonths, setCustomMonths] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>("");
@@ -481,20 +483,29 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
 
   const createPayment = trpc.payments.create.useMutation();
 
-  const isPeriodPaid = (studentId: number, period: PaymentPeriod) => {
+  // 判斷某位學生的某季度是否已繳費（confirmed 狀態即視為已付）
+  const isPeriodPaid = (studentId: number, checkPeriod: PaymentPeriod) => {
     if (!existingPayments) return false;
     return existingPayments.some(
       payment =>
         payment.studentId === studentId &&
-        payment.paymentPeriod === period &&
-        payment.status === 'confirmed' &&
-        parseFloat(payment.amount) > 0
+        payment.paymentPeriod === checkPeriod &&
+        payment.status === 'confirmed'
     );
   };
 
+  // 判斷某季度是否所有學生都已繳費（用於鎖定該季度，不依賴已選學生）
+  const isPeriodFullyPaid = (checkPeriod: PaymentPeriod) => {
+    if (!existingPayments || students.length === 0) return false;
+    return students.every(student => isPeriodPaid(student.id, checkPeriod));
+  };
+
+  // 取得某季度的繳費資訊（顯示確認日期和來源）
   const getPeriodPaymentInfo = (p: PaymentPeriod) => {
-    if (!existingPayments || selectedStudentIds.length === 0) return null;
-    for (const studentId of selectedStudentIds) {
+    if (!existingPayments) return null;
+    // 優先從已選學生找，否則從所有學生找
+    const searchIds = selectedStudentIds.length > 0 ? selectedStudentIds : students.map(s => s.id);
+    for (const studentId of searchIds) {
       const payment = existingPayments.find(
         pay => pay.studentId === studentId && pay.paymentPeriod === p && pay.status === 'confirmed'
       );
@@ -509,7 +520,11 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
     return null;
   };
 
+  // 當前選擇是否已繳費（用於提交按鈕禁用）
   const isCurrentSelectionPaid = () => {
+    // 如果該季度所有學生都已繳費，直接鎖定
+    if (isPeriodFullyPaid(period)) return true;
+    // 如果已選學生中有人已繳該季度，也鎖定
     if (selectedStudentIds.length === 0) return false;
     return selectedStudentIds.some(studentId => isPeriodPaid(studentId, period));
   };
@@ -610,17 +625,38 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
         <CardContent>
           <RadioGroup value={period} onValueChange={(v) => setPeriod(v as PaymentPeriod)}>
             {PERIOD_OPTIONS.map(option => {
-              const hasAnyStudentPaid = selectedStudentIds.some(studentId =>
-                isPeriodPaid(studentId, option.value as PaymentPeriod)
-              );
-              const paymentInfo = getPeriodPaymentInfo(option.value as PaymentPeriod);
+              const periodValue = option.value as PaymentPeriod;
+              // 所有學生都已繳費 → 完全鎖定
+              const allPaid = isPeriodFullyPaid(periodValue);
+              // 已選學生中有人已繳費 → 鎖定（選了人之後才檢查）
+              const selectedPaid = selectedStudentIds.length > 0 && selectedStudentIds.some(sid => isPeriodPaid(sid, periodValue));
+              const isLocked = allPaid || selectedPaid;
+              const paymentInfo = getPeriodPaymentInfo(periodValue);
 
               return (
-                <div key={option.value} className={`flex items-center space-x-3 p-3 rounded-lg ${hasAnyStudentPaid ? 'bg-green-50 border border-green-200 opacity-60' : 'hover:bg-gray-50'}`}>
-                  <RadioGroupItem value={option.value} id={option.value} disabled={hasAnyStudentPaid} />
-                  <Label htmlFor={option.value} className={`flex-1 ${hasAnyStudentPaid ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                    <div>{option.label}</div>
-                    {hasAnyStudentPaid && paymentInfo && (
+                <div key={option.value} className={`flex items-center space-x-3 p-3 rounded-lg ${
+                  allPaid
+                    ? 'bg-green-50 border border-green-200 opacity-60'
+                    : selectedPaid
+                    ? 'bg-yellow-50 border border-yellow-200 opacity-70'
+                    : 'hover:bg-gray-50'
+                }`}>
+                  <RadioGroupItem value={option.value} id={option.value} disabled={isLocked} />
+                  <Label htmlFor={option.value} className={`flex-1 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                    <div className="flex items-center gap-2">
+                      <span>{option.label}</span>
+                      {allPaid && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">
+                          <CheckCircle2 className="w-3 h-3" /> 已繳交
+                        </span>
+                      )}
+                      {!allPaid && selectedPaid && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">
+                          ⚠️ 部分已繳
+                        </span>
+                      )}
+                    </div>
+                    {isLocked && paymentInfo && (
                       <div className="text-xs text-green-700 mt-1">
                         {paymentInfo.confirmedBy === 'parent_upload'
                           ? `家長於 ${paymentInfo.date.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })} 上傳收據繳費`
@@ -628,7 +664,6 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
                       </div>
                     )}
                   </Label>
-                  {hasAnyStudentPaid && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded">已繳交</span>}
                 </div>
               );
             })}
