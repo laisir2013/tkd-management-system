@@ -870,7 +870,7 @@ export const appRouter = router({
   dojos: router({
     getAll: protectedProcedure
       .query(async ({ ctx }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         return getAllDojos();
@@ -1228,10 +1228,17 @@ export const appRouter = router({
         year: z.number().optional(),
       }).optional())
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
-        return getQuarterlyPaymentStatuses(input?.year);
+        const all = await getQuarterlyPaymentStatuses(input?.year);
+        // 教練只返回自己學生的繳費狀態
+        // @ts-ignore
+        if (ctx.user.role === 'coach' && ctx.user.coachName) {
+          // @ts-ignore
+          return all.filter(s => s.coach === ctx.user.coachName);
+        }
+        return all;
       }),
   }),
 
@@ -1673,10 +1680,17 @@ export const appRouter = router({
   coachStats: router({
     getAll: protectedProcedure
       .query(async ({ ctx }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
-        return getCoachStatsWithElite();
+        const all = await getCoachStatsWithElite();
+        // 教練只返回自己的統計
+        // @ts-ignore
+        if (ctx.user.role === 'coach' && ctx.user.coachName) {
+          // @ts-ignore
+          return all.filter(s => s.coachName === ctx.user.coachName);
+        }
+        return all;
       }),
   }),
 
