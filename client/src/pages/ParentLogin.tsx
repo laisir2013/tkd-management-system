@@ -31,7 +31,7 @@ export default function ParentLogin() {
       const result = await loginMutation.refetch();
       
       if (result.data?.success) {
-        setLocation(`/payment?phone=${encodeURIComponent(phone)}`);
+        setLocation(`/payment?phone=${encodeURIComponent(phone)}&tab=overview`);
       } else {
         setError(result.data?.error || "登入失敗,請確認電話號碼和密碼是否正確");
       }

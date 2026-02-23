@@ -33,7 +33,7 @@ export default function Parent() {
       
       if (result.data?.success) {
         // 登入成功,導向家長頁面
-        setLocation(`/payment?phone=${encodeURIComponent(phone)}`);
+        setLocation(`/payment?phone=${encodeURIComponent(phone)}&tab=overview`);
       } else {
         setError(result.data?.error || "登入失敗,請確認電話號碼和密碼是否正確");
       }
