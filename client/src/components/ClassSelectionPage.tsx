@@ -17,6 +17,7 @@ interface ClassInfo {
 interface ClassSelectionPageProps {
   classes: ClassInfo[];
   onSelectClass: (venue: string, day: string, time: string) => void;
+  hideAdminControls?: boolean;
 }
 
 const WEEKDAYS = [
@@ -43,7 +44,7 @@ function getCoachColor(coach: string) {
   return COACH_COLORS[coach] || DEFAULT_COLOR;
 }
 
-export function ClassSelectionPage({ classes, onSelectClass }: ClassSelectionPageProps) {
+export function ClassSelectionPage({ classes, onSelectClass, hideAdminControls }: ClassSelectionPageProps) {
   const [generatingYear, setGeneratingYear] = useState<number | null>(null);
   const [coachFilter, setCoachFilter] = useState<string>("all");
 
@@ -95,61 +96,65 @@ export function ClassSelectionPage({ classes, onSelectClass }: ClassSelectionPag
           <h2 className="text-xl font-bold">點名管理 - 選擇班別</h2>
           <p className="text-sm text-muted-foreground mt-0.5">請選擇要點名的班別</p>
         </div>
-        <div className="flex gap-2 flex-wrap items-center">
-          {/* 教練篩選 */}
-          <Select value={coachFilter} onValueChange={setCoachFilter}>
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="全部教練" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部教練</SelectItem>
-              {coachList.map((coach) => (
-                <SelectItem key={coach} value={coach!}>{coach}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleGenerateYearly(currentYear)}
-            disabled={generateYearly.isPending}
-            className="text-blue-600 border-blue-300 hover:bg-blue-50"
-          >
-            {generateYearly.isPending && generatingYear === currentYear ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            ) : (
-              <CalendarDays className="mr-1.5 h-4 w-4" />
-            )}
-            生成 {currentYear} 年
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleGenerateYearly(currentYear + 1)}
-            disabled={generateYearly.isPending}
-            className="text-purple-600 border-purple-300 hover:bg-purple-50"
-          >
-            {generateYearly.isPending && generatingYear === currentYear + 1 ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            ) : (
-              <CalendarDays className="mr-1.5 h-4 w-4" />
-            )}
-            生成 {currentYear + 1} 年
-          </Button>
-        </div>
+        {!hideAdminControls && (
+          <div className="flex gap-2 flex-wrap items-center">
+            {/* 教練篩選 */}
+            <Select value={coachFilter} onValueChange={setCoachFilter}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="全部教練" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部教練</SelectItem>
+                {coachList.map((coach) => (
+                  <SelectItem key={coach} value={coach!}>{coach}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleGenerateYearly(currentYear)}
+              disabled={generateYearly.isPending}
+              className="text-blue-600 border-blue-300 hover:bg-blue-50"
+            >
+              {generateYearly.isPending && generatingYear === currentYear ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <CalendarDays className="mr-1.5 h-4 w-4" />
+              )}
+              生成 {currentYear} 年
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleGenerateYearly(currentYear + 1)}
+              disabled={generateYearly.isPending}
+              className="text-purple-600 border-purple-300 hover:bg-purple-50"
+            >
+              {generateYearly.isPending && generatingYear === currentYear + 1 ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <CalendarDays className="mr-1.5 h-4 w-4" />
+              )}
+              生成 {currentYear + 1} 年
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* 教練顏色圖例 */}
-      <div className="flex flex-wrap gap-2 text-xs">
-        {coachList.map((coach) => {
-          const color = getCoachColor(coach!);
-          return (
-            <span key={coach} className={`px-2 py-1 rounded-full font-medium ${color.badge}`}>
-              {coach}
-            </span>
-          );
-        })}
-      </div>
+      {!hideAdminControls && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          {coachList.map((coach) => {
+            const color = getCoachColor(coach!);
+            return (
+              <span key={coach} className={`px-2 py-1 rounded-full font-medium ${color.badge}`}>
+                {coach}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {WEEKDAYS.map(({ label }) => {
         const dayClasses = classesByDay[label];

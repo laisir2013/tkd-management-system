@@ -2,16 +2,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { MessageCircle, Image, Upload, ShieldCheck, X } from "lucide-react";
+import { MessageCircle, Image, Upload, ShieldCheck, Check, X } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
-export function QuarterlyPaymentRecords() {
+export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coachName?: string; showConfirmButton?: boolean } = {}) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  const [coachFilter, setCoachFilter] = useState<string>("all");
-  const { data: statuses, isLoading } = trpc.payments.getQuarterlyStatuses.useQuery({ year: selectedYear });
+  const [coachFilter, setCoachFilter] = useState<string>(coachName || "all");
+  const { data: statuses, isLoading, refetch } = trpc.payments.getQuarterlyStatuses.useQuery({ year: selectedYear });
   
   // 生成年份選項（從 2026 到當前年份 + 1）
   const yearOptions = [];
@@ -22,6 +23,19 @@ export function QuarterlyPaymentRecords() {
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState<string>("");
   const [receiptInfo, setReceiptInfo] = useState<{ studentName: string; quarter: string } | null>(null);
+
+  // Confirm payment dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{ studentId: number; studentName: string; quarter: string; quarterLabel: string } | null>(null);
+  const confirmPayment = trpc.payments.confirmPayment.useMutation({
+    onSuccess: () => {
+      toast.success('已確認繳費');
+      refetch();
+      setConfirmDialog(null);
+    },
+    onError: (err: any) => {
+      toast.error(`確認失敗: ${err.message}`);
+    },
+  });
 
   // 教練列表（從資料中取得）— 必須在所有 early return 之前
   const coachList = useMemo(() => {
@@ -83,6 +97,7 @@ export function QuarterlyPaymentRecords() {
   const getConfirmedByLabel = (confirmedBy: string | null | undefined) => {
     if (confirmedBy === 'parent_upload') return '家長上傳';
     if (confirmedBy === 'admin_approved') return '管理員批准';
+    if (confirmedBy === 'coach_approved') return '教練確認';
     return '';
   };
 
@@ -93,11 +108,13 @@ export function QuarterlyPaymentRecords() {
     receiptUrlVal?: string | null,
     studentName?: string,
     quarterLabel?: string,
+    studentId?: number,
+    quarter?: string,
   ) => {
     if (status === 'paid') {
       return (
         <div className="text-center space-y-1">
-          <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-700 border border-green-300">
+          <div className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-green-100 text-green-700 border border-green-300">
             已繳
           </div>
           {paymentDate && (
@@ -128,13 +145,29 @@ export function QuarterlyPaymentRecords() {
       );
     } else if (status === 'unpaid') {
       return (
-        <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-700 border border-red-300">
-          未繳
+        <div className="text-center space-y-1">
+          <div className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-red-100 text-red-700 border border-red-300">
+            未繳
+          </div>
+          {showConfirmButton && studentId && quarter && (
+            <button
+              onClick={() => setConfirmDialog({
+                studentId,
+                studentName: studentName || '',
+                quarter,
+                quarterLabel: quarterLabel || '',
+              })}
+              className="mt-1 mx-auto flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+            >
+              <Check className="w-3 h-3" />
+              確認已繳
+            </button>
+          )}
         </div>
       );
     } else {
       return (
-        <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-500 border border-gray-300">
+        <div className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-gray-100 text-gray-500 border border-gray-300">
           未到期
         </div>
       );
@@ -147,24 +180,31 @@ export function QuarterlyPaymentRecords() {
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <CardTitle>繳費紀錄（季度顯示）</CardTitle>
-              <CardDescription>查看所有學生的季度繳費狀態，含繳費來源和收據</CardDescription>
+              <CardTitle className="text-base sm:text-lg">繳費紀錄（季度顯示）</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                {coachName ? '我的學生' : '所有學生'}的季度繳費狀態
+                {filteredStatuses.length > 0 && ` (${filteredStatuses.length} 人)`}
+              </CardDescription>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <label className="text-sm font-medium">教練：</label>
-              <Select value={coachFilter} onValueChange={setCoachFilter}>
-                <SelectTrigger className="w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部教練</SelectItem>
-                  {coachList.map((coach: string) => (
-                    <SelectItem key={coach} value={coach}>{coach}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!coachName && (
+                <>
+                  <label className="text-sm font-medium">教練：</label>
+                  <Select value={coachFilter} onValueChange={setCoachFilter}>
+                    <SelectTrigger className="w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部教練</SelectItem>
+                      {coachList.map((coach: string) => (
+                        <SelectItem key={coach} value={coach}>{coach}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
               <label className="text-sm font-medium">年份：</label>
               <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
                 <SelectTrigger className="w-28">
@@ -181,42 +221,47 @@ export function QuarterlyPaymentRecords() {
             </div>
           </div>
           {/* 圖例 */}
-          <div className="flex flex-wrap gap-4 mt-2 text-xs text-gray-500">
+          <div className="flex flex-wrap gap-3 sm:gap-4 mt-2 text-xs text-gray-500">
             <div className="flex items-center gap-1">
               <Upload className="w-3 h-3 text-blue-500" />
-              <span>家長上傳收據</span>
+              <span>家長上傳</span>
             </div>
             <div className="flex items-center gap-1">
               <ShieldCheck className="w-3 h-3 text-green-600" />
-              <span>管理員批准</span>
+              <span>管理員/教練</span>
             </div>
             <div className="flex items-center gap-1">
               <Image className="w-3 h-3 text-indigo-600" />
-              <span>可查看收據圖片</span>
+              <span>查看收據</span>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-2 sm:p-6">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-16">編號</TableHead>
-                  <TableHead>學生姓名</TableHead>
+                  <TableHead className="w-10 text-xs">#</TableHead>
+                  <TableHead className="text-xs sm:text-sm">姓名</TableHead>
                   {quarterLabels.map((label, i) => (
                     <TableHead key={i} className="text-center">
-                      <div className="font-semibold">{selectedYear}年</div>
+                      <div className="font-semibold text-xs">{selectedYear}</div>
                       <div className="text-xs font-normal">{label}</div>
                     </TableHead>
                   ))}
-                  <TableHead className="text-center">操作</TableHead>
+                  <TableHead className="text-center text-xs sm:text-sm">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredStatuses.map((student, index) => (
                   <TableRow key={student.studentId}>
-                    <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-                    <TableCell className="font-medium">{student.studentName}</TableCell>
+                    <TableCell className="text-muted-foreground text-xs">{index + 1}</TableCell>
+                    <TableCell className="font-medium text-sm">
+                      {student.studentName}
+                      {(student as any).feePerQuarter && (
+                        <div className="text-[10px] text-gray-400">${(student as any).feePerQuarter}/季</div>
+                      )}
+                    </TableCell>
                     {(['Q1', 'Q2', 'Q3', 'Q4'] as const).map((q, i) => (
                       <TableCell key={q} className="text-center">
                         {getStatusBadge(
@@ -226,6 +271,8 @@ export function QuarterlyPaymentRecords() {
                           (student as any)[`${q}ReceiptUrl`],
                           student.studentName,
                           quarterLabels[i],
+                          student.studentId,
+                          q,
                         )}
                       </TableCell>
                     ))}
@@ -235,11 +282,12 @@ export function QuarterlyPaymentRecords() {
                         size="sm"
                         onClick={() => handleWhatsAppNotify(student)}
                         disabled={sendingWhatsApp === student.studentId}
-                        className="flex items-center gap-2"
+                        className="flex items-center gap-1 text-xs"
                         title={!student.phone ? '該學生沒有電話號碼' : '發送 WhatsApp 繳費提醒'}
                       >
-                        <MessageCircle className="w-4 h-4" />
-                        {sendingWhatsApp === student.studentId ? '發送中...' : 'WhatsApp'}
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">{sendingWhatsApp === student.studentId ? '發送中' : 'WhatsApp'}</span>
+                        <span className="sm:hidden">{sendingWhatsApp === student.studentId ? '...' : '提醒'}</span>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -281,6 +329,38 @@ export function QuarterlyPaymentRecords() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 確認繳費對話框 */}
+      {showConfirmButton && (
+        <Dialog open={!!confirmDialog} onOpenChange={() => setConfirmDialog(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>確認繳費</DialogTitle>
+              <DialogDescription>
+                確認 <strong>{confirmDialog?.studentName}</strong> 已繳 {selectedYear}年{confirmDialog?.quarterLabel} 學費？
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmDialog(null)}>取消</Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                disabled={confirmPayment.isPending}
+                onClick={() => {
+                  if (confirmDialog) {
+                    confirmPayment.mutate({
+                      studentId: confirmDialog.studentId,
+                      year: selectedYear,
+                      quarter: confirmDialog.quarter as 'Q1' | 'Q2' | 'Q3' | 'Q4',
+                    });
+                  }
+                }}
+              >
+                {confirmPayment.isPending ? '處理中...' : '確認已繳'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

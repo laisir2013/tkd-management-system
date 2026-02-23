@@ -11,7 +11,7 @@ interface SelectedClass {
   time: string;
 }
 
-export function AttendanceManagementContent() {
+export function AttendanceManagementContent({ coachName }: { coachName?: string } = {}) {
   const [viewMode, setViewMode] = useState<ViewMode>("classSelection");
   const [selectedClass, setSelectedClass] = useState<SelectedClass | null>(null);
 
@@ -116,12 +116,16 @@ export function AttendanceManagementContent() {
         group.venue !== '精英班道場' // 排除精英班
       )
       .map((group: { venue: string; scheduleDay: string; scheduleTime: string }) => {
-        const classStudents = allStudents.filter(
+        let classStudents = allStudents.filter(
           (s) =>
             s.venue === group.venue &&
             s.scheduleDay === group.scheduleDay &&
             s.scheduleTime === group.scheduleTime
         );
+        // 如果指定了教練，只計算該教練的學生數量
+        if (coachName) {
+          classStudents = classStudents.filter((s: any) => s.coach === coachName);
+        }
         // 優先使用學生的 coach，其次使用道場的 coachName
         const coach = classStudents[0]?.coach || dojoCoachMap.get(group.venue) || '';
         return {
@@ -131,8 +135,9 @@ export function AttendanceManagementContent() {
           studentCount: classStudents.length,
           coach,
         };
-      });
-  }, [classGroups, allStudents]);
+      })
+      .filter(c => c.studentCount > 0); // 過濾掉沒有學生的班別
+  }, [classGroups, allStudents, coachName]);
 
   // 準備點名表格頁的資料
   const studentsForTable = useMemo(() => {
@@ -143,10 +148,11 @@ export function AttendanceManagementContent() {
         (s) =>
           s.venue === selectedClass.venue &&
           s.scheduleDay === selectedClass.day &&
-          s.scheduleTime === selectedClass.time
+          s.scheduleTime === selectedClass.time &&
+          (!coachName || (s as any).coach === coachName)
       )
       .map((s) => ({ id: s.id, name: s.name }));
-  }, [selectedClass, allStudents]);
+  }, [selectedClass, allStudents, coachName]);
 
   // 準備訓練日期（包含 cancelled 狀態）
   const trainingDatesForTable = useMemo(() => {
@@ -193,7 +199,7 @@ export function AttendanceManagementContent() {
 
   // 渲染當前視圖
   if (viewMode === "classSelection") {
-    return <ClassSelectionPage classes={classesForSelection} onSelectClass={handleSelectClass} />;
+    return <ClassSelectionPage classes={classesForSelection} onSelectClass={handleSelectClass} hideAdminControls={!!coachName} />;
   }
 
   if (viewMode === "attendanceTable" && selectedClass) {
