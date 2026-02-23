@@ -82,7 +82,7 @@ export function EliteWhatsAppButton({
 
 如有任何疑問，歡迎隨時聯絡我們！🙏`;
 
-    const whatsappUrl = `https://web.whatsapp.com/send?phone=852${studentPhone}&text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=852${studentPhone}&text=${encodeURIComponent(message)}`;
 
     // 記錄提醒時間到 localStorage
     const now = Date.now();
