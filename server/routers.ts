@@ -1231,8 +1231,8 @@ export const appRouter = router({
         // 季度對應的 paymentPeriod key
         const quarterKey = `Q${quarter}`;
         
-        // 獲取所有學生
-        const allStudents = await db.select().from(schema.students);
+        // 獲取所有活躍學生
+        const allStudents = await db.select().from(schema.students).where(eq(schema.students.status, 'active'));
         
         // 如果指定教練，過濾出該教練的道場
         let filteredStudents = allStudents;
@@ -1245,19 +1245,13 @@ export const appRouter = router({
           filteredStudents = allStudents.filter(s => coachVenues.includes(s.venue));
         }
         
-        // 獲取該年度該季度的所有繳費記錄
-        const startMonth = (quarter - 1) * 3 + 1;
-        const endMonth = startMonth + 2;
-        const startDate = new Date(year, startMonth - 1, 1);
-        const endDate = new Date(year, endMonth, 0);
-        
+        // 獲取該年度該季度的所有繳費記錄（使用 year 欄位）
         const payments = await db.select()
           .from(schema.paymentRecords)
           .where(
             and(
               eq(schema.paymentRecords.paymentPeriod, quarterKey as any),
-              gte(schema.paymentRecords.paymentDate, startDate),
-              lte(schema.paymentRecords.paymentDate, endDate),
+              eq(schema.paymentRecords.year, year),
               eq(schema.paymentRecords.status, 'confirmed' as any)
             )
           );
@@ -1281,7 +1275,7 @@ export const appRouter = router({
           totalStudents: filteredStudents.filter(s => s.venue !== '精英班道場').length,
           unpaidCount: unpaidStudents.length,
           paidCount: filteredStudents.filter(s => s.venue !== '精英班道場').length - unpaidStudents.length,
-          quarterName: `${startMonth}-${endMonth}月`,
+          quarterName: `${(quarter - 1) * 3 + 1}-${quarter * 3}月`,
         };
       }),
 

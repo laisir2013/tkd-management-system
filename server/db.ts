@@ -473,15 +473,26 @@ export async function getQuarterlyFeeStatistics(year: number, quarter: 'Q1' | 'Q
   const allPayments = await getAllPaymentRecords();
   const allDojos = await getAllDojos();
   
-  // 所有學生都屬於同一位教練，直接使用所有學生
-  const filteredStudents = allStudents;
+  // 根據教練名稱過濾學生：透過 dojos 表的 coach_name 找到對應 venue
+  let filteredStudents = allStudents.filter(s => s.status === 'active');
+  if (coachName) {
+    // 先從 dojos 表找到該教練負責的所有道場名稱
+    const coachVenues = allDojos
+      .filter(d => d.coachName === coachName)
+      .map(d => d.name);
+    // 如果找到對應道場，按 venue 過濾學生
+    if (coachVenues.length > 0) {
+      filteredStudents = filteredStudents.filter(s => coachVenues.includes(s.venue));
+    }
+  }
   
   // 計算應收總額（該季度所有學生的季度學費總和）
   const totalExpectedFee = filteredStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter), 0);
   
-  // 計算實收金額（該季度實際已繳費的金額，根據 paymentPeriod 篩選）
+  // 計算實收金額（該季度實際已繳費的金額，根據 paymentPeriod 和 year 篩選）
   const paidPayments = allPayments.filter(p => 
     p.paymentPeriod === quarter && 
+    p.year === year &&
     p.status === 'confirmed' &&
     filteredStudents.some(s => s.id === p.studentId)
   );
