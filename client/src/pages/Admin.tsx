@@ -239,9 +239,21 @@ export default function Admin() {
         return;
       }
 
-      const studentsToImport = jsonData.map((row) => ({
+      const studentsToImport = jsonData.map((row) => {
+        // 處理出生日期：Excel 日期可能是數字序號，需轉換為字串
+        let birthDate: string | null = null;
+        if (row["出生日期"] != null) {
+          if (typeof row["出生日期"] === "number") {
+            // Excel 日期序號 → JS Date → YYYY-MM-DD
+            const d = XLSX.SSF.parse_date_code(row["出生日期"]);
+            birthDate = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
+          } else {
+            birthDate = String(row["出生日期"]);
+          }
+        }
+        return {
         name: row["姓名"] || "",
-        birthDate: row["出生日期"] || null,
+        birthDate,
         phone: String(row["電話"] || ""),
         venue: row["道場"] || "",
         scheduleDay: row["道場日期"] || "",
@@ -249,7 +261,8 @@ export default function Admin() {
         feePerQuarter: String(row["3個月學費"] || "0"),
         beltLevel: row["學生級數"] || "",
         coach: row["負責教練"] || row["教練"] || "賴政堡教練",
-      }));
+      };
+      });
 
       await importMutation.mutateAsync({ students: studentsToImport });
       toast.success(`成功匯入 ${studentsToImport.length} 位學生資料`);
