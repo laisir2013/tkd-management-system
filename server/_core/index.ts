@@ -8,6 +8,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { storageGetBuffer } from "../storage";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -38,6 +39,25 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // Static file downloads (e.g. Excel reports)
   app.use('/downloads', express.static(path.join(process.cwd(), 'public/downloads')));
+  
+  // Serve receipt images from Cloudflare R2
+  // Usage: /api/receipts/receipts/42-1234567890.jpg
+  //    or: /api/receipts/accounting-receipts/1234567890.png
+  app.get('/api/receipts/*', async (req, res) => {
+    try {
+      const key = req.params[0]; // Everything after /api/receipts/
+      if (!key) {
+        return res.status(400).json({ error: 'Missing file key' });
+      }
+      const { data, contentType } = await storageGetBuffer(key);
+      res.set('Content-Type', contentType);
+      res.set('Cache-Control', 'public, max-age=86400'); // Cache 24 hours
+      res.send(data);
+    } catch (error: any) {
+      console.error('Failed to serve receipt:', error.message);
+      res.status(404).json({ error: 'Receipt not found' });
+    }
+  });
   
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
