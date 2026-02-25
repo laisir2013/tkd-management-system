@@ -135,8 +135,9 @@ export const paymentRecords = mysqlTable("paymentRecords", {
   id: int("id").autoincrement().primaryKey(),
   studentId: int("studentId").notNull(),
   year: int("year").notNull().default(2026), // 繳費年份，支援多年紀錄
-  paymentPeriod: mysqlEnum("paymentPeriod", ["Q1", "Q2", "Q3", "Q4", "CUSTOM"]).notNull(),
+  paymentPeriod: mysqlEnum("paymentPeriod", ["Q1", "Q2", "Q3", "Q4", "CUSTOM", "MONTHLY"]).notNull(),
   customMonths: json("customMonths").$type<string[]>(),
+  paymentMonth: int("paymentMonth"), // 單月繳費時的月份 (1-12)，季繳時為 null
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   classCount: int("classCount"), // 精英班堂數(每次繳費購買的堂數,恆常班為 null)
   receiptUrl: text("receiptUrl"),
@@ -144,7 +145,7 @@ export const paymentRecords = mysqlTable("paymentRecords", {
   receiptTransferDate: timestamp("receiptTransferDate"),
   paymentDate: timestamp("paymentDate").notNull(),
   status: mysqlEnum("status", ["pending", "confirmed"]).default("confirmed").notNull(),
-  confirmedBy: mysqlEnum("confirmedBy", ["parent_upload", "admin_approved"]).default("admin_approved"),
+  confirmedBy: mysqlEnum("confirmedBy", ["parent_upload", "admin_approved", "coach_approved"]).default("admin_approved"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

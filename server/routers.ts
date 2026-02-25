@@ -30,6 +30,7 @@ import {
   getCoachStatistics,
   getQuarterlyFeeStatistics,
   getQuarterlyPaymentStatuses,
+  getMonthlyPaymentStatuses,
   getDb,
   // 點名系統相關函數
   getTrainingSchedules,
@@ -1241,6 +1242,36 @@ export const appRouter = router({
         return all;
       }),
 
+    // 月份繳費狀態（新版：以月份顯示）
+    getMonthlyStatuses: protectedProcedure
+      .input(z.object({
+        year: z.number().optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const all = await getMonthlyPaymentStatuses(input?.year);
+        // 教練只返回自己學生的繳費狀態
+        // @ts-ignore
+        if (ctx.user.role === 'coach' && ctx.user.coachName) {
+          // @ts-ignore
+          return all.filter(s => s.coach === ctx.user.coachName);
+        }
+        return all;
+      }),
+
+    // 家長查詢自己孩子的月份繳費狀態
+    getParentMonthlyStatuses: publicProcedure
+      .input(z.object({
+        phone: z.string(),
+        year: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const all = await getMonthlyPaymentStatuses(input.year);
+        return all.filter(s => s.phone === input.phone);
+      }),
+
     // 教練/管理員確認繳費（不需要收據圖片）
     confirmPayment: protectedProcedure
       .input(z.object({
@@ -1276,6 +1307,79 @@ export const appRouter = router({
           status: 'confirmed',
           confirmedBy: ctx.user.role === 'admin' ? 'admin_approved' : 'coach_approved',
         });
+        return { success: true };
+      }),
+
+    // 教練/管理員確認月份繳費（支援1月或1季繳交）
+    confirmMonthlyPayment: protectedProcedure
+      .input(z.object({
+        studentId: z.number(),
+        year: z.number(),
+        months: z.array(z.number().min(1).max(12)).min(1), // 可以1個月或3個月（1季）
+        paymentType: z.enum(['monthly', 'quarterly']), // monthly=單月, quarterly=季繳
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const student = await getStudentById(input.studentId);
+        if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: '學生不存在' });
+        
+        // 確保教練只能確認自己的學生
+        // @ts-ignore
+        if (ctx.user.role === 'coach' && ctx.user.coachName && student.coach !== ctx.user.coachName) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只能確認您自己的學生' });
+        }
+
+        const feePerQuarter = parseFloat(student.feePerQuarter);
+        const confirmedBy = ctx.user.role === 'admin' ? 'admin_approved' : 'coach_approved';
+
+        if (input.paymentType === 'quarterly') {
+          // 季繳：找出對應的季度
+          const sortedMonths = [...input.months].sort((a, b) => a - b);
+          const firstMonth = sortedMonths[0];
+          let quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+          if (firstMonth <= 3) quarter = 'Q1';
+          else if (firstMonth <= 6) quarter = 'Q2';
+          else if (firstMonth <= 9) quarter = 'Q3';
+          else quarter = 'Q4';
+          
+          await insertPaymentRecord({
+            studentId: input.studentId,
+            year: input.year,
+            paymentPeriod: quarter,
+            customMonths: null,
+            paymentMonth: null,
+            amount: String(feePerQuarter),
+            classCount: null,
+            receiptUrl: null,
+            receiptKey: null,
+            receiptTransferDate: null,
+            paymentDate: new Date(),
+            status: 'confirmed',
+            confirmedBy,
+          });
+        } else {
+          // 單月繳費：為每個月建立一筆記錄
+          const monthlyFee = Math.round((feePerQuarter / 3) * 100) / 100;
+          for (const month of input.months) {
+            await insertPaymentRecord({
+              studentId: input.studentId,
+              year: input.year,
+              paymentPeriod: 'MONTHLY',
+              customMonths: null,
+              paymentMonth: month,
+              amount: String(monthlyFee),
+              classCount: null,
+              receiptUrl: null,
+              receiptKey: null,
+              receiptTransferDate: null,
+              paymentDate: new Date(),
+              status: 'confirmed',
+              confirmedBy,
+            });
+          }
+        }
         return { success: true };
       }),
   }),

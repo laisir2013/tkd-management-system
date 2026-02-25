@@ -25,6 +25,7 @@ import { StudentWhatsAppButton } from "@/components/StudentWhatsAppButton";
 import { AttendanceManagementContent } from "@/components/AttendanceManagementContent";
 import { StudentEditDialog } from "@/components/StudentEditDialog";
 import { QuarterlyPaymentRecords } from "@/components/QuarterlyPaymentRecords";
+import { MonthlyPaymentRecords } from "@/components/MonthlyPaymentRecords";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import CoachStatsWithElite from "@/components/CoachStatsWithElite";
 
@@ -705,7 +706,7 @@ export default function Admin() {
 
           {/* 繳費記錄 */}
               <TabsContent value="payments">
-            <QuarterlyPaymentRecords />
+            <MonthlyPaymentRecords />
           </TabsContent>
 
               {/* 點名管理 */}

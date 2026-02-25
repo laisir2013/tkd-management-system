@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 // Reuse shared components from admin
 import { AttendanceManagementContent } from "@/components/AttendanceManagementContent";
-import { QuarterlyPaymentRecords } from "@/components/QuarterlyPaymentRecords";
+import { MonthlyPaymentRecords } from "@/components/MonthlyPaymentRecords";
 import CoachStatsWithElite from "@/components/CoachStatsWithElite";
 
 export default function CoachDashboard() {
@@ -96,7 +96,7 @@ export default function CoachDashboard() {
 
               {/* Payment Records — reuse shared component */}
               <TabsContent value="payments">
-                <QuarterlyPaymentRecords coachName={coachName} showConfirmButton />
+                <MonthlyPaymentRecords coachName={coachName} />
               </TabsContent>
 
               {/* Attendance — reuse shared component */}

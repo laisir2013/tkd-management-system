@@ -15,13 +15,14 @@ import {
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { toast } from "sonner";
 
-type PaymentPeriod = "Q1" | "Q2" | "Q3" | "Q4" | "CUSTOM";
+type PaymentPeriod = "Q1" | "Q2" | "Q3" | "Q4" | "CUSTOM" | "MONTHLY";
 
 const PERIOD_OPTIONS = [
-  { value: "Q1", label: "1-3月" },
-  { value: "Q2", label: "4-6月" },
-  { value: "Q3", label: "7-9月" },
-  { value: "Q4", label: "10-12月" },
+  { value: "Q1", label: "1-3月（季繳）" },
+  { value: "Q2", label: "4-6月（季繳）" },
+  { value: "Q3", label: "7-9月（季繳）" },
+  { value: "Q4", label: "10-12月（季繳）" },
+  { value: "MONTHLY", label: "單月繳費" },
   { value: "CUSTOM", label: "自選月份" },
 ] as const;
 
@@ -171,15 +172,15 @@ function OverviewTab({ students, eliteInfo, hasRegular, hasElite, onNavigate, ph
   onNavigate: (tab: TabType) => void;
   phone: string;
 }) {
-  // 恆常班繳費狀態
-  const studentIds = students.map(s => s.id);
-  const { data: existingPayments } = trpc.payments.getByStudentIds.useQuery(
-    { studentIds },
-    { enabled: studentIds.length > 0 }
+  // 月份繳費狀態
+  const currentYear = new Date().getFullYear();
+  const { data: monthlyStatuses } = trpc.payments.getParentMonthlyStatuses.useQuery(
+    { phone, year: currentYear },
+    { enabled: !!phone }
   );
+  const currentMonth = new Date().getMonth() + 1;
 
-  const now = new Date();
-  const currentQuarter = `Q${Math.ceil((now.getMonth() + 1) / 3)}` as PaymentPeriod;
+  const MONTH_LABELS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
   return (
     <div className="space-y-4">
@@ -215,23 +216,51 @@ function OverviewTab({ students, eliteInfo, hasRegular, hasElite, onNavigate, ph
           </CardHeader>
           <CardContent className="space-y-3">
             {students.map(student => {
-              const hasPaid = existingPayments?.some(
-                p => p.studentId === student.id && p.paymentPeriod === currentQuarter && p.status === 'confirmed'
-              );
+              const studentStatus = monthlyStatuses?.find(s => s.studentId === student.id);
+              const unpaidCount = studentStatus 
+                ? Object.values(studentStatus.months).filter((m: any) => m.status === 'unpaid').length 
+                : 0;
+              const paidCount = studentStatus 
+                ? Object.values(studentStatus.months).filter((m: any) => m.status === 'paid').length 
+                : 0;
               return (
-                <div key={student.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <div className="font-medium text-sm">{student.name}</div>
-                    <div className="text-xs text-gray-500">{student.venue} · {student.scheduleDay} {student.scheduleTime}</div>
+                <div key={student.id} className="p-3 bg-gray-50 rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-sm">{student.name}</div>
+                      <div className="text-xs text-gray-500">{student.venue} · {student.scheduleDay} {student.scheduleTime}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-blue-600">${student.feePerQuarter}/季</div>
+                      {unpaidCount > 0 ? (
+                        <span className="text-xs text-red-600 font-medium">❌ {unpaidCount}個月未繳</span>
+                      ) : (
+                        <span className="text-xs text-green-600 font-medium">✅ 已繳清</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-blue-600">${student.feePerQuarter}/季</div>
-                    {hasPaid ? (
-                      <span className="text-xs text-green-600 font-medium">✅ {currentQuarter}已繳</span>
-                    ) : (
-                      <span className="text-xs text-red-600 font-medium">❌ {currentQuarter}未繳</span>
-                    )}
-                  </div>
+                  {/* 月份迷你狀態條 */}
+                  {studentStatus && (
+                    <div className="flex gap-0.5">
+                      {MONTH_LABELS.map((label, i) => {
+                        const m = i + 1;
+                        const mStatus = studentStatus.months[m]?.status;
+                        return (
+                          <div
+                            key={m}
+                            className={`flex-1 h-4 rounded-sm text-center text-[8px] leading-4 font-medium ${
+                              mStatus === 'paid' ? 'bg-green-400 text-white' :
+                              mStatus === 'unpaid' ? 'bg-red-400 text-white' :
+                              'bg-gray-200 text-gray-500'
+                            } ${m === currentMonth ? 'ring-1 ring-blue-500' : ''}`}
+                            title={`${label}: ${mStatus === 'paid' ? '已繳' : mStatus === 'unpaid' ? '未繳' : '未到期'}`}
+                          >
+                            {m}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -471,9 +500,11 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   );
 
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([]);
-  // 自動選擇當前季度
-  const currentQ = `Q${Math.ceil((new Date().getMonth() + 1) / 3)}` as PaymentPeriod;
+  // 自動選擇當前月份
+  const currentMonth = new Date().getMonth() + 1;
+  const currentQ = `Q${Math.ceil(currentMonth / 3)}` as PaymentPeriod;
   const [period, setPeriod] = useState<PaymentPeriod>(currentQ);
+  const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth); // 單月繳費時選的月份
   const [customMonths, setCustomMonths] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>("");
@@ -600,7 +631,7 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
       <Card>
         <CardHeader>
           <CardTitle className="text-base">選擇學生</CardTitle>
-          <CardDescription>請選擇要繳費的恆常班學生 (可多選，季繳)</CardDescription>
+          <CardDescription>請選擇要繳費的恆常班學生 (可多選，支援季繳或月繳)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {students.map(student => (
@@ -674,6 +705,35 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
               );
             })}
           </RadioGroup>
+          {period === "MONTHLY" && (
+            <div className="mt-4">
+              <Label>選擇月份</Label>
+              <div className="grid grid-cols-4 gap-2 mt-2">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+                  const mPaid = selectedStudentIds.length > 0 
+                    ? selectedStudentIds.every(sid => isPeriodPaid(sid, `Q${Math.ceil(m / 3)}` as PaymentPeriod))
+                    : false;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMonth(m)}
+                      disabled={mPaid}
+                      className={`p-2 text-sm rounded-lg border transition-colors ${
+                        selectedMonth === m
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : mPaid
+                          ? 'bg-green-50 text-green-700 border-green-200 opacity-60 cursor-not-allowed'
+                          : 'bg-white hover:bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      {m}月
+                      {mPaid && <span className="text-[10px] block">已繳</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {period === "CUSTOM" && (
             <div className="mt-4">
               <Label htmlFor="customMonths">自選月份 (用逗號分隔)</Label>
