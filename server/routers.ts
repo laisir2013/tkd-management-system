@@ -1490,34 +1490,81 @@ export const appRouter = router({
         const { year, quarter, coachName: inputCoachName } = input;
         const effectiveCoachName = ctx.user.role === 'coach' ? (ctx.user as any).coachName : inputCoachName;
         
-        // 季度對應的 paymentPeriod key
-        const quarterKey = `Q${quarter}`;
+        // 季度對應月份
+        const quarterMonths: Record<number, number[]> = {
+          1: [1, 2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 4: [10, 11, 12],
+        };
+        const months = quarterMonths[quarter];
         
         // 獲取所有活躍學生
         const allStudents = await db.select().from(schema.students).where(eq(schema.students.status, 'active'));
         
         // 如果指定教練，直接用學生的 coach 欄位過濾
-        let filteredStudents = allStudents;
+        let filteredStudents = allStudents.filter(s => s.venue !== '精英班道場');
         if (effectiveCoachName) {
-          filteredStudents = allStudents.filter(s => s.coach === effectiveCoachName);
+          filteredStudents = filteredStudents.filter(s => s.coach === effectiveCoachName);
         }
         
-        // 獲取該年度該季度的所有繳費記錄（使用 year 欄位）
-        const payments = await db.select()
+        // 獲取該年度所有已確認繳費記錄（不限 paymentPeriod）
+        const allPayments = await db.select()
           .from(schema.paymentRecords)
           .where(
             and(
-              eq(schema.paymentRecords.paymentPeriod, quarterKey as any),
               eq(schema.paymentRecords.year, year),
               eq(schema.paymentRecords.status, 'confirmed' as any)
             )
           );
         
-        const paidStudentIds = new Set(payments.map(p => p.studentId));
+        // 建立每個學生在該季度已繳的月份集合
+        const studentPaidMonths = new Map<number, Set<number>>();
         
-        // 過濾出未繳費的學生（排除精英班道場）
+        allPayments.forEach(p => {
+          if (!studentPaidMonths.has(p.studentId)) {
+            studentPaidMonths.set(p.studentId, new Set());
+          }
+          const paid = studentPaidMonths.get(p.studentId)!;
+          
+          // 季繳
+          if (['Q1','Q2','Q3','Q4'].includes(p.paymentPeriod)) {
+            const qm: Record<string, number[]> = { Q1: [1,2,3], Q2: [4,5,6], Q3: [7,8,9], Q4: [10,11,12] };
+            qm[p.paymentPeriod]?.forEach(m => paid.add(m));
+          }
+          // 月繳
+          else if (p.paymentPeriod === 'MONTHLY' && (p as any).paymentMonth) {
+            paid.add((p as any).paymentMonth);
+          }
+          // 自選月份
+          else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
+            const cms = typeof p.customMonths === 'string' ? JSON.parse(p.customMonths as string) : p.customMonths;
+            if (Array.isArray(cms)) {
+              cms.forEach((cm: string) => {
+                let mn: number | null = null;
+                if (cm.includes('-')) {
+                  const parts = cm.split('-');
+                  if (parseInt(parts[0]) === year) mn = parseInt(parts[1]);
+                } else {
+                  mn = parseInt(cm.replace(/[^0-9]/g, ''));
+                }
+                if (mn && mn >= 1 && mn <= 12) paid.add(mn);
+              });
+            }
+          }
+        });
+        
+        // 判斷未繳費學生：該季度 3 個月中至少有 1 個月未繳
+        const paidStudentIds = new Set<number>();
+        
+        filteredStudents.forEach(s => {
+          const paid = studentPaidMonths.get(s.id);
+          if (paid) {
+            const allMonthsPaid = months.every(m => paid.has(m));
+            if (allMonthsPaid) paidStudentIds.add(s.id);
+          }
+        });
+        
+        // 過濾出未繳費的學生
         const unpaidStudents = filteredStudents
-          .filter(s => !paidStudentIds.has(s.id) && s.venue !== '精英班道場')
+          .filter(s => !paidStudentIds.has(s.id))
           .map(s => ({
             id: s.id,
             name: s.name,
@@ -1529,9 +1576,9 @@ export const appRouter = router({
         
         return {
           unpaidStudents,
-          totalStudents: filteredStudents.filter(s => s.venue !== '精英班道場').length,
+          totalStudents: filteredStudents.length,
           unpaidCount: unpaidStudents.length,
-          paidCount: filteredStudents.filter(s => s.venue !== '精英班道場').length - unpaidStudents.length,
+          paidCount: filteredStudents.length - unpaidStudents.length,
           quarterName: `${(quarter - 1) * 3 + 1}-${quarter * 3}月`,
         };
       }),

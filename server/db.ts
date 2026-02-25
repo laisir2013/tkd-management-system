@@ -676,24 +676,87 @@ export async function getQuarterlyFeeStatistics(year: number, quarter: 'Q1' | 'Q
   }
   
   // 計算應收總額（該季度所有學生的季度學費總和）
-  const totalExpectedFee = filteredStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter), 0);
+  const totalExpectedFee = filteredStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
   
-  // 計算實收金額（該季度實際已繳費的金額，根據 paymentPeriod 和 year 篩選）
-  const paidPayments = allPayments.filter(p => 
-    p.paymentPeriod === quarter && 
-    p.year === year &&
+  // 該季度對應的月份
+  const quarterMonths: Record<string, number[]> = {
+    Q1: [1, 2, 3], Q2: [4, 5, 6], Q3: [7, 8, 9], Q4: [10, 11, 12],
+  };
+  const months = quarterMonths[quarter];
+  
+  // 篩選該年度已確認的繳費記錄
+  const yearPayments = allPayments.filter(p =>
     p.status === 'confirmed' &&
+    p.year === year &&
     filteredStudents.some(s => s.id === p.studentId)
   );
-  const totalPaidFee = paidPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+  
+  // 建立每個學生在該季度已繳的月份集合
+  const studentPaidMonths = new Map<number, Set<number>>();
+  
+  yearPayments.forEach(p => {
+    if (!studentPaidMonths.has(p.studentId)) {
+      studentPaidMonths.set(p.studentId, new Set());
+    }
+    const paid = studentPaidMonths.get(p.studentId)!;
+    
+    // 季繳：整季 3 個月
+    if (['Q1','Q2','Q3','Q4'].includes(p.paymentPeriod)) {
+      const qm = quarterMonths[p.paymentPeriod];
+      if (qm) qm.forEach(m => paid.add(m));
+    }
+    // 月繳：單月
+    else if (p.paymentPeriod === 'MONTHLY' && (p as any).paymentMonth) {
+      paid.add((p as any).paymentMonth);
+    }
+    // 自選月份
+    else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
+      const cms = typeof p.customMonths === 'string' ? JSON.parse(p.customMonths as string) : p.customMonths;
+      if (Array.isArray(cms)) {
+        cms.forEach((cm: string) => {
+          let mn: number | null = null;
+          if (cm.includes('-')) {
+            const parts = cm.split('-');
+            if (parseInt(parts[0]) === year) mn = parseInt(parts[1]);
+          } else {
+            mn = parseInt(cm.replace(/[^0-9]/g, ''));
+          }
+          if (mn && mn >= 1 && mn <= 12) paid.add(mn);
+        });
+      }
+    }
+  });
+  
+  // 判斷每位學生是否已繳齊該季度 3 個月 → 計算實收金額
+  let totalPaidFee = 0;
+  const paidStudentIds = new Set<number>();
+  const partialPaidStudentIds = new Set<number>();
+  
+  filteredStudents.forEach(s => {
+    const paid = studentPaidMonths.get(s.id);
+    if (!paid) return;
+    
+    const paidInQuarter = months.filter(m => paid.has(m));
+    if (paidInQuarter.length === 3) {
+      // 該季度 3 個月都已繳 → 計整季學費
+      totalPaidFee += parseFloat(s.feePerQuarter || '0');
+      paidStudentIds.add(s.id);
+    } else if (paidInQuarter.length > 0) {
+      // 部分月份已繳 → 按比例計算
+      const monthlyFee = parseFloat(s.feePerQuarter || '0') / 3;
+      totalPaidFee += monthlyFee * paidInQuarter.length;
+      partialPaidStudentIds.add(s.id);
+    }
+  });
+  
+  totalPaidFee = Math.round(totalPaidFee * 100) / 100;
   
   // 計算未收金額
-  const totalUnpaidFee = totalExpectedFee - totalPaidFee;
+  const totalUnpaidFee = Math.round((totalExpectedFee - totalPaidFee) * 100) / 100;
   
-  // 計算學生人數
+  // 計算學生人數（完全已繳 + 部分已繳 都算已繳）
   const totalStudents = filteredStudents.length;
-  const paidStudentIds = new Set(paidPayments.map(p => p.studentId));
-  const paidStudentCount = paidStudentIds.size;
+  const paidStudentCount = paidStudentIds.size + partialPaidStudentIds.size;
   const unpaidStudentCount = totalStudents - paidStudentCount;
   
   return {
