@@ -1274,7 +1274,7 @@ export const appRouter = router({
           receiptTransferDate: null,
           paymentDate: new Date(),
           status: 'confirmed',
-          confirmedBy: 'admin_approved',
+          confirmedBy: ctx.user.role === 'admin' ? 'admin_approved' : 'coach_approved',
         });
         return { success: true };
       }),

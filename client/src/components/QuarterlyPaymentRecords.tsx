@@ -149,7 +149,7 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
           <div className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-red-100 text-red-700 border border-red-300">
             未繳
           </div>
-          {showConfirmButton && studentId && quarter && (
+          {studentId && quarter && (
             <button
               onClick={() => setConfirmDialog({
                 studentId,
@@ -331,36 +331,37 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      {showConfirmButton && (
-        <Dialog open={!!confirmDialog} onOpenChange={() => setConfirmDialog(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>確認繳費</DialogTitle>
-              <DialogDescription>
-                確認 <strong>{confirmDialog?.studentName}</strong> 已繳 {selectedYear}年{confirmDialog?.quarterLabel} 學費？
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirmDialog(null)}>取消</Button>
-              <Button
-                className="bg-green-600 hover:bg-green-700"
-                disabled={confirmPayment.isPending}
-                onClick={() => {
-                  if (confirmDialog) {
-                    confirmPayment.mutate({
-                      studentId: confirmDialog.studentId,
-                      year: selectedYear,
-                      quarter: confirmDialog.quarter as 'Q1' | 'Q2' | 'Q3' | 'Q4',
-                    });
-                  }
-                }}
-              >
-                {confirmPayment.isPending ? '處理中...' : '確認已繳'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <Dialog open={!!confirmDialog} onOpenChange={() => setConfirmDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>確認繳費</DialogTitle>
+            <DialogDescription>
+              確認 <strong>{confirmDialog?.studentName}</strong> 已繳 {selectedYear}年{confirmDialog?.quarterLabel} 學費？
+              <br />
+              <span className="text-xs text-gray-500 mt-1 block">此操作由管理員/教練批准，無需上傳收據。</span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialog(null)}>取消</Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              disabled={confirmPayment.isPending}
+              onClick={() => {
+                if (confirmDialog) {
+                  confirmPayment.mutate({
+                    studentId: confirmDialog.studentId,
+                    year: selectedYear,
+                    quarter: confirmDialog.quarter as 'Q1' | 'Q2' | 'Q3' | 'Q4',
+                  });
+                }
+              }}
+            >
+              <ShieldCheck className="w-4 h-4 mr-1" />
+              {confirmPayment.isPending ? '處理中...' : '確認已繳'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
