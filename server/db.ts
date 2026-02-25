@@ -1399,6 +1399,132 @@ export async function getCoachStatsWithElite() {
   });
 }
 
+/**
+ * 每月財務報表：按教練、按月份計算恆常班 + 精英班的收入/支出/結餘
+ * 恆常班：每個學生的月費 = feePerQuarter / 3，只有已繳月份才計入
+ * 精英班：用該月的已確認付款記錄
+ * 扣除：MPF 10% + 公司營運 5%
+ */
+export async function getMonthlyFinanceReport(year: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const COACHES = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
+
+  // 恆常班學生 + 繳費
+  const allStudents = await getAllStudents();
+  const allPayments = await getAllPaymentRecords();
+  const regularStudents = allStudents.filter(s => s.status === 'active' && s.venue !== '精英班道場');
+
+  // 精英班學生 + 繳費
+  const allEliteStudents = await getAllEliteStudents();
+  const allElitePayments = await db.select().from(elitePaymentRecords)
+    .where(eq(elitePaymentRecords.status, 'confirmed'));
+
+  // 為每個恆常班學生建立已繳月份 map
+  const studentPaidMonths = new Map<number, Set<number>>();
+  const yearPayments = allPayments.filter(p =>
+    p.status === 'confirmed' &&
+    (p.year === year || (!p.year && year === 2026))
+  );
+
+  yearPayments.forEach(p => {
+    if (!studentPaidMonths.has(p.studentId)) {
+      studentPaidMonths.set(p.studentId, new Set());
+    }
+    const paid = studentPaidMonths.get(p.studentId)!;
+
+    if (p.paymentPeriod === 'MONTHLY' && (p as any).paymentMonth) {
+      paid.add((p as any).paymentMonth);
+    } else if (['Q1','Q2','Q3','Q4'].includes(p.paymentPeriod)) {
+      const qm: Record<string, number[]> = { Q1: [1,2,3], Q2: [4,5,6], Q3: [7,8,9], Q4: [10,11,12] };
+      qm[p.paymentPeriod]?.forEach(m => paid.add(m));
+    } else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
+      const cms = typeof p.customMonths === 'string' ? JSON.parse(p.customMonths as string) : p.customMonths;
+      if (Array.isArray(cms)) {
+        cms.forEach((cm: string) => {
+          let mn: number | null = null;
+          if (cm.includes('-')) {
+            const parts = cm.split('-');
+            if (parseInt(parts[0]) === year) mn = parseInt(parts[1]);
+          } else {
+            mn = parseInt(cm.replace(/[^0-9]/g, ''));
+          }
+          if (mn && mn >= 1 && mn <= 12) paid.add(mn);
+        });
+      }
+    }
+  });
+
+  // 精英班：按月份分組付款
+  const elitePaymentsByMonth = new Map<number, typeof allElitePayments>();
+  allElitePayments.forEach(p => {
+    if (!p.paymentDate) return;
+    const d = new Date(p.paymentDate);
+    if (d.getFullYear() !== year) return;
+    if (p.classCount === 99999) return; // 排除免學費
+    const month = d.getMonth() + 1;
+    if (!elitePaymentsByMonth.has(month)) elitePaymentsByMonth.set(month, []);
+    elitePaymentsByMonth.get(month)!.push(p);
+  });
+
+  return COACHES.map(coachName => {
+    const coachRegularStudents = regularStudents.filter(s => s.coach === coachName);
+    const coachEliteStudents = allEliteStudents.filter(s => s.status === 'active' && s.coach === coachName);
+    const eliteStudentIds = new Set(coachEliteStudents.map(s => s.id));
+
+    const months: Record<number, {
+      regularIncome: number;
+      regularStudentCount: number;
+      regularPaidCount: number;
+      eliteIncome: number;
+      eliteClassCount: number;
+      totalIncome: number;
+      mpf: number;
+      operating: number;
+      netSalary: number;
+    }> = {};
+
+    for (let m = 1; m <= 12; m++) {
+      // 恆常班：該月已繳的學生收入（月費 = feePerQuarter / 3）
+      let regularIncome = 0;
+      let regularPaidCount = 0;
+      coachRegularStudents.forEach(s => {
+        const paidSet = studentPaidMonths.get(s.id);
+        if (paidSet && paidSet.has(m)) {
+          regularIncome += parseFloat(s.feePerQuarter || '0') / 3;
+          regularPaidCount++;
+        }
+      });
+      regularIncome = Math.round(regularIncome * 100) / 100;
+
+      // 精英班：該月的已確認付款
+      const monthElitePayments = (elitePaymentsByMonth.get(m) || [])
+        .filter(p => eliteStudentIds.has(p.studentId));
+      const eliteIncome = monthElitePayments.reduce((sum, p) => sum + parseFloat(p.amount as any || '0'), 0);
+      const eliteClassCount = monthElitePayments.reduce((sum, p) => sum + (p.classCount || 0), 0);
+
+      const totalIncome = regularIncome + eliteIncome;
+      const mpf = Math.round(totalIncome * 0.10);
+      const operating = Math.round(totalIncome * 0.05);
+      const netSalary = totalIncome - mpf - operating;
+
+      months[m] = {
+        regularIncome,
+        regularStudentCount: coachRegularStudents.length,
+        regularPaidCount,
+        eliteIncome,
+        eliteClassCount,
+        totalIncome,
+        mpf,
+        operating,
+        netSalary,
+      };
+    }
+
+    return { coachName, months };
+  });
+}
 
 export async function getEliteCycleInfo(studentId: number) {
   const db = await getDb();

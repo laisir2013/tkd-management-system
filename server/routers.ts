@@ -32,6 +32,7 @@ import {
   getQuarterlyPaymentStatuses,
   getMonthlyPaymentStatuses,
   deletePaymentForMonth,
+  getMonthlyFinanceReport,
   getDb,
   // 點名系統相關函數
   getTrainingSchedules,
@@ -1841,6 +1842,16 @@ export const appRouter = router({
           return all.filter(s => s.coachName === ctx.user.coachName);
         }
         return all;
+      }),
+
+    // 每月財務報表（僅管理員）
+    getMonthlyFinance: protectedProcedure
+      .input(z.object({ year: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以查看財務報表' });
+        }
+        return getMonthlyFinanceReport(input.year);
       }),
   }),
 
