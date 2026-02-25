@@ -317,3 +317,46 @@ export const elitePaymentRecords = mysqlTable("elite_payments", {
 
 export type ElitePaymentRecord = typeof elitePaymentRecords.$inferSelect;
 export type InsertElitePaymentRecord = typeof elitePaymentRecords.$inferInsert;
+
+/**
+ * 會計記錄表 - 收入/支出總帳，供核數師和報稅使用
+ */
+export const accountingRecords = mysqlTable("accounting_records", {
+  id: int("id").autoincrement().primaryKey(),
+  // 基本資訊
+  transactionDate: timestamp("transaction_date").notNull(), // 交易日期（入帳日期）
+  bank: varchar("bank", { length: 100 }), // 銀行名稱
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(), // 金額（正數）
+  
+  // 收支類型
+  type: mysqlEnum("type", ["income", "expense"]).notNull(), // 收入 / 支出
+  
+  // 類別
+  // 收入類別: tuition=學費, exam_fee=考試費, competition_fee=比賽費, equipment_fee=用具費, other_income=其他收入
+  // 支出類別: competition_entry=大會比賽報名費, photography=攝影, promotion=宣傳, 
+  //          dinner=聚餐費, supplier=供應商費用, venue_rental=場租, office_rental=office租金, 
+  //          mpf=MPF, coach_fee=教練費, other_expense=其他支出
+  category: varchar("category", { length: 50 }).notNull(),
+  
+  // 詳情
+  description: text("description"), // 備註/說明
+  
+  // 收據
+  receiptUrl: text("receipt_url"), // 收據圖片URL
+  receiptKey: text("receipt_key"), // 收據圖片 storage key
+  
+  // 關聯（可選）
+  paymentRecordId: int("payment_record_id"), // 關聯的繳費記錄ID（自動同步時填入）
+  elitePaymentRecordId: int("elite_payment_record_id"), // 關聯的精英班繳費記錄ID
+  studentName: varchar("student_name", { length: 100 }), // 學生姓名（收入時填入）
+  coachName: varchar("coach_name", { length: 100 }), // 教練姓名
+  
+  // 來源
+  source: mysqlEnum("source", ["auto_sync", "manual"]).default("manual").notNull(), // 來源：自動同步 / 手動輸入
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AccountingRecord = typeof accountingRecords.$inferSelect;
+export type InsertAccountingRecord = typeof accountingRecords.$inferInsert;

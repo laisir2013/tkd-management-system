@@ -1,7 +1,7 @@
 import { eq, and, inArray, gte, lte, sql, or, desc, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord } from "../drizzle/schema";
+import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -165,7 +165,8 @@ export async function insertPaymentRecord(record: InsertPaymentRecord) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  return db.insert(paymentRecords).values(record);
+  const result = await db.insert(paymentRecords).values(record);
+  return result;
 }
 
 /**
@@ -1811,4 +1812,174 @@ export async function getParentEliteInfo(phone: string) {
   }
 
   return results;
+}
+
+// ===== 會計記錄 CRUD =====
+
+export async function getAllAccountingRecords(filters?: {
+  year?: number;
+  month?: number;
+  type?: 'income' | 'expense';
+  category?: string;
+}): Promise<AccountingRecord[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: any[] = [];
+
+  if (filters?.year) {
+    conditions.push(sql`YEAR(${accountingRecords.transactionDate}) = ${filters.year}`);
+  }
+  if (filters?.month) {
+    conditions.push(sql`MONTH(${accountingRecords.transactionDate}) = ${filters.month}`);
+  }
+  if (filters?.type) {
+    conditions.push(eq(accountingRecords.type, filters.type));
+  }
+  if (filters?.category) {
+    conditions.push(eq(accountingRecords.category, filters.category));
+  }
+
+  if (conditions.length > 0) {
+    return db.select().from(accountingRecords)
+      .where(and(...conditions))
+      .orderBy(desc(accountingRecords.transactionDate));
+  }
+  return db.select().from(accountingRecords)
+    .orderBy(desc(accountingRecords.transactionDate));
+}
+
+export async function insertAccountingRecord(record: Omit<InsertAccountingRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(accountingRecords).values(record as any);
+  return { insertId: (result as any)[0].insertId };
+}
+
+export async function updateAccountingRecord(id: number, data: Partial<InsertAccountingRecord>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(accountingRecords).set(data as any).where(eq(accountingRecords.id, id));
+}
+
+export async function deleteAccountingRecord(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(accountingRecords).where(eq(accountingRecords.id, id));
+}
+
+export async function getAccountingRecordByPaymentId(paymentRecordId: number): Promise<AccountingRecord | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const records = await db.select().from(accountingRecords)
+    .where(eq(accountingRecords.paymentRecordId, paymentRecordId))
+    .limit(1);
+  return records[0] || null;
+}
+
+export async function getAccountingRecordByElitePaymentId(elitePaymentRecordId: number): Promise<AccountingRecord | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const records = await db.select().from(accountingRecords)
+    .where(eq(accountingRecords.elitePaymentRecordId, elitePaymentRecordId))
+    .limit(1);
+  return records[0] || null;
+}
+
+/**
+ * 同步繳費記錄到會計記錄
+ */
+export async function syncPaymentToAccounting(params: {
+  paymentRecordId: number;
+  transactionDate: Date;
+  amount: string;
+  bank?: string | null;
+  studentName: string;
+  coachName?: string | null;
+  category?: string;
+  receiptUrl?: string | null;
+  receiptKey?: string | null;
+}): Promise<void> {
+  const existing = await getAccountingRecordByPaymentId(params.paymentRecordId);
+  if (existing) return;
+
+  await insertAccountingRecord({
+    transactionDate: params.transactionDate,
+    bank: params.bank || null,
+    amount: params.amount,
+    type: 'income',
+    category: params.category || 'tuition',
+    description: `${params.studentName} 學費`,
+    receiptUrl: params.receiptUrl || null,
+    receiptKey: params.receiptKey || null,
+    paymentRecordId: params.paymentRecordId,
+    elitePaymentRecordId: null,
+    studentName: params.studentName,
+    coachName: params.coachName || null,
+    source: 'auto_sync',
+  });
+}
+
+/**
+ * 同步精英班繳費到會計記錄
+ */
+export async function syncElitePaymentToAccounting(params: {
+  elitePaymentRecordId: number;
+  transactionDate: Date;
+  amount: string;
+  bank?: string | null;
+  studentName: string;
+  coachName?: string | null;
+  receiptUrl?: string | null;
+  receiptKey?: string | null;
+}): Promise<void> {
+  const existing = await getAccountingRecordByElitePaymentId(params.elitePaymentRecordId);
+  if (existing) return;
+
+  await insertAccountingRecord({
+    transactionDate: params.transactionDate,
+    bank: params.bank || null,
+    amount: params.amount,
+    type: 'income',
+    category: 'tuition',
+    description: `${params.studentName} 精英班學費`,
+    receiptUrl: params.receiptUrl || null,
+    receiptKey: params.receiptKey || null,
+    paymentRecordId: null,
+    elitePaymentRecordId: params.elitePaymentRecordId,
+    studentName: params.studentName,
+    coachName: params.coachName || null,
+    source: 'auto_sync',
+  });
+}
+
+/**
+ * 取得會計摘要統計
+ */
+export async function getAccountingSummary(year: number, month?: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const conditions: any[] = [
+    sql`YEAR(${accountingRecords.transactionDate}) = ${year}`
+  ];
+  if (month) {
+    conditions.push(sql`MONTH(${accountingRecords.transactionDate}) = ${month}`);
+  }
+
+  const result = await db.select({
+    type: accountingRecords.type,
+    category: accountingRecords.category,
+    total: sql<string>`CAST(SUM(${accountingRecords.amount}) AS CHAR)`,
+    count: sql<number>`COUNT(*)`,
+  }).from(accountingRecords)
+    .where(and(...conditions))
+    .groupBy(accountingRecords.type, accountingRecords.category);
+
+  return result;
 }

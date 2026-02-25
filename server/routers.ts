@@ -81,10 +81,18 @@ import {
   getAllEliteCycleInfo,
   getParentEliteInfo,
   getCoachStatsWithElite,
+  // 會計記錄相關函數
+  getAllAccountingRecords,
+  insertAccountingRecord,
+  updateAccountingRecord,
+  deleteAccountingRecord,
+  syncPaymentToAccounting,
+  syncElitePaymentToAccounting,
+  getAccountingSummary,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
-import { eq, gte, lte, and } from "drizzle-orm";
+import { eq, gte, lte, and, desc } from "drizzle-orm";
 import { verifyPassword, hashPassword } from "./password";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "./_core/llm";
@@ -1177,6 +1185,38 @@ export const appRouter = router({
           confirmedBy: 'parent_upload',
         });
         
+        // 自動同步到會計記錄（確認的繳費才同步）
+        if (recordStatus === 'confirmed') {
+          try {
+            // 取得剛插入的 payment record ID
+            const db = await getDb();
+            if (db) {
+              const latestPayments = await db.select().from(schema.paymentRecords)
+                .where(and(
+                  eq(schema.paymentRecords.studentId, input.studentId),
+                  eq(schema.paymentRecords.status, 'confirmed')
+                ))
+                .orderBy(desc(schema.paymentRecords.id))
+                .limit(1);
+              if (latestPayments.length > 0) {
+                await syncPaymentToAccounting({
+                  paymentRecordId: latestPayments[0].id,
+                  transactionDate: receiptTransferDate || new Date(),
+                  amount: extractedAmount,
+                  bank: extractedBank,
+                  studentName: student.name,
+                  coachName: student.coach,
+                  category: 'tuition',
+                  receiptUrl,
+                  receiptKey,
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Auto sync to accounting failed:", e);
+          }
+        }
+        
         return { 
           success: true,
           extractedAmount,
@@ -1213,6 +1253,35 @@ export const appRouter = router({
           status: "confirmed", // 管理員手動標記,直接設為 confirmed
           confirmedBy: 'admin_approved',
         });
+
+        // 自動同步到會計記錄
+        try {
+          const student = await getStudentById(input.studentId);
+          if (student) {
+            const db = await getDb();
+            if (db) {
+              const latestPayments = await db.select().from(schema.paymentRecords)
+                .where(and(
+                  eq(schema.paymentRecords.studentId, input.studentId),
+                  eq(schema.paymentRecords.status, 'confirmed')
+                ))
+                .orderBy(desc(schema.paymentRecords.id))
+                .limit(1);
+              if (latestPayments.length > 0) {
+                await syncPaymentToAccounting({
+                  paymentRecordId: latestPayments[0].id,
+                  transactionDate: new Date(),
+                  amount: input.amount,
+                  studentName: student.name,
+                  coachName: student.coach,
+                  category: 'tuition',
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Auto sync to accounting failed:", e);
+        }
         
         return { success: true };
       }),
@@ -2265,6 +2334,299 @@ export const appRouter = router({
         .orderBy(sql`YEAR(training_date)`);
       return result.map(r => r.year);
     }),
+  }),
+
+  // ===== 會計記錄 =====
+  accounting: router({
+    // 取得所有記錄（支援篩選）
+    getAll: protectedProcedure
+      .input(z.object({
+        year: z.number().optional(),
+        month: z.number().min(1).max(12).optional(),
+        type: z.enum(['income', 'expense']).optional(),
+        category: z.string().optional(),
+      }).optional())
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以查看會計記錄' });
+        }
+        return getAllAccountingRecords(input);
+      }),
+
+    // 取得摘要統計
+    getSummary: protectedProcedure
+      .input(z.object({
+        year: z.number(),
+        month: z.number().min(1).max(12).optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return getAccountingSummary(input.year, input.month);
+      }),
+
+    // 新增記錄（手動輸入開支/收入）
+    create: protectedProcedure
+      .input(z.object({
+        transactionDate: z.date(),
+        bank: z.string().optional(),
+        amount: z.string(),
+        type: z.enum(['income', 'expense']),
+        category: z.string(),
+        description: z.string().optional(),
+        receiptUrl: z.string().optional(),
+        receiptKey: z.string().optional(),
+        studentName: z.string().optional(),
+        coachName: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const result = await insertAccountingRecord({
+          transactionDate: input.transactionDate,
+          bank: input.bank || null,
+          amount: input.amount,
+          type: input.type,
+          category: input.category,
+          description: input.description || null,
+          receiptUrl: input.receiptUrl || null,
+          receiptKey: input.receiptKey || null,
+          paymentRecordId: null,
+          elitePaymentRecordId: null,
+          studentName: input.studentName || null,
+          coachName: input.coachName || null,
+          source: 'manual',
+        });
+        return { success: true, id: result.insertId };
+      }),
+
+    // 上傳開支收據（含 OCR 自動識別）
+    createWithReceipt: protectedProcedure
+      .input(z.object({
+        type: z.enum(['income', 'expense']),
+        category: z.string(),
+        description: z.string().optional(),
+        receiptBase64: z.string(),
+        receiptMimeType: z.string(),
+        // 如果 OCR 無法識別，可以手動補充
+        manualDate: z.date().optional(),
+        manualAmount: z.string().optional(),
+        manualBank: z.string().optional(),
+        studentName: z.string().optional(),
+        coachName: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+
+        // Upload receipt to storage
+        const receiptBuffer = Buffer.from(input.receiptBase64, 'base64');
+        const fileExt = input.receiptMimeType.split('/')[1] || 'jpg';
+        const receiptKey = `accounting-receipts/${Date.now()}.${fileExt}`;
+        const { url: receiptUrl } = await storagePut(receiptKey, receiptBuffer, input.receiptMimeType);
+
+        // OCR
+        let extractedAmount: string | null = null;
+        let extractedBank: string | null = null;
+        let extractedDate: Date | null = null;
+        let extractedDateTime: string | null = null;
+
+        try {
+          const ocrResponse = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以JSON格式回傳:\n- amount: 轉帳金額（純數字字串，例如 \"1800.00\"）\n- bank: 銀行名稱\n- status: 轉帳狀態（成功/失敗/處理中）\n- date: 轉帳日期（YYYY-MM-DD 格式）\n- time: 轉帳時間（HH:mm:ss 或 HH:mm 格式，24小時制）\n\n如果某個欄位無法識別，請回傳 null。"
+              },
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: "請識別這張收據/截圖的金額、銀行名稱、轉帳是否成功、以及轉帳日期和時間:" },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:${input.receiptMimeType};base64,${input.receiptBase64}`,
+                      detail: "high"
+                    }
+                  }
+                ]
+              }
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "receipt_info",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    amount: { type: ["string", "null"] },
+                    bank: { type: ["string", "null"] },
+                    status: { type: ["string", "null"] },
+                    date: { type: ["string", "null"] },
+                    time: { type: ["string", "null"] }
+                  },
+                  required: ["amount", "bank", "status", "date", "time"],
+                  additionalProperties: false
+                }
+              }
+            }
+          });
+
+          const content = ocrResponse.choices[0]?.message?.content;
+          if (typeof content === 'string') {
+            const ocrData = JSON.parse(content);
+            if (ocrData.amount) {
+              const parsed = parseFloat(ocrData.amount.replace(/[^0-9.]/g, ''));
+              if (!isNaN(parsed) && parsed > 0) extractedAmount = parsed.toFixed(2);
+            }
+            if (ocrData.bank) extractedBank = ocrData.bank;
+            if (ocrData.date) {
+              const dateStr = ocrData.time ? `${ocrData.date}T${ocrData.time}` : ocrData.date;
+              const parsedDate = new Date(dateStr);
+              if (!isNaN(parsedDate.getTime())) extractedDate = parsedDate;
+              extractedDateTime = ocrData.time ? `${ocrData.date} ${ocrData.time}` : ocrData.date;
+            }
+          }
+        } catch (error) {
+          console.error("Accounting OCR failed:", error);
+        }
+
+        // 使用 OCR 結果或手動輸入
+        const finalAmount = input.manualAmount || extractedAmount || "0";
+        const finalDate = input.manualDate || extractedDate || new Date();
+        const finalBank = input.manualBank || extractedBank || null;
+
+        const result = await insertAccountingRecord({
+          transactionDate: finalDate,
+          bank: finalBank,
+          amount: finalAmount,
+          type: input.type,
+          category: input.category,
+          description: input.description || null,
+          receiptUrl,
+          receiptKey,
+          paymentRecordId: null,
+          elitePaymentRecordId: null,
+          studentName: input.studentName || null,
+          coachName: input.coachName || null,
+          source: 'manual',
+        });
+
+        return {
+          success: true,
+          id: result.insertId,
+          extractedAmount,
+          extractedBank,
+          extractedDateTime,
+          receiptUrl,
+        };
+      }),
+
+    // 更新記錄
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        transactionDate: z.date().optional(),
+        bank: z.string().optional(),
+        amount: z.string().optional(),
+        type: z.enum(['income', 'expense']).optional(),
+        category: z.string().optional(),
+        description: z.string().optional(),
+        studentName: z.string().optional(),
+        coachName: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { id, ...data } = input;
+        await updateAccountingRecord(id, data as any);
+        return { success: true };
+      }),
+
+    // 刪除記錄
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await deleteAccountingRecord(input.id);
+        return { success: true };
+      }),
+
+    // 從已有的繳費記錄批次同步到會計記錄
+    syncExistingPayments: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+        // 同步恆常班繳費
+        const allPayments = await db.select().from(schema.paymentRecords)
+          .where(eq(schema.paymentRecords.status, 'confirmed'));
+        
+        const allStudents = await db.select().from(schema.students);
+        const studentMap = new Map(allStudents.map(s => [s.id, s]));
+
+        let synced = 0;
+        for (const payment of allPayments) {
+          const student = studentMap.get(payment.studentId);
+          if (!student) continue;
+          try {
+            await syncPaymentToAccounting({
+              paymentRecordId: payment.id,
+              transactionDate: payment.paymentDate,
+              amount: payment.amount,
+              bank: null,
+              studentName: student.name,
+              coachName: student.coach,
+              category: 'tuition',
+              receiptUrl: payment.receiptUrl,
+              receiptKey: payment.receiptKey,
+            });
+            synced++;
+          } catch (e) {
+            // skip duplicates
+          }
+        }
+
+        // 同步精英班繳費
+        const allElitePayments = await db.select().from(schema.elitePaymentRecords)
+          .where(eq(schema.elitePaymentRecords.status, 'confirmed'));
+        
+        const allEliteStudents = await db.select().from(schema.eliteStudents);
+        const eliteStudentMap = new Map(allEliteStudents.map(s => [s.id, s]));
+
+        for (const payment of allElitePayments) {
+          const student = eliteStudentMap.get(payment.studentId);
+          if (!student) continue;
+          try {
+            await syncElitePaymentToAccounting({
+              elitePaymentRecordId: payment.id,
+              transactionDate: payment.paymentDate,
+              amount: payment.amount,
+              bank: null,
+              studentName: student.name,
+              coachName: student.coach,
+              receiptUrl: payment.receiptUrl,
+              receiptKey: payment.receiptKey,
+            });
+            synced++;
+          } catch (e) {
+            // skip duplicates
+          }
+        }
+
+        return { success: true, synced };
+      }),
   }),
 });
 
