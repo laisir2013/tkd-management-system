@@ -2789,6 +2789,7 @@ export const appRouter = router({
           if (txnAmount === 0) continue;
 
           // Try to find a matching system record
+          // 金額完全相等為必要條件，其餘為加分
           let bestMatch: any = null;
           let bestScore = 0;
 
@@ -2797,6 +2798,8 @@ export const appRouter = router({
 
             const recAmount = parseFloat(rec.amount);
             const amountMatch = Math.abs(recAmount - txnAmount) < 0.01;
+            if (!amountMatch) continue; // 金額不符直接跳過
+
             const typeMatch = rec.type === txnType;
 
             // Date matching: same day ±1
@@ -2808,12 +2811,11 @@ export const appRouter = router({
               dateMatch = diffDays <= 1;
             }
 
-            let score = 0;
-            if (amountMatch) score += 50;
+            let score = 50; // 金額已匹配，基礎分 50
             if (typeMatch) score += 25;
             if (dateMatch) score += 25;
 
-            if (score > bestScore && score >= 50) {
+            if (score > bestScore) {
               bestScore = score;
               bestMatch = rec;
             }
