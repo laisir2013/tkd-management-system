@@ -31,6 +31,7 @@ import {
   getQuarterlyFeeStatistics,
   getQuarterlyPaymentStatuses,
   getMonthlyPaymentStatuses,
+  deletePaymentForMonth,
   getDb,
   // 點名系統相關函數
   getTrainingSchedules,
@@ -1380,6 +1381,31 @@ export const appRouter = router({
             });
           }
         }
+        return { success: true };
+      }),
+
+    // 撤銷繳費：將已繳轉為未繳（刪除指定月份的繳費記錄）
+    revertPayment: protectedProcedure
+      .input(z.object({
+        studentId: z.number(),
+        year: z.number(),
+        month: z.number().min(1).max(12),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // 只有管理員和教練可以撤銷繳費
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員和教練可以撤銷繳費' });
+        }
+
+        // 教練只能撤銷自己學生的繳費
+        if (ctx.user.role === 'coach' && ctx.user.coachName) {
+          const student = await getStudentById(input.studentId);
+          if (!student || student.coach !== ctx.user.coachName) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: '只能撤銷您自己的學生的繳費' });
+          }
+        }
+
+        await deletePaymentForMonth(input.studentId, input.year, input.month);
         return { success: true };
       }),
   }),

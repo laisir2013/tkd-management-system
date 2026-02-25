@@ -168,6 +168,76 @@ export async function insertPaymentRecord(record: InsertPaymentRecord) {
   return db.insert(paymentRecords).values(record);
 }
 
+/**
+ * 撤銷繳費：刪除指定學生/年/月的繳費記錄
+ * - 單月繳費(MONTHLY)：直接刪除 paymentMonth = month 的記錄
+ * - 季度繳費(Q1-Q4)：刪除整筆季度記錄（同時影響該季3個月）
+ * - 自選月份(CUSTOM)：刪除包含該月的 CUSTOM 記錄
+ */
+export async function deletePaymentForMonth(studentId: number, year: number, month: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // 找出哪個季度
+  let quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+  if (month <= 3) quarter = 'Q1';
+  else if (month <= 6) quarter = 'Q2';
+  else if (month <= 9) quarter = 'Q3';
+  else quarter = 'Q4';
+
+  // 1. 刪除 MONTHLY 記錄（精確匹配月份）
+  await db.delete(paymentRecords).where(
+    and(
+      eq(paymentRecords.studentId, studentId),
+      eq(paymentRecords.year, year),
+      eq(paymentRecords.paymentPeriod, 'MONTHLY'),
+      eq(paymentRecords.paymentMonth, month),
+    )
+  );
+
+  // 2. 刪除對應季度的記錄（Q1/Q2/Q3/Q4）
+  await db.delete(paymentRecords).where(
+    and(
+      eq(paymentRecords.studentId, studentId),
+      eq(paymentRecords.year, year),
+      eq(paymentRecords.paymentPeriod, quarter),
+    )
+  );
+
+  // 3. 刪除包含該月的 CUSTOM 記錄
+  // CUSTOM 的 customMonths JSON 可能包含 "2026-01" 或 "1月" 等格式
+  const customRecords = await db.select().from(paymentRecords).where(
+    and(
+      eq(paymentRecords.studentId, studentId),
+      eq(paymentRecords.year, year),
+      eq(paymentRecords.paymentPeriod, 'CUSTOM'),
+    )
+  );
+  
+  for (const rec of customRecords) {
+    if (!rec.customMonths) continue;
+    const customMonthsData = typeof rec.customMonths === 'string' ? JSON.parse(rec.customMonths as string) : rec.customMonths;
+    if (!Array.isArray(customMonthsData)) continue;
+    
+    const matchesMonth = customMonthsData.some((cm: string) => {
+      let monthNum: number | null = null;
+      if (cm.includes('-')) {
+        const parts = cm.split('-');
+        if (parseInt(parts[0]) === year) monthNum = parseInt(parts[1]);
+      } else {
+        monthNum = parseInt(cm.replace(/[^0-9]/g, ''));
+      }
+      return monthNum === month;
+    });
+    
+    if (matchesMonth) {
+      await db.delete(paymentRecords).where(eq(paymentRecords.id, rec.id));
+    }
+  }
+
+  return { success: true };
+}
+
 export async function getStudentsWithPayments() {
   const db = await getDb();
   if (!db) return [];

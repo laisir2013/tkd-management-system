@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { MessageCircle, Image, Upload, ShieldCheck, Check, Calendar, CreditCard } from "lucide-react";
+import { MessageCircle, Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -48,6 +48,14 @@ export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}
     label: string;
   } | null>(null);
 
+  // Revert payment dialog state (已繳→未繳)
+  const [revertDialog, setRevertDialog] = useState<{
+    studentId: number;
+    studentName: string;
+    month: number;
+    paymentType: string;
+  } | null>(null);
+
   const confirmMonthlyPayment = trpc.payments.confirmMonthlyPayment.useMutation({
     onSuccess: () => {
       toast.success('已確認繳費');
@@ -56,6 +64,17 @@ export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}
     },
     onError: (err: any) => {
       toast.error(`確認失敗: ${err.message}`);
+    },
+  });
+
+  const revertPayment = trpc.payments.revertPayment.useMutation({
+    onSuccess: () => {
+      toast.success('已撤銷繳費，狀態改為未繳');
+      refetch();
+      setRevertDialog(null);
+    },
+    onError: (err: any) => {
+      toast.error(`撤銷失敗: ${err.message}`);
     },
   });
 
@@ -179,6 +198,20 @@ export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}
               <Image className="w-2.5 h-2.5" />
             </button>
           )}
+          {/* 撤銷繳費按鈕 */}
+          <button
+            onClick={() => setRevertDialog({
+              studentId,
+              studentName,
+              month,
+              paymentType: monthData.paymentType || 'monthly',
+            })}
+            className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors mx-auto border border-orange-300"
+            title="撤銷繳費（轉為未繳）"
+          >
+            <Undo2 className="w-2.5 h-2.5" />
+            轉未繳
+          </button>
         </div>
       );
     } else if (monthData.status === 'unpaid') {
@@ -314,6 +347,10 @@ export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}
               <CreditCard className="w-3 h-3 text-blue-500" />
               <span>季繳(3個月)</span>
             </div>
+            <div className="flex items-center gap-1 border-l pl-3">
+              <Undo2 className="w-3 h-3 text-orange-600" />
+              <span>撤銷（轉未繳）</span>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-1 sm:p-4">
@@ -441,6 +478,49 @@ export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}
               {confirmMonthlyPayment.isPending ? '處理中...' : (
                 confirmDialog?.paymentType === 'quarterly' ? '確認季繳' : '確認月繳'
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 撤銷繳費確認對話框 */}
+      <Dialog open={!!revertDialog} onOpenChange={() => setRevertDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-orange-700">
+              ⚠️ 撤銷繳費確認
+            </DialogTitle>
+            <DialogDescription>
+              確定要將 <strong>{revertDialog?.studentName}</strong> {selectedYear}年<strong>{revertDialog?.month}月</strong> 的繳費狀態改為「未繳」嗎？
+              <br />
+              <span className="text-xs text-red-500 mt-2 block font-medium">
+                ⚠️ 注意：
+                {revertDialog?.paymentType === 'quarterly' 
+                  ? ' 此月份為季繳，撤銷後該季度（3個月）的繳費記錄都會被刪除。'
+                  : ' 此操作會刪除該月的繳費記錄。'
+                }
+                此操作不可逆轉。
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRevertDialog(null)}>取消</Button>
+            <Button
+              variant="destructive"
+              className="bg-orange-600 hover:bg-orange-700"
+              disabled={revertPayment.isPending}
+              onClick={() => {
+                if (revertDialog) {
+                  revertPayment.mutate({
+                    studentId: revertDialog.studentId,
+                    year: selectedYear,
+                    month: revertDialog.month,
+                  });
+                }
+              }}
+            >
+              <Undo2 className="w-4 h-4 mr-1" />
+              {revertPayment.isPending ? '處理中...' : '確認撤銷（轉未繳）'}
             </Button>
           </DialogFooter>
         </DialogContent>
