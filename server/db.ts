@@ -1408,98 +1408,59 @@ export async function getCoachStatsWithElite(year?: number, quarter?: number) {
   const db = await getDb();
   if (!db) return [];
   
-  // 5 位教練名單
   const COACHES = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
   
   const allStudents = await getAllStudents();
   const allEliteStudents = await getAllEliteStudents();
   const allElitePayments = await db.select().from(elitePaymentRecords).orderBy(desc(elitePaymentRecords.paymentDate));
   
-  // 恆常班全體學生（排除精英班道場）
   const allRegularStudents = allStudents.filter(s => s.venue !== '精英班道場' && s.status === 'active');
+  const regularStudentIdSet = new Set(allRegularStudents.map(s => s.id));
   
-  // 如果有 year/quarter，計算該季度的已繳月份
+  // 按入帳日期歸季：paymentDate 落在該季度月份範圍內的才計入
   const quarterMonths: Record<number, number[]> = { 1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12] };
-  let studentPaidMonths: Map<number, Set<number>> | null = null;
   
+  // 取得恆常班繳費記錄（按入帳日期篩選）
+  let regularPaymentsInPeriod: any[] = [];
   if (year && quarter) {
     const allPayments = await getAllPaymentRecords();
-    studentPaidMonths = new Map();
-    
-    const yearPayments = allPayments.filter(p =>
-      p.status === 'confirmed' && p.year === year
-    );
-    
-    yearPayments.forEach(p => {
-      if (!studentPaidMonths!.has(p.studentId)) {
-        studentPaidMonths!.set(p.studentId, new Set());
-      }
-      const paid = studentPaidMonths!.get(p.studentId)!;
-      
-      if (['Q1','Q2','Q3','Q4'].includes(p.paymentPeriod)) {
-        const qm: Record<string, number[]> = { Q1: [1,2,3], Q2: [4,5,6], Q3: [7,8,9], Q4: [10,11,12] };
-        qm[p.paymentPeriod]?.forEach(m => paid.add(m));
-      } else if (p.paymentPeriod === 'MONTHLY' && (p as any).paymentMonth) {
-        paid.add((p as any).paymentMonth);
-      } else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
-        const cms = typeof p.customMonths === 'string' ? JSON.parse(p.customMonths as string) : p.customMonths;
-        if (Array.isArray(cms)) {
-          cms.forEach((cm: string) => {
-            let mn: number | null = null;
-            if (cm.includes('-')) {
-              const parts = cm.split('-');
-              if (parseInt(parts[0]) === year) mn = parseInt(parts[1]);
-            } else {
-              mn = parseInt(cm.replace(/[^0-9]/g, ''));
-            }
-            if (mn && mn >= 1 && mn <= 12) paid.add(mn);
-          });
-        }
-      }
+    const months = quarterMonths[quarter];
+    regularPaymentsInPeriod = allPayments.filter(p => {
+      if (p.status !== 'confirmed') return false;
+      if (!regularStudentIdSet.has(p.studentId)) return false;
+      if (!p.paymentDate) return false;
+      const d = new Date(p.paymentDate);
+      return d.getFullYear() === year && months.includes(d.getMonth() + 1);
     });
   }
   
   return COACHES.map(coachName => {
-    // --- 恆常班統計：直接用學生的 coach 欄位 ---
     const regularStudents = allRegularStudents.filter(s => s.coach === coachName);
     const regularStudentCount = regularStudents.length;
-    // 恆常班「應收」= 所有學生的季度學費
     const regularExpectedFee = regularStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
     
-    // 恆常班「實收」= 根據已繳月份計算
-    let regularPaidFee = regularExpectedFee; // 預設 = 應收（沒選季度時）
+    // 恆常班「實收」= 入帳日在該季度的繳費 amount 總和
+    let regularPaidFee = regularExpectedFee;
     let regularPaidStudentCount = regularStudentCount;
-    if (studentPaidMonths && quarter) {
-      const months = quarterMonths[quarter];
-      regularPaidFee = 0;
-      regularPaidStudentCount = 0;
-      regularStudents.forEach(s => {
-        const paid = studentPaidMonths!.get(s.id);
-        if (paid) {
-          const paidInQ = months.filter(m => paid.has(m));
-          if (paidInQ.length > 0) {
-            regularPaidFee += parseFloat(s.feePerQuarter || '0') / 3 * paidInQ.length;
-            regularPaidStudentCount++;
-          }
-        }
-      });
+    if (year && quarter) {
+      const coachStudentIds = new Set(regularStudents.map(s => s.id));
+      const coachPayments = regularPaymentsInPeriod.filter(p => coachStudentIds.has(p.studentId));
+      regularPaidFee = coachPayments.reduce((sum: number, p: any) => sum + parseFloat(p.amount || '0'), 0);
       regularPaidFee = Math.round(regularPaidFee * 100) / 100;
+      regularPaidStudentCount = new Set(coachPayments.map((p: any) => p.studentId)).size;
     }
     
-    // --- 精英班統計（根據 coach 欄位） ---
+    // 精英班
     const eliteStudentsForCoach = allEliteStudents.filter(s => 
       s.status === 'active' && s.coach === coachName
     );
     const eliteStudentCount = eliteStudentsForCoach.length;
-    
-    // 計算精英班已收學費（該教練負責的學生的已確認付款總額）
     const eliteStudentIds = new Set(eliteStudentsForCoach.map(s => s.id));
     let eliteConfirmedPayments = allElitePayments.filter(p => 
       eliteStudentIds.has(p.studentId) && 
       p.status === 'confirmed' &&
-      p.classCount !== 99999 // 排除免學費
+      p.classCount !== 99999
     );
-    // 如果指定了 year/quarter，精英班也按季度篩選
     if (year && quarter) {
       const months = quarterMonths[quarter];
       eliteConfirmedPayments = eliteConfirmedPayments.filter(p => {
@@ -1513,12 +1474,10 @@ export async function getCoachStatsWithElite(year?: number, quarter?: number) {
     
     return {
       coachName,
-      // 恆常班
       regularStudentCount,
       regularExpectedFee,
-      regularTotalFee: regularPaidFee, // 實收金額（向後兼容欄位名）
+      regularTotalFee: regularPaidFee,
       regularPaidStudentCount,
-      // 精英班
       eliteStudentCount,
       eliteTotalPaid,
       eliteTotalClasses,
@@ -1528,7 +1487,6 @@ export async function getCoachStatsWithElite(year?: number, quarter?: number) {
         phone: s.phone,
         beltLevel: s.beltLevel,
       })),
-      // 總計
       totalStudentCount: regularStudentCount + eliteStudentCount,
       totalRevenue: regularPaidFee + eliteTotalPaid,
     };
@@ -1537,8 +1495,8 @@ export async function getCoachStatsWithElite(year?: number, quarter?: number) {
 
 /**
  * 每月財務報表：按教練、按月份計算恆常班 + 精英班的收入/支出/結餘
- * 恆常班：每個學生的月費 = feePerQuarter / 3，只有已繳月份才計入
- * 精英班：用該月的已確認付款記錄
+ * 核心邏輯：以「入帳日期 (paymentDate)」歸月
+ * 例如 Q1 季繳 $3,600 在 2/2 入帳 → 整筆 $3,600 計入 2 月
  * 扣除：MPF 10% + 公司營運 5%
  */
 export async function getMonthlyFinanceReport(year: number) {
@@ -1551,48 +1509,27 @@ export async function getMonthlyFinanceReport(year: number) {
   const allStudents = await getAllStudents();
   const allPayments = await getAllPaymentRecords();
   const regularStudents = allStudents.filter(s => s.status === 'active' && s.venue !== '精英班道場');
+  const regularStudentIdSet = new Set(regularStudents.map(s => s.id));
 
   // 精英班學生 + 繳費
   const allEliteStudents = await getAllEliteStudents();
   const allElitePayments = await db.select().from(elitePaymentRecords)
     .where(eq(elitePaymentRecords.status, 'confirmed'));
 
-  // 為每個恆常班學生建立已繳月份 map
-  const studentPaidMonths = new Map<number, Set<number>>();
-  const yearPayments = allPayments.filter(p =>
-    p.status === 'confirmed' &&
-    (p.year === year || (!p.year && year === 2026))
-  );
-
-  yearPayments.forEach(p => {
-    if (!studentPaidMonths.has(p.studentId)) {
-      studentPaidMonths.set(p.studentId, new Set());
-    }
-    const paid = studentPaidMonths.get(p.studentId)!;
-
-    if (p.paymentPeriod === 'MONTHLY' && (p as any).paymentMonth) {
-      paid.add((p as any).paymentMonth);
-    } else if (['Q1','Q2','Q3','Q4'].includes(p.paymentPeriod)) {
-      const qm: Record<string, number[]> = { Q1: [1,2,3], Q2: [4,5,6], Q3: [7,8,9], Q4: [10,11,12] };
-      qm[p.paymentPeriod]?.forEach(m => paid.add(m));
-    } else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
-      const cms = typeof p.customMonths === 'string' ? JSON.parse(p.customMonths as string) : p.customMonths;
-      if (Array.isArray(cms)) {
-        cms.forEach((cm: string) => {
-          let mn: number | null = null;
-          if (cm.includes('-')) {
-            const parts = cm.split('-');
-            if (parseInt(parts[0]) === year) mn = parseInt(parts[1]);
-          } else {
-            mn = parseInt(cm.replace(/[^0-9]/g, ''));
-          }
-          if (mn && mn >= 1 && mn <= 12) paid.add(mn);
-        });
-      }
-    }
+  // 恆常班：按入帳月份分組繳費記錄
+  const regularPaymentsByMonth = new Map<number, any[]>();
+  allPayments.forEach(p => {
+    if (p.status !== 'confirmed') return;
+    if (!regularStudentIdSet.has(p.studentId)) return;
+    if (!p.paymentDate) return;
+    const d = new Date(p.paymentDate);
+    if (d.getFullYear() !== year) return;
+    const month = d.getMonth() + 1;
+    if (!regularPaymentsByMonth.has(month)) regularPaymentsByMonth.set(month, []);
+    regularPaymentsByMonth.get(month)!.push(p);
   });
 
-  // 精英班：按月份分組付款
+  // 精英班：按入帳月份分組繳費記錄
   const elitePaymentsByMonth = new Map<number, typeof allElitePayments>();
   allElitePayments.forEach(p => {
     if (!p.paymentDate) return;
@@ -1606,6 +1543,7 @@ export async function getMonthlyFinanceReport(year: number) {
 
   return COACHES.map(coachName => {
     const coachRegularStudents = regularStudents.filter(s => s.coach === coachName);
+    const coachStudentIds = new Set(coachRegularStudents.map(s => s.id));
     const coachEliteStudents = allEliteStudents.filter(s => s.status === 'active' && s.coach === coachName);
     const eliteStudentIds = new Set(coachEliteStudents.map(s => s.id));
 
@@ -1622,19 +1560,15 @@ export async function getMonthlyFinanceReport(year: number) {
     }> = {};
 
     for (let m = 1; m <= 12; m++) {
-      // 恆常班：該月已繳的學生收入（月費 = feePerQuarter / 3）
-      let regularIncome = 0;
-      let regularPaidCount = 0;
-      coachRegularStudents.forEach(s => {
-        const paidSet = studentPaidMonths.get(s.id);
-        if (paidSet && paidSet.has(m)) {
-          regularIncome += parseFloat(s.feePerQuarter || '0') / 3;
-          regularPaidCount++;
-        }
-      });
-      regularIncome = Math.round(regularIncome * 100) / 100;
+      // 恆常班：該月入帳的繳費 amount 總和
+      const monthRegularPayments = (regularPaymentsByMonth.get(m) || [])
+        .filter((p: any) => coachStudentIds.has(p.studentId));
+      const regularIncome = Math.round(
+        monthRegularPayments.reduce((sum: number, p: any) => sum + parseFloat(p.amount || '0'), 0) * 100
+      ) / 100;
+      const regularPaidCount = new Set(monthRegularPayments.map((p: any) => p.studentId)).size;
 
-      // 精英班：該月的已確認付款
+      // 精英班：該月入帳的已確認付款
       const monthElitePayments = (elitePaymentsByMonth.get(m) || [])
         .filter(p => eliteStudentIds.has(p.studentId));
       const eliteIncome = monthElitePayments.reduce((sum, p) => sum + parseFloat(p.amount as any || '0'), 0);
