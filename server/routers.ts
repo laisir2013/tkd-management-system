@@ -2627,6 +2627,271 @@ export const appRouter = router({
 
         return { success: true, synced };
       }),
+
+    // ===== 銀行月結單對帳 =====
+
+    // 1. 上傳並解析銀行月結單（支援多頁圖片）
+    parseBankStatement: protectedProcedure
+      .input(z.object({
+        images: z.array(z.object({
+          base64: z.string(),
+          mimeType: z.string(),
+        })).min(1).max(10),
+        bankName: z.string().optional(),
+        statementMonth: z.string().optional(), // e.g. "2026-01"
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+
+        // Build image content array for LLM
+        const imageContents: any[] = input.images.map((img, i) => ({
+          type: "image_url" as const,
+          image_url: {
+            url: `data:${img.mimeType};base64,${img.base64}`,
+            detail: "high" as const,
+          }
+        }));
+
+        try {
+          const ocrResponse = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: `你是一個專業的銀行月結單識別助手。請仔細識別銀行月結單/銀行流水截圖中的所有交易記錄。
+
+請提取每一筆交易的以下資訊，以 JSON 格式回傳：
+{
+  "bankName": "銀行名稱",
+  "statementPeriod": "月結單期間，如 2026-01",
+  "openingBalance": "期初結餘（純數字字串，如 12345.67）",
+  "closingBalance": "期末結餘（純數字字串）",
+  "transactions": [
+    {
+      "date": "交易日期 YYYY-MM-DD",
+      "description": "交易說明/摘要（原文）",
+      "debit": "支出金額（純數字字串，無支出則為 null）",
+      "credit": "收入金額（純數字字串，無收入則為 null）",
+      "balance": "結餘（純數字字串，如有顯示）",
+      "reference": "參考編號（如有）"
+    }
+  ]
+}
+
+注意事項：
+- 金額必須是純數字字串（如 "1800.00"），不含 $ 或 HK$ 符號
+- 每一筆都要提取，不要遺漏
+- 日期格式統一為 YYYY-MM-DD
+- 如果有多頁，合併所有交易記錄
+- debit = 支出/提款/扣款，credit = 收入/存入/入帳
+- 如果某個欄位無法識別，回傳 null
+- 中英文月結單皆可識別`
+              },
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: `請識別這${input.images.length > 1 ? `${input.images.length}頁` : '張'}銀行月結單的所有交易記錄：` },
+                  ...imageContents,
+                ]
+              }
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "bank_statement",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    bankName: { type: ["string", "null"] },
+                    statementPeriod: { type: ["string", "null"] },
+                    openingBalance: { type: ["string", "null"] },
+                    closingBalance: { type: ["string", "null"] },
+                    transactions: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          date: { type: ["string", "null"] },
+                          description: { type: ["string", "null"] },
+                          debit: { type: ["string", "null"] },
+                          credit: { type: ["string", "null"] },
+                          balance: { type: ["string", "null"] },
+                          reference: { type: ["string", "null"] },
+                        },
+                        required: ["date", "description", "debit", "credit", "balance", "reference"],
+                        additionalProperties: false,
+                      }
+                    }
+                  },
+                  required: ["bankName", "statementPeriod", "openingBalance", "closingBalance", "transactions"],
+                  additionalProperties: false,
+                }
+              }
+            }
+          });
+
+          const content = ocrResponse.choices[0]?.message?.content;
+          if (typeof content === 'string') {
+            const parsed = JSON.parse(content);
+            // Override with user-provided values if given
+            if (input.bankName) parsed.bankName = input.bankName;
+            if (input.statementMonth) parsed.statementPeriod = input.statementMonth;
+            return parsed;
+          }
+          throw new Error("LLM returned no content");
+        } catch (error: any) {
+          console.error("Bank statement OCR failed:", error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `月結單識別失敗: ${error.message}`,
+          });
+        }
+      }),
+
+    // 2. 對帳：比對月結單交易與系統會計記錄
+    reconcile: protectedProcedure
+      .input(z.object({
+        transactions: z.array(z.object({
+          date: z.string().nullable(),
+          description: z.string().nullable(),
+          debit: z.string().nullable(),
+          credit: z.string().nullable(),
+          balance: z.string().nullable(),
+          reference: z.string().nullable(),
+        })),
+        year: z.number(),
+        month: z.number(),
+        bankName: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+
+        // Fetch existing accounting records for the month
+        const existingRecords = await getAllAccountingRecords({
+          year: input.year,
+          month: input.month,
+        });
+
+        // Build matching: try to match each bank transaction to a system record
+        const matched: any[] = [];
+        const unmatchedBank: any[] = []; // In bank but not in system
+        const unmatchedSystem: any[] = []; // In system but not in bank
+
+        const usedSystemIds = new Set<number>();
+
+        for (const txn of input.transactions) {
+          const txnAmount = parseFloat(txn.credit || txn.debit || '0');
+          const txnType = txn.credit ? 'income' : 'expense';
+          if (txnAmount === 0) continue;
+
+          // Try to find a matching system record
+          let bestMatch: any = null;
+          let bestScore = 0;
+
+          for (const rec of existingRecords) {
+            if (usedSystemIds.has(rec.id)) continue;
+
+            const recAmount = parseFloat(rec.amount);
+            const amountMatch = Math.abs(recAmount - txnAmount) < 0.01;
+            const typeMatch = rec.type === txnType;
+
+            // Date matching: same day ±1
+            let dateMatch = false;
+            if (txn.date && rec.transactionDate) {
+              const txnDate = new Date(txn.date);
+              const recDate = new Date(rec.transactionDate);
+              const diffDays = Math.abs((txnDate.getTime() - recDate.getTime()) / (1000 * 60 * 60 * 24));
+              dateMatch = diffDays <= 1;
+            }
+
+            let score = 0;
+            if (amountMatch) score += 50;
+            if (typeMatch) score += 25;
+            if (dateMatch) score += 25;
+
+            if (score > bestScore && score >= 50) {
+              bestScore = score;
+              bestMatch = rec;
+            }
+          }
+
+          if (bestMatch) {
+            usedSystemIds.add(bestMatch.id);
+            matched.push({
+              bankTransaction: txn,
+              systemRecord: bestMatch,
+              matchScore: bestScore,
+            });
+          } else {
+            unmatchedBank.push(txn);
+          }
+        }
+
+        // Find system records not matched to any bank transaction
+        for (const rec of existingRecords) {
+          if (!usedSystemIds.has(rec.id)) {
+            unmatchedSystem.push(rec);
+          }
+        }
+
+        return {
+          matched,
+          unmatchedBank,     // bank has it, system doesn't → admin needs to fill in
+          unmatchedSystem,   // system has it, bank doesn't → might be incorrect
+          summary: {
+            totalBankTransactions: input.transactions.filter(t => parseFloat(t.credit || t.debit || '0') > 0).length,
+            totalSystemRecords: existingRecords.length,
+            matchedCount: matched.length,
+            unmatchedBankCount: unmatchedBank.length,
+            unmatchedSystemCount: unmatchedSystem.length,
+          }
+        };
+      }),
+
+    // 3. 匯入未匹配的月結單項目（管理員已填寫類別後）
+    importUnmatched: protectedProcedure
+      .input(z.object({
+        items: z.array(z.object({
+          date: z.string(),
+          description: z.string(),
+          amount: z.string(),
+          type: z.enum(['income', 'expense']),
+          category: z.string(),
+          bank: z.string().optional(),
+          studentName: z.string().optional(),
+          coachName: z.string().optional(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+
+        let imported = 0;
+        for (const item of input.items) {
+          await insertAccountingRecord({
+            transactionDate: new Date(item.date),
+            bank: item.bank || null,
+            amount: item.amount,
+            type: item.type,
+            category: item.category,
+            description: item.description,
+            receiptUrl: null,
+            receiptKey: null,
+            paymentRecordId: null,
+            elitePaymentRecordId: null,
+            studentName: item.studentName || null,
+            coachName: item.coachName || null,
+            source: 'manual',
+          });
+          imported++;
+        }
+        return { success: true, imported };
+      }),
   }),
 });
 

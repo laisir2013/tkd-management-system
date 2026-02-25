@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Plus, Download, Upload, Trash2, Edit2, Eye, RefreshCw, Receipt, TrendingUp, TrendingDown, DollarSign, Filter } from "lucide-react";
+import { Loader2, Plus, Download, Upload, Trash2, Edit2, Eye, RefreshCw, Receipt, TrendingUp, TrendingDown, DollarSign, Filter, FileText } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import BankStatementReconciliation from "./BankStatementReconciliation";
 
 // 收入類別
 const INCOME_CATEGORIES = [
@@ -701,6 +702,9 @@ export default function AccountingRecords() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 銀行月結單對帳 */}
+      <BankStatementReconciliation onReconciled={refetch} />
 
       {/* 說明 */}
       <Card className="bg-gray-50/50">
