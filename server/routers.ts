@@ -1877,11 +1877,15 @@ export const appRouter = router({
   // 教練統計（含精英班）
   coachStats: router({
     getAll: protectedProcedure
-      .query(async ({ ctx }) => {
+      .input(z.object({
+        year: z.number().optional(),
+        quarter: z.number().min(1).max(4).optional(),
+      }).optional())
+      .query(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
-        const all = await getCoachStatsWithElite();
+        const all = await getCoachStatsWithElite(input?.year, input?.quarter);
         // 教練只返回自己的統計
         // @ts-ignore
         if (ctx.user.role === 'coach' && ctx.user.coachName) {
