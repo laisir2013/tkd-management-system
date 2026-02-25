@@ -16,14 +16,13 @@ import {
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { toast } from "sonner";
 
-type PaymentPeriod = "Q1" | "Q2" | "Q3" | "Q4" | "CUSTOM" | "MONTHLY";
+type PaymentPeriod = "Q1" | "Q2" | "Q3" | "Q4" | "CUSTOM";
 
 const PERIOD_OPTIONS = [
   { value: "Q1", label: "1-3月（季繳）" },
   { value: "Q2", label: "4-6月（季繳）" },
   { value: "Q3", label: "7-9月（季繳）" },
   { value: "Q4", label: "10-12月（季繳）" },
-  { value: "MONTHLY", label: "單月繳費" },
   { value: "CUSTOM", label: "自選月份" },
 ] as const;
 
@@ -508,7 +507,6 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   const currentMonth = new Date().getMonth() + 1;
   const currentQ = `Q${Math.ceil(currentMonth / 3)}` as PaymentPeriod;
   const [period, setPeriod] = useState<PaymentPeriod>(currentQ);
-  const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth); // 單月繳費時選的月份
   const [customMonths, setCustomMonths] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>("");
@@ -726,35 +724,6 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
               );
             })}
           </RadioGroup>
-          {period === "MONTHLY" && (
-            <div className="mt-4">
-              <Label>選擇月份</Label>
-              <div className="grid grid-cols-4 gap-2 mt-2">
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
-                  const mPaid = selectedStudentIds.length > 0 
-                    ? selectedStudentIds.every(sid => isPeriodPaid(sid, `Q${Math.ceil(m / 3)}` as PaymentPeriod))
-                    : false;
-                  return (
-                    <button
-                      key={m}
-                      onClick={() => setSelectedMonth(m)}
-                      disabled={mPaid}
-                      className={`p-2 text-sm rounded-lg border transition-colors ${
-                        selectedMonth === m
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : mPaid
-                          ? 'bg-green-50 text-green-700 border-green-200 opacity-60 cursor-not-allowed'
-                          : 'bg-white hover:bg-gray-50 border-gray-200'
-                      }`}
-                    >
-                      {m}月
-                      {mPaid && <span className="text-[10px] block">已繳</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
           {period === "CUSTOM" && (
             <div className="mt-4">
               <Label htmlFor="customMonths">自選月份 (用逗號分隔)</Label>
