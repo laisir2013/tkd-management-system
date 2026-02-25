@@ -500,7 +500,10 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
     { enabled: studentIds.length > 0 }
   );
 
-  const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([]);
+  // 如果只有一位學生，自動選中
+  const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>(
+    students.length === 1 ? [students[0].id] : []
+  );
   // 自動選擇當前月份
   const currentMonth = new Date().getMonth() + 1;
   const currentQ = `Q${Math.ceil(currentMonth / 3)}` as PaymentPeriod;
@@ -628,32 +631,49 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
         </Button>
       </div>
 
-      {/* 選擇學生 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">選擇學生</CardTitle>
-          <CardDescription>請選擇要繳費的恆常班學生 (可多選，支援季繳或月繳)</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {students.map(student => (
-            <div key={student.id} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50">
-              <Checkbox
-                id={`student-${student.id}`}
-                checked={selectedStudentIds.includes(student.id)}
-                onCheckedChange={() => handleStudentToggle(student.id)}
-              />
-              <Label htmlFor={`student-${student.id}`} className="flex-1 cursor-pointer">
-                <div className="font-medium">{student.name}</div>
-                <div className="text-sm text-gray-500">{student.venue} · {student.scheduleDay} {student.scheduleTime} · {student.beltLevel}</div>
-              </Label>
+      {/* 選擇學生 - 只有一位學生時自動選中，不顯示勾選 */}
+      {students.length === 1 ? (
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium">{students[0].name}</div>
+                <div className="text-sm text-gray-500">{students[0].venue} · {students[0].scheduleDay} {students[0].scheduleTime} · {students[0].beltLevel}</div>
+              </div>
               <div className="text-right">
-                <div className="font-semibold text-blue-600">${student.feePerQuarter}</div>
+                <div className="font-semibold text-blue-600">${students[0].feePerQuarter}</div>
                 <div className="text-xs text-gray-500">每季學費</div>
               </div>
             </div>
-          ))}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">選擇學生</CardTitle>
+            <CardDescription>請選擇要繳費的恆常班學生 (可多選，支援季繳或月繳)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {students.map(student => (
+              <div key={student.id} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50">
+                <Checkbox
+                  id={`student-${student.id}`}
+                  checked={selectedStudentIds.includes(student.id)}
+                  onCheckedChange={() => handleStudentToggle(student.id)}
+                />
+                <Label htmlFor={`student-${student.id}`} className="flex-1 cursor-pointer">
+                  <div className="font-medium">{student.name}</div>
+                  <div className="text-sm text-gray-500">{student.venue} · {student.scheduleDay} {student.scheduleTime} · {student.beltLevel}</div>
+                </Label>
+                <div className="text-right">
+                  <div className="font-semibold text-blue-600">${student.feePerQuarter}</div>
+                  <div className="text-xs text-gray-500">每季學費</div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 繳費期間 */}
       <Card>
