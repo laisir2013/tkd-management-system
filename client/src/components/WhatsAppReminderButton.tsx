@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
+import { formatDayMonthYear } from "@/lib/dateFormat";
 
 interface WhatsAppReminderButtonProps {
   studentId: number;
@@ -67,7 +68,7 @@ export function WhatsAppReminderButton({
     if (diffMins < 60) return `${diffMins}分鐘前`;
     if (diffHours < 24) return `${diffHours}小時前`;
     if (diffDays < 7) return `${diffDays}天前`;
-    return date.toLocaleDateString("zh-HK");
+    return formatDayMonthYear(date);
   };
 
   return (

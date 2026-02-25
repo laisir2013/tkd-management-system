@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { formatDayMonthYear, formatDayMonthWeekday } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -696,8 +697,8 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
                     {isLocked && paymentInfo && (
                       <div className="text-xs text-green-700 mt-1">
                         {paymentInfo.confirmedBy === 'parent_upload'
-                          ? `家長於 ${paymentInfo.date.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })} 上傳收據繳費`
-                          : `管理員於 ${paymentInfo.date.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })} 確認已繳費`}
+                          ? `家長於 ${formatDayMonthYear(paymentInfo.date)} 上傳收據繳費`
+                          : `管理員於 ${formatDayMonthYear(paymentInfo.date)} 確認已繳費`}
                       </div>
                     )}
                   </Label>
@@ -964,7 +965,7 @@ function EliteTab({ eliteInfo }: { eliteInfo: any[] }) {
                       <div key={p.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
                         <div className="flex items-center gap-2">
                           <DollarSign className="w-3.5 h-3.5 text-gray-400" />
-                          <span>{new Date(p.paymentDate).toLocaleDateString('zh-TW')}</span>
+                          <span>{formatDayMonthYear(p.paymentDate)}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">${p.amount}</span>
@@ -1034,7 +1035,7 @@ function EliteTab({ eliteInfo }: { eliteInfo: any[] }) {
                               <span className="text-gray-400 text-xs ml-1">({record.cycleNumber}/12)</span>
                             </td>
                             <td className={`py-2 px-3 border-t border-gray-100 text-gray-700 ${!isPaid ? 'bg-red-50/50' : ''}`}>
-                              {new Date(record.date).toLocaleDateString("zh-TW", { year: "numeric", month: "short", day: "numeric", weekday: "short" })}
+                              {formatDayMonthWeekday(record.date)}
                             </td>
                             <td className={`py-2 px-3 border-t border-gray-100 text-center text-xs ${!isPaid ? 'bg-red-50/50' : ''}`}>第 {record.cycleIndex} 期</td>
                             <td className={`py-2 px-3 border-t border-gray-100 text-center ${!isPaid ? 'bg-red-50/50' : ''}`}>

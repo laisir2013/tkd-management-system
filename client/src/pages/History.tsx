@@ -3,8 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, Receipt, Calendar, DollarSign } from "lucide-react";
-import { format } from "date-fns";
-import { zhTW } from "date-fns/locale";
+import { formatDayMonthYear } from "@/lib/dateFormat";
 
 const PERIOD_LABELS: Record<string, string> = {
   Q1: "1-3月",
@@ -117,14 +116,14 @@ export default function History() {
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4" />
                                 <span>
-                                  轉帳日期: {format(new Date(payment.receiptTransferDate), "yyyy年MM月dd日", { locale: zhTW })}
+                                  轉帳日期: {formatDayMonthYear(payment.receiptTransferDate)}
                                 </span>
                               </div>
                             )}
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4" />
                               <span className="text-xs text-gray-500">
-                                記錄日期: {format(new Date(payment.paymentDate), "yyyy年MM月dd日", { locale: zhTW })}
+                                記錄日期: {formatDayMonthYear(payment.paymentDate)}
                               </span>
                             </div>
                           </div>

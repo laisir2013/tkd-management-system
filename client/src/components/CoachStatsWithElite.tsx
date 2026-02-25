@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, DollarSign, Award, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Users, DollarSign, Award, ChevronDown, ChevronUp, Loader2, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { QuarterlyFeeStatistics } from "@/components/QuarterlyFeeStatistics";
@@ -131,6 +131,68 @@ export default function CoachStatsWithElite() {
                 </div>
               </div>
 
+              {/* 教練薪金計算 */}
+              {(() => {
+                const totalRevenue = coach.regularTotalFee + coach.eliteTotalPaid;
+                const mpfDeduction = Math.round(totalRevenue * 0.10);
+                const operatingFee = Math.round(totalRevenue * 0.05);
+                const netSalary = totalRevenue - mpfDeduction - operatingFee;
+                
+                return (
+                  <div className="rounded-lg border-2 border-teal-200 bg-teal-50/50 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Calculator className="h-4 w-4 text-teal-700" />
+                      <span className="text-sm font-bold text-teal-800">教練薪金計算（季度）</span>
+                    </div>
+                    <Table>
+                      <TableBody>
+                        <TableRow className="border-0">
+                          <TableCell className="py-1.5 pl-0 text-sm text-gray-600">恆常班學費收入</TableCell>
+                          <TableCell className="py-1.5 text-right font-medium">${coach.regularTotalFee.toLocaleString()}</TableCell>
+                        </TableRow>
+                        {coach.eliteTotalPaid > 0 && (
+                          <TableRow className="border-0">
+                            <TableCell className="py-1.5 pl-0 text-sm text-gray-600">精英班學費收入</TableCell>
+                            <TableCell className="py-1.5 text-right font-medium">${coach.eliteTotalPaid.toLocaleString()}</TableCell>
+                          </TableRow>
+                        )}
+                        <TableRow className="border-t">
+                          <TableCell className="py-1.5 pl-0 text-sm font-semibold">學費總收入</TableCell>
+                          <TableCell className="py-1.5 text-right font-bold">${totalRevenue.toLocaleString()}</TableCell>
+                        </TableRow>
+                        <TableRow className="border-0">
+                          <TableCell className="py-1.5 pl-0 text-sm text-red-600">
+                            − MPF 強積金 (10%)
+                          </TableCell>
+                          <TableCell className="py-1.5 text-right text-red-600">
+                            −${mpfDeduction.toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="border-0">
+                          <TableCell className="py-1.5 pl-0 text-sm text-red-600">
+                            − 公司營運費用 (5%)
+                          </TableCell>
+                          <TableCell className="py-1.5 text-right text-red-600">
+                            −${operatingFee.toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="border-t-2 border-teal-300">
+                          <TableCell className="py-2 pl-0 text-base font-bold text-teal-800">
+                            💰 教練實收薪金
+                          </TableCell>
+                          <TableCell className="py-2 text-right text-xl font-bold text-teal-700">
+                            ${netSalary.toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      計算方式：學費總收入 − 10% MPF − 5% 公司營運 = 實收 85%
+                    </p>
+                  </div>
+                );
+              })()}
+
               {/* 展開的季度統計 */}
               {isExpanded && (
                 <div className="pt-4 border-t">
@@ -146,12 +208,13 @@ export default function CoachStatsWithElite() {
       {/* 學費歸屬說明 */}
       <Card className="bg-gray-50 border-dashed">
         <CardContent className="pt-4 pb-3">
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">💡 學費歸屬邏輯說明</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">💡 學費歸屬及薪金計算邏輯說明</h4>
           <ul className="text-xs text-gray-600 space-y-1.5">
             <li>• <strong>恆常班</strong>：根據學生所在道場的班別自動歸屬對應教練</li>
             <li>• <strong>精英班</strong>：根據精英班學生管理中設定的「負責教練」欄位歸屬</li>
             <li>• 精英班學費以每 12 堂 $2,400 為一個繳費循環計算</li>
             <li>• 未設定負責教練的精英班學生不會計入任何教練的統計</li>
+            <li className="border-t pt-1.5 mt-1.5">• <strong>教練薪金計算</strong>：學費總收入 − 10% MPF 強積金 − 5% 公司營運費用 = 實收 85%</li>
           </ul>
         </CardContent>
       </Card>

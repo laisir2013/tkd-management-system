@@ -14,7 +14,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
-import { format, addMonths, subMonths } from "date-fns";
+import { addMonths, subMonths } from "date-fns";
+import { formatDayMonthYear } from "@/lib/dateFormat";
 import { zhTW } from "date-fns/locale";
 import { Users, Calendar, DollarSign, ChevronLeft, ChevronRight, Plus, MoreHorizontal, ArrowLeft, Loader2, Ban, RotateCcw, ArrowRightLeft, Phone, RefreshCw, Pencil, Check, X } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
@@ -905,7 +906,7 @@ function EliteFinanceTab() {
                   const student = students.find((s: any) => s.id === p.studentId);
                   return (
                     <TableRow key={p.id}>
-                      <TableCell>{format(new Date(p.paymentDate), "yyyy/MM/dd")}</TableCell>
+                      <TableCell>{formatDayMonthYear(p.paymentDate)}</TableCell>
                       <TableCell className="font-medium">{student?.name || `#${p.studentId}`}</TableCell>
                       <TableCell className="text-center">{p.classCount} 堂</TableCell>
                       <TableCell className="text-right">${Number(p.amount).toLocaleString()}</TableCell>

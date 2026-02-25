@@ -280,7 +280,7 @@ export function AttendanceTablePage({
                       }`}
                     >
                       <span className={`text-[10px] sm:text-sm font-bold ${isCancelled ? "line-through" : ""}`}>
-                        {format(td.date, "M/d", { locale: zhTW })}
+                        {format(td.date, "d/M", { locale: zhTW })}
                       </span>
                       {isCancelled && (
                         <div className="text-[8px] sm:text-[10px] text-yellow-200 font-normal leading-tight">休息</div>

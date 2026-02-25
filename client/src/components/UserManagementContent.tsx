@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { formatDayMonthYear } from "@/lib/dateFormat";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -97,7 +98,7 @@ export default function UserManagementContent() {
                     <TableCell>{(user as any).coachName || '-'}</TableCell>
                     <TableCell>
                       {user.lastSignedIn 
-                        ? new Date(user.lastSignedIn).toLocaleDateString('zh-TW')
+                        ? formatDayMonthYear(user.lastSignedIn)
                         : '-'}
                     </TableCell>
                     <TableCell className="text-right">

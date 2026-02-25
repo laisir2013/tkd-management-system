@@ -34,7 +34,7 @@ export function EliteAttendanceWhatsAppButton({
   const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return "N/A";
     const d = new Date(dateStr);
-    return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
+    return `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
   };
 
   const handleWhatsAppClick = (e: React.MouseEvent) => {

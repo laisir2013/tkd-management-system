@@ -13,8 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
-import { format } from "date-fns";
-import { zhTW } from "date-fns/locale";
+import { formatDayMonth, formatDayMonthYear } from "@/lib/dateFormat";
 import * as XLSX from "xlsx";
 import DojoManagementContent from "@/components/DojoManagementContent";
 import { WhatsAppTemplates } from "@/components/WhatsAppTemplates";
@@ -169,9 +168,9 @@ export default function Admin() {
           })
           .forEach((payment: any) => {
             const transferDate = payment.receiptTransferDate 
-              ? format(new Date(payment.receiptTransferDate), 'yyyy-MM-dd', { locale: zhTW })
+              ? formatDayMonthYear(payment.receiptTransferDate)
               : '未識別';
-            const recordDate = format(new Date(payment.paymentDate), 'yyyy-MM-dd', { locale: zhTW });
+            const recordDate = formatDayMonthYear(payment.paymentDate);
             
             // 查詢學生的教練
             const coachName = item.student.coach || '-';
@@ -206,8 +205,8 @@ export default function Admin() {
     XLSX.utils.book_append_sheet(wb, ws, "繳費記錄");
     
     const fileName = showPendingOnly 
-      ? `待審核繳費記錄_${format(new Date(), 'yyyyMMdd')}.xlsx`
-      : `繳費記錄_${format(new Date(), 'yyyyMMdd')}.xlsx`;
+      ? `待審核繳費記錄_${formatDayMonthYear(new Date())}.xlsx`
+      : `繳費記錄_${formatDayMonthYear(new Date())}.xlsx`;
     
     XLSX.writeFile(wb, fileName);
     toast.success(`成功匯出 ${exportData.length} 筆記錄`);

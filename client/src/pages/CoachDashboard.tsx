@@ -604,7 +604,7 @@ function CoachElite({ coachName }: { coachName: string }) {
                       <TableHead className="sticky left-0 bg-white z-10 min-w-[80px]">學生</TableHead>
                       {monthSchedules.map((s: any) => (
                         <TableHead key={s.id} className={`text-center min-w-[48px] text-xs ${s.status === 'cancelled' ? 'bg-red-50 line-through text-red-400' : ''}`}>
-                          {s.date.getDate()}日
+                          {s.date.getDate()}/{s.date.getMonth() + 1}
                         </TableHead>
                       ))}
                     </TableRow>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { formatDayMonthWeekday } from "@/lib/dateFormat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -225,15 +226,7 @@ export function EliteParentSection({ phone }: EliteParentSectionProps) {
                                 </span>
                               </td>
                               <td className={`py-2 px-3 border-t border-gray-100 text-gray-700 ${!isPaid ? 'bg-red-50/50' : ''}`}>
-                                {new Date(record.date).toLocaleDateString(
-                                  "zh-TW",
-                                  {
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                    weekday: "short",
-                                  }
-                                )}
+                                {formatDayMonthWeekday(record.date)}
                               </td>
                               <td className={`py-2 px-3 border-t border-gray-100 text-center text-xs ${!isPaid ? 'bg-red-50/50' : ''}`}>
                                 第 {record.cycleIndex} 期
