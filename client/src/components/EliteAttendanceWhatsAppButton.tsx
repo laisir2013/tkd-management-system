@@ -99,7 +99,7 @@ export function EliteAttendanceWhatsAppButton({
             : `WhatsApp 通知：今期第 ${cycleNumber} 堂/12堂`
         }
       >
-        <WhatsAppIcon className="w-3.5 h-3.5 text-green-600" />
+        <WhatsAppIcon className="w-3.5 h-3.5" />
       </Button>
       {lastSentAt && (
         <span className="text-[9px] text-gray-400 leading-none">

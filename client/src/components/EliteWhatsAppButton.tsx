@@ -127,7 +127,7 @@ export function EliteWhatsAppButton({
             : `發送 WhatsApp 繳費提醒（剩餘 ${remainingClasses} 堂）`
         }
       >
-        <WhatsAppIcon className="w-4 h-4 text-green-600" />
+        <WhatsAppIcon className="w-4 h-4" />
         {showLabel && (
           <span className="ml-1">
             {remainingClasses <= 0 ? "急" : "通知"}

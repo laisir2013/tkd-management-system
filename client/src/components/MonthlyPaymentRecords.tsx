@@ -24,7 +24,7 @@ function getQuarterForMonth(month: number): { quarter: string; months: number[] 
   return { quarter: 'Q4', months: [10, 11, 12] };
 }
 
-export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}) {
+export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachName?: string; readOnly?: boolean } = {}) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [coachFilter, setCoachFilter] = useState<string>(coachName || "all");
@@ -199,20 +199,22 @@ export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}
               <Image className="w-2.5 h-2.5" />
             </button>
           )}
-          {/* 撤銷繳費按鈕 */}
-          <button
-            onClick={() => setRevertDialog({
-              studentId,
-              studentName,
-              month,
-              paymentType: monthData.paymentType || 'monthly',
-            })}
-            className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors mx-auto border border-orange-300"
-            title="撤銷繳費（轉為未繳）"
-          >
-            <Undo2 className="w-2.5 h-2.5" />
-            轉未繳
-          </button>
+          {/* 撤銷繳費按鈕（僅管理員可見） */}
+          {!readOnly && (
+            <button
+              onClick={() => setRevertDialog({
+                studentId,
+                studentName,
+                month,
+                paymentType: monthData.paymentType || 'monthly',
+              })}
+              className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors mx-auto border border-orange-300"
+              title="撤銷繳費（轉為未繳）"
+            >
+              <Undo2 className="w-2.5 h-2.5" />
+              轉未繳
+            </button>
+          )}
         </div>
       );
     } else if (monthData.status === 'unpaid') {
@@ -221,24 +223,27 @@ export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}
           <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-300">
             未繳
           </div>
-          <div className="flex flex-col items-center gap-0.5">
-            <button
-              onClick={() => handleConfirmMonth(studentId, studentName, month)}
-              className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
-              title="確認單月已繳"
-            >
-              <Check className="w-2.5 h-2.5" />
-              月繳
-            </button>
-            <button
-              onClick={() => handleConfirmQuarter(studentId, studentName, month)}
-              className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-              title="確認整季已繳"
-            >
-              <CreditCard className="w-2.5 h-2.5" />
-              季繳
-            </button>
-          </div>
+          {/* 確認繳費按鈕（僅管理員可見） */}
+          {!readOnly && (
+            <div className="flex flex-col items-center gap-0.5">
+              <button
+                onClick={() => handleConfirmMonth(studentId, studentName, month)}
+                className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                title="確認單月已繳"
+              >
+                <Check className="w-2.5 h-2.5" />
+                月繳
+              </button>
+              <button
+                onClick={() => handleConfirmQuarter(studentId, studentName, month)}
+                className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                title="確認整季已繳"
+              >
+                <CreditCard className="w-2.5 h-2.5" />
+                季繳
+              </button>
+            </div>
+          )}
         </div>
       );
     } else {
@@ -248,24 +253,27 @@ export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}
           <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-300">
             未到期
           </div>
-          <div className="flex flex-col items-center gap-0.5">
-            <button
-              onClick={() => handleConfirmMonth(studentId, studentName, month)}
-              className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-blue-400 text-white hover:bg-blue-500 transition-colors"
-              title="預繳單月"
-            >
-              <Check className="w-2.5 h-2.5" />
-              月繳
-            </button>
-            <button
-              onClick={() => handleConfirmQuarter(studentId, studentName, month)}
-              className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-indigo-400 text-white hover:bg-indigo-500 transition-colors"
-              title="預繳整季"
-            >
-              <CreditCard className="w-2.5 h-2.5" />
-              季繳
-            </button>
-          </div>
+          {/* 預繳按鈕（僅管理員可見） */}
+          {!readOnly && (
+            <div className="flex flex-col items-center gap-0.5">
+              <button
+                onClick={() => handleConfirmMonth(studentId, studentName, month)}
+                className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-blue-400 text-white hover:bg-blue-500 transition-colors"
+                title="預繳單月"
+              >
+                <Check className="w-2.5 h-2.5" />
+                月繳
+              </button>
+              <button
+                onClick={() => handleConfirmQuarter(studentId, studentName, month)}
+                className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-indigo-400 text-white hover:bg-indigo-500 transition-colors"
+                title="預繳整季"
+              >
+                <CreditCard className="w-2.5 h-2.5" />
+                季繳
+              </button>
+            </div>
+          )}
         </div>
       );
     }
@@ -396,7 +404,7 @@ export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}
                         className="flex items-center gap-0.5 text-[10px] px-1.5 py-1 h-auto"
                         title={!student.phone ? '沒有電話號碼' : 'WhatsApp 提醒'}
                       >
-                        <WhatsAppIcon className="w-4 h-4 text-green-600" />
+                        <WhatsAppIcon className="w-4 h-4" />
                       </Button>
                     </TableCell>
                   </TableRow>

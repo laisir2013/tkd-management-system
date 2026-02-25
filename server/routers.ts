@@ -1281,18 +1281,13 @@ export const appRouter = router({
         quarter: z.enum(['Q1', 'Q2', 'Q3', 'Q4']),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
-          throw new TRPCError({ code: 'FORBIDDEN' });
+        // 只有管理員可以確認繳費
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以確認繳費' });
         }
         // 獲取學生的學費金額
         const student = await getStudentById(input.studentId);
         if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: '學生不存在' });
-        
-        // 確保教練只能確認自己的學生
-        // @ts-ignore
-        if (ctx.user.role === 'coach' && ctx.user.coachName && student.coach !== ctx.user.coachName) {
-          throw new TRPCError({ code: 'FORBIDDEN', message: '只能確認您自己的學生' });
-        }
 
         await insertPaymentRecord({
           studentId: input.studentId,
@@ -1306,12 +1301,12 @@ export const appRouter = router({
           receiptTransferDate: null,
           paymentDate: new Date(),
           status: 'confirmed',
-          confirmedBy: ctx.user.role === 'admin' ? 'admin_approved' : 'coach_approved',
+          confirmedBy: 'admin_approved',
         });
         return { success: true };
       }),
 
-    // 教練/管理員確認月份繳費（支援1月或1季繳交）
+    // 管理員確認月份繳費（支援1月或1季繳交）
     confirmMonthlyPayment: protectedProcedure
       .input(z.object({
         studentId: z.number(),
@@ -1320,20 +1315,15 @@ export const appRouter = router({
         paymentType: z.enum(['monthly', 'quarterly']), // monthly=單月, quarterly=季繳
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
-          throw new TRPCError({ code: 'FORBIDDEN' });
+        // 只有管理員可以確認繳費
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以確認繳費' });
         }
         const student = await getStudentById(input.studentId);
         if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: '學生不存在' });
-        
-        // 確保教練只能確認自己的學生
-        // @ts-ignore
-        if (ctx.user.role === 'coach' && ctx.user.coachName && student.coach !== ctx.user.coachName) {
-          throw new TRPCError({ code: 'FORBIDDEN', message: '只能確認您自己的學生' });
-        }
 
         const feePerQuarter = parseFloat(student.feePerQuarter);
-        const confirmedBy = ctx.user.role === 'admin' ? 'admin_approved' : 'coach_approved';
+        const confirmedBy = 'admin_approved';
 
         if (input.paymentType === 'quarterly') {
           // 季繳：找出對應的季度
@@ -1392,17 +1382,9 @@ export const appRouter = router({
         month: z.number().min(1).max(12),
       }))
       .mutation(async ({ input, ctx }) => {
-        // 只有管理員和教練可以撤銷繳費
-        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
-          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員和教練可以撤銷繳費' });
-        }
-
-        // 教練只能撤銷自己學生的繳費
-        if (ctx.user.role === 'coach' && ctx.user.coachName) {
-          const student = await getStudentById(input.studentId);
-          if (!student || student.coach !== ctx.user.coachName) {
-            throw new TRPCError({ code: 'FORBIDDEN', message: '只能撤銷您自己的學生的繳費' });
-          }
+        // 只有管理員可以撤銷繳費
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以撤銷繳費' });
         }
 
         await deletePaymentForMonth(input.studentId, input.year, input.month);
@@ -2098,7 +2080,8 @@ export const appRouter = router({
         notes: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') throw new TRPCError({ code: 'FORBIDDEN' });
+        // 只有管理員可以確認精英班繳費
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以確認繳費' });
         const id = await insertElitePaymentRecord({
           ...input,
           amount: input.amount,

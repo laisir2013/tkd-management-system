@@ -302,7 +302,7 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
                         className="flex items-center gap-1 text-xs"
                         title={!student.phone ? '該學生沒有電話號碼' : '發送 WhatsApp 繳費提醒'}
                       >
-                        <WhatsAppIcon className="w-3.5 h-3.5 text-green-600" />
+                        <WhatsAppIcon className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">{sendingWhatsApp === student.studentId ? '發送中' : 'WhatsApp'}</span>
                         <span className="sm:hidden">{sendingWhatsApp === student.studentId ? '...' : '提醒'}</span>
                       </Button>

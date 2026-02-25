@@ -96,7 +96,7 @@ export default function CoachDashboard() {
 
               {/* Payment Records — reuse shared component */}
               <TabsContent value="payments">
-                <MonthlyPaymentRecords coachName={coachName} />
+                <MonthlyPaymentRecords coachName={coachName} readOnly={true} />
               </TabsContent>
 
               {/* Attendance — reuse shared component */}
@@ -676,14 +676,7 @@ function CoachElite({ coachName }: { coachName: string }) {
                           <span className={`font-bold ${remaining <= 2 ? 'text-red-600' : 'text-green-600'}`}>{remaining}</span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Button
-                            size="sm"
-                            className="bg-amber-500 hover:bg-amber-600 text-white text-xs"
-                            onClick={() => setConfirmEliteDialog({ studentId: s.id, studentName: s.name })}
-                          >
-                            <Check className="w-3 h-3 mr-1" />
-                            確認已繳12堂
-                          </Button>
+                          <span className="text-[10px] text-gray-400">僅管理員</span>
                         </TableCell>
                       </TableRow>
                     );
