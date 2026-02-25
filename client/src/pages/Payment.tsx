@@ -532,7 +532,6 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
     students.length === 1 ? [students[0].id] : []
   );
   // 自動選擇當前月份
-  const currentMonth = new Date().getMonth() + 1;
   const currentQ = `Q${Math.ceil(currentMonth / 3)}` as PaymentPeriod;
   const [period, setPeriod] = useState<PaymentPeriod>(currentQ);
   const [customMonths, setCustomMonths] = useState("");

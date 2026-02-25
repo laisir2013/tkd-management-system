@@ -1,180 +1,162 @@
-import { useState, useMemo } from "react";
-import { trpc } from "@/lib/trpc";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect } from "react";
+import { trpc } from "../lib/trpc";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { toast } from "sonner";
-import {
-  Plus, Trash2, Edit, Users, Award, ClipboardCheck,
-  ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle,
-  ArrowUpCircle, FileText, Loader2, BarChart3, Star
+  Award, Plus, Trash2, Edit3, Users, ClipboardCheck, Trophy, 
+  ChevronDown, ChevronUp, ArrowUpCircle, Loader2, CheckCircle2,
+  XCircle, AlertCircle, FileText, Upload, UserPlus
 } from "lucide-react";
+import { toast } from "sonner";
 
 // 帶級定義
-const BELT_LEVELS = [
-  { key: "白帶", name: "白帶", color: "#FFFFFF", border: "#ccc" },
-  { key: "黃帶", name: "黃帶", color: "#FFD700", border: "#DAA520" },
-  { key: "黃綠帶", name: "黃綠帶", color: "#9ACD32", border: "#6B8E23" },
-  { key: "綠帶", name: "綠帶", color: "#228B22", border: "#006400" },
-  { key: "綠藍帶", name: "綠藍帶", color: "#20B2AA", border: "#008B8B" },
-  { key: "藍帶", name: "藍帶", color: "#4169E1", border: "#1E3A8A" },
-  { key: "藍紅帶", name: "藍紅帶", color: "#8B008B", border: "#4B0082" },
-  { key: "紅帶", name: "紅帶", color: "#DC143C", border: "#8B0000" },
-  { key: "紅黑帶", name: "紅黑帶", color: "#8B0000", border: "#000" },
-  { key: "黑帶", name: "黑帶", color: "#000000", border: "#333" },
-  { key: "黑帶二段", name: "黑帶二段", color: "#000000", border: "#333" },
-  { key: "黑帶三段", name: "黑帶三段", color: "#000000", border: "#333" },
-];
-
-// 評分類別顏色
-const CATEGORY_COLORS: Record<string, string> = {
-  fitness: "bg-blue-100 text-blue-700",
-  poomsae: "bg-purple-100 text-purple-700",
-  technique: "bg-green-100 text-green-700",
-  board: "bg-amber-100 text-amber-700",
-  split: "bg-pink-100 text-pink-700",
-  side_split: "bg-pink-50 text-pink-600",
-  sparring: "bg-red-100 text-red-700",
-  competition: "bg-indigo-100 text-indigo-700",
+const BELT_LEVELS: Record<string, { name: string; color: string; textColor: string }> = {
+  '白帶': { name: '白帶', color: 'bg-gray-100 border-gray-300', textColor: 'text-gray-700' },
+  '黃帶': { name: '黃帶', color: 'bg-yellow-100 border-yellow-400', textColor: 'text-yellow-700' },
+  '黃綠帶': { name: '黃綠帶', color: 'bg-lime-100 border-lime-400', textColor: 'text-lime-700' },
+  '綠帶': { name: '綠帶', color: 'bg-green-100 border-green-400', textColor: 'text-green-700' },
+  '綠藍帶': { name: '綠藍帶', color: 'bg-teal-100 border-teal-400', textColor: 'text-teal-700' },
+  '藍帶': { name: '藍帶', color: 'bg-blue-100 border-blue-400', textColor: 'text-blue-700' },
+  '藍紅帶': { name: '藍紅帶', color: 'bg-purple-100 border-purple-400', textColor: 'text-purple-700' },
+  '紅帶': { name: '紅帶', color: 'bg-red-100 border-red-400', textColor: 'text-red-700' },
+  '紅黑帶': { name: '紅黑帶', color: 'bg-rose-100 border-rose-800', textColor: 'text-rose-800' },
+  '黑帶': { name: '黑帶', color: 'bg-gray-800 border-gray-900', textColor: 'text-white' },
+  '黑帶二段': { name: '黑帶二段', color: 'bg-gray-800 border-gray-900', textColor: 'text-white' },
+  '黑帶三段': { name: '黑帶三段', color: 'bg-gray-800 border-gray-900', textColor: 'text-white' },
 };
 
-const CATEGORY_NAMES: Record<string, string> = {
-  fitness: "體能", poomsae: "品勢", technique: "手把動作",
-  board: "踢木板", split: "一字馬", side_split: "大字馬",
-  sparring: "搏擊", competition: "外出比賽",
-};
+const BELT_ORDER = ['白帶','黃帶','黃綠帶','綠帶','綠藍帶','藍帶','藍紅帶','紅帶','紅黑帶','黑帶','黑帶二段','黑帶三段'];
+
+function getBeltBadge(belt: string) {
+  const info = BELT_LEVELS[belt] || { color: 'bg-gray-100 border-gray-300', textColor: 'text-gray-700' };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${info.color} ${info.textColor}`}>
+      {belt}
+    </span>
+  );
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  draft: { label: "草稿", color: "bg-gray-100 text-gray-700", icon: FileText },
-  scheduled: { label: "已排程", color: "bg-blue-100 text-blue-700", icon: ClipboardCheck },
-  in_progress: { label: "進行中", color: "bg-yellow-100 text-yellow-700", icon: Loader2 },
-  completed: { label: "已完成", color: "bg-green-100 text-green-700", icon: CheckCircle2 },
+  registered: { label: '已報名', color: 'text-gray-500', icon: FileText },
+  checked_in: { label: '已報到', color: 'text-blue-500', icon: CheckCircle2 },
+  examining: { label: '評分中', color: 'text-yellow-600', icon: ClipboardCheck },
+  passed: { label: '合格', color: 'text-green-600', icon: Trophy },
+  failed: { label: '不合格', color: 'text-red-600', icon: XCircle },
+  absent: { label: '缺席', color: 'text-gray-400', icon: AlertCircle },
 };
 
-const CANDIDATE_STATUS: Record<string, { label: string; color: string }> = {
-  registered: { label: "已報名", color: "bg-gray-100 text-gray-600" },
-  checked_in: { label: "已報到", color: "bg-blue-100 text-blue-600" },
-  examining: { label: "評分中", color: "bg-yellow-100 text-yellow-600" },
-  passed: { label: "合格 ✓", color: "bg-green-100 text-green-700" },
-  failed: { label: "不合格 ✗", color: "bg-red-100 text-red-700" },
-  absent: { label: "缺席", color: "bg-gray-200 text-gray-500" },
+const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  draft: { label: '草稿', color: 'bg-gray-100 text-gray-700' },
+  scheduled: { label: '已排程', color: 'bg-blue-100 text-blue-700' },
+  in_progress: { label: '進行中', color: 'bg-yellow-100 text-yellow-700' },
+  completed: { label: '已完成', color: 'bg-green-100 text-green-700' },
 };
 
-type View = "list" | "detail" | "scoring";
+// 評分等級
+const GRADE_OPTIONS = ['A', 'B', 'C', '不合格'] as const;
+const PASS_FAIL_OPTIONS = ['合格', '不合格'] as const;
+const YES_NO_OPTIONS = ['有', '沒有'] as const;
 
 export default function ExamManagement() {
-  const [view, setView] = useState<View>("list");
+  const [activeTab, setActiveTab] = useState<'list' | 'detail'>('list');
   const [selectedExamId, setSelectedExamId] = useState<number | null>(null);
-  const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
-  const [showCreateExam, setShowCreateExam] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [detailTab, setDetailTab] = useState<'candidates' | 'scoring' | 'results'>('candidates');
 
   return (
     <div className="space-y-4">
-      {view === "list" && (
-        <ExamList
-          onSelectExam={(id) => { setSelectedExamId(id); setView("detail"); }}
-          showCreate={showCreateExam}
-          setShowCreate={setShowCreateExam}
+      {activeTab === 'list' ? (
+        <ExamList 
+          onSelectExam={(id) => { setSelectedExamId(id); setActiveTab('detail'); }}
+          showCreateForm={showCreateForm}
+          setShowCreateForm={setShowCreateForm}
         />
-      )}
-      {view === "detail" && selectedExamId && (
-        <ExamDetail
-          examId={selectedExamId}
-          onBack={() => setView("list")}
-          onStartScoring={(candidateId) => { setSelectedCandidateId(candidateId); setView("scoring"); }}
+      ) : selectedExamId ? (
+        <ExamDetail 
+          examId={selectedExamId} 
+          onBack={() => setActiveTab('list')}
+          detailTab={detailTab}
+          setDetailTab={setDetailTab}
         />
-      )}
-      {view === "scoring" && selectedExamId && selectedCandidateId && (
-        <ScoringView
-          examId={selectedExamId}
-          candidateId={selectedCandidateId}
-          onBack={() => setView("detail")}
-        />
-      )}
+      ) : null}
     </div>
   );
 }
 
 // ==================== 考試列表 ====================
-function ExamList({ onSelectExam, showCreate, setShowCreate }: {
+function ExamList({ onSelectExam, showCreateForm, setShowCreateForm }: {
   onSelectExam: (id: number) => void;
-  showCreate: boolean;
-  setShowCreate: (v: boolean) => void;
+  showCreateForm: boolean;
+  setShowCreateForm: (v: boolean) => void;
 }) {
   const { data: exams, refetch } = trpc.exam.list.useQuery();
-  const createExam = trpc.exam.create.useMutation({ onSuccess: () => { refetch(); setShowCreate(false); toast.success("考試已創建"); } });
-  const deleteExam = trpc.exam.delete.useMutation({ onSuccess: () => { refetch(); toast.success("已刪除"); } });
+  const createExam = trpc.exam.create.useMutation({ onSuccess: () => { refetch(); setShowCreateForm(false); toast.success('考試已建立'); } });
+  const deleteExam = trpc.exam.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
 
-  const [form, setForm] = useState({ name: "", examDate: "", location: "", description: "" });
+  const [name, setName] = useState('');
+  const [examDate, setExamDate] = useState('');
+  const [location, setLocation] = useState('');
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold flex items-center gap-2">
-          <Award className="w-5 h-5 text-red-600" /> 考試管理
+          <Award className="w-5 h-5 text-red-600" />
+          考試管理
         </h2>
-        <Button size="sm" onClick={() => setShowCreate(!showCreate)}>
+        <Button size="sm" onClick={() => setShowCreateForm(!showCreateForm)} className="bg-red-600 hover:bg-red-700 text-white">
           <Plus className="w-4 h-4 mr-1" /> 新增考試
         </Button>
       </div>
 
-      {showCreate && (
-        <div className="border rounded-lg p-4 mb-4 bg-gray-50 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input placeholder="考試名稱 *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-            <Input type="date" value={form.examDate} onChange={e => setForm({ ...form, examDate: e.target.value })} />
-            <Input placeholder="地點" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
-            <Input placeholder="描述" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+      {showCreateForm && (
+        <div className="bg-white rounded-lg border p-4 space-y-3">
+          <h3 className="font-semibold">建立新考試</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input placeholder="考試名稱（如：2025年3月升帶考試）" value={name} onChange={e => setName(e.target.value)} />
+            <Input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} />
+            <Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} />
           </div>
           <div className="flex gap-2">
             <Button size="sm" onClick={() => {
-              if (!form.name || !form.examDate) { toast.error("請填寫名稱和日期"); return; }
-              createExam.mutate({ name: form.name, examDate: new Date(form.examDate), location: form.location || undefined, description: form.description || undefined });
+              if (!name || !examDate) { toast.error('請填寫名稱和日期'); return; }
+              createExam.mutate({ name, examDate: new Date(examDate), location: location || undefined });
             }} disabled={createExam.isPending}>
-              {createExam.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} 確認
+              {createExam.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : '建立'}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
+            <Button size="sm" variant="outline" onClick={() => setShowCreateForm(false)}>取消</Button>
           </div>
         </div>
       )}
 
-      {exams && exams.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          <Award className="w-12 h-12 mx-auto mb-2 opacity-30" />
-          <p>尚無考試記錄</p>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        {exams?.map((exam: any) => {
-          const st = STATUS_CONFIG[exam.status] || STATUS_CONFIG.draft;
-          const Icon = st.icon;
+      <div className="space-y-3">
+        {(!exams || exams.length === 0) ? (
+          <div className="text-center text-gray-400 py-8">
+            <Award className="w-12 h-12 mx-auto mb-2 opacity-30" />
+            <p>尚無考試記錄</p>
+          </div>
+        ) : exams.map((exam: any) => {
+          const statusInfo = EXAM_STATUS_CONFIG[exam.status] || EXAM_STATUS_CONFIG.draft;
           return (
-            <div key={exam.id} className="border rounded-lg p-3 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
+            <div key={exam.id} className="bg-white rounded-lg border p-4 hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => onSelectExam(exam.id)}>
-              <div className="flex items-center gap-3">
-                <div className={`px-2 py-1 rounded text-xs font-medium ${st.color}`}>
-                  <Icon className="w-3 h-3 inline mr-1" /> {st.label}
-                </div>
+              <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-medium">{exam.name}</div>
-                  <div className="text-xs text-gray-500">
-                    {new Date(exam.examDate).toLocaleDateString('zh-TW')}
-                    {exam.location && ` · ${exam.location}`}
+                  <h3 className="font-semibold text-base">{exam.name}</h3>
+                  <div className="text-sm text-gray-500 flex items-center gap-3 mt-1">
+                    <span>📅 {new Date(exam.examDate).toLocaleDateString('zh-TW')}</span>
+                    {exam.location && <span>📍 {exam.location}</span>}
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="ghost" className="text-red-500 h-7 w-7 p-0"
-                  onClick={(e) => { e.stopPropagation(); if (confirm("確定刪除？")) deleteExam.mutate({ id: exam.id }); }}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                    {statusInfo.label}
+                  </span>
+                  <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700"
+                    onClick={(e) => { e.stopPropagation(); if (confirm('確定刪除此考試？')) deleteExam.mutate({ id: exam.id }); }}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           );
@@ -185,426 +167,719 @@ function ExamList({ onSelectExam, showCreate, setShowCreate }: {
 }
 
 // ==================== 考試詳情 ====================
-function ExamDetail({ examId, onBack, onStartScoring }: {
+function ExamDetail({ examId, onBack, detailTab, setDetailTab }: {
   examId: number;
   onBack: () => void;
-  onStartScoring: (candidateId: number) => void;
+  detailTab: 'candidates' | 'scoring' | 'results';
+  setDetailTab: (t: 'candidates' | 'scoring' | 'results') => void;
 }) {
-  const { data: exam } = trpc.exam.get.useQuery({ id: examId });
-  const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: exam, refetch: refetchExam } = trpc.exam.get.useQuery({ id: examId });
   const { data: stats } = trpc.exam.statistics.useQuery({ examId });
-  const { data: allStudents } = trpc.students.getAll.useQuery();
-  const { data: allEvents } = trpc.events.getAll.useQuery();
+  const updateExam = trpc.exam.update.useMutation({ onSuccess: () => { refetchExam(); toast.success('已更新'); } });
 
-  const updateExam = trpc.exam.update.useMutation({ onSuccess: () => toast.success("狀態已更新") });
-  const createCandidate = trpc.exam.candidates.create.useMutation({ onSuccess: () => { refetchCandidates(); toast.success("已新增考生"); } });
-  const deleteCandidate = trpc.exam.candidates.delete.useMutation({ onSuccess: () => { refetchCandidates(); toast.success("已刪除"); } });
-  const importFromEvent = trpc.exam.candidates.importFromEvent.useMutation({ onSuccess: (d: any) => { refetchCandidates(); toast.success(`已導入 ${d.imported} 位考生`); } });
-  const promoteAll = trpc.exam.promoteAll.useMutation({ onSuccess: (d: any) => { refetchCandidates(); toast.success(`已升帶 ${d.promoted} 位學生`); } });
-  const initScoring = trpc.exam.scoringItems.initForBelt.useMutation({ onSuccess: (d: any) => toast.success(`已初始化 ${d.count} 個評分項目`) });
+  if (!exam) return <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
 
-  const [showAddCandidate, setShowAddCandidate] = useState(false);
-  const [addForm, setAddForm] = useState({ studentId: "", name: "", phone: "", currentBelt: "白帶", targetBelt: "黃帶", gender: "male" as "male" | "female" });
-  const [filterBelt, setFilterBelt] = useState<string>("all");
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
-
-  // 過濾考生
-  const filteredCandidates = useMemo(() => {
-    if (!candidates) return [];
-    if (filterBelt === "all") return candidates;
-    return candidates.filter((c: any) => c.currentBelt === filterBelt);
-  }, [candidates, filterBelt]);
-
-  // 取得帶級統計
-  const beltStats = useMemo(() => {
-    if (!candidates) return {};
-    const map: Record<string, number> = {};
-    candidates.forEach((c: any) => { map[c.currentBelt] = (map[c.currentBelt] || 0) + 1; });
-    return map;
-  }, [candidates]);
-
-  // 選擇學生時自動填入
-  const handleSelectStudent = (studentId: string) => {
-    const student = allStudents?.find((s: any) => s.id === parseInt(studentId));
-    if (student) {
-      const belt = student.beltLevel || "白帶";
-      const UPGRADE: Record<string, string> = { '白帶':'黃帶','黃帶':'黃綠帶','黃綠帶':'綠帶','綠帶':'綠藍帶','綠藍帶':'藍帶','藍帶':'藍紅帶','藍紅帶':'紅帶','紅帶':'紅黑帶','紅黑帶':'黑帶','黑帶':'黑帶二段','黑帶二段':'黑帶三段' };
-      setAddForm({
-        studentId: studentId,
-        name: student.name,
-        phone: student.phone || "",
-        currentBelt: belt,
-        targetBelt: UPGRADE[belt] || "黃帶",
-        gender: "male",
-      });
-    }
-  };
-
-  // 考試中用到的帶級列表
-  const usedBelts = useMemo(() => {
-    if (!candidates || candidates.length === 0) return [];
-    const belts = new Set(candidates.map((c: any) => c.currentBelt));
-    return BELT_LEVELS.filter(b => belts.has(b.key));
-  }, [candidates]);
-
-  // 考試相關的活動（type = exam）
-  const examEvents = useMemo(() => {
-    if (!allEvents) return [];
-    return allEvents.filter((e: any) => e.type === 'exam');
-  }, [allEvents]);
+  const statusInfo = EXAM_STATUS_CONFIG[exam.status] || EXAM_STATUS_CONFIG.draft;
 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <Button size="sm" variant="ghost" onClick={onBack}>← 返回</Button>
-        <h2 className="text-lg font-bold">{exam?.name || "載入中..."}</h2>
-        {exam && (
-          <span className={`px-2 py-0.5 rounded text-xs ${STATUS_CONFIG[exam.status]?.color}`}>
-            {STATUS_CONFIG[exam.status]?.label}
-          </span>
-        )}
+        <div className="flex-1">
+          <h2 className="text-lg font-bold">{exam.name}</h2>
+          <div className="text-sm text-gray-500 flex items-center gap-3">
+            <span>📅 {new Date(exam.examDate).toLocaleDateString('zh-TW')}</span>
+            {exam.location && <span>📍 {exam.location}</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
+          {/* Status change buttons */}
+          {exam.status === 'draft' && (
+            <Button size="sm" variant="outline" onClick={() => updateExam.mutate({ id: examId, status: 'scheduled' })}>
+              排程
+            </Button>
+          )}
+          {exam.status === 'scheduled' && (
+            <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-white" 
+              onClick={() => updateExam.mutate({ id: examId, status: 'in_progress' })}>
+              開始考試
+            </Button>
+          )}
+          {exam.status === 'in_progress' && (
+            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => updateExam.mutate({ id: examId, status: 'completed' })}>
+              完成考試
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* 統計卡片 */}
+      {/* Stats */}
       {stats && (
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          <div className="bg-gray-50 rounded p-2 text-center">
-            <div className="text-xs text-gray-500">總人數</div>
-            <div className="text-lg font-bold">{stats.total}</div>
-          </div>
-          <div className="bg-green-50 rounded p-2 text-center">
-            <div className="text-xs text-green-600">合格</div>
-            <div className="text-lg font-bold text-green-700">{stats.passed}</div>
-          </div>
-          <div className="bg-red-50 rounded p-2 text-center">
-            <div className="text-xs text-red-600">不合格</div>
-            <div className="text-lg font-bold text-red-700">{stats.failed}</div>
-          </div>
-          <div className="bg-yellow-50 rounded p-2 text-center">
-            <div className="text-xs text-yellow-600">評分中</div>
-            <div className="text-lg font-bold text-yellow-700">{stats.examining}</div>
-          </div>
-          <div className="bg-gray-50 rounded p-2 text-center">
-            <div className="text-xs text-gray-500">待考</div>
-            <div className="text-lg font-bold">{stats.registered}</div>
-          </div>
-          <div className="bg-amber-50 rounded p-2 text-center">
-            <div className="text-xs text-amber-600">叻叻獎</div>
-            <div className="text-lg font-bold text-amber-700">{stats.lakLakCount}</div>
-          </div>
+          <StatCard label="總人數" value={stats.total} color="text-gray-700" />
+          <StatCard label="合格" value={stats.passed} color="text-green-600" />
+          <StatCard label="不合格" value={stats.failed} color="text-red-600" />
+          <StatCard label="評分中" value={stats.examining} color="text-yellow-600" />
+          <StatCard label="缺席" value={stats.absent} color="text-gray-400" />
+          <StatCard label="叻叻獎" value={stats.lakLakCount} color="text-amber-500" />
         </div>
       )}
 
-      {/* 操作區 */}
-      <div className="flex flex-wrap gap-2">
-        <Select value={exam?.status || 'draft'} onValueChange={(v) => updateExam.mutate({ id: examId, status: v as any })}>
-          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="draft">草稿</SelectItem>
-            <SelectItem value="scheduled">已排程</SelectItem>
-            <SelectItem value="in_progress">進行中</SelectItem>
-            <SelectItem value="completed">已完成</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button size="sm" variant="outline" onClick={() => setShowAddCandidate(!showAddCandidate)}>
-          <Plus className="w-3 h-3 mr-1" /> 新增考生
-        </Button>
-
-        {examEvents.length > 0 && (
-          <div className="flex items-center gap-1">
-            <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-              <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="選擇活動..." /></SelectTrigger>
-              <SelectContent>
-                {examEvents.map((e: any) => (
-                  <SelectItem key={e.id} value={String(e.id)}>{e.title}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button size="sm" variant="outline" className="h-8 text-xs"
-              disabled={!selectedEventId || importFromEvent.isPending}
-              onClick={() => importFromEvent.mutate({ examId, eventId: parseInt(selectedEventId) })}>
-              {importFromEvent.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "導入報名"}
-            </Button>
-          </div>
-        )}
-
-        {/* 初始化評分項目 */}
-        {usedBelts.map(b => (
-          <Button key={b.key} size="sm" variant="outline" className="h-8 text-xs"
-            onClick={() => initScoring.mutate({ beltLevel: b.key })}>
-            初始化 {b.name} 評分
-          </Button>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        {[
+          { key: 'candidates' as const, label: '考生管理', icon: Users },
+          { key: 'scoring' as const, label: '評分', icon: ClipboardCheck },
+          { key: 'results' as const, label: '成績/升帶', icon: Trophy },
+        ].map(tab => (
+          <button key={tab.key}
+            className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              detailTab === tab.key ? 'bg-white shadow text-red-700' : 'text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => setDetailTab(tab.key)}>
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
         ))}
-
-        {exam?.status === 'completed' && (
-          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white h-8"
-            onClick={() => { if (confirm("確定要批量升帶所有合格考生？")) promoteAll.mutate({ examId }); }}>
-            <ArrowUpCircle className="w-3 h-3 mr-1" /> 批量升帶
-          </Button>
-        )}
       </div>
 
-      {/* 新增考生 */}
-      {showAddCandidate && (
-        <div className="border rounded-lg p-3 bg-gray-50 space-y-2">
-          <div className="text-sm font-medium">新增考生</div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Select value={addForm.studentId} onValueChange={handleSelectStudent}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="選擇學生（可選）" /></SelectTrigger>
-              <SelectContent>
-                {allStudents?.map((s: any) => (
-                  <SelectItem key={s.id} value={String(s.id)}>{s.name} ({s.beltLevel || '未設定'})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input className="h-8 text-xs" placeholder="姓名 *" value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} />
-            <Input className="h-8 text-xs" placeholder="電話" value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} />
-            <Select value={addForm.currentBelt} onValueChange={v => {
-              const UPGRADE: Record<string, string> = { '白帶':'黃帶','黃帶':'黃綠帶','黃綠帶':'綠帶','綠帶':'綠藍帶','綠藍帶':'藍帶','藍帶':'藍紅帶','藍紅帶':'紅帶','紅帶':'紅黑帶','紅黑帶':'黑帶','黑帶':'黑帶二段','黑帶二段':'黑帶三段' };
-              setAddForm({ ...addForm, currentBelt: v, targetBelt: UPGRADE[v] || v });
-            }}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {BELT_LEVELS.map(b => (<SelectItem key={b.key} value={b.key}>{b.name}</SelectItem>))}
-              </SelectContent>
-            </Select>
-            <Select value={addForm.targetBelt} onValueChange={v => setAddForm({ ...addForm, targetBelt: v })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {BELT_LEVELS.map(b => (<SelectItem key={b.key} value={b.key}>{b.name}</SelectItem>))}
-              </SelectContent>
-            </Select>
-            <Select value={addForm.gender} onValueChange={(v: any) => setAddForm({ ...addForm, gender: v })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="male">男</SelectItem>
-                <SelectItem value="female">女</SelectItem>
-              </SelectContent>
-            </Select>
+      {/* Tab Content */}
+      {detailTab === 'candidates' && <CandidateManagement examId={examId} />}
+      {detailTab === 'scoring' && <ScoringPanel examId={examId} />}
+      {detailTab === 'results' && <ResultsPanel examId={examId} />}
+    </div>
+  );
+}
+
+function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="bg-white rounded-lg border p-2 text-center">
+      <div className={`text-xl font-bold ${color}`}>{value}</div>
+      <div className="text-xs text-gray-500">{label}</div>
+    </div>
+  );
+}
+
+// ==================== 考生管理 ====================
+function CandidateManagement({ examId }: { examId: number }) {
+  const { data: candidates, refetch } = trpc.exam.candidates.list.useQuery({ examId });
+  const createCandidate = trpc.exam.candidates.create.useMutation({ onSuccess: () => { refetch(); toast.success('已新增考生'); } });
+  const deleteCandidate = trpc.exam.candidates.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
+  const importFromEvent = trpc.exam.candidates.importFromEvent.useMutation({ 
+    onSuccess: (data) => { refetch(); toast.success(`已匯入 ${data.imported} 位考生`); } 
+  });
+  
+  const [showAdd, setShowAdd] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addPhone, setAddPhone] = useState('');
+  const [addCurrentBelt, setAddCurrentBelt] = useState('白帶');
+  const [addTargetBelt, setAddTargetBelt] = useState('黃帶');
+  const [showImport, setShowImport] = useState(false);
+
+  // 從活動匯入 - 取得所有考試類型活動
+  const { data: allEvents } = trpc.events.getAll.useQuery({ type: 'exam' });
+
+  // 按帶級分組
+  const grouped = candidates ? candidates.reduce((acc: Record<string, any[]>, c: any) => {
+    const belt = c.currentBelt || '未知';
+    if (!acc[belt]) acc[belt] = [];
+    acc[belt].push(c);
+    return acc;
+  }, {}) : {};
+
+  const sortedBelts = Object.keys(grouped).sort((a, b) => {
+    const ia = BELT_ORDER.indexOf(a);
+    const ib = BELT_ORDER.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button size="sm" onClick={() => setShowAdd(!showAdd)} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <UserPlus className="w-4 h-4 mr-1" /> 新增考生
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setShowImport(!showImport)}>
+          <Upload className="w-4 h-4 mr-1" /> 從活動匯入
+        </Button>
+        <span className="text-sm text-gray-500">共 {candidates?.length || 0} 位考生</span>
+      </div>
+
+      {/* 從活動匯入 */}
+      {showImport && (
+        <div className="bg-blue-50 rounded-lg border border-blue-200 p-3 space-y-2">
+          <p className="text-sm font-medium text-blue-700">選擇考試活動匯入報名學生：</p>
+          {allEvents && allEvents.length > 0 ? (
+            <div className="space-y-1">
+              {allEvents.map((ev: any) => (
+                <div key={ev.id} className="flex items-center justify-between bg-white rounded p-2">
+                  <span className="text-sm">{ev.title} ({new Date(ev.eventDate).toLocaleDateString('zh-TW')})</span>
+                  <Button size="sm" variant="outline" 
+                    onClick={() => importFromEvent.mutate({ examId, eventId: ev.id })}
+                    disabled={importFromEvent.isPending}>
+                    {importFromEvent.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : '匯入'}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">沒有考試類型的活動</p>
+          )}
+        </div>
+      )}
+
+      {/* 新增表單 */}
+      {showAdd && (
+        <div className="bg-white rounded-lg border p-3 space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Input placeholder="姓名" value={addName} onChange={e => setAddName(e.target.value)} />
+            <Input placeholder="電話" value={addPhone} onChange={e => setAddPhone(e.target.value)} />
+            <select value={addCurrentBelt} onChange={e => {
+              setAddCurrentBelt(e.target.value);
+              const nextIdx = BELT_ORDER.indexOf(e.target.value) + 1;
+              setAddTargetBelt(BELT_ORDER[nextIdx] || e.target.value);
+            }} className="border rounded-md px-2 py-1 text-sm">
+              {BELT_ORDER.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <select value={addTargetBelt} onChange={e => setAddTargetBelt(e.target.value)} className="border rounded-md px-2 py-1 text-sm">
+              {BELT_ORDER.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" className="h-7 text-xs" onClick={() => {
-              if (!addForm.name) { toast.error("請輸入姓名"); return; }
-              createCandidate.mutate({
-                examId,
-                studentId: addForm.studentId ? parseInt(addForm.studentId) : undefined,
-                name: addForm.name,
-                phone: addForm.phone || undefined,
-                gender: addForm.gender,
-                currentBelt: addForm.currentBelt,
-                targetBelt: addForm.targetBelt,
-              });
-              setAddForm({ studentId: "", name: "", phone: "", currentBelt: "白帶", targetBelt: "黃帶", gender: "male" });
-            }}>確認</Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAddCandidate(false)}>取消</Button>
+            <Button size="sm" onClick={() => {
+              if (!addName) { toast.error('請填寫姓名'); return; }
+              createCandidate.mutate({ examId, name: addName, phone: addPhone || undefined, currentBelt: addCurrentBelt, targetBelt: addTargetBelt });
+              setAddName(''); setAddPhone('');
+            }} disabled={createCandidate.isPending}>
+              新增
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
           </div>
         </div>
       )}
 
-      {/* 帶級過濾 */}
-      <div className="flex flex-wrap gap-1">
-        <button className={`px-2 py-1 rounded text-xs ${filterBelt === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100'}`}
-          onClick={() => setFilterBelt("all")}>全部 ({candidates?.length || 0})</button>
-        {Object.entries(beltStats).map(([belt, count]) => (
-          <button key={belt} className={`px-2 py-1 rounded text-xs ${filterBelt === belt ? 'bg-gray-800 text-white' : 'bg-gray-100'}`}
-            onClick={() => setFilterBelt(belt)}>{belt} ({count})</button>
-        ))}
-      </div>
-
-      {/* 考生列表 */}
-      <div className="space-y-1">
-        {filteredCandidates.map((c: any) => {
-          const st = CANDIDATE_STATUS[c.status] || CANDIDATE_STATUS.registered;
-          const beltDef = BELT_LEVELS.find(b => b.key === c.currentBelt);
-          return (
-            <div key={c.id} className="border rounded-lg p-2 flex items-center justify-between hover:bg-gray-50">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full border-2 flex-shrink-0"
-                  style={{ backgroundColor: beltDef?.color || '#ccc', borderColor: beltDef?.border || '#999' }} />
-                <div>
-                  <div className="font-medium text-sm flex items-center gap-1">
-                    {c.name}
-                    {c.hasLakLakAward && <Star className="w-3 h-3 text-amber-500 fill-amber-500" />}
+      {/* 考生列表（按帶級分組） */}
+      {sortedBelts.map(belt => (
+        <div key={belt} className="space-y-1">
+          <div className="flex items-center gap-2 py-1">
+            {getBeltBadge(belt)}
+            <span className="text-xs text-gray-500">({grouped[belt].length}人)</span>
+          </div>
+          <div className="bg-white rounded-lg border divide-y">
+            {grouped[belt].map((c: any) => {
+              const statusCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.registered;
+              const StatusIcon = statusCfg.icon;
+              return (
+                <div key={c.id} className="flex items-center justify-between px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <StatusIcon className={`w-4 h-4 ${statusCfg.color}`} />
+                    <span className="text-sm font-medium">{c.name}</span>
+                    {c.phone && <span className="text-xs text-gray-400">{c.phone}</span>}
+                    <span className="text-xs text-gray-400">→ {c.targetBelt}</span>
+                    {c.hasLakLakAward && <span className="text-xs bg-amber-100 text-amber-700 px-1 rounded">⭐ 叻叻獎</span>}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {c.currentBelt} → {c.targetBelt}
-                    {c.groupCode && ` · ${c.groupCode}組`}
-                    {c.phone && ` · ${c.phone}`}
+                  <div className="flex items-center gap-1">
+                    <span className={`text-xs ${statusCfg.color}`}>{statusCfg.label}</span>
+                    <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-600 h-7 w-7 p-0"
+                      onClick={() => { if (confirm(`刪除 ${c.name}？`)) deleteCandidate.mutate({ id: c.id }); }}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ==================== 評分面板 ====================
+function ScoringPanel({ examId }: { examId: number }) {
+  const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
+  const [selectedBelt, setSelectedBelt] = useState<string>('');
+
+  // 初始化評分項目
+  const initForBelt = trpc.exam.scoringItems.initForBelt.useMutation({
+    onSuccess: (data) => toast.success(`已初始化 ${data.count} 個評分項目`),
+  });
+
+  // 按帶級分組
+  const grouped = candidates ? candidates.reduce((acc: Record<string, any[]>, c: any) => {
+    const belt = c.currentBelt || '未知';
+    if (!acc[belt]) acc[belt] = [];
+    acc[belt].push(c);
+    return acc;
+  }, {}) : {};
+
+  const sortedBelts = Object.keys(grouped).sort((a, b) => {
+    const ia = BELT_ORDER.indexOf(a);
+    const ib = BELT_ORDER.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
+  // 篩選
+  const filteredCandidates = selectedBelt
+    ? (grouped[selectedBelt] || [])
+    : (candidates || []);
+
+  return (
+    <div className="space-y-4">
+      {/* 帶級篩選 + 初始化評分項目 */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <select value={selectedBelt} onChange={e => { setSelectedBelt(e.target.value); setSelectedCandidateId(null); }}
+          className="border rounded-md px-2 py-1 text-sm">
+          <option value="">全部帶級</option>
+          {sortedBelts.map(b => <option key={b} value={b}>{b} ({grouped[b].length})</option>)}
+        </select>
+        {selectedBelt && (
+          <Button size="sm" variant="outline" onClick={() => {
+            // 使用預設的評分項目（根據帶級）
+            const items = getDefaultScoringItems(selectedBelt);
+            if (items.length === 0) { toast.error('無可用評分項目'); return; }
+            initForBelt.mutate({ beltLevel: selectedBelt, items });
+          }} disabled={initForBelt.isPending}>
+            {initForBelt.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : '初始化評分項目'}
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* 左側：考生列表 */}
+        <div className="lg:col-span-1 space-y-1 max-h-[600px] overflow-y-auto">
+          {filteredCandidates.map((c: any) => {
+            const statusCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.registered;
+            const isSelected = selectedCandidateId === c.id;
+            return (
+              <div key={c.id}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                  isSelected ? 'bg-red-50 border border-red-300' : 'bg-white border hover:bg-gray-50'
+                }`}
+                onClick={() => setSelectedCandidateId(c.id)}>
+                <statusCfg.icon className={`w-4 h-4 ${statusCfg.color} flex-shrink-0`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{c.name}</div>
+                  <div className="text-xs text-gray-400">{c.currentBelt} → {c.targetBelt}</div>
+                </div>
+                {c.hasLakLakAward && <span className="text-amber-500 text-xs">⭐</span>}
               </div>
-              <div className="flex items-center gap-1">
-                <span className={`px-2 py-0.5 rounded text-xs ${st.color}`}>{st.label}</span>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
-                  onClick={() => onStartScoring(c.id)}>
-                  <ClipboardCheck className="w-4 h-4 text-blue-600" />
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500"
-                  onClick={() => { if (confirm(`刪除考生 ${c.name}？`)) deleteCandidate.mutate({ id: c.id }); }}>
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              </div>
+            );
+          })}
+        </div>
+
+        {/* 右側：評分表單 */}
+        <div className="lg:col-span-2">
+          {selectedCandidateId ? (
+            <ScoringForm candidateId={selectedCandidateId} onScored={() => refetchCandidates()} />
+          ) : (
+            <div className="bg-white rounded-lg border p-8 text-center text-gray-400">
+              <ClipboardCheck className="w-12 h-12 mx-auto mb-2 opacity-30" />
+              <p>請從左側選擇考生進行評分</p>
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// ==================== 評分頁面 ====================
-function ScoringView({ examId, candidateId, onBack }: {
-  examId: number;
-  candidateId: number;
-  onBack: () => void;
-}) {
+// ==================== 評分表單 ====================
+function ScoringForm({ candidateId, onScored }: { candidateId: number; onScored: () => void }) {
   const { data: candidate } = trpc.exam.candidates.get.useQuery({ id: candidateId });
   const { data: scoringItems } = trpc.exam.scoringItems.listByBelt.useQuery(
-    { beltLevel: candidate?.currentBelt || "" },
-    { enabled: !!candidate?.currentBelt }
+    { beltLevel: candidate?.currentBelt || '' },
+    { enabled: !!candidate }
   );
   const { data: existingScores, refetch: refetchScores } = trpc.exam.scores.getByCandidate.useQuery({ candidateId });
   const bulkUpsert = trpc.exam.scores.bulkUpsert.useMutation({
-    onSuccess: () => { refetchScores(); toast.success("評分已儲存"); },
-  });
-  const promote = trpc.exam.promote.useMutation({
-    onSuccess: (d: any) => {
-      if (d.success) toast.success(`已升帶至 ${d.newBelt}`);
-      else toast.error("升帶失敗（學生可能未關聯）");
-    },
+    onSuccess: () => { refetchScores(); onScored(); toast.success('評分已保存'); },
   });
 
-  const [localScores, setLocalScores] = useState<Record<number, string>>({});
+  const [scores, setScores] = useState<Record<number, string>>({});
 
-  // 合併已有評分
-  const getScore = (itemId: number): string => {
-    if (localScores[itemId] !== undefined) return localScores[itemId];
-    const existing = existingScores?.find((s: any) => s.item.id === itemId);
-    return existing?.score?.score || "";
+  // 載入已有評分
+  useEffect(() => {
+    if (existingScores) {
+      const existing: Record<number, string> = {};
+      existingScores.forEach((s: any) => {
+        if (s.score?.score) existing[s.score.scoringItemId] = s.score.score;
+      });
+      setScores(existing);
+    }
+  }, [existingScores]);
+
+  if (!candidate || !scoringItems) {
+    return <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
+  }
+
+  const handleSave = () => {
+    const scoreList = Object.entries(scores)
+      .filter(([_, v]) => v)
+      .map(([itemId, score]) => ({
+        scoringItemId: parseInt(itemId),
+        score,
+      }));
+    if (scoreList.length === 0) { toast.error('請至少評一個項目'); return; }
+    bulkUpsert.mutate({ candidateId, scores: scoreList });
   };
 
-  const setScore = (itemId: number, value: string) => {
-    setLocalScores(prev => ({ ...prev, [itemId]: value }));
+  const statusCfg = STATUS_CONFIG[candidate.status] || STATUS_CONFIG.registered;
+
+  // 按分類分組
+  const categorizedItems = scoringItems.reduce((acc: Record<string, any[]>, item: any) => {
+    const cat = item.category || 'other';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(item);
+    return acc;
+  }, {});
+
+  const CATEGORY_NAMES: Record<string, string> = {
+    fitness: '體能',
+    poomsae: '品勢',
+    technique: '手把動作',
+    board: '踢木板',
+    split: '一字馬',
+    side_split: '大字馬',
+    sparring: '搏擊',
+    competition: '外出比賽',
+    other: '其他',
   };
 
-  const handleSaveAll = () => {
-    if (!scoringItems) return;
-    const scores = scoringItems.map((item: any) => ({
-      scoringItemId: item.id,
-      score: getScore(item.id),
-    })).filter((s: any) => s.score !== "");
-    if (scores.length === 0) { toast.error("請至少評一項分"); return; }
-    bulkUpsert.mutate({ candidateId, scores });
+  const CATEGORY_COLORS: Record<string, string> = {
+    fitness: 'bg-blue-50 border-blue-200',
+    poomsae: 'bg-purple-50 border-purple-200',
+    technique: 'bg-green-50 border-green-200',
+    board: 'bg-orange-50 border-orange-200',
+    split: 'bg-pink-50 border-pink-200',
+    side_split: 'bg-pink-50 border-pink-200',
+    sparring: 'bg-red-50 border-red-200',
+    competition: 'bg-indigo-50 border-indigo-200',
+    other: 'bg-gray-50 border-gray-200',
   };
-
-  // 按分類分組評分項目
-  const groupedItems = useMemo(() => {
-    if (!scoringItems) return {};
-    const groups: Record<string, any[]> = {};
-    scoringItems.forEach((item: any) => {
-      const cat = item.category || 'other';
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(item);
-    });
-    return groups;
-  }, [scoringItems]);
-
-  const beltDef = BELT_LEVELS.find(b => b.key === candidate?.currentBelt);
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <Button size="sm" variant="ghost" onClick={onBack}>← 返回</Button>
-        <div className="w-5 h-5 rounded-full border-2 flex-shrink-0"
-          style={{ backgroundColor: beltDef?.color || '#ccc', borderColor: beltDef?.border || '#999' }} />
-        <h2 className="text-lg font-bold">{candidate?.name}</h2>
-        <span className="text-sm text-gray-500">{candidate?.currentBelt} → {candidate?.targetBelt}</span>
-        {candidate && (
-          <span className={`px-2 py-0.5 rounded text-xs ${CANDIDATE_STATUS[candidate.status]?.color}`}>
-            {CANDIDATE_STATUS[candidate.status]?.label}
-          </span>
-        )}
+    <div className="bg-white rounded-lg border p-4 space-y-4">
+      {/* 考生資訊 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-bold">{candidate.name}</h3>
+          {getBeltBadge(candidate.currentBelt)}
+          <span className="text-gray-400">→</span>
+          {getBeltBadge(candidate.targetBelt)}
+        </div>
+        <div className="flex items-center gap-2">
+          <statusCfg.icon className={`w-5 h-5 ${statusCfg.color}`} />
+          <span className={`text-sm font-medium ${statusCfg.color}`}>{statusCfg.label}</span>
+          {candidate.hasLakLakAward && (
+            <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-medium">⭐ 叻叻獎</span>
+          )}
+        </div>
       </div>
 
-      {/* 評分區域 */}
-      {Object.entries(groupedItems).map(([category, items]) => (
-        <div key={category} className="border rounded-lg overflow-hidden">
-          <div className={`px-3 py-2 text-sm font-medium ${CATEGORY_COLORS[category] || 'bg-gray-100'}`}>
-            {CATEGORY_NAMES[category] || category}
-          </div>
-          <div className="divide-y">
-            {items.map((item: any) => (
-              <div key={item.id} className="p-2 flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium">{item.name}</div>
-                  {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
+      {/* 評分項目（按分類） */}
+      <div className="space-y-3">
+        {Object.entries(categorizedItems).map(([cat, items]) => (
+          <div key={cat} className={`rounded-lg border p-3 ${CATEGORY_COLORS[cat] || 'bg-gray-50 border-gray-200'}`}>
+            <h4 className="text-sm font-semibold mb-2">{CATEGORY_NAMES[cat] || cat}</h4>
+            <div className="space-y-2">
+              {(items as any[]).map((item: any) => (
+                <div key={item.id} className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium">{item.name}</div>
+                    {item.description && <div className="text-xs text-gray-500 truncate">{item.description}</div>}
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    {item.type === 'grade' && GRADE_OPTIONS.map(opt => (
+                      <button key={opt}
+                        className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                          scores[item.id] === opt 
+                            ? opt === '不合格' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+                            : 'bg-white border hover:bg-gray-100'
+                        }`}
+                        onClick={() => setScores(prev => ({ ...prev, [item.id]: opt }))}>
+                        {opt}
+                      </button>
+                    ))}
+                    {item.type === 'pass_fail' && PASS_FAIL_OPTIONS.map(opt => (
+                      <button key={opt}
+                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                          scores[item.id] === opt
+                            ? opt === '不合格' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+                            : 'bg-white border hover:bg-gray-100'
+                        }`}
+                        onClick={() => setScores(prev => ({ ...prev, [item.id]: opt }))}>
+                        {opt}
+                      </button>
+                    ))}
+                    {item.type === 'yes_no' && YES_NO_OPTIONS.map(opt => (
+                      <button key={opt}
+                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                          scores[item.id] === opt
+                            ? opt === '沒有' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+                            : 'bg-white border hover:bg-gray-100'
+                        }`}
+                        onClick={() => setScores(prev => ({ ...prev, [item.id]: opt }))}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  {item.type === 'grade' && (
-                    <>
-                      {["A", "B", "C", "不合格"].map(grade => (
-                        <button key={grade}
-                          className={`px-2 py-1 rounded text-xs font-medium border transition-all ${
-                            getScore(item.id) === grade
-                              ? grade === "不合格" ? "bg-red-500 text-white border-red-500" :
-                                grade === "A" ? "bg-green-500 text-white border-green-500" :
-                                grade === "B" ? "bg-blue-500 text-white border-blue-500" :
-                                "bg-yellow-500 text-white border-yellow-500"
-                              : "bg-white hover:bg-gray-100 border-gray-300"
-                          }`}
-                          onClick={() => setScore(item.id, grade)}>
-                          {grade}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                  {item.type === 'pass_fail' && (
-                    <>
-                      <button className={`px-3 py-1 rounded text-xs font-medium border ${getScore(item.id) === '合格' ? 'bg-green-500 text-white' : 'bg-white border-gray-300'}`}
-                        onClick={() => setScore(item.id, '合格')}>合格</button>
-                      <button className={`px-3 py-1 rounded text-xs font-medium border ${getScore(item.id) === '不合格' ? 'bg-red-500 text-white' : 'bg-white border-gray-300'}`}
-                        onClick={() => setScore(item.id, '不合格')}>不合格</button>
-                    </>
-                  )}
-                  {item.type === 'yes_no' && (
-                    <>
-                      <button className={`px-3 py-1 rounded text-xs font-medium border ${getScore(item.id) === '有' ? 'bg-green-500 text-white' : 'bg-white border-gray-300'}`}
-                        onClick={() => setScore(item.id, '有')}>有</button>
-                      <button className={`px-3 py-1 rounded text-xs font-medium border ${getScore(item.id) === '沒有' ? 'bg-red-500 text-white' : 'bg-white border-gray-300'}`}
-                        onClick={() => setScore(item.id, '沒有')}>沒有</button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
-      {scoringItems && scoringItems.length === 0 && (
-        <div className="text-center py-6 text-gray-500">
-          <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">尚未初始化此帶級的評分項目</p>
-          <p className="text-xs mt-1">請返回考試詳情頁面，點擊「初始化 {candidate?.currentBelt} 評分」</p>
-        </div>
-      )}
-
-      {/* 底部操作 */}
-      <div className="flex gap-2 sticky bottom-0 bg-white py-3 border-t">
-        <Button onClick={handleSaveAll} disabled={bulkUpsert.isPending} className="flex-1">
-          {bulkUpsert.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
-          儲存評分
+      {/* 保存按鈕 */}
+      <div className="flex justify-end gap-2 pt-2 border-t">
+        <Button size="sm" onClick={handleSave} disabled={bulkUpsert.isPending}
+          className="bg-red-600 hover:bg-red-700 text-white">
+          {bulkUpsert.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+          保存評分
         </Button>
-        {candidate?.status === 'passed' && candidate?.studentId && (
-          <Button variant="outline" className="border-green-500 text-green-700"
-            onClick={() => promote.mutate({ candidateId })}>
-            <ArrowUpCircle className="w-4 h-4 mr-1" /> 升帶
-          </Button>
-        )}
       </div>
     </div>
   );
+}
+
+// ==================== 成績/升帶 ====================
+function ResultsPanel({ examId }: { examId: number }) {
+  const { data: candidates, refetch } = trpc.exam.candidates.list.useQuery({ examId });
+  const promoteAll = trpc.exam.promoteAll.useMutation({
+    onSuccess: (data) => {
+      refetch();
+      toast.success(`已升帶 ${data.promoted} 人${data.failed > 0 ? `，${data.failed} 人無法升帶` : ''}`);
+    },
+  });
+  const promoteSingle = trpc.exam.promote.useMutation({
+    onSuccess: (data) => {
+      refetch();
+      if (data.success) toast.success(`已升帶至 ${data.newBelt}`);
+      else toast.error('升帶失敗（可能未關聯學生）');
+    },
+  });
+
+  const passed = candidates?.filter((c: any) => c.status === 'passed') || [];
+  const failed = candidates?.filter((c: any) => c.status === 'failed') || [];
+  const examining = candidates?.filter((c: any) => c.status === 'examining') || [];
+  const other = candidates?.filter((c: any) => ['registered', 'checked_in', 'absent'].includes(c.status)) || [];
+
+  return (
+    <div className="space-y-4">
+      {/* 一鍵升帶 */}
+      {passed.length > 0 && (
+        <div className="bg-green-50 rounded-lg border border-green-200 p-4 flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-green-700">🎉 {passed.length} 位考生合格</h3>
+            <p className="text-sm text-green-600">可一鍵升帶，自動更新學生系統的帶級記錄</p>
+          </div>
+          <Button className="bg-green-600 hover:bg-green-700 text-white"
+            onClick={() => { if (confirm(`確定將 ${passed.length} 位合格考生全部升帶？`)) promoteAll.mutate({ examId }); }}
+            disabled={promoteAll.isPending}>
+            {promoteAll.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <ArrowUpCircle className="w-4 h-4 mr-1" />}
+            全部升帶
+          </Button>
+        </div>
+      )}
+
+      {/* 合格考生 */}
+      {passed.length > 0 && (
+        <ResultGroup title="✅ 合格" candidates={passed} color="green" 
+          onPromote={(id) => promoteSingle.mutate({ candidateId: id })}
+          promoteLoading={promoteSingle.isPending} />
+      )}
+
+      {/* 不合格 */}
+      {failed.length > 0 && (
+        <ResultGroup title="❌ 不合格" candidates={failed} color="red" />
+      )}
+
+      {/* 評分中 */}
+      {examining.length > 0 && (
+        <ResultGroup title="⏳ 評分中" candidates={examining} color="yellow" />
+      )}
+
+      {/* 其他 */}
+      {other.length > 0 && (
+        <ResultGroup title="📋 待處理" candidates={other} color="gray" />
+      )}
+
+      {(!candidates || candidates.length === 0) && (
+        <div className="text-center text-gray-400 py-8">
+          <Trophy className="w-12 h-12 mx-auto mb-2 opacity-30" />
+          <p>尚無考生</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResultGroup({ title, candidates, color, onPromote, promoteLoading }: {
+  title: string;
+  candidates: any[];
+  color: string;
+  onPromote?: (candidateId: number) => void;
+  promoteLoading?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  
+  return (
+    <div className="space-y-1">
+      <button className="flex items-center gap-2 w-full text-left py-1"
+        onClick={() => setExpanded(!expanded)}>
+        <span className="font-semibold text-sm">{title} ({candidates.length})</span>
+        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+      </button>
+      {expanded && (
+        <div className="bg-white rounded-lg border divide-y">
+          {candidates.map((c: any) => (
+            <div key={c.id} className="flex items-center justify-between px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{c.name}</span>
+                {getBeltBadge(c.currentBelt)}
+                <span className="text-gray-400">→</span>
+                {getBeltBadge(c.targetBelt)}
+                {c.hasLakLakAward && <span className="text-xs bg-amber-100 text-amber-700 px-1 rounded">⭐ 叻叻獎</span>}
+              </div>
+              {onPromote && (
+                <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50"
+                  onClick={() => onPromote(c.id)} disabled={promoteLoading}>
+                  <ArrowUpCircle className="w-3 h-3 mr-1" /> 升帶
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================== 預設評分項目（與考試系統一致） ====================
+function getDefaultScoringItems(belt: string): Array<{ name: string; description?: string; type: 'grade' | 'pass_fail' | 'yes_no'; category?: string; weight?: string }> {
+  const ITEMS: Record<string, Array<{ name: string; description?: string; type: 'grade' | 'pass_fail' | 'yes_no'; category?: string; weight?: string }>> = {
+    '白帶': [
+      { name: '掌上壓', description: '幼稚園5次/小學8次/中學或以上12次', type: 'grade', category: 'fitness' },
+      { name: '仰臥起坐', description: '幼稚園5次/小學8次/中學或以上12次', type: 'grade', category: 'fitness' },
+      { name: '蹲坐跳', description: '幼稚園5次/小學8次/中學或以上12次', type: 'grade', category: 'fitness' },
+      { name: '直拳', description: '直拳10次', type: 'grade', category: 'technique' },
+      { name: '前踢', description: '前踢5次左5次右', type: 'grade', category: 'technique' },
+      { name: 'cutdown', description: 'cutdown 5次左5次右', type: 'grade', category: 'technique' },
+      { name: '旋踢', description: '旋踢（小學以上）5次左5次右', type: 'grade', category: 'technique' },
+    ],
+    '黃帶': [
+      { name: '掌上壓', description: '幼稚園8次/小學12次/中學或以上16次', type: 'grade', category: 'fitness' },
+      { name: '仰臥起坐', description: '幼稚園8次/小學12次/中學或以上16次', type: 'grade', category: 'fitness' },
+      { name: '蹲坐跳', description: '幼稚園8次/小學12次/中學或以上16次', type: 'grade', category: 'fitness' },
+      { name: '太極一章', type: 'grade', category: 'poomsae', weight: '1.50' },
+      { name: '旋踢', description: '5次左5次右', type: 'grade', category: 'technique' },
+      { name: '上馬cut down', description: '5次左5次右', type: 'grade', category: 'technique' },
+    ],
+    '黃綠帶': [
+      { name: '掌上壓', description: '幼稚園10次/小學15次/中學或以上20次', type: 'grade', category: 'fitness' },
+      { name: '仰臥起坐', description: '幼稚園10次/小學15次/中學或以上20次', type: 'grade', category: 'fitness' },
+      { name: '蹲坐跳', description: '幼稚園10次/小學15次/中學或以上20次', type: 'grade', category: 'fitness' },
+      { name: '太極二章', type: 'grade', category: 'poomsae', weight: '1.50' },
+      { name: '跳躍旋踢', description: '5次左5次右', type: 'grade', category: 'technique' },
+      { name: '跳躍前踢', description: '5次左5次右', type: 'grade', category: 'technique' },
+      { name: '上中雙前踢', description: '10組', type: 'grade', category: 'technique' },
+    ],
+    '綠帶': [
+      { name: '掌上壓', description: '幼稚園10次/小學20次/中學或以上25次', type: 'grade', category: 'fitness' },
+      { name: '仰臥起坐', type: 'grade', category: 'fitness' },
+      { name: '蹲坐跳', type: 'grade', category: 'fitness' },
+      { name: '太極三章', type: 'grade', category: 'poomsae', weight: '1.50' },
+      { name: '後踢', description: '5次左5次右', type: 'grade', category: 'technique' },
+      { name: '跳躍cutdown', description: '5次左5次右', type: 'grade', category: 'technique' },
+      { name: '旋踢+旋踢+空中雙旋踢', description: '3次左3次右', type: 'grade', category: 'technique' },
+      { name: '旋踢(木板)', type: 'grade', category: 'board' },
+      { name: '前踢(木板)', type: 'grade', category: 'board' },
+      { name: 'cutdown(木板)', type: 'grade', category: 'board' },
+      { name: '搏擊', type: 'pass_fail', category: 'sparring' },
+    ],
+    '綠藍帶': [
+      { name: '掌上壓', type: 'grade', category: 'fitness' },
+      { name: '仰臥起坐', type: 'grade', category: 'fitness' },
+      { name: '蹲坐跳', type: 'grade', category: 'fitness' },
+      { name: '太極四章', type: 'grade', category: 'poomsae', weight: '1.50' },
+      { name: '側踢', description: '5次左5次右', type: 'grade', category: 'technique' },
+      { name: '旋踢+後踢', description: '5次左5次右', type: 'grade', category: 'technique' },
+      { name: '後踢(木板)', type: 'grade', category: 'board' },
+      { name: '跳躍cutdown(木板)', type: 'grade', category: 'board' },
+      { name: '跳躍旋踢(木板)', type: 'grade', category: 'board' },
+      { name: '搏擊', type: 'pass_fail', category: 'sparring' },
+    ],
+    '藍帶': [
+      { name: '掌上壓', type: 'grade', category: 'fitness' },
+      { name: '仰臥起坐', type: 'grade', category: 'fitness' },
+      { name: '蹲坐跳', type: 'grade', category: 'fitness' },
+      { name: '太極五章', type: 'grade', category: 'poomsae', weight: '1.50' },
+      { name: '跳躍側踢', type: 'grade', category: 'technique' },
+      { name: '跳躍後踢', type: 'grade', category: 'technique' },
+      { name: '360', type: 'grade', category: 'technique' },
+      { name: '肘擊(木板)', type: 'grade', category: 'board' },
+      { name: '側踢(木板)', type: 'grade', category: 'board' },
+      { name: '上馬後踢(木板)', type: 'grade', category: 'board' },
+      { name: '一字馬', type: 'pass_fail', category: 'split' },
+      { name: '搏擊', type: 'pass_fail', category: 'sparring' },
+    ],
+    '藍紅帶': [
+      { name: '掌上壓', type: 'grade', category: 'fitness' },
+      { name: '仰臥起坐', type: 'grade', category: 'fitness' },
+      { name: '蹲坐跳', type: 'grade', category: 'fitness' },
+      { name: '雙膝跳', type: 'grade', category: 'fitness' },
+      { name: '太極六章', type: 'grade', category: 'poomsae', weight: '1.50' },
+      { name: '太極一至五抽籤', type: 'grade', category: 'poomsae' },
+      { name: '跳躍側踢(木板)', type: 'grade', category: 'board' },
+      { name: '跳躍後踢(木板)', type: 'grade', category: 'board' },
+      { name: '360(木板)', type: 'grade', category: 'board' },
+      { name: '一字馬', type: 'pass_fail', category: 'split' },
+      { name: '大字馬', type: 'pass_fail', category: 'side_split' },
+      { name: '搏擊', type: 'pass_fail', category: 'sparring' },
+    ],
+    '紅帶': [
+      { name: '掌上壓', type: 'grade', category: 'fitness' },
+      { name: '仰臥起坐', type: 'grade', category: 'fitness' },
+      { name: '蹲坐跳', type: 'grade', category: 'fitness' },
+      { name: '雙膝跳', type: 'grade', category: 'fitness' },
+      { name: '太極七章', type: 'grade', category: 'poomsae', weight: '1.50' },
+      { name: '太極一至六抽籤', type: 'grade', category: 'poomsae' },
+      { name: '原地空中雙旋踢', type: 'grade', category: 'technique' },
+      { name: '跳躍空中側踢', type: 'grade', category: 'technique' },
+      { name: '後旋踢', type: 'grade', category: 'technique' },
+      { name: '跳躍雙前踢(木板)', type: 'grade', category: 'board' },
+      { name: '空中雙旋踢(木板)', type: 'grade', category: 'board' },
+      { name: '一字馬', type: 'pass_fail', category: 'split' },
+      { name: '大字馬', type: 'pass_fail', category: 'side_split' },
+      { name: '搏擊', type: 'pass_fail', category: 'sparring' },
+      { name: '外出比賽一次', type: 'yes_no', category: 'competition' },
+    ],
+    '紅黑帶': [
+      { name: '掌上壓', type: 'grade', category: 'fitness' },
+      { name: '仰臥起坐', type: 'grade', category: 'fitness' },
+      { name: '蹲坐跳', type: 'grade', category: 'fitness' },
+      { name: '雙膝跳', type: 'grade', category: 'fitness' },
+      { name: '太極一至八章', type: 'grade', category: 'poomsae', weight: '1.50' },
+      { name: '一字馬', type: 'pass_fail', category: 'split' },
+      { name: '大字馬', type: 'pass_fail', category: 'side_split' },
+    ],
+    '黑帶': [
+      { name: '掌上壓', type: 'grade', category: 'fitness' },
+      { name: '仰臥起坐', type: 'grade', category: 'fitness' },
+      { name: '蹲坐跳', type: 'grade', category: 'fitness' },
+      { name: '雙膝跳', type: 'grade', category: 'fitness' },
+      { name: '太極一至八章', type: 'grade', category: 'poomsae', weight: '1.50' },
+      { name: '一字馬', type: 'pass_fail', category: 'split' },
+      { name: '大字馬', type: 'pass_fail', category: 'side_split' },
+      { name: '搏擊', type: 'pass_fail', category: 'sparring' },
+      { name: '外出比賽一次(搏擊)', type: 'yes_no', category: 'competition' },
+      { name: '外出比賽一次(套拳)', type: 'yes_no', category: 'competition' },
+    ],
+  };
+  return ITEMS[belt] || [];
 }
