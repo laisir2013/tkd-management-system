@@ -7,15 +7,21 @@ import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 
 interface QuarterlyFeeStatisticsProps {
   coachName?: string;
+  year?: number;
+  quarter?: number;
 }
 
-export function QuarterlyFeeStatistics({ coachName }: QuarterlyFeeStatisticsProps) {
+export function QuarterlyFeeStatistics({ coachName, year: externalYear, quarter: externalQuarter }: QuarterlyFeeStatisticsProps) {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
   const currentQuarter = Math.ceil(currentMonth / 3);
 
-  const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [selectedQuarter, setSelectedQuarter] = useState(currentQuarter);
+  // 如果外部傳入 year/quarter 就用外部的，否則用內部 state
+  const hasExternalControl = externalYear !== undefined && externalQuarter !== undefined;
+  const [internalYear, setInternalYear] = useState(currentYear);
+  const [internalQuarter, setInternalQuarter] = useState(currentQuarter);
+  const selectedYear = hasExternalControl ? externalYear : internalYear;
+  const selectedQuarter = hasExternalControl ? externalQuarter : internalQuarter;
   const [showUnpaid, setShowUnpaid] = useState(false);
   const [expandedVenues, setExpandedVenues] = useState<Set<string>>(new Set());
 
@@ -105,28 +111,30 @@ export function QuarterlyFeeStatistics({ coachName }: QuarterlyFeeStatisticsProp
 
   return (
     <div className="space-y-6">
-      {/* 季度選擇器 */}
-      <div className="flex gap-4 items-center">
-        <select
-          value={selectedYear}
-          onChange={(e) => setSelectedYear(Number(e.target.value))}
-          className="border rounded px-3 py-2"
-        >
-          {[currentYear - 1, currentYear, currentYear + 1].map(year => (
-            <option key={year} value={year}>{year}年</option>
-          ))}
-        </select>
-        <select
-          value={selectedQuarter}
-          onChange={(e) => setSelectedQuarter(Number(e.target.value))}
-          className="border rounded px-3 py-2"
-        >
-          <option value={1}>1-3月(第一季)</option>
-          <option value={2}>4-6月(第二季)</option>
-          <option value={3}>7-9月(第三季)</option>
-          <option value={4}>10-12月(第四季)</option>
-        </select>
-      </div>
+      {/* 季度選擇器 — 僅在沒有外部控制時顯示 */}
+      {!hasExternalControl && (
+        <div className="flex gap-4 items-center">
+          <select
+            value={selectedYear}
+            onChange={(e) => setInternalYear(Number(e.target.value))}
+            className="border rounded px-3 py-2"
+          >
+            {[currentYear - 1, currentYear, currentYear + 1].map(year => (
+              <option key={year} value={year}>{year}年</option>
+            ))}
+          </select>
+          <select
+            value={selectedQuarter}
+            onChange={(e) => setInternalQuarter(Number(e.target.value))}
+            className="border rounded px-3 py-2"
+          >
+            <option value={1}>1-3月(第一季)</option>
+            <option value={2}>4-6月(第二季)</option>
+            <option value={3}>7-9月(第三季)</option>
+            <option value={4}>10-12月(第四季)</option>
+          </select>
+        </div>
+      )}
 
       {/* 季度總覽 */}
       <Card>

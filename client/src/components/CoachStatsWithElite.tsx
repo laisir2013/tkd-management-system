@@ -10,6 +10,12 @@ import { QuarterlyFeeStatistics } from "@/components/QuarterlyFeeStatistics";
 export default function CoachStatsWithElite() {
   const { data: coachStats, isLoading } = trpc.coachStats.getAll.useQuery();
   const [expandedCoach, setExpandedCoach] = useState<string | null>(null);
+  
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const currentQuarter = Math.ceil(currentMonth / 3);
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedQuarter, setSelectedQuarter] = useState(currentQuarter);
 
   if (isLoading) {
     return (
@@ -29,10 +35,31 @@ export default function CoachStatsWithElite() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">教練統計</h2>
           <p className="text-sm text-muted-foreground mt-1">包含恆常班及精英班的學費歸屬統計</p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            {[currentYear - 1, currentYear, currentYear + 1].map(y => (
+              <option key={y} value={y}>{y}年</option>
+            ))}
+          </select>
+          <select
+            value={selectedQuarter}
+            onChange={(e) => setSelectedQuarter(Number(e.target.value))}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value={1}>1-3月(第一季)</option>
+            <option value={2}>4-6月(第二季)</option>
+            <option value={3}>7-9月(第三季)</option>
+            <option value={4}>10-12月(第四季)</option>
+          </select>
         </div>
       </div>
 
@@ -196,8 +223,10 @@ export default function CoachStatsWithElite() {
               {/* 展開的季度統計 */}
               {isExpanded && (
                 <div className="pt-4 border-t">
-                  <h4 className="text-sm font-semibold mb-3 text-muted-foreground">恆常班季度統計詳情</h4>
-                  <QuarterlyFeeStatistics coachName={coach.coachName} />
+                  <h4 className="text-sm font-semibold mb-3 text-muted-foreground">
+                    恆常班季度統計詳情 — {selectedYear}年 {(selectedQuarter - 1) * 3 + 1}-{selectedQuarter * 3}月 (第{['一','二','三','四'][selectedQuarter - 1]}季)
+                  </h4>
+                  <QuarterlyFeeStatistics coachName={coach.coachName} year={selectedYear} quarter={selectedQuarter} />
                 </div>
               )}
             </CardContent>

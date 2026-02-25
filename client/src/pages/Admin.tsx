@@ -19,7 +19,7 @@ import DojoManagementContent from "@/components/DojoManagementContent";
 import { WhatsAppTemplates } from "@/components/WhatsAppTemplates";
 import UserManagementContent from "@/components/UserManagementContent";
 import CoachStatisticsContent from "@/components/CoachStatisticsContent";
-import { QuarterlyFeeStatistics } from "@/components/QuarterlyFeeStatistics";
+
 import { StudentWhatsAppButton } from "@/components/StudentWhatsAppButton";
 import { AttendanceManagementContent } from "@/components/AttendanceManagementContent";
 import { StudentEditDialog } from "@/components/StudentEditDialog";
