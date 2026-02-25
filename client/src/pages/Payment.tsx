@@ -34,7 +34,7 @@ const ATTENDANCE_STATUS_CONFIG = {
   excused: { label: "請假", icon: MinusCircle, color: "text-blue-600", bg: "bg-blue-50" },
 } as const;
 
-type TabType = "overview" | "regular-attendance" | "regular-payment" | "elite" | "events";
+type TabType = "overview" | "regular-attendance" | "regular-payment" | "elite" | "events" | "exam-results";
 
 export default function Payment() {
   const search = useSearch();
@@ -84,6 +84,7 @@ export default function Payment() {
     ...(hasRegular ? [{ key: "regular-payment" as TabType, label: "恆常班繳費", icon: CreditCard, shortLabel: "繳費" }] : []),
     ...(hasElite ? [{ key: "elite" as TabType, label: "精英班", icon: Award, shortLabel: "精英班" }] : []),
     { key: "events" as TabType, label: "報名活動", icon: Trophy, shortLabel: "活動" },
+    { key: "exam-results" as TabType, label: "考試成績", icon: Award, shortLabel: "成績" },
   ];
 
   return (
@@ -153,6 +154,9 @@ export default function Payment() {
         )}
         {activeTab === "events" && (
           <EventsTab phone={phone} students={students || []} eliteInfo={eliteInfo || []} />
+        )}
+        {activeTab === "exam-results" && (
+          <ExamResultsTab phone={phone} />
         )}
       </div>
 
@@ -1386,6 +1390,134 @@ function EventsTab({ phone, students, eliteInfo }: { phone: string; students: an
           );
         })
       )}
+    </div>
+  );
+}
+
+// ================= 考試成績 Tab =================
+function ExamResultsTab({ phone }: { phone: string }) {
+  const { data: examResults, isLoading } = trpc.exam.resultsByPhone.useQuery({ phone });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-500"></div>
+      </div>
+    );
+  }
+
+  if (!examResults || examResults.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <Award className="w-12 h-12 mx-auto mb-2 opacity-30" />
+        <p className="font-medium">暫無考試記錄</p>
+        <p className="text-sm mt-1">考試完成後，成績將在此顯示</p>
+      </div>
+    );
+  }
+
+  const CATEGORY_NAMES: Record<string, string> = {
+    fitness: "體能", poomsae: "品勢", technique: "手把動作",
+    board: "踢木板", split: "一字馬", side_split: "大字馬",
+    sparring: "搏擊", competition: "外出比賽",
+  };
+
+  const CATEGORY_COLORS: Record<string, string> = {
+    fitness: "bg-blue-50 text-blue-700",
+    poomsae: "bg-purple-50 text-purple-700",
+    technique: "bg-green-50 text-green-700",
+    board: "bg-amber-50 text-amber-700",
+    sparring: "bg-red-50 text-red-700",
+    split: "bg-pink-50 text-pink-700",
+    side_split: "bg-pink-50 text-pink-600",
+    competition: "bg-indigo-50 text-indigo-700",
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="text-center mb-2">
+        <h3 className="font-bold text-lg flex items-center justify-center gap-2">
+          <Award className="w-5 h-5 text-red-600" /> 考試成績
+        </h3>
+      </div>
+
+      {examResults.map((result: any, idx: number) => {
+        const isPassed = result.candidate.status === 'passed';
+        const isFailed = result.candidate.status === 'failed';
+        const hasLakLak = result.candidate.hasLakLakAward;
+
+        // 按分類分組
+        const groupedScores: Record<string, any[]> = {};
+        result.scores?.forEach((s: any) => {
+          const cat = s.itemCategory || 'other';
+          if (!groupedScores[cat]) groupedScores[cat] = [];
+          groupedScores[cat].push(s);
+        });
+
+        return (
+          <div key={idx} className={`border rounded-xl overflow-hidden ${isPassed ? 'border-green-300' : isFailed ? 'border-red-300' : 'border-gray-200'}`}>
+            {/* 考試 header */}
+            <div className={`p-3 ${isPassed ? 'bg-green-50' : isFailed ? 'bg-red-50' : 'bg-gray-50'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-sm">{result.exam?.name || '考試'}</div>
+                  <div className="text-xs text-gray-500">
+                    {result.exam?.examDate ? new Date(result.exam.examDate).toLocaleDateString('zh-TW') : ''}
+                    {result.exam?.location && ` · ${result.exam.location}`}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className={`text-sm font-bold ${isPassed ? 'text-green-700' : isFailed ? 'text-red-700' : 'text-gray-600'}`}>
+                    {isPassed ? '合格' : isFailed ? '不合格' : '評分中'}
+                  </div>
+                  {hasLakLak && (
+                    <div className="text-xs text-amber-600 font-medium">叻叻獎</div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-1 text-xs">
+                <span className="text-gray-500">考生：</span>
+                <span className="font-medium">{result.candidate.name}</span>
+                <span className="mx-2 text-gray-300">|</span>
+                <span className="text-gray-500">{result.candidate.currentBelt} → {result.candidate.targetBelt}</span>
+              </div>
+            </div>
+
+            {/* 評分詳情 */}
+            {result.scores && result.scores.length > 0 && (
+              <div className="p-3 space-y-2">
+                {Object.entries(groupedScores).map(([cat, scores]) => (
+                  <div key={cat}>
+                    <div className={`text-xs font-medium px-2 py-0.5 rounded mb-1 inline-block ${CATEGORY_COLORS[cat] || 'bg-gray-100'}`}>
+                      {CATEGORY_NAMES[cat] || cat}
+                    </div>
+                    <div className="space-y-1">
+                      {scores.map((s: any, i: number) => {
+                        const isGood = s.score === 'A' || s.score === '合格' || s.score === '有';
+                        const isBad = s.score === '不合格' || s.score === '沒有';
+                        return (
+                          <div key={i} className="flex items-center justify-between px-2 py-1 rounded bg-gray-50/50">
+                            <span className="text-xs text-gray-600">{s.itemName}</span>
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                              isGood ? 'bg-green-100 text-green-700' :
+                              isBad ? 'bg-red-100 text-red-700' :
+                              s.score === 'B' ? 'bg-blue-100 text-blue-700' :
+                              s.score === 'C' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {s.score || '—'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -30,6 +30,7 @@ import CoachStatsWithElite from "@/components/CoachStatsWithElite";
 import MonthlyFinanceReport from "@/components/MonthlyFinanceReport";
 import AccountingRecords from "@/components/AccountingRecords";
 import EventManagement from "@/components/EventManagement";
+import ExamManagement from "@/components/ExamManagement";
 
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -493,6 +494,7 @@ export default function Admin() {
             <TabsTrigger value="monthly-finance" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-teal-300 bg-teal-50 text-teal-700 rounded-md data-[state=active]:border-teal-500 data-[state=active]:bg-teal-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">💰 財務報表</TabsTrigger>
             <TabsTrigger value="accounting" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-violet-300 bg-violet-50 text-violet-700 rounded-md data-[state=active]:border-violet-500 data-[state=active]:bg-violet-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📋 會計總帳</TabsTrigger>
             <TabsTrigger value="events" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-orange-300 bg-orange-50 text-orange-700 rounded-md data-[state=active]:border-orange-500 data-[state=active]:bg-orange-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">🏆 活動管理</TabsTrigger>
+            <TabsTrigger value="exam" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-red-300 bg-red-50 text-red-700 rounded-md data-[state=active]:border-red-500 data-[state=active]:bg-red-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">🥋 考試評分</TabsTrigger>
             <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">用戶管理</TabsTrigger>
             <TabsTrigger value="whatsapp" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">WhatsApp範本</TabsTrigger>
           </TabsList>
@@ -898,6 +900,11 @@ export default function Admin() {
           {/* ========= 活動管理 ========= */}
           <TabsContent value="events">
             <EventManagement />
+          </TabsContent>
+
+          {/* ========= 考試評分 ========= */}
+          <TabsContent value="exam">
+            <ExamManagement />
           </TabsContent>
 
           {/* ========= 用戶管理 ========= */}

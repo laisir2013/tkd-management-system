@@ -1,7 +1,7 @@
 import { eq, and, inArray, gte, lte, sql, or, desc, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration } from "../drizzle/schema";
+import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -2060,4 +2060,422 @@ export async function getEventRegistrationCount(eventId: number): Promise<number
   const result = await db.select({ count: sql<number>`COUNT(*)` }).from(eventRegistrations)
     .where(and(eq(eventRegistrations.eventId, eventId), sql`${eventRegistrations.status} != 'cancelled'`));
   return result[0]?.count || 0;
+}
+
+// ==================== 考試評分系統 ====================
+
+// --- 考試場次 CRUD ---
+export async function getAllExamSessions() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examSessions).orderBy(desc(examSessions.examDate));
+}
+
+export async function getExamSessionById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(examSessions).where(eq(examSessions.id, id)).limit(1);
+  return result[0];
+}
+
+export async function insertExamSession(data: Omit<InsertExamSession, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(examSessions).values(data as any);
+  return { insertId: (result as any)[0].insertId };
+}
+
+export async function updateExamSession(id: number, data: Partial<InsertExamSession>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(examSessions).set(data as any).where(eq(examSessions.id, id));
+}
+
+export async function deleteExamSession(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(examSessions).where(eq(examSessions.id, id));
+}
+
+// --- 考生 CRUD ---
+export async function getExamCandidatesByExam(examId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examCandidates)
+    .where(eq(examCandidates.examId, examId))
+    .orderBy(asc(examCandidates.groupCode), asc(examCandidates.orderNumber));
+}
+
+export async function getExamCandidatesByBelt(examId: number, belt: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examCandidates)
+    .where(and(eq(examCandidates.examId, examId), eq(examCandidates.currentBelt, belt)))
+    .orderBy(asc(examCandidates.groupCode), asc(examCandidates.orderNumber));
+}
+
+export async function getExamCandidateById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(examCandidates).where(eq(examCandidates.id, id)).limit(1);
+  return result[0];
+}
+
+export async function insertExamCandidate(data: Omit<InsertExamCandidate, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(examCandidates).values(data as any);
+  return { insertId: (result as any)[0].insertId };
+}
+
+export async function bulkInsertExamCandidates(candidates: Omit<InsertExamCandidate, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (candidates.length === 0) return 0;
+  await db.insert(examCandidates).values(candidates as any);
+  return candidates.length;
+}
+
+export async function updateExamCandidate(id: number, data: Partial<InsertExamCandidate>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(examCandidates).set(data as any).where(eq(examCandidates.id, id));
+}
+
+export async function deleteExamCandidate(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(examCandidates).where(eq(examCandidates.id, id));
+}
+
+// --- 評分項目 ---
+export async function getExamScoringItems(beltLevel?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  if (beltLevel) {
+    return db.select().from(examScoringItems)
+      .where(or(eq(examScoringItems.beltLevel, beltLevel), sql`${examScoringItems.beltLevel} IS NULL`))
+      .orderBy(asc(examScoringItems.sortOrder));
+  }
+  return db.select().from(examScoringItems).orderBy(asc(examScoringItems.sortOrder));
+}
+
+export async function insertExamScoringItem(data: Omit<InsertExamScoringItem, 'id' | 'createdAt'>): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(examScoringItems).values(data as any);
+  return { insertId: (result as any)[0].insertId };
+}
+
+export async function bulkInsertExamScoringItems(items: Omit<InsertExamScoringItem, 'id' | 'createdAt'>[]): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (items.length === 0) return 0;
+  await db.insert(examScoringItems).values(items as any);
+  return items.length;
+}
+
+export async function getExamScoringItemsByBelt(beltLevel: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examScoringItems)
+    .where(eq(examScoringItems.beltLevel, beltLevel))
+    .orderBy(asc(examScoringItems.sortOrder));
+}
+
+// --- 評分 ---
+export async function upsertExamScore(data: { candidateId: number, scoringItemId: number, score: string, comment?: string | null, scoredBy?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  // Try update first, then insert
+  const existing = await db.select().from(examScores)
+    .where(and(eq(examScores.candidateId, data.candidateId), eq(examScores.scoringItemId, data.scoringItemId)))
+    .limit(1);
+  if (existing.length > 0) {
+    await db.update(examScores).set({
+      score: data.score,
+      comment: data.comment ?? null,
+      scoredBy: data.scoredBy ?? null,
+      scoredAt: new Date(),
+    } as any).where(eq(examScores.id, existing[0].id));
+    return existing[0].id;
+  } else {
+    const result = await db.insert(examScores).values({
+      candidateId: data.candidateId,
+      scoringItemId: data.scoringItemId,
+      score: data.score,
+      comment: data.comment ?? null,
+      scoredBy: data.scoredBy ?? null,
+    } as any);
+    return (result as any)[0].insertId;
+  }
+}
+
+export async function getExamScoresByCandidate(candidateId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examScores)
+    .where(eq(examScores.candidateId, candidateId))
+    .orderBy(asc(examScores.scoringItemId));
+}
+
+export async function getExamScoresWithItemsByCandidate(candidateId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db.select({
+    score: examScores,
+    item: examScoringItems,
+  }).from(examScores)
+    .innerJoin(examScoringItems, eq(examScores.scoringItemId, examScoringItems.id))
+    .where(eq(examScores.candidateId, candidateId))
+    .orderBy(asc(examScoringItems.sortOrder));
+  return results;
+}
+
+export async function getExamScoresByExam(examId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db.select({
+    score: examScores,
+    candidate: examCandidates,
+    item: examScoringItems,
+  }).from(examScores)
+    .innerJoin(examCandidates, eq(examScores.candidateId, examCandidates.id))
+    .innerJoin(examScoringItems, eq(examScores.scoringItemId, examScoringItems.id))
+    .where(eq(examCandidates.examId, examId));
+  return results;
+}
+
+export async function deleteExamScoresByCandidate(candidateId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(examScores).where(eq(examScores.candidateId, candidateId));
+}
+
+// --- 考試統計 ---
+export async function getExamStatistics(examId: number) {
+  const db = await getDb();
+  if (!db) return { total: 0, passed: 0, failed: 0, examining: 0, absent: 0, registered: 0, lakLakCount: 0 };
+  
+  const candidates = await db.select().from(examCandidates).where(eq(examCandidates.examId, examId));
+  const total = candidates.length;
+  const passed = candidates.filter(c => c.status === 'passed').length;
+  const failed = candidates.filter(c => c.status === 'failed').length;
+  const examining = candidates.filter(c => c.status === 'examining').length;
+  const absent = candidates.filter(c => c.status === 'absent').length;
+  const registered = candidates.filter(c => c.status === 'registered' || c.status === 'checked_in').length;
+  const lakLakCount = candidates.filter(c => c.hasLakLakAward).length;
+  
+  return { total, passed, failed, examining, absent, registered, lakLakCount };
+}
+
+// --- 考試結果自動升帶 ---
+export async function promotePassedCandidate(candidateId: number): Promise<{ success: boolean, newBelt?: string }> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  const candidate = await getExamCandidateById(candidateId);
+  if (!candidate || candidate.status !== 'passed') return { success: false };
+  
+  // 如果有關聯的 student_id，更新主系統學生帶級
+  if (candidate.studentId) {
+    const studentList = await db.select().from(students).where(eq(students.id, candidate.studentId)).limit(1);
+    if (studentList.length > 0) {
+      await db.update(students).set({ beltLevel: candidate.targetBelt } as any).where(eq(students.id, candidate.studentId));
+      return { success: true, newBelt: candidate.targetBelt };
+    }
+  }
+  
+  return { success: false };
+}
+
+// --- 從報名活動自動創建考生 ---
+export async function createCandidatesFromEventRegistrations(examId: number, eventId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  // 取得事件報名記錄（已確認和已報名的）
+  const registrations = await db.select().from(eventRegistrations)
+    .where(and(
+      eq(eventRegistrations.eventId, eventId),
+      sql`${eventRegistrations.status} != 'cancelled'`
+    ));
+  
+  let created = 0;
+  for (const reg of registrations) {
+    // 檢查是否已加入考生名單
+    const existing = await db.select().from(examCandidates)
+      .where(and(
+        eq(examCandidates.examId, examId),
+        eq(examCandidates.name, reg.studentName),
+        eq(examCandidates.phone, reg.phone)
+      )).limit(1);
+    
+    if (existing.length > 0) continue;
+    
+    // 取得學生資料（帶級等資訊）
+    let currentBelt = '白帶';
+    let targetBelt = '黃帶';
+    let studentId: number | null = reg.studentId;
+    let gender: 'male' | 'female' = 'male';
+    
+    if (reg.studentId) {
+      const studentList = await db.select().from(students).where(eq(students.id, reg.studentId)).limit(1);
+      if (studentList.length > 0) {
+        const student = studentList[0];
+        currentBelt = student.beltLevel || '白帶';
+        // 根據 belt upgrade map 自動推算目標帶級
+        targetBelt = getNextBelt(currentBelt);
+      }
+    }
+    
+    await db.insert(examCandidates).values({
+      examId,
+      studentId,
+      name: reg.studentName,
+      phone: reg.phone,
+      gender,
+      currentBelt,
+      targetBelt,
+      status: 'registered',
+    } as any);
+    created++;
+  }
+  
+  return created;
+}
+
+// 帶級升級對照表
+function getNextBelt(currentBelt: string): string {
+  const UPGRADE_MAP: Record<string, string> = {
+    '白帶': '黃帶',
+    '黃帶': '黃綠帶',
+    '黃綠帶': '綠帶',
+    '綠帶': '綠藍帶',
+    '綠藍帶': '藍帶',
+    '藍帶': '藍紅帶',
+    '藍紅帶': '紅帶',
+    '紅帶': '紅黑帶',
+    '紅黑帶': '黑帶',
+    '黑帶': '黑帶二段',
+    '黑帶二段': '黑帶三段',
+    '黑帶三段': '黑帶三段',
+  };
+  return UPGRADE_MAP[currentBelt] || '黃帶';
+}
+
+// --- 批量計算並更新考試結果 ---
+export async function calculateExamResult(candidateId: number): Promise<{ passed: boolean, hasLakLakAward: boolean, gradeAPercentage: number }> {
+  const scoresWithItems = await getExamScoresWithItemsByCandidate(candidateId);
+  
+  if (scoresWithItems.length === 0) {
+    return { passed: false, hasLakLakAward: false, gradeAPercentage: 0 };
+  }
+  
+  const isItemFailed = (scoreValue: string | null): boolean => {
+    if (!scoreValue) return true;
+    const failValues = ['false', 'fail', '未達標', '否', '不合格'];
+    return failValues.includes(scoreValue.toLowerCase());
+  };
+  
+  const isGradeA = (scoreValue: string | null): boolean => {
+    if (!scoreValue) return false;
+    return scoreValue.toUpperCase() === 'A';
+  };
+  
+  let hasAnyFailed = false;
+  let totalGradableItems = 0;
+  let gradeACount = 0;
+  
+  for (const { score, item } of scoresWithItems) {
+    if (isItemFailed(score.score)) hasAnyFailed = true;
+    if (item.type === 'grade') {
+      totalGradableItems++;
+      if (isGradeA(score.score)) gradeACount++;
+    }
+  }
+  
+  const passed = !hasAnyFailed;
+  const gradeAPercentage = totalGradableItems > 0 ? (gradeACount / totalGradableItems) * 100 : 0;
+  const hasLakLakAward = passed && gradeAPercentage >= 80;
+  
+  // 更新考生狀態
+  await updateExamCandidate(candidateId, {
+    status: passed ? 'passed' : 'failed',
+    hasLakLakAward,
+  } as any);
+  
+  return { passed, hasLakLakAward, gradeAPercentage };
+}
+
+// --- 批量升帶 (考試完成後) ---
+export async function promoteAllPassedCandidates(examId: number): Promise<{ promoted: number, failed: number }> {
+  const candidates = await getExamCandidatesByExam(examId);
+  let promoted = 0;
+  let failed = 0;
+  
+  for (const c of candidates) {
+    if (c.status === 'passed') {
+      const result = await promotePassedCandidate(c.id);
+      if (result.success) promoted++;
+      else failed++;
+    }
+  }
+  
+  return { promoted, failed };
+}
+
+// --- 考生成績查詢（家長） ---
+export async function getExamResultsByStudent(studentId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const candidateRecords = await db.select().from(examCandidates)
+    .where(eq(examCandidates.studentId, studentId))
+    .orderBy(desc(examCandidates.createdAt));
+  
+  const results = [];
+  for (const c of candidateRecords) {
+    const exam = await getExamSessionById(c.examId);
+    const scores = await getExamScoresWithItemsByCandidate(c.id);
+    results.push({
+      exam,
+      candidate: c,
+      scores: scores.map(s => ({
+        itemName: s.item.name,
+        itemType: s.item.type,
+        itemCategory: s.item.category,
+        score: s.score.score,
+        comment: s.score.comment,
+      })),
+    });
+  }
+  return results;
+}
+
+export async function getExamResultsByPhone(phone: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const candidateRecords = await db.select().from(examCandidates)
+    .where(eq(examCandidates.phone, phone))
+    .orderBy(desc(examCandidates.createdAt));
+  
+  const results = [];
+  for (const c of candidateRecords) {
+    const exam = await getExamSessionById(c.examId);
+    const scores = await getExamScoresWithItemsByCandidate(c.id);
+    results.push({
+      exam,
+      candidate: c,
+      scores: scores.map(s => ({
+        itemName: s.item.name,
+        itemType: s.item.type,
+        itemCategory: s.item.category,
+        score: s.score.score,
+        comment: s.score.comment,
+      })),
+    });
+  }
+  return results;
 }

@@ -100,6 +100,35 @@ import {
   cancelEventRegistration,
   updateEventRegistrationStatus,
   getEventRegistrationCount,
+  // 考試評分系統函數
+  getAllExamSessions,
+  getExamSessionById,
+  insertExamSession,
+  updateExamSession,
+  deleteExamSession,
+  getExamCandidatesByExam,
+  getExamCandidatesByBelt,
+  getExamCandidateById,
+  insertExamCandidate,
+  bulkInsertExamCandidates,
+  updateExamCandidate,
+  deleteExamCandidate,
+  getExamScoringItems,
+  insertExamScoringItem,
+  bulkInsertExamScoringItems,
+  getExamScoringItemsByBelt,
+  upsertExamScore,
+  getExamScoresByCandidate,
+  getExamScoresWithItemsByCandidate,
+  getExamScoresByExam,
+  deleteExamScoresByCandidate,
+  getExamStatistics,
+  calculateExamResult,
+  promotePassedCandidate,
+  promoteAllPassedCandidates,
+  createCandidatesFromEventRegistrations,
+  getExamResultsByStudent,
+  getExamResultsByPhone,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -3070,6 +3099,509 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ==================== 考試評分系統 ====================
+  exam: router({
+    // --- 考試場次 ---
+    list: protectedProcedure.query(async () => {
+      return getAllExamSessions();
+    }),
+
+    get: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const exam = await getExamSessionById(input.id);
+        if (!exam) throw new TRPCError({ code: 'NOT_FOUND', message: '考試不存在' });
+        return exam;
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        examDate: z.date(),
+        location: z.string().optional(),
+        description: z.string().optional(),
+        eventId: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const result = await insertExamSession({
+          name: input.name,
+          examDate: input.examDate,
+          location: input.location || null,
+          description: input.description || null,
+          eventId: input.eventId || null,
+          status: 'draft',
+        });
+        return { success: true, id: result.insertId };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        examDate: z.date().optional(),
+        location: z.string().optional(),
+        description: z.string().optional(),
+        status: z.enum(['draft', 'scheduled', 'in_progress', 'completed']).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const { id, ...data } = input;
+        await updateExamSession(id, data as any);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        await deleteExamSession(input.id);
+        return { success: true };
+      }),
+
+    statistics: publicProcedure
+      .input(z.object({ examId: z.number() }))
+      .query(async ({ input }) => {
+        return getExamStatistics(input.examId);
+      }),
+
+    // --- 考生 ---
+    candidates: router({
+      list: publicProcedure
+        .input(z.object({ examId: z.number() }))
+        .query(async ({ input }) => {
+          return getExamCandidatesByExam(input.examId);
+        }),
+
+      listByBelt: publicProcedure
+        .input(z.object({ examId: z.number(), belt: z.string() }))
+        .query(async ({ input }) => {
+          return getExamCandidatesByBelt(input.examId, input.belt);
+        }),
+
+      get: publicProcedure
+        .input(z.object({ id: z.number() }))
+        .query(async ({ input }) => {
+          const candidate = await getExamCandidateById(input.id);
+          if (!candidate) throw new TRPCError({ code: 'NOT_FOUND', message: '考生不存在' });
+          return candidate;
+        }),
+
+      create: protectedProcedure
+        .input(z.object({
+          examId: z.number(),
+          studentId: z.number().optional(),
+          name: z.string().min(1),
+          phone: z.string().optional(),
+          gender: z.enum(['male', 'female']).default('male'),
+          age: z.number().optional(),
+          ageGroup: z.string().optional(),
+          currentBelt: z.string(),
+          targetBelt: z.string(),
+          groupCode: z.string().optional(),
+          orderNumber: z.number().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const result = await insertExamCandidate({
+            examId: input.examId,
+            studentId: input.studentId || null,
+            name: input.name,
+            phone: input.phone || null,
+            gender: input.gender,
+            age: input.age || null,
+            ageGroup: input.ageGroup || null,
+            currentBelt: input.currentBelt,
+            targetBelt: input.targetBelt,
+            groupCode: input.groupCode || null,
+            orderNumber: input.orderNumber || null,
+            status: 'registered',
+            hasLakLakAward: false,
+          });
+          return { success: true, id: result.insertId };
+        }),
+
+      bulkCreate: protectedProcedure
+        .input(z.object({
+          examId: z.number(),
+          candidates: z.array(z.object({
+            studentId: z.number().optional(),
+            name: z.string(),
+            phone: z.string().optional(),
+            gender: z.enum(['male', 'female']).default('male'),
+            age: z.number().optional(),
+            ageGroup: z.string().optional(),
+            currentBelt: z.string(),
+            targetBelt: z.string(),
+          })),
+        }))
+        .mutation(async ({ input }) => {
+          const data = input.candidates.map(c => ({
+            examId: input.examId,
+            studentId: c.studentId || null,
+            name: c.name,
+            phone: c.phone || null,
+            gender: c.gender,
+            age: c.age || null,
+            ageGroup: c.ageGroup || null,
+            currentBelt: c.currentBelt,
+            targetBelt: c.targetBelt,
+            groupCode: null,
+            orderNumber: null,
+            status: 'registered' as const,
+            hasLakLakAward: false,
+          }));
+          const count = await bulkInsertExamCandidates(data);
+          return { success: true, count };
+        }),
+
+      update: protectedProcedure
+        .input(z.object({
+          id: z.number(),
+          name: z.string().optional(),
+          phone: z.string().optional(),
+          gender: z.enum(['male', 'female']).optional(),
+          age: z.number().optional(),
+          ageGroup: z.string().optional(),
+          currentBelt: z.string().optional(),
+          targetBelt: z.string().optional(),
+          groupCode: z.string().optional(),
+          orderNumber: z.number().optional(),
+          status: z.enum(['registered', 'checked_in', 'examining', 'passed', 'failed', 'absent']).optional(),
+          hasLakLakAward: z.boolean().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const { id, ...data } = input;
+          const filtered = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+          if (Object.keys(filtered).length === 0) return { success: true };
+          await updateExamCandidate(id, filtered as any);
+          return { success: true };
+        }),
+
+      delete: protectedProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(async ({ input }) => {
+          await deleteExamCandidate(input.id);
+          return { success: true };
+        }),
+
+      // 從報名活動自動導入考生
+      importFromEvent: protectedProcedure
+        .input(z.object({ examId: z.number(), eventId: z.number() }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          const count = await createCandidatesFromEventRegistrations(input.examId, input.eventId);
+          return { success: true, imported: count };
+        }),
+    }),
+
+    // --- 評分項目 ---
+    scoringItems: router({
+      list: publicProcedure
+        .input(z.object({ beltLevel: z.string().optional() }).optional())
+        .query(async ({ input }) => {
+          return getExamScoringItems(input?.beltLevel);
+        }),
+
+      listByBelt: publicProcedure
+        .input(z.object({ beltLevel: z.string() }))
+        .query(async ({ input }) => {
+          return getExamScoringItemsByBelt(input.beltLevel);
+        }),
+
+      create: protectedProcedure
+        .input(z.object({
+          name: z.string().min(1),
+          description: z.string().optional(),
+          type: z.enum(['grade', 'pass_fail', 'yes_no']).default('grade'),
+          category: z.string().optional(),
+          maxScore: z.string().default('10.00'),
+          weight: z.string().default('1.00'),
+          beltLevel: z.string().optional(),
+          sortOrder: z.number().default(0),
+        }))
+        .mutation(async ({ input }) => {
+          const result = await insertExamScoringItem({
+            name: input.name,
+            description: input.description || null,
+            type: input.type,
+            category: input.category || null,
+            maxScore: input.maxScore,
+            weight: input.weight,
+            beltLevel: input.beltLevel || null,
+            sortOrder: input.sortOrder,
+          });
+          return { success: true, id: result.insertId };
+        }),
+
+      // 批量初始化評分項目（從原考試系統的常量定義）
+      initForBelt: protectedProcedure
+        .input(z.object({ beltLevel: z.string() }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          // 檢查是否已存在
+          const existing = await getExamScoringItemsByBelt(input.beltLevel);
+          if (existing.length > 0) {
+            return { success: true, count: existing.length, message: '評分項目已存在' };
+          }
+          // 從常量初始化
+          const BELT_ITEMS = getBeltScoringItems(input.beltLevel);
+          if (!BELT_ITEMS || BELT_ITEMS.length === 0) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: `無此帶級的評分項目定義: ${input.beltLevel}` });
+          }
+          const items = BELT_ITEMS.map((item: any, idx: number) => ({
+            name: item.name,
+            description: item.description || null,
+            type: item.type === 'yes_no' ? 'yes_no' as const : item.type === 'pass_fail' ? 'pass_fail' as const : 'grade' as const,
+            category: item.category || null,
+            maxScore: '10.00',
+            weight: String(item.weight || 1),
+            beltLevel: input.beltLevel,
+            sortOrder: idx,
+          }));
+          const count = await bulkInsertExamScoringItems(items);
+          return { success: true, count };
+        }),
+    }),
+
+    // --- 評分 ---
+    scores: router({
+      getByCandidate: publicProcedure
+        .input(z.object({ candidateId: z.number() }))
+        .query(async ({ input }) => {
+          return getExamScoresWithItemsByCandidate(input.candidateId);
+        }),
+
+      listByExam: publicProcedure
+        .input(z.object({ examId: z.number() }))
+        .query(async ({ input }) => {
+          return getExamScoresByExam(input.examId);
+        }),
+
+      upsert: protectedProcedure
+        .input(z.object({
+          candidateId: z.number(),
+          scoringItemId: z.number(),
+          score: z.string(),
+          comment: z.string().optional(),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          await upsertExamScore({
+            candidateId: input.candidateId,
+            scoringItemId: input.scoringItemId,
+            score: input.score,
+            comment: input.comment || null,
+            scoredBy: ctx.user?.name || ctx.user?.openId || 'admin',
+          });
+          return { success: true };
+        }),
+
+      bulkUpsert: protectedProcedure
+        .input(z.object({
+          candidateId: z.number(),
+          scores: z.array(z.object({
+            scoringItemId: z.number(),
+            score: z.string(),
+            comment: z.string().optional(),
+          })),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          for (const s of input.scores) {
+            await upsertExamScore({
+              candidateId: input.candidateId,
+              scoringItemId: s.scoringItemId,
+              score: s.score,
+              comment: s.comment || null,
+              scoredBy: ctx.user?.name || ctx.user?.openId || 'admin',
+            });
+          }
+          // 自動計算結果
+          try {
+            await calculateExamResult(input.candidateId);
+          } catch (e) {
+            console.warn('[Exam] Auto-calculate failed:', e);
+          }
+          return { success: true, count: input.scores.length };
+        }),
+
+      calculateResult: protectedProcedure
+        .input(z.object({ candidateId: z.number() }))
+        .mutation(async ({ input }) => {
+          return calculateExamResult(input.candidateId);
+        }),
+
+      deleteByCandidate: protectedProcedure
+        .input(z.object({ candidateId: z.number() }))
+        .mutation(async ({ input }) => {
+          await deleteExamScoresByCandidate(input.candidateId);
+          return { success: true };
+        }),
+    }),
+
+    // --- 升帶 ---
+    promote: protectedProcedure
+      .input(z.object({ candidateId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        return promotePassedCandidate(input.candidateId);
+      }),
+
+    promoteAll: protectedProcedure
+      .input(z.object({ examId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        return promoteAllPassedCandidates(input.examId);
+      }),
+
+    // --- 家長查看成績 ---
+    resultsByPhone: publicProcedure
+      .input(z.object({ phone: z.string() }))
+      .query(async ({ input }) => {
+        return getExamResultsByPhone(input.phone);
+      }),
+
+    resultsByStudent: publicProcedure
+      .input(z.object({ studentId: z.number() }))
+      .query(async ({ input }) => {
+        return getExamResultsByStudent(input.studentId);
+      }),
+  }),
 });
+
+// 帶級對應評分項目定義（來源：考試系統 shared/constants.ts）
+function getBeltScoringItems(belt: string) {
+  const BELT_SCORING_ITEMS: Record<string, Array<{ name: string; description?: string; type: string; category?: string; weight: number }>> = {
+    '白帶': [
+      { name: "掌上壓", description: "幼稚園5次/小學8次/中學或以上12次", type: "grade", category: "fitness", weight: 1 },
+      { name: "仰臥起坐", description: "幼稚園5次/小學8次/中學或以上12次", type: "grade", category: "fitness", weight: 1 },
+      { name: "蹲坐跳", description: "幼稚園5次/小學8次/中學或以上12次", type: "grade", category: "fitness", weight: 1 },
+      { name: "直拳", description: "直拳10次", type: "grade", category: "technique", weight: 1 },
+      { name: "前踢", description: "前踢5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "cutdown", description: "cutdown 5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "旋踢", description: "旋踢（小學以上）5次左5次右", type: "grade", category: "technique", weight: 1 },
+    ],
+    '黃帶': [
+      { name: "掌上壓", description: "幼稚園8次/小學12次/中學或以上16次", type: "grade", category: "fitness", weight: 1 },
+      { name: "仰臥起坐", description: "幼稚園8次/小學12次/中學或以上16次", type: "grade", category: "fitness", weight: 1 },
+      { name: "蹲坐跳", description: "幼稚園8次/小學12次/中學或以上16次", type: "grade", category: "fitness", weight: 1 },
+      { name: "太極一章", description: "", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "旋踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "上馬cut down", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+    ],
+    '黃綠帶': [
+      { name: "掌上壓", description: "幼稚園10次/小學15次/中學或以上20次", type: "grade", category: "fitness", weight: 1 },
+      { name: "仰臥起坐", description: "幼稚園10次/小學15次/中學或以上20次", type: "grade", category: "fitness", weight: 1 },
+      { name: "蹲坐跳", description: "幼稚園10次/小學15次/中學或以上20次", type: "grade", category: "fitness", weight: 1 },
+      { name: "太極二章", description: "", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "跳躍旋踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "跳躍前踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "上中雙前踢", description: "10組", type: "grade", category: "technique", weight: 1 },
+    ],
+    '綠帶': [
+      { name: "掌上壓", description: "幼稚園10次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
+      { name: "仰臥起坐", description: "幼稚園10次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
+      { name: "蹲坐跳", description: "幼稚園10次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
+      { name: "太極三章", description: "", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "後踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "跳躍cutdown", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "旋踢+旋踢+空中雙旋踢", description: "3次左3次右", type: "grade", category: "technique", weight: 1 },
+      { name: "旋踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "前踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "cutdown(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
+    ],
+    '綠藍帶': [
+      { name: "掌上壓", description: "幼稚園15次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
+      { name: "仰臥起坐", description: "幼稚園15次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
+      { name: "蹲坐跳", description: "幼稚園15次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
+      { name: "太極四章", description: "", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "側踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "旋踢+後踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "退後旋踢+退後旋踢+退後空中雙旋踢", description: "3次左3次右", type: "grade", category: "technique", weight: 1 },
+      { name: "後踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍cutdown(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍旋踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
+    ],
+    '藍帶': [
+      { name: "掌上壓", description: "幼稚園20次/小學30次/中學或以上35次", type: "grade", category: "fitness", weight: 1 },
+      { name: "仰臥起坐", description: "幼稚園20次/小學30次/中學或以上35次", type: "grade", category: "fitness", weight: 1 },
+      { name: "蹲坐跳", description: "幼稚園20次/小學30次/中學或以上35次", type: "grade", category: "fitness", weight: 1 },
+      { name: "太極五章", description: "", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "跳躍側踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "跳躍後踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "360", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "跳躍旋踢+跳躍cutdown", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "肘擊(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "側踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "上馬後踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "一字馬", description: "", type: "pass_fail", category: "split", weight: 1 },
+      { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
+    ],
+    '藍紅帶': [
+      { name: "掌上壓", description: "幼稚園25次/小學40次/中學或以上50次", type: "grade", category: "fitness", weight: 1 },
+      { name: "仰臥起坐", description: "幼稚園25次/小學40次/中學或以上50次", type: "grade", category: "fitness", weight: 1 },
+      { name: "蹲坐跳", description: "幼稚園20次/小學30次/中學或以上35次", type: "grade", category: "fitness", weight: 1 },
+      { name: "雙膝跳", description: "幼稚園20次/小學30次/中學或以上35次", type: "grade", category: "fitness", weight: 1 },
+      { name: "太極六章", description: "", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "太極一至五抽籤", description: "", type: "grade", category: "poomsae", weight: 1 },
+      { name: "退後跳躍後踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "旋踢+360旋踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "跳躍側踢+跳躍cutdown", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "跳躍側踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍後踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "360(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "一字馬", description: "", type: "pass_fail", category: "split", weight: 1 },
+      { name: "大字馬", description: "", type: "pass_fail", category: "side_split", weight: 1 },
+      { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
+    ],
+    '紅帶': [
+      { name: "掌上壓", description: "幼稚園30次/小學45次/中學或以上60次", type: "grade", category: "fitness", weight: 1 },
+      { name: "仰臥起坐", description: "幼稚園30次/小學45次/中學或以上60次", type: "grade", category: "fitness", weight: 1 },
+      { name: "蹲坐跳", description: "幼稚園30次/小學35次/中學或以上40次", type: "grade", category: "fitness", weight: 1 },
+      { name: "雙膝跳", description: "幼稚園30次/小學35次/中學或以上40次", type: "grade", category: "fitness", weight: 1 },
+      { name: "太極七章", description: "", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "太極一至六抽籤", description: "", type: "grade", category: "poomsae", weight: 1 },
+      { name: "原地空中雙旋踢", description: "20組", type: "grade", category: "technique", weight: 1 },
+      { name: "跳躍空中側踢", description: "3次右或左", type: "grade", category: "technique", weight: 1 },
+      { name: "後旋踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
+      { name: "跳躍雙前踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "空中雙旋踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
+      { name: "一字馬", description: "", type: "pass_fail", category: "split", weight: 1 },
+      { name: "大字馬", description: "", type: "pass_fail", category: "side_split", weight: 1 },
+      { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
+      { name: "外出比賽一次", description: "", type: "yes_no", category: "competition", weight: 1 },
+    ],
+    '紅黑帶': [
+      { name: "掌上壓", description: "幼稚園30次/小學45次/中學或以上60次", type: "grade", category: "fitness", weight: 1 },
+      { name: "仰臥起坐", description: "幼稚園30次/小學45次/中學或以上60次", type: "grade", category: "fitness", weight: 1 },
+      { name: "蹲坐跳", description: "幼稚園30次/小學35次/中學或以上40次", type: "grade", category: "fitness", weight: 1 },
+      { name: "雙膝跳", description: "幼稚園30次/小學35次/中學或以上40次", type: "grade", category: "fitness", weight: 1 },
+      { name: "太極一章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極二章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極三章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極四章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極五章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極六章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極七章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極八章", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "一字馬", description: "", type: "pass_fail", category: "split", weight: 1 },
+      { name: "大字馬", description: "", type: "pass_fail", category: "side_split", weight: 1 },
+    ],
+    '黑帶': [
+      { name: "掌上壓", description: "小學30次X2set/中學40次X2set", type: "grade", category: "fitness", weight: 1 },
+      { name: "仰臥起坐", description: "小學30次X2set/中學40次X2set", type: "grade", category: "fitness", weight: 1 },
+      { name: "蹲坐跳", description: "小學30次X2set/中學40次X2set", type: "grade", category: "fitness", weight: 1 },
+      { name: "雙膝跳", description: "小學30次X2set/中學40次X2set", type: "grade", category: "fitness", weight: 1 },
+      { name: "太極一至八章", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "一字馬", description: "", type: "pass_fail", category: "split", weight: 1 },
+      { name: "大字馬", description: "", type: "pass_fail", category: "side_split", weight: 1 },
+      { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
+      { name: "外出比賽一次(搏擊)", description: "", type: "yes_no", category: "competition", weight: 1 },
+      { name: "外出比賽一次(套拳)", description: "", type: "yes_no", category: "competition", weight: 1 },
+    ],
+  };
+  return BELT_SCORING_ITEMS[belt] || null;
+}
 
 export type AppRouter = typeof appRouter;

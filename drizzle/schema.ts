@@ -400,3 +400,95 @@ export const eventRegistrations = mysqlTable("event_registrations", {
 
 export type EventRegistration = typeof eventRegistrations.$inferSelect;
 export type InsertEventRegistration = typeof eventRegistrations.$inferInsert;
+
+// ==================== 考試評分系統 ====================
+
+// 考試場次表
+export const examSessions = mysqlTable("exam_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  examDate: timestamp("exam_date").notNull(),
+  location: varchar("location", { length: 255 }),
+  description: text("description"),
+  status: mysqlEnum("status", ["draft", "scheduled", "in_progress", "completed"]).default("draft").notNull(),
+  eventId: int("event_id"),  // 關聯到 events 表
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExamSession = typeof examSessions.$inferSelect;
+export type InsertExamSession = typeof examSessions.$inferInsert;
+
+// 考生表 (關聯學生到考試)
+export const examCandidates = mysqlTable("exam_candidates", {
+  id: int("id").autoincrement().primaryKey(),
+  examId: int("exam_id").notNull(),
+  studentId: int("student_id"),  // 關聯到 students 表
+  name: varchar("name", { length: 100 }).notNull(),
+  phone: varchar("phone", { length: 50 }),
+  gender: mysqlEnum("gender", ["male", "female"]).default("male").notNull(),
+  age: int("age"),
+  ageGroup: varchar("age_group", { length: 50 }),
+  currentBelt: varchar("current_belt", { length: 50 }).notNull(),
+  targetBelt: varchar("target_belt", { length: 50 }).notNull(),
+  groupCode: varchar("group_code", { length: 10 }),
+  orderNumber: int("order_number"),
+  status: mysqlEnum("status", ["registered", "checked_in", "examining", "passed", "failed", "absent"]).default("registered").notNull(),
+  hasLakLakAward: boolean("has_lak_lak_award").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExamCandidate = typeof examCandidates.$inferSelect;
+export type InsertExamCandidate = typeof examCandidates.$inferInsert;
+
+// 評分項目表
+export const examScoringItems = mysqlTable("exam_scoring_items", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  type: mysqlEnum("type", ["grade", "pass_fail", "yes_no"]).default("grade").notNull(),
+  category: varchar("category", { length: 50 }),
+  maxScore: decimal("max_score", { precision: 5, scale: 2 }).default("10.00").notNull(),
+  weight: decimal("weight", { precision: 3, scale: 2 }).default("1.00").notNull(),
+  beltLevel: varchar("belt_level", { length: 50 }),
+  sortOrder: int("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type ExamScoringItem = typeof examScoringItems.$inferSelect;
+export type InsertExamScoringItem = typeof examScoringItems.$inferInsert;
+
+// 評分記錄表
+export const examScores = mysqlTable("exam_scores", {
+  id: int("id").autoincrement().primaryKey(),
+  candidateId: int("candidate_id").notNull(),
+  scoringItemId: int("scoring_item_id").notNull(),
+  score: varchar("score", { length: 50 }),
+  comment: text("comment"),
+  scoredBy: varchar("scored_by", { length: 100 }),
+  scoredAt: timestamp("scored_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExamScore = typeof examScores.$inferSelect;
+export type InsertExamScore = typeof examScores.$inferInsert;
+
+// 考試時間表
+export const examSchedules = mysqlTable("exam_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  examId: int("exam_id").notNull(),
+  beltLevel: varchar("belt_level", { length: 50 }).notNull(),
+  groupCode: varchar("group_code", { length: 10 }),
+  startTime: varchar("start_time", { length: 30 }).notNull(),
+  endTime: varchar("end_time", { length: 30 }),
+  timeSlot: varchar("time_slot", { length: 50 }),
+  venue: varchar("venue", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExamSchedule = typeof examSchedules.$inferSelect;
+export type InsertExamSchedule = typeof examSchedules.$inferInsert;
