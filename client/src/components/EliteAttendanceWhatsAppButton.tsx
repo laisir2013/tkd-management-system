@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { MessageCircle } from "lucide-react";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 
 interface EliteAttendanceWhatsAppButtonProps {
   studentId: number;
@@ -99,7 +99,7 @@ export function EliteAttendanceWhatsAppButton({
             : `WhatsApp 通知：今期第 ${cycleNumber} 堂/12堂`
         }
       >
-        <MessageCircle className="w-3.5 h-3.5" />
+        <WhatsAppIcon className="w-3.5 h-3.5 text-green-600" />
       </Button>
       {lastSentAt && (
         <span className="text-[9px] text-gray-400 leading-none">

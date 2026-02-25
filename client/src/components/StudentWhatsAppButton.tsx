@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { MessageCircle } from "lucide-react";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 
 interface NextUnpaidQuarter {
   year: number;
@@ -122,7 +122,7 @@ export function StudentWhatsAppButton({
         className={`${quarterColor.text} ${quarterColor.hover}`}
         data-student-whatsapp-id={studentId}
       >
-        <MessageCircle className="w-4 h-4 mr-1" />
+        <WhatsAppIcon className="w-4 h-4 mr-1 text-green-600" />
         {nextUnpaidQuarter.quarterName}
       </Button>
       {lastRemindedAt && (

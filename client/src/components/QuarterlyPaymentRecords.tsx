@@ -2,7 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { MessageCircle, Image, Upload, ShieldCheck, Check, X } from "lucide-react";
+import { Image, Upload, ShieldCheck, Check, X } from "lucide-react";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -301,7 +302,7 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
                         className="flex items-center gap-1 text-xs"
                         title={!student.phone ? '該學生沒有電話號碼' : '發送 WhatsApp 繳費提醒'}
                       >
-                        <MessageCircle className="w-3.5 h-3.5" />
+                        <WhatsAppIcon className="w-3.5 h-3.5 text-green-600" />
                         <span className="hidden sm:inline">{sendingWhatsApp === student.studentId ? '發送中' : 'WhatsApp'}</span>
                         <span className="sm:hidden">{sendingWhatsApp === student.studentId ? '...' : '提醒'}</span>
                       </Button>

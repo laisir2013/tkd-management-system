@@ -16,7 +16,8 @@ import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import { format, addMonths, subMonths } from "date-fns";
 import { zhTW } from "date-fns/locale";
-import { Users, Calendar, DollarSign, ChevronLeft, ChevronRight, Plus, MoreHorizontal, ArrowLeft, Loader2, Ban, RotateCcw, ArrowRightLeft, Phone, RefreshCw, Pencil, Check, X, MessageCircle } from "lucide-react";
+import { Users, Calendar, DollarSign, ChevronLeft, ChevronRight, Plus, MoreHorizontal, ArrowLeft, Loader2, Ban, RotateCcw, ArrowRightLeft, Phone, RefreshCw, Pencil, Check, X } from "lucide-react";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
 import { useLocation } from "wouter";
@@ -801,7 +802,7 @@ function EliteFinanceTab() {
             {sendRemindersMutation.isPending ? (
               <><Loader2 className="h-4 w-4 mr-1 animate-spin" />發送中...</>
             ) : (
-              <><MessageCircle className="h-4 w-4 mr-1" />批量通知繳費 ({lowBalanceStudents.length}人)</>
+              <><WhatsAppIcon className="h-4 w-4 mr-1" />批量通知繳費 ({lowBalanceStudents.length}人)</>
             )}
           </Button>
         )}

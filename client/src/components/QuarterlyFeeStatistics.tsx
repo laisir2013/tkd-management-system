@@ -2,7 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
-import { ChevronDown, ChevronUp, MessageCircle, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 
 interface QuarterlyFeeStatisticsProps {
   coachName?: string;
@@ -327,7 +328,7 @@ export function QuarterlyFeeStatistics({ coachName }: QuarterlyFeeStatisticsProp
                                   onClick={() => handleWhatsAppClick(student)}
                                   className="shrink-0 text-green-600 border-green-300 hover:bg-green-50 hover:text-green-700"
                                 >
-                                  <MessageCircle className="h-4 w-4 mr-1" />
+                                  <WhatsAppIcon className="h-4 w-4 mr-1" />
                                   通知
                                 </Button>
                               </div>

@@ -2,7 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { MessageCircle, Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2 } from "lucide-react";
+import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2 } from "lucide-react";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -395,8 +396,7 @@ export function MonthlyPaymentRecords({ coachName }: { coachName?: string } = {}
                         className="flex items-center gap-0.5 text-[10px] px-1.5 py-1 h-auto"
                         title={!student.phone ? '沒有電話號碼' : 'WhatsApp 提醒'}
                       >
-                        <MessageCircle className="w-3 h-3" />
-                        <span className="hidden sm:inline">{sendingWhatsApp === student.studentId ? '...' : 'WA'}</span>
+                        <WhatsAppIcon className="w-4 h-4 text-green-600" />
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { MessageCircle } from "lucide-react";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 
 interface WhatsAppReminderButtonProps {
   studentId: number;
@@ -77,7 +77,7 @@ export function WhatsAppReminderButton({
         className="bg-green-600 hover:bg-green-700 text-white"
         onClick={handleWhatsAppClick}
       >
-        <MessageCircle className="w-4 h-4 mr-1" />
+        <WhatsAppIcon className="w-4 h-4 mr-1" />
         WhatsApp
       </Button>
       {localLastReminded && (

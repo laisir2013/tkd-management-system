@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { MessageCircle } from "lucide-react";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 
 interface EliteWhatsAppButtonProps {
   studentId: number;
@@ -127,7 +127,7 @@ export function EliteWhatsAppButton({
             : `發送 WhatsApp 繳費提醒（剩餘 ${remainingClasses} 堂）`
         }
       >
-        <MessageCircle className="w-4 h-4" />
+        <WhatsAppIcon className="w-4 h-4 text-green-600" />
         {showLabel && (
           <span className="ml-1">
             {remainingClasses <= 0 ? "急" : "通知"}

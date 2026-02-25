@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, MessageCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw } from "lucide-react";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
 import { EliteAttendanceWhatsAppButton } from "@/components/EliteAttendanceWhatsAppButton";
 
