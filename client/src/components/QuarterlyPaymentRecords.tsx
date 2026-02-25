@@ -167,8 +167,24 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
       );
     } else {
       return (
-        <div className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-gray-100 text-gray-500 border border-gray-300">
-          未到期
+        <div className="text-center space-y-1">
+          <div className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-gray-100 text-gray-500 border border-gray-300">
+            未到期
+          </div>
+          {studentId && quarter && (
+            <button
+              onClick={() => setConfirmDialog({
+                studentId,
+                studentName: studentName || '',
+                quarter,
+                quarterLabel: quarterLabel || '',
+              })}
+              className="mt-1 mx-auto flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+            >
+              <Check className="w-3 h-3" />
+              預繳確認
+            </button>
+          )}
         </div>
       );
     }
