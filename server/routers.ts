@@ -89,6 +89,17 @@ import {
   syncPaymentToAccounting,
   syncElitePaymentToAccounting,
   getAccountingSummary,
+  // 活動管理函數
+  getAllEvents,
+  getOpenEvents,
+  insertEvent,
+  updateEvent,
+  deleteEvent,
+  getEventRegistrations,
+  registerForEvent,
+  cancelEventRegistration,
+  updateEventRegistrationStatus,
+  getEventRegistrationCount,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -2893,6 +2904,170 @@ export const appRouter = router({
           imported++;
         }
         return { success: true, imported };
+      }),
+  }),
+
+  // ==================== 活動管理 ====================
+  events: router({
+    // 取得所有活動（管理員）
+    getAll: protectedProcedure
+      .input(z.object({
+        type: z.string().optional(),
+        status: z.string().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return getAllEvents(input);
+      }),
+
+    // 取得開放報名的活動（家長）
+    getOpen: publicProcedure.query(async () => {
+      return getOpenEvents();
+    }),
+
+    // 新增活動（管理員）
+    create: protectedProcedure
+      .input(z.object({
+        title: z.string(),
+        type: z.enum(['exam', 'competition', 'training']),
+        description: z.string().optional(),
+        eventDate: z.date(),
+        eventTime: z.string().optional(),
+        location: z.string().optional(),
+        fee: z.string().optional(),
+        maxParticipants: z.number().optional(),
+        registrationDeadline: z.date().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const result = await insertEvent({
+          title: input.title,
+          type: input.type,
+          description: input.description || null,
+          eventDate: input.eventDate,
+          eventTime: input.eventTime || null,
+          location: input.location || null,
+          fee: input.fee || "0",
+          maxParticipants: input.maxParticipants || null,
+          registrationDeadline: input.registrationDeadline || null,
+          status: 'open',
+        });
+        return { success: true, id: result.insertId };
+      }),
+
+    // 更新活動（管理員）
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        type: z.enum(['exam', 'competition', 'training']).optional(),
+        description: z.string().optional(),
+        eventDate: z.date().optional(),
+        eventTime: z.string().optional(),
+        location: z.string().optional(),
+        fee: z.string().optional(),
+        maxParticipants: z.number().nullable().optional(),
+        registrationDeadline: z.date().nullable().optional(),
+        status: z.enum(['open', 'closed', 'cancelled']).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { id, ...data } = input;
+        await updateEvent(id, data as any);
+        return { success: true };
+      }),
+
+    // 刪除活動（管理員）
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await deleteEvent(input.id);
+        return { success: true };
+      }),
+
+    // 取得活動報名記錄
+    getRegistrations: protectedProcedure
+      .input(z.object({
+        eventId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return getEventRegistrations(input.eventId);
+      }),
+
+    // 取得家長的報名記錄
+    getMyRegistrations: publicProcedure
+      .input(z.object({ phone: z.string() }))
+      .query(async ({ input }) => {
+        return getEventRegistrations(undefined, input.phone);
+      }),
+
+    // 報名活動（家長）
+    register: publicProcedure
+      .input(z.object({
+        eventId: z.number(),
+        studentId: z.number().optional(),
+        eliteStudentId: z.number().optional(),
+        studentName: z.string(),
+        phone: z.string(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // 檢查是否已報名
+        const existing = await getEventRegistrations(input.eventId, input.phone);
+        const alreadyRegistered = existing.find(
+          r => r.studentName === input.studentName && r.status !== 'cancelled'
+        );
+        if (alreadyRegistered) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '該學生已報名此活動' });
+        }
+
+        // 檢查報名人數
+        const count = await getEventRegistrationCount(input.eventId);
+        // 取得活動資訊
+        const allEvents = await getAllEvents();
+        const event = allEvents.find(e => e.id === input.eventId);
+        if (event?.maxParticipants && count >= event.maxParticipants) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '報名人數已滿' });
+        }
+
+        const result = await registerForEvent({
+          eventId: input.eventId,
+          studentId: input.studentId || null,
+          eliteStudentId: input.eliteStudentId || null,
+          studentName: input.studentName,
+          phone: input.phone,
+          status: 'registered',
+          notes: input.notes || null,
+        });
+        return { success: true, id: result.insertId };
+      }),
+
+    // 取消報名（家長）
+    cancelRegistration: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await cancelEventRegistration(input.id);
+        return { success: true };
+      }),
+
+    // 更新報名狀態（管理員）
+    updateRegistrationStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['registered', 'confirmed', 'cancelled']),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await updateEventRegistrationStatus(input.id, input.status);
+        return { success: true };
       }),
   }),
 });

@@ -1,7 +1,7 @@
 import { eq, and, inArray, gte, lte, sql, or, desc, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord } from "../drizzle/schema";
+import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1982,4 +1982,82 @@ export async function getAccountingSummary(year: number, month?: number) {
     .groupBy(accountingRecords.type, accountingRecords.category);
 
   return result;
+}
+
+// ==================== 活動管理 ====================
+
+export async function getAllEvents(filters?: { type?: string; status?: string }) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions: any[] = [];
+  if (filters?.type) conditions.push(eq(events.type, filters.type as any));
+  if (filters?.status) conditions.push(eq(events.status, filters.status as any));
+  return db.select().from(events)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(events.eventDate));
+}
+
+export async function getOpenEvents() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(events)
+    .where(and(eq(events.status, 'open'), gte(events.eventDate, new Date())))
+    .orderBy(asc(events.eventDate));
+}
+
+export async function insertEvent(data: Omit<InsertEvent, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(events).values(data as any);
+  return { insertId: (result as any)[0].insertId };
+}
+
+export async function updateEvent(id: number, data: Partial<InsertEvent>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(events).set(data as any).where(eq(events.id, id));
+}
+
+export async function deleteEvent(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(events).where(eq(events.id, id));
+}
+
+export async function getEventRegistrations(eventId?: number, phone?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions: any[] = [];
+  if (eventId) conditions.push(eq(eventRegistrations.eventId, eventId));
+  if (phone) conditions.push(eq(eventRegistrations.phone, phone));
+  return db.select().from(eventRegistrations)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(eventRegistrations.registeredAt));
+}
+
+export async function registerForEvent(data: Omit<InsertEventRegistration, 'id' | 'registeredAt'>): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(eventRegistrations).values(data as any);
+  return { insertId: (result as any)[0].insertId };
+}
+
+export async function cancelEventRegistration(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(eventRegistrations).set({ status: 'cancelled' }).where(eq(eventRegistrations.id, id));
+}
+
+export async function updateEventRegistrationStatus(id: number, status: 'registered' | 'confirmed' | 'cancelled'): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(eventRegistrations).set({ status }).where(eq(eventRegistrations.id, id));
+}
+
+export async function getEventRegistrationCount(eventId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.select({ count: sql<number>`COUNT(*)` }).from(eventRegistrations)
+    .where(and(eq(eventRegistrations.eventId, eventId), sql`${eventRegistrations.status} != 'cancelled'`));
+  return result[0]?.count || 0;
 }

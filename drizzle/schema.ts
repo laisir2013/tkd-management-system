@@ -360,3 +360,43 @@ export const accountingRecords = mysqlTable("accounting_records", {
 
 export type AccountingRecord = typeof accountingRecords.$inferSelect;
 export type InsertAccountingRecord = typeof accountingRecords.$inferInsert;
+
+/**
+ * 活動資料表 - 考試/比賽/交流訓練
+ */
+export const events = mysqlTable("events", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  type: mysqlEnum("type", ["exam", "competition", "training"]).notNull(), // 考試/比賽/交流訓練
+  description: text("description"),
+  eventDate: timestamp("event_date").notNull(),
+  eventTime: varchar("event_time", { length: 50 }),
+  location: varchar("location", { length: 200 }),
+  fee: decimal("fee", { precision: 10, scale: 2 }).default("0"),
+  maxParticipants: int("max_participants"),
+  registrationDeadline: timestamp("registration_deadline"),
+  status: mysqlEnum("status", ["open", "closed", "cancelled"]).default("open").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Event = typeof events.$inferSelect;
+export type InsertEvent = typeof events.$inferInsert;
+
+/**
+ * 活動報名表
+ */
+export const eventRegistrations = mysqlTable("event_registrations", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: int("event_id").notNull().references(() => events.id),
+  studentId: int("student_id"),
+  eliteStudentId: int("elite_student_id"),
+  studentName: varchar("student_name", { length: 100 }).notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  status: mysqlEnum("status", ["registered", "confirmed", "cancelled"]).default("registered").notNull(),
+  notes: text("notes"),
+  registeredAt: timestamp("registered_at").defaultNow().notNull(),
+});
+
+export type EventRegistration = typeof eventRegistrations.$inferSelect;
+export type InsertEventRegistration = typeof eventRegistrations.$inferInsert;

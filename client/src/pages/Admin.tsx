@@ -29,6 +29,7 @@ import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import CoachStatsWithElite from "@/components/CoachStatsWithElite";
 import MonthlyFinanceReport from "@/components/MonthlyFinanceReport";
 import AccountingRecords from "@/components/AccountingRecords";
+import EventManagement from "@/components/EventManagement";
 
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -491,6 +492,7 @@ export default function Admin() {
             <TabsTrigger value="coach-stats" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-green-300 bg-green-50 text-green-700 rounded-md data-[state=active]:border-green-500 data-[state=active]:bg-green-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📊 教練統計</TabsTrigger>
             <TabsTrigger value="monthly-finance" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-teal-300 bg-teal-50 text-teal-700 rounded-md data-[state=active]:border-teal-500 data-[state=active]:bg-teal-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">💰 財務報表</TabsTrigger>
             <TabsTrigger value="accounting" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-violet-300 bg-violet-50 text-violet-700 rounded-md data-[state=active]:border-violet-500 data-[state=active]:bg-violet-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📋 會計總帳</TabsTrigger>
+            <TabsTrigger value="events" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-orange-300 bg-orange-50 text-orange-700 rounded-md data-[state=active]:border-orange-500 data-[state=active]:bg-orange-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">🏆 活動管理</TabsTrigger>
             <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">用戶管理</TabsTrigger>
             <TabsTrigger value="whatsapp" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">WhatsApp範本</TabsTrigger>
           </TabsList>
@@ -891,6 +893,11 @@ export default function Admin() {
           {/* ========= 會計總帳 ========= */}
           <TabsContent value="accounting">
             <AccountingRecords />
+          </TabsContent>
+
+          {/* ========= 活動管理 ========= */}
+          <TabsContent value="events">
+            <EventManagement />
           </TabsContent>
 
           {/* ========= 用戶管理 ========= */}

@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import {
   ArrowLeft, Upload, Loader2, CheckCircle2, KeyRound, DollarSign,
   CalendarDays, Award, ClipboardList, CreditCard, ChevronLeft, ChevronRight,
-  XCircle, Clock, MinusCircle, CalendarOff, ChevronDown, ChevronUp, AlertCircle, History as HistoryIcon
+  XCircle, Clock, MinusCircle, CalendarOff, ChevronDown, ChevronUp, AlertCircle, History as HistoryIcon,
+  User, MapPin, Trophy, FileText, Calendar
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ const ATTENDANCE_STATUS_CONFIG = {
   excused: { label: "請假", icon: MinusCircle, color: "text-blue-600", bg: "bg-blue-50" },
 } as const;
 
-type TabType = "overview" | "regular-attendance" | "regular-payment" | "elite";
+type TabType = "overview" | "regular-attendance" | "regular-payment" | "elite" | "events";
 
 export default function Payment() {
   const search = useSearch();
@@ -82,6 +83,7 @@ export default function Payment() {
     ...(hasRegular ? [{ key: "regular-attendance" as TabType, label: "恆常班出席", icon: CalendarDays, shortLabel: "出席" }] : []),
     ...(hasRegular ? [{ key: "regular-payment" as TabType, label: "恆常班繳費", icon: CreditCard, shortLabel: "繳費" }] : []),
     ...(hasElite ? [{ key: "elite" as TabType, label: "精英班", icon: Award, shortLabel: "精英班" }] : []),
+    { key: "events" as TabType, label: "報名活動", icon: Trophy, shortLabel: "活動" },
   ];
 
   return (
@@ -149,6 +151,9 @@ export default function Payment() {
         {activeTab === "elite" && hasElite && (
           <EliteTab eliteInfo={eliteInfo!} />
         )}
+        {activeTab === "events" && (
+          <EventsTab phone={phone} students={students || []} eliteInfo={eliteInfo || []} />
+        )}
       </div>
 
       <ChangePasswordDialog
@@ -172,15 +177,17 @@ function OverviewTab({ students, eliteInfo, hasRegular, hasElite, onNavigate, ph
   onNavigate: (tab: TabType) => void;
   phone: string;
 }) {
-  // 月份繳費狀態
-  const currentYear = new Date().getFullYear();
-  const { data: monthlyStatuses } = trpc.payments.getParentMonthlyStatuses.useQuery(
-    { phone, year: currentYear },
-    { enabled: !!phone }
-  );
-  const currentMonth = new Date().getMonth() + 1;
-
-  const MONTH_LABELS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  // Belt color mapping
+  const getBeltColor = (belt: string) => {
+    const b = (belt || '').toLowerCase();
+    if (b.includes('白') || b.includes('white')) return { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-700', dot: 'bg-gray-400' };
+    if (b.includes('黃') || b.includes('yellow')) return { bg: 'bg-yellow-50', border: 'border-yellow-300', text: 'text-yellow-700', dot: 'bg-yellow-400' };
+    if (b.includes('綠') || b.includes('green')) return { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', dot: 'bg-green-500' };
+    if (b.includes('藍') || b.includes('blue')) return { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', dot: 'bg-blue-500' };
+    if (b.includes('紅') || b.includes('red')) return { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-700', dot: 'bg-red-500' };
+    if (b.includes('黑') || b.includes('black')) return { bg: 'bg-gray-900', border: 'border-gray-700', text: 'text-white', dot: 'bg-gray-900' };
+    return { bg: 'bg-purple-50', border: 'border-purple-300', text: 'text-purple-700', dot: 'bg-purple-400' };
+  };
 
   return (
     <div className="space-y-4">
@@ -200,125 +207,107 @@ function OverviewTab({ students, eliteInfo, hasRegular, hasElite, onNavigate, ph
         </CardContent>
       </Card>
 
-      {/* 恆常班摘要 */}
+      {/* 學生資料卡 */}
       {hasRegular && (
         <Card className="shadow-sm">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-blue-600" />
-                恆常班
-              </CardTitle>
-              <Button variant="ghost" size="sm" className="text-blue-600 text-xs" onClick={() => onNavigate("regular-attendance")}>
-                查看出席 →
-              </Button>
-            </div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <User className="w-5 h-5 text-blue-600" />
+              學生資料
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {students.map(student => {
-              const studentStatus = monthlyStatuses?.find(s => s.studentId === student.id);
-              const unpaidCount = studentStatus 
-                ? Object.values(studentStatus.months).filter((m: any) => m.status === 'unpaid').length 
-                : 0;
-              const paidCount = studentStatus 
-                ? Object.values(studentStatus.months).filter((m: any) => m.status === 'paid').length 
-                : 0;
+              const beltStyle = getBeltColor(student.beltLevel);
               return (
-                <div key={student.id} className="p-3 bg-gray-50 rounded-lg space-y-2">
+                <div key={student.id} className="p-4 bg-gray-50 rounded-lg space-y-3">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-sm">{student.name}</div>
-                      <div className="text-xs text-gray-500">{student.venue} · {student.scheduleDay} {student.scheduleTime}</div>
+                    <div className="font-semibold text-base">{student.name}</div>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${beltStyle.bg} ${beltStyle.border} ${beltStyle.text}`}>
+                      <span className={`w-2 h-2 rounded-full ${beltStyle.dot}`}></span>
+                      {student.beltLevel || '未設定'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 text-sm">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span>{student.venue || '未設定'}</span>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-semibold text-blue-600">${student.feePerQuarter}/季</div>
-                      {unpaidCount > 0 ? (
-                        <span className="text-xs text-red-600 font-medium">❌ {unpaidCount}個月未繳</span>
-                      ) : (
-                        <span className="text-xs text-green-600 font-medium">✅ 已繳清</span>
-                      )}
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span>{student.scheduleDay || ''} {student.scheduleTime || ''}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <DollarSign className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span>${student.feePerQuarter}/季</span>
                     </div>
                   </div>
-                  {/* 月份迷你狀態條 */}
-                  {studentStatus && (
-                    <div className="flex gap-0.5">
-                      {MONTH_LABELS.map((label, i) => {
-                        const m = i + 1;
-                        const mStatus = studentStatus.months[m]?.status;
-                        return (
-                          <div
-                            key={m}
-                            className={`flex-1 h-4 rounded-sm text-center text-[8px] leading-4 font-medium ${
-                              mStatus === 'paid' ? 'bg-green-400 text-white' :
-                              mStatus === 'unpaid' ? 'bg-red-400 text-white' :
-                              'bg-gray-200 text-gray-500'
-                            } ${m === currentMonth ? 'ring-1 ring-blue-500' : ''}`}
-                            title={`${label}: ${mStatus === 'paid' ? '已繳' : mStatus === 'unpaid' ? '未繳' : '未到期'}`}
-                          >
-                            {m}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               );
             })}
-            <Button variant="outline" className="w-full text-sm" onClick={() => onNavigate("regular-payment")}>
-              <CreditCard className="w-4 h-4 mr-2" />
-              前往繳費
-            </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* 精英班摘要 */}
+      {/* 精英班學生資料 */}
       {hasElite && (
         <Card className="shadow-sm border-amber-200">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Award className="w-5 h-5 text-amber-600" />
-                精英班
-              </CardTitle>
-              <Button variant="ghost" size="sm" className="text-amber-600 text-xs" onClick={() => onNavigate("elite")}>
-                查看詳情 →
-              </Button>
-            </div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Award className="w-5 h-5 text-amber-600" />
+              精英班
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {eliteInfo.map(item => {
               const { student, totalAttended, paidClasses, remainingClasses, needPayment, cycleNumber } = item;
               const currentInCycle = cycleNumber || 0;
+              const beltStyle = getBeltColor(student.beltLevel);
               return (
-                <div key={student.id} className="p-3 bg-amber-50/50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <div className="font-medium text-sm">{student.name}</div>
-                      <div className="text-xs text-gray-500">已上 {totalAttended} 堂 · 已付 {paidClasses} 堂</div>
+                <div key={student.id} className="p-4 bg-amber-50/50 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold text-base">{student.name}</div>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${beltStyle.bg} ${beltStyle.border} ${beltStyle.text}`}>
+                      <span className={`w-2 h-2 rounded-full ${beltStyle.dot}`}></span>
+                      {student.beltLevel || '未設定'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
+                    <span>{student.scheduleDay || ''} {student.scheduleTime || ''}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-center p-2 bg-white rounded border">
+                      <div className="text-lg font-bold text-green-600">{totalAttended}</div>
+                      <div className="text-xs text-gray-500">累計出席</div>
                     </div>
-                    <div className="text-right">
-                      {needPayment ? (
-                        <span className="text-xs text-red-600 font-medium flex items-center gap-1">
-                          <AlertCircle className="w-3.5 h-3.5" /> 需繳費
-                        </span>
-                      ) : (
-                        <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> 已繳費
-                        </span>
-                      )}
+                    <div className="text-center p-2 bg-white rounded border">
+                      <div className="text-lg font-bold text-purple-600">{paidClasses}</div>
+                      <div className="text-xs text-gray-500">已付堂數</div>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded border">
+                      <div className={`text-lg font-bold ${remainingClasses <= 0 ? 'text-red-600' : remainingClasses <= 3 ? 'text-amber-600' : 'text-blue-600'}`}>
+                        {Math.max(0, remainingClasses)}
+                      </div>
+                      <div className="text-xs text-gray-500">剩餘堂數</div>
                     </div>
                   </div>
                   {/* 進度條 */}
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full ${remainingClasses <= 0 ? 'bg-red-500' : remainingClasses <= 3 ? 'bg-amber-500' : 'bg-green-500'}`}
-                      style={{ width: `${Math.min((currentInCycle / 12) * 100, 100)}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>當期 {currentInCycle}/12 堂</span>
-                    <span>剩餘 {Math.max(0, remainingClasses)} 堂</span>
+                  <div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${remainingClasses <= 0 ? 'bg-red-500' : remainingClasses <= 3 ? 'bg-amber-500' : 'bg-green-500'}`}
+                        style={{ width: `${Math.min((currentInCycle / 12) * 100, 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>當期 {currentInCycle}/12 堂</span>
+                      {needPayment ? (
+                        <span className="text-red-600 font-semibold">需繳費</span>
+                      ) : (
+                        <span className="text-green-600">已繳費</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -330,6 +319,32 @@ function OverviewTab({ students, eliteInfo, hasRegular, hasElite, onNavigate, ph
           </CardContent>
         </Card>
       )}
+
+      {/* 快捷操作 */}
+      <div className="grid grid-cols-2 gap-3">
+        {hasRegular && (
+          <>
+            <Card className="shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigate("regular-payment")}>
+              <CardContent className="py-4 flex flex-col items-center gap-2">
+                <CreditCard className="w-6 h-6 text-blue-600" />
+                <span className="text-sm font-medium">繳費</span>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigate("regular-attendance")}>
+              <CardContent className="py-4 flex flex-col items-center gap-2">
+                <CalendarDays className="w-6 h-6 text-green-600" />
+                <span className="text-sm font-medium">出席記錄</span>
+              </CardContent>
+            </Card>
+          </>
+        )}
+        <Card className="shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigate("events")}>
+          <CardContent className="py-4 flex flex-col items-center gap-2">
+            <Trophy className="w-6 h-6 text-orange-600" />
+            <span className="text-sm font-medium">報名活動</span>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -499,6 +514,15 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
     { enabled: studentIds.length > 0 }
   );
 
+  // 月份繳費狀態
+  const currentYear = new Date().getFullYear();
+  const { data: monthlyStatuses } = trpc.payments.getParentMonthlyStatuses.useQuery(
+    { phone, year: currentYear },
+    { enabled: !!phone }
+  );
+  const currentMonth = new Date().getMonth() + 1;
+  const MONTH_LABELS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
   // 如果只有一位學生，自動選中
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>(
     students.length === 1 ? [students[0].id] : []
@@ -628,6 +652,67 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
           繳費記錄
         </Button>
       </div>
+
+      {/* 月份繳費狀態 */}
+      {monthlyStatuses && monthlyStatuses.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              {currentYear}年 繳費狀態
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {monthlyStatuses.map((studentStatus: any) => {
+              const student = students.find(s => s.id === studentStatus.studentId);
+              const unpaidCount = Object.values(studentStatus.months).filter((m: any) => m.status === 'unpaid').length;
+              return (
+                <div key={studentStatus.studentId} className="space-y-2">
+                  {students.length > 1 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{student?.name}</span>
+                      {unpaidCount > 0 ? (
+                        <span className="text-xs text-red-600 font-medium">{unpaidCount}個月未繳</span>
+                      ) : (
+                        <span className="text-xs text-green-600 font-medium">已繳清</span>
+                      )}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-12 gap-1">
+                    {MONTH_LABELS.map((label, i) => {
+                      const m = i + 1;
+                      const mStatus = studentStatus.months[m]?.status;
+                      return (
+                        <div
+                          key={m}
+                          className={`h-10 rounded-md flex flex-col items-center justify-center text-xs font-medium ${
+                            mStatus === 'paid' ? 'bg-green-100 text-green-700 border border-green-300' :
+                            mStatus === 'unpaid' ? 'bg-red-100 text-red-700 border border-red-300' :
+                            'bg-gray-100 text-gray-400 border border-gray-200'
+                          } ${m === currentMonth ? 'ring-2 ring-blue-500' : ''}`}
+                          title={`${label}: ${mStatus === 'paid' ? '已繳' : mStatus === 'unpaid' ? '未繳' : '未到期'}`}
+                        >
+                          <span className="text-[10px] leading-none">{label}</span>
+                          <span className="text-[9px] leading-none mt-0.5">
+                            {mStatus === 'paid' ? '✓' : mStatus === 'unpaid' ? '✗' : '—'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {/* 圖例 */}
+            <div className="flex gap-4 text-xs text-gray-500 pt-1">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-300"></span>已繳</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-300"></span>未繳</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 border border-gray-200"></span>未到期</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-2 ring-blue-500"></span>本月</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 選擇學生 - 只有一位學生時自動選中，不顯示勾選 */}
       {students.length === 1 ? (
@@ -1041,6 +1126,266 @@ function EliteTab({ eliteInfo }: { eliteInfo: any[] }) {
           </Card>
         );
       })}
+    </div>
+  );
+}
+
+
+// ================= 報名活動 Tab =================
+function EventsTab({ phone, students, eliteInfo }: { phone: string; students: any[]; eliteInfo: any[] }) {
+  const { data: openEvents, isLoading: eventsLoading } = trpc.events.getOpen.useQuery();
+  const { data: myRegistrations, isLoading: regsLoading, refetch: refetchRegs } = trpc.events.getMyRegistrations.useQuery({ phone });
+
+  const registerMutation = trpc.events.register.useMutation();
+  const cancelMutation = trpc.events.cancelRegistration.useMutation();
+
+  const [selectedEvent, setSelectedEvent] = useState<number | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<string>("");
+  const [notes, setNotes] = useState("");
+
+  const allStudents = [
+    ...students.map(s => ({ name: s.name, id: s.id, type: 'regular' as const })),
+    ...eliteInfo.map(e => ({ name: e.student.name, id: e.student.id, type: 'elite' as const })),
+  ];
+  // Deduplicate by name
+  const uniqueStudents = allStudents.filter((s, i) => allStudents.findIndex(x => x.name === s.name) === i);
+
+  const EVENT_TYPE_CONFIG = {
+    exam: { label: '考試', icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
+    competition: { label: '比賽', icon: Trophy, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
+    training: { label: '交流訓練', icon: Award, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
+  } as const;
+
+  const handleRegister = async (eventId: number) => {
+    if (!selectedStudent) {
+      toast.error("請選擇學生");
+      return;
+    }
+    const studentInfo = uniqueStudents.find(s => s.name === selectedStudent);
+    try {
+      await registerMutation.mutateAsync({
+        eventId,
+        studentId: studentInfo?.type === 'regular' ? studentInfo.id : undefined,
+        eliteStudentId: studentInfo?.type === 'elite' ? studentInfo.id : undefined,
+        studentName: selectedStudent,
+        phone,
+        notes: notes || undefined,
+      });
+      toast.success("報名成功！");
+      setSelectedEvent(null);
+      setSelectedStudent("");
+      setNotes("");
+      refetchRegs();
+    } catch (error: any) {
+      toast.error(error.message || "報名失敗");
+    }
+  };
+
+  const handleCancel = async (regId: number) => {
+    try {
+      await cancelMutation.mutateAsync({ id: regId });
+      toast.success("已取消報名");
+      refetchRegs();
+    } catch {
+      toast.error("取消失敗");
+    }
+  };
+
+  const isRegistered = (eventId: number, studentName: string) => {
+    return myRegistrations?.some(r => r.eventId === eventId && r.studentName === studentName && r.status !== 'cancelled');
+  };
+
+  if (eventsLoading || regsLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* 我的報名 */}
+      {myRegistrations && myRegistrations.filter(r => r.status !== 'cancelled').length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              已報名活動
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {myRegistrations.filter(r => r.status !== 'cancelled').map(reg => {
+              const event = openEvents?.find(e => e.id === reg.eventId);
+              const typeConfig = event ? EVENT_TYPE_CONFIG[event.type as keyof typeof EVENT_TYPE_CONFIG] : null;
+              return (
+                <div key={reg.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <div className="font-medium text-sm">{event?.title || '活動'}</div>
+                    <div className="text-xs text-gray-500">
+                      {reg.studentName} · {typeConfig?.label || ''}
+                      {event?.eventDate && ` · ${new Date(event.eventDate).toLocaleDateString('zh-TW')}`}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      reg.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {reg.status === 'confirmed' ? '已確認' : '待確認'}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => handleCancel(reg.id)}
+                    >
+                      取消
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 可報名活動 */}
+      {(!openEvents || openEvents.length === 0) ? (
+        <Card>
+          <CardContent className="py-12 text-center text-gray-500">
+            <Trophy className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p>目前沒有開放報名的活動</p>
+            <p className="text-sm mt-1">活動開放報名時會在此顯示</p>
+          </CardContent>
+        </Card>
+      ) : (
+        openEvents.map(event => {
+          const typeConfig = EVENT_TYPE_CONFIG[event.type as keyof typeof EVENT_TYPE_CONFIG];
+          const TypeIcon = typeConfig.icon;
+          const isDeadlinePassed = event.registrationDeadline && new Date(event.registrationDeadline) < new Date();
+          const isExpanded = selectedEvent === event.id;
+
+          return (
+            <Card key={event.id} className={`${typeConfig.border} border`}>
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${typeConfig.bg} ${typeConfig.color}`}>
+                        <TypeIcon className="w-3 h-3" />
+                        {typeConfig.label}
+                      </span>
+                      <CardTitle className="text-base">{event.title}</CardTitle>
+                    </div>
+                    {event.description && (
+                      <CardDescription className="text-sm">{event.description}</CardDescription>
+                    )}
+                  </div>
+                  {event.fee && parseFloat(event.fee) > 0 && (
+                    <span className="text-sm font-bold text-blue-600">${event.fee}</span>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <CalendarDays className="w-4 h-4 text-gray-400" />
+                    <span>{new Date(event.eventDate).toLocaleDateString('zh-TW')}</span>
+                  </div>
+                  {event.eventTime && (
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Clock className="w-4 h-4 text-gray-400" />
+                      <span>{event.eventTime}</span>
+                    </div>
+                  )}
+                  {event.location && (
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <MapPin className="w-4 h-4 text-gray-400" />
+                      <span>{event.location}</span>
+                    </div>
+                  )}
+                  {event.registrationDeadline && (
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <AlertCircle className="w-4 h-4 text-gray-400" />
+                      <span>截止: {new Date(event.registrationDeadline).toLocaleDateString('zh-TW')}</span>
+                    </div>
+                  )}
+                </div>
+
+                {isDeadlinePassed ? (
+                  <div className="p-3 bg-gray-100 rounded-lg text-center text-sm text-gray-500">
+                    報名已截止
+                  </div>
+                ) : isExpanded ? (
+                  <div className="p-3 bg-gray-50 rounded-lg space-y-3">
+                    <div>
+                      <Label className="text-sm font-medium">選擇學生</Label>
+                      <select
+                        value={selectedStudent}
+                        onChange={e => setSelectedStudent(e.target.value)}
+                        className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                      >
+                        <option value="">-- 請選擇 --</option>
+                        {uniqueStudents.map(s => (
+                          <option
+                            key={`${s.type}-${s.id}`}
+                            value={s.name}
+                            disabled={!!isRegistered(event.id, s.name)}
+                          >
+                            {s.name}{isRegistered(event.id, s.name) ? ' (已報名)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">備註（可選）</Label>
+                      <Input
+                        value={notes}
+                        onChange={e => setNotes(e.target.value)}
+                        placeholder="例如：特殊需求"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => handleRegister(event.id)}
+                        disabled={!selectedStudent || registerMutation.isPending}
+                        className="flex-1"
+                        size="sm"
+                      >
+                        {registerMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+                        確認報名
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => { setSelectedEvent(null); setSelectedStudent(""); setNotes(""); }}
+                        size="sm"
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      setSelectedEvent(event.id);
+                      // 只有一個學生自動選擇
+                      if (uniqueStudents.length === 1) {
+                        setSelectedStudent(uniqueStudents[0].name);
+                      }
+                    }}
+                  >
+                    <Trophy className="w-4 h-4 mr-2" />
+                    立即報名
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
     </div>
   );
 }
