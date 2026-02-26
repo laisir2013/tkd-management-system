@@ -1192,7 +1192,12 @@ export const appRouter = router({
             }
           }
         } catch (error) {
-          console.error("OCR failed:", error);
+          const errMsg = error instanceof Error ? error.message : String(error);
+          if (errMsg.includes('OPENAI_API_KEY')) {
+            console.warn("[OCR] API Key 未配置，跳過收據識別。收據已上傳，金額需人工審核。");
+          } else {
+            console.error("[OCR] 收據識別失敗:", errMsg);
+          }
         }
         
         // 獲取學生的學費金額以驗證 OCR 識別結果
@@ -2525,7 +2530,12 @@ export const appRouter = router({
             }
           }
         } catch (error) {
-          console.error("Accounting OCR failed:", error);
+          const errMsg = error instanceof Error ? error.message : String(error);
+          if (errMsg.includes('OPENAI_API_KEY')) {
+            console.warn("[Accounting OCR] API Key 未配置，跳過收據識別。");
+          } else {
+            console.error("[Accounting OCR] 收據識別失敗:", errMsg);
+          }
         }
 
         // 使用 OCR 結果或手動輸入
@@ -2778,7 +2788,8 @@ export const appRouter = router({
           }
           throw new Error("LLM returned no content");
         } catch (error: any) {
-          console.error("Bank statement OCR failed:", error);
+          const bankErrMsg = error instanceof Error ? error.message : String(error);
+          console.error("[Bank Statement OCR] 識別失敗:", bankErrMsg);
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `月結單識別失敗: ${error.message}`,
