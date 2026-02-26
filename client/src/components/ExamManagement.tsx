@@ -1,5 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { trpc } from "../lib/trpc";
+import { useExamSSE } from "../lib/useExamSSE";
+import type { SSEEvent } from "../lib/useExamSSE";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import {
@@ -74,7 +76,7 @@ const CATEGORY_NAMES: Record<string, string> = {
 export default function ExamManagement() {
   const [activeTab, setActiveTab] = useState<'list' | 'detail'>('list');
   const [selectedExamId, setSelectedExamId] = useState<number | null>(null);
-  const [detailTab, setDetailTab] = useState<'overview' | 'candidates' | 'scoring' | 'schedule' | 'results'>('overview');
+  const [detailTab, setDetailTab] = useState<'overview' | 'candidates' | 'scoring' | 'attendance' | 'schedule' | 'results'>('overview');
 
   return (
     <div className="space-y-4">
@@ -179,13 +181,31 @@ function ExamList({ onSelectExam }: { onSelectExam: (id: number) => void }) {
 function ExamDetail({ examId, onBack, detailTab, setDetailTab }: {
   examId: number;
   onBack: () => void;
-  detailTab: 'overview' | 'candidates' | 'scoring' | 'schedule' | 'results';
+  detailTab: 'overview' | 'candidates' | 'scoring' | 'attendance' | 'schedule' | 'results';
   setDetailTab: (t: any) => void;
 }) {
   const { data: exam, refetch: refetchExam } = trpc.exam.get.useQuery({ id: examId });
   const { data: stats } = trpc.exam.statistics.useQuery({ examId });
   const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
   const updateExam = trpc.exam.update.useMutation({ onSuccess: () => { refetchExam(); toast.success('已更新'); } });
+
+  // SSE 即時同步
+  const [sseConnected, setSseConnected] = useState(false);
+  useExamSSE({
+    examId,
+    enabled: true,
+    autoInvalidate: true,
+    onConnected: () => setSseConnected(true),
+    onScoreUpdate: (data) => {
+      console.log('[SSE] Score updated:', data.candidateId);
+    },
+    onAttendanceUpdate: (data) => {
+      if (data.candidateName && data.action) {
+        const actionLabel = data.action === 'check_in' ? '已報到' : data.action === 'mark_absent' ? '標記缺席' : data.action === 'undo_check_in' ? '取消報到' : '狀態更新';
+        toast.info(`${data.candidateName} ${actionLabel}`, { duration: 2000 });
+      }
+    },
+  });
 
   if (!exam) return <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
 
@@ -198,6 +218,11 @@ function ExamDetail({ examId, onBack, detailTab, setDetailTab }: {
     count: (candidates as any[]).filter(c => c.currentBelt === key).length,
   })).filter(b => b.count > 0) : [];
 
+  // 即時統計
+  const s = stats as any;
+  const passRate = s && (s.passed + s.failed) > 0 ? ((s.passed / (s.passed + s.failed)) * 100).toFixed(1) : '-';
+  const checkedInCount = candidates ? (candidates as any[]).filter((c: any) => ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)).length : 0;
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -208,6 +233,7 @@ function ExamDetail({ examId, onBack, detailTab, setDetailTab }: {
           <div className="text-sm text-gray-500 flex items-center gap-3">
             <span>📅 {new Date(examData.examDate).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</span>
             {examData.location && <span>📍 {examData.location}</span>}
+            {sseConnected && <span className="text-green-500 text-xs flex items-center gap-1">🟢 即時連線</span>}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -226,12 +252,14 @@ function ExamDetail({ examId, onBack, detailTab, setDetailTab }: {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
           <SmallStat label="總人數" value={(stats as any).total || 0} color="text-gray-700" />
+          <SmallStat label="已報到" value={checkedInCount} color="text-blue-600" />
           <SmallStat label="合格" value={(stats as any).passed || 0} color="text-green-600" />
           <SmallStat label="不合格" value={(stats as any).failed || 0} color="text-red-600" />
           <SmallStat label="評分中" value={(stats as any).examining || 0} color="text-yellow-600" />
           <SmallStat label="缺席" value={(stats as any).absent || 0} color="text-gray-400" />
+          <SmallStat label="合格率" value={0} color="text-indigo-600" suffix={passRate !== '-' ? `${passRate}%` : '-'} />
           <SmallStat label="叻叻獎" value={(stats as any).lakLakCount || 0} color="text-amber-500" />
         </div>
       )}
@@ -240,6 +268,7 @@ function ExamDetail({ examId, onBack, detailTab, setDetailTab }: {
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 overflow-x-auto">
         {[
           { key: 'overview' as const, label: '概覽', icon: Eye },
+          { key: 'attendance' as const, label: '點名', icon: UserCheck },
           { key: 'candidates' as const, label: '考生', icon: Users },
           { key: 'scoring' as const, label: '評分', icon: ClipboardCheck },
           { key: 'schedule' as const, label: '時間表', icon: Calendar },
@@ -257,26 +286,27 @@ function ExamDetail({ examId, onBack, detailTab, setDetailTab }: {
       </div>
 
       {/* Tab Content */}
-      {detailTab === 'overview' && <OverviewPanel examId={examId} examData={examData} beltCounts={beltCounts} stats={stats} />}
+      {detailTab === 'overview' && <OverviewPanel examId={examId} examData={examData} beltCounts={beltCounts} stats={stats} passRate={passRate} />}
       {detailTab === 'candidates' && <CandidateManagement examId={examId} />}
       {detailTab === 'scoring' && <ScoringPanel examId={examId} />}
+      {detailTab === 'attendance' && <AttendancePanel examId={examId} />}
       {detailTab === 'schedule' && <SchedulePanel examId={examId} />}
       {detailTab === 'results' && <ResultsPanel examId={examId} />}
     </div>
   );
 }
 
-function SmallStat({ label, value, color }: { label: string; value: number; color: string }) {
+function SmallStat({ label, value, color, suffix }: { label: string; value: number; color: string; suffix?: string }) {
   return (
     <div className="bg-white rounded-lg border p-2 text-center">
-      <div className={`text-xl font-bold ${color}`}>{value}</div>
+      <div className={`text-xl font-bold ${color}`}>{suffix || value}</div>
       <div className="text-xs text-gray-500">{label}</div>
     </div>
   );
 }
 
 // ==================== 概覽 ====================
-function OverviewPanel({ examId, examData, beltCounts, stats }: any) {
+function OverviewPanel({ examId, examData, beltCounts, stats, passRate }: any) {
   return (
     <div className="space-y-4">
       {/* 帶級分佈 */}
@@ -329,11 +359,11 @@ function OverviewPanel({ examId, examData, beltCounts, stats }: any) {
               <Trophy className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-slate-900">考試統計</h3>
-              <p className="text-xs text-slate-500">合格率與成績分析</p>
+              <h3 className="font-semibold text-slate-900">即時考試統計</h3>
+              <p className="text-xs text-slate-500">合格率與叻叻獎即時計算</p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-4 gap-2 text-center">
             <div>
               <div className="text-2xl font-bold text-green-600">{stats?.passed || 0}</div>
               <div className="text-xs text-gray-500">合格</div>
@@ -343,10 +373,12 @@ function OverviewPanel({ examId, examData, beltCounts, stats }: any) {
               <div className="text-xs text-gray-500">不合格</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-amber-600">
-                {stats && (stats as any).total > 0 ? `${(((stats as any).passed / ((stats as any).passed + (stats as any).failed)) * 100 || 0).toFixed(1)}%` : '-'}
-              </div>
+              <div className="text-2xl font-bold text-indigo-600">{passRate !== '-' ? `${passRate}%` : '-'}</div>
               <div className="text-xs text-gray-500">合格率</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-amber-500">{stats?.lakLakCount || 0}</div>
+              <div className="text-xs text-gray-500">叻叻獎</div>
             </div>
           </div>
         </div>
@@ -606,14 +638,29 @@ function ScoringPanel({ examId }: { examId: number }) {
 
 // ==================== 評分表單 ====================
 function ScoringForm({ candidateId, onScored }: { candidateId: number; onScored: () => void }) {
-  const { data: candidate } = trpc.exam.candidates.get.useQuery({ id: candidateId });
+  const { data: candidate, refetch: refetchCandidate } = trpc.exam.candidates.get.useQuery({ id: candidateId });
   const { data: scoringItems } = trpc.exam.scoringItems.listByBelt.useQuery(
     { beltLevel: (candidate as any)?.currentBelt || '' },
     { enabled: !!candidate }
   );
   const { data: existingScores, refetch: refetchScores } = trpc.exam.scores.getByCandidate.useQuery({ candidateId });
   const bulkUpsert = trpc.exam.scores.bulkUpsert.useMutation({
-    onSuccess: () => { refetchScores(); onScored(); toast.success('評分已保存'); },
+    onSuccess: (data: any) => { 
+      refetchScores(); 
+      refetchCandidate();
+      onScored(); 
+      // 顯示計算結果
+      if (data.result) {
+        const r = data.result;
+        if (r.passed) {
+          toast.success(`評分已保存 - 合格！${r.hasLakLakAward ? ' 🌟 獲得叻叻獎！' : ''} (A率: ${r.gradeAPercentage.toFixed(0)}%)`);
+        } else {
+          toast.success(`評分已保存 - 未合格 (A率: ${r.gradeAPercentage.toFixed(0)}%)`);
+        }
+      } else {
+        toast.success('評分已保存'); 
+      }
+    },
   });
 
   const [scores, setScores] = useState<Record<number, string>>({});
@@ -634,6 +681,35 @@ function ScoringForm({ candidateId, onScored }: { candidateId: number; onScored:
 
   const cand = candidate as any;
   const items = scoringItems as any[];
+
+  // 即時計算預覽
+  const previewResult = useMemo(() => {
+    if (items.length === 0) return null;
+    
+    const failValues = ['false', 'fail', '未達標', '否', '不合格', '沒有'];
+    let hasAnyFailed = false;
+    let totalGradable = 0;
+    let gradeACount = 0;
+    let scoredCount = 0;
+
+    for (const item of items) {
+      const scoreValue = scores[item.id];
+      if (!scoreValue) continue;
+      scoredCount++;
+      
+      if (failValues.includes(scoreValue.toLowerCase())) hasAnyFailed = true;
+      if (item.type === 'grade') {
+        totalGradable++;
+        if (scoreValue.toUpperCase() === 'A') gradeACount++;
+      }
+    }
+
+    const passed = !hasAnyFailed && scoredCount > 0;
+    const gradeAPercentage = totalGradable > 0 ? (gradeACount / totalGradable) * 100 : 0;
+    const hasLakLak = passed && gradeAPercentage >= 80;
+
+    return { passed, hasAnyFailed, gradeAPercentage, hasLakLak, scoredCount, totalItems: items.length };
+  }, [scores, items]);
 
   const handleSave = () => {
     const scoreList = Object.entries(scores)
@@ -720,6 +796,33 @@ function ScoringForm({ candidateId, onScored }: { candidateId: number; onScored:
         ))}
       </div>
 
+      {/* 即時結果預覽 */}
+      {previewResult && previewResult.scoredCount > 0 && (
+        <div className={`rounded-lg border-2 p-3 ${
+          previewResult.hasAnyFailed ? 'border-red-300 bg-red-50' : 
+          previewResult.hasLakLak ? 'border-amber-300 bg-amber-50' :
+          previewResult.passed ? 'border-green-300 bg-green-50' : 'border-gray-300 bg-gray-50'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-lg">
+                {previewResult.hasAnyFailed ? '❌' : previewResult.hasLakLak ? '🌟' : previewResult.passed ? '✅' : '⏳'}
+              </span>
+              <div>
+                <div className="text-sm font-semibold">
+                  {previewResult.hasAnyFailed ? '目前: 不合格' : previewResult.passed ? '目前: 合格' : '評分中'}
+                  {previewResult.hasLakLak && <span className="ml-2 text-amber-700">叻叻獎!</span>}
+                </div>
+                <div className="text-xs text-gray-500">
+                  已評 {previewResult.scoredCount}/{previewResult.totalItems} 項 | A 率: {previewResult.gradeAPercentage.toFixed(0)}%
+                  {previewResult.gradeAPercentage >= 80 && !previewResult.hasAnyFailed && ' (達叻叻獎標準)'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-end gap-2 pt-2 border-t">
         <Button size="sm" onClick={handleSave} disabled={bulkUpsert.isPending}
           className="bg-red-600 hover:bg-red-700 text-white">
@@ -727,6 +830,248 @@ function ScoringForm({ candidateId, onScored }: { candidateId: number; onScored:
           保存評分
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ==================== 點名面板（內嵌版） ====================
+function AttendancePanel({ examId }: { examId: number }) {
+  const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: schedules } = trpc.exam.schedules.list.useQuery({ examId });
+  const checkIn = trpc.exam.attendance.checkIn.useMutation({ onSuccess: () => refetchCandidates() });
+  const undoCheckIn = trpc.exam.attendance.undoCheckIn.useMutation({ onSuccess: () => refetchCandidates() });
+  const markAbsent = trpc.exam.attendance.markAbsent.useMutation({ onSuccess: () => refetchCandidates() });
+  const bulkCheckInMut = trpc.exam.attendance.bulkCheckIn.useMutation({ onSuccess: () => { refetchCandidates(); toast.success('批量報到完成'); } });
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loadingIds, setLoadingIds] = useState<Set<number>>(new Set());
+
+  const isCheckedInStatus = (status: string) => ['checked_in', 'examining', 'passed', 'failed'].includes(status);
+
+  // 統計
+  const stats = useMemo(() => {
+    if (!candidates) return { total: 0, checkedIn: 0, notCheckedIn: 0, absent: 0 };
+    const all = candidates as any[];
+    const total = all.length;
+    const checkedIn = all.filter(c => isCheckedInStatus(c.status)).length;
+    const absent = all.filter(c => c.status === 'absent').length;
+    return { total, checkedIn, notCheckedIn: total - checkedIn - absent, absent };
+  }, [candidates]);
+
+  // 按組別分組
+  const sortedSchedules = useMemo(() => {
+    if (!schedules) return [];
+    return [...(schedules as any[])].sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+  }, [schedules]);
+
+  // 過濾搜尋
+  const filterCandidate = (c: any) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q));
+  };
+
+  const handleCheckIn = async (candidateId: number, name: string) => {
+    setLoadingIds(prev => new Set(prev).add(candidateId));
+    try {
+      await checkIn.mutateAsync({ candidateId });
+      toast.success(`${name} 已報到`);
+    } catch (e: any) { toast.error(e.message || '報到失敗'); }
+    finally { setLoadingIds(prev => { const n = new Set(prev); n.delete(candidateId); return n; }); }
+  };
+
+  const handleUndoCheckIn = async (candidateId: number, name: string) => {
+    setLoadingIds(prev => new Set(prev).add(candidateId));
+    try {
+      await undoCheckIn.mutateAsync({ candidateId });
+      toast.success(`${name} 已取消報到`);
+    } catch (e: any) { toast.error(e.message || '取消報到失敗'); }
+    finally { setLoadingIds(prev => { const n = new Set(prev); n.delete(candidateId); return n; }); }
+  };
+
+  const handleMarkAbsent = async (candidateId: number, name: string, absent: boolean) => {
+    setLoadingIds(prev => new Set(prev).add(candidateId));
+    try {
+      await markAbsent.mutateAsync({ candidateId, absent });
+      toast.success(absent ? `${name} 已標記為缺席` : `${name} 已取消缺席`);
+    } catch (e: any) { toast.error(e.message || '操作失敗'); }
+    finally { setLoadingIds(prev => { const n = new Set(prev); n.delete(candidateId); return n; }); }
+  };
+
+  const handleBulkCheckInGroup = (groupCode: string) => {
+    const groupCandidates = (candidates as any[])?.filter(c => c.groupCode === groupCode && c.status === 'registered') || [];
+    if (groupCandidates.length === 0) { toast.info('此組全部已報到或缺席'); return; }
+    if (!confirm(`確定將 ${groupCandidates.length} 位考生全部報到？`)) return;
+    bulkCheckInMut.mutate({ candidateIds: groupCandidates.map(c => c.id) });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 統計 + 搜尋 */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-center">
+            <div className="text-lg font-bold text-blue-600">{stats.checkedIn}/{stats.total}</div>
+            <div className="text-[10px] text-blue-500">已到/總數</div>
+          </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 text-center">
+            <div className="text-lg font-bold text-yellow-600">{stats.notCheckedIn}</div>
+            <div className="text-[10px] text-yellow-500">未到</div>
+          </div>
+          <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 text-center">
+            <div className="text-lg font-bold text-orange-600">{stats.absent}</div>
+            <div className="text-[10px] text-orange-500">缺席</div>
+          </div>
+          {stats.total > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1.5 text-center">
+              <div className="text-lg font-bold text-green-600">{((stats.checkedIn / stats.total) * 100).toFixed(0)}%</div>
+              <div className="text-[10px] text-green-500">到場率</div>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input placeholder="搜尋考生..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              className="pl-8 h-9 w-48" />
+          </div>
+          <Button size="sm" variant="outline" onClick={() => refetchCandidates()}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* 按組別顯示 */}
+      {sortedSchedules.length > 0 ? (
+        <div className="space-y-3">
+          {sortedSchedules.map((schedule: any) => {
+            const groupCandidates = ((candidates as any[]) || [])
+              .filter(c => c.groupCode === schedule.groupCode)
+              .filter(filterCandidate);
+            const allGroupCandidates = ((candidates as any[]) || []).filter(c => c.groupCode === schedule.groupCode);
+            const checkedInCount = allGroupCandidates.filter(c => isCheckedInStatus(c.status)).length;
+            const allDone = allGroupCandidates.length > 0 && checkedInCount === allGroupCandidates.length;
+
+            return (
+              <div key={schedule.id} className="bg-white rounded-lg border overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold">{schedule.groupCode?.toUpperCase() || '-'}</span>
+                    {getBeltBadge(schedule.beltLevel)}
+                    <span className="text-xs text-gray-500">{String(schedule.startTime || '')} - {String(schedule.endTime || '')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${allDone ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {checkedInCount}/{allGroupCandidates.length}
+                    </span>
+                    <Button size="sm" variant="outline" className="h-7 text-xs"
+                      onClick={() => handleBulkCheckInGroup(schedule.groupCode)}
+                      disabled={bulkCheckInMut.isPending}>
+                      全組報到
+                    </Button>
+                  </div>
+                </div>
+                <div className="divide-y">
+                  {groupCandidates.length === 0 ? (
+                    <div className="px-3 py-3 text-center text-gray-400 text-sm">
+                      {searchQuery ? '無符合搜尋條件的考生' : '無考生'}
+                    </div>
+                  ) : groupCandidates.map((c: any) => {
+                    const isProcessing = loadingIds.has(c.id);
+                    const isIn = isCheckedInStatus(c.status);
+                    const isAbsent = c.status === 'absent';
+                    return (
+                      <div key={c.id} className={`flex items-center justify-between px-3 py-2 ${isAbsent ? 'bg-orange-50' : isIn ? 'bg-green-50' : 'hover:bg-gray-50'} ${isProcessing ? 'opacity-50' : ''}`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{isAbsent ? '🚫' : isIn ? '✅' : '⭕'}</span>
+                          <span className={`text-sm font-medium ${isAbsent ? 'text-orange-600 line-through' : isIn ? 'text-green-700' : 'text-slate-700'}`}>
+                            {c.orderNumber ? `${c.orderNumber}. ` : ''}{c.name}
+                          </span>
+                          {getBeltBadge(c.currentBelt)}
+                          {c.hasLakLakAward && <span className="text-xs bg-amber-100 text-amber-700 px-1 rounded">⭐</span>}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {isAbsent ? (
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-300"
+                              onClick={() => handleMarkAbsent(c.id, c.name, false)} disabled={isProcessing}>
+                              取消缺席
+                            </Button>
+                          ) : isIn ? (
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-red-500 border-red-300"
+                              onClick={() => handleUndoCheckIn(c.id, c.name)} disabled={isProcessing}>
+                              取消報到
+                            </Button>
+                          ) : (
+                            <>
+                              <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => handleCheckIn(c.id, c.name)} disabled={isProcessing}>
+                                報到
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-orange-500 border-orange-300"
+                                onClick={() => handleMarkAbsent(c.id, c.name, true)} disabled={isProcessing}>
+                                缺席
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* 無時間表時按帶級分組顯示 */
+        <div className="space-y-3">
+          {BELT_ORDER_KEYS.map(belt => {
+            const beltCandidates = ((candidates as any[]) || []).filter(c => c.currentBelt === belt).filter(filterCandidate);
+            if (beltCandidates.length === 0) return null;
+            const checkedInCount = beltCandidates.filter(c => isCheckedInStatus(c.status)).length;
+            return (
+              <div key={belt} className="bg-white rounded-lg border overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b">
+                  <div className="flex items-center gap-2">
+                    {getBeltBadge(belt)}
+                    <span className="text-xs text-gray-500">{beltCandidates.length} 人</span>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${checkedInCount === beltCandidates.length ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {checkedInCount}/{beltCandidates.length}
+                  </span>
+                </div>
+                <div className="divide-y">
+                  {beltCandidates.map((c: any) => {
+                    const isProcessing = loadingIds.has(c.id);
+                    const isIn = isCheckedInStatus(c.status);
+                    const isAbsent = c.status === 'absent';
+                    return (
+                      <div key={c.id} className={`flex items-center justify-between px-3 py-2 ${isAbsent ? 'bg-orange-50' : isIn ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
+                        <div className="flex items-center gap-2">
+                          <span>{isAbsent ? '🚫' : isIn ? '✅' : '⭕'}</span>
+                          <span className={`text-sm font-medium ${isAbsent ? 'text-orange-600 line-through' : isIn ? 'text-green-700' : ''}`}>{c.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {isAbsent ? (
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-green-600" onClick={() => handleMarkAbsent(c.id, c.name, false)} disabled={isProcessing}>取消缺席</Button>
+                          ) : isIn ? (
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-red-500" onClick={() => handleUndoCheckIn(c.id, c.name)} disabled={isProcessing}>取消報到</Button>
+                          ) : (
+                            <>
+                              <Button size="sm" className="h-7 text-xs bg-green-600 text-white" onClick={() => handleCheckIn(c.id, c.name)} disabled={isProcessing}>報到</Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-orange-500" onClick={() => handleMarkAbsent(c.id, c.name, true)} disabled={isProcessing}>缺席</Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -818,14 +1163,20 @@ function ResultsPanel({ examId }: { examId: number }) {
   const [activeTab, setActiveTab] = useState<'passed' | 'failed' | 'absent'>('passed');
   const [selectedBelt, setSelectedBelt] = useState('all');
 
+  const allCandidatesList = (candidates as any[]) || [];
+  const totalPassed = allCandidatesList.filter(c => c.status === 'passed').length;
+  const totalFailed = allCandidatesList.filter(c => c.status === 'failed').length;
+  const lakLakCount = allCandidatesList.filter(c => c.hasLakLakAward).length;
+  const passRateValue = (totalPassed + totalFailed) > 0 ? ((totalPassed / (totalPassed + totalFailed)) * 100).toFixed(1) : '-';
+
   const filterByBelt = (list: any[]) => {
     if (selectedBelt === 'all') return list;
     return list.filter(c => c.currentBelt === selectedBelt);
   };
 
-  const passed = filterByBelt((candidates as any[])?.filter(c => c.status === 'passed') || []);
-  const failed = filterByBelt((candidates as any[])?.filter(c => c.status === 'failed') || []);
-  const absent = filterByBelt((candidates as any[])?.filter(c => c.status === 'absent') || []);
+  const passed = filterByBelt(allCandidatesList.filter(c => c.status === 'passed'));
+  const failed = filterByBelt(allCandidatesList.filter(c => c.status === 'failed'));
+  const absent = filterByBelt(allCandidatesList.filter(c => c.status === 'absent'));
 
   const handleExport = () => {
     const dataToExport = activeTab === 'passed' ? passed : activeTab === 'failed' ? failed : absent;
@@ -853,12 +1204,13 @@ function ResultsPanel({ examId }: { examId: number }) {
   return (
     <div className="space-y-4">
       {/* 統計 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        <SmallStat label="總考生數" value={(candidates as any[])?.length || 0} color="text-gray-700" />
-        <SmallStat label="合格人數" value={passed.length} color="text-green-600" />
-        <SmallStat label="不合格人數" value={failed.length} color="text-red-600" />
-        <SmallStat label="缺席人數" value={absent.length} color="text-orange-600" />
-        <SmallStat label="合格率" value={0} color="text-amber-600" />
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+        <SmallStat label="總考生數" value={allCandidatesList.length} color="text-gray-700" />
+        <SmallStat label="合格人數" value={totalPassed} color="text-green-600" />
+        <SmallStat label="不合格人數" value={totalFailed} color="text-red-600" />
+        <SmallStat label="缺席人數" value={allCandidatesList.filter(c => c.status === 'absent').length} color="text-orange-600" />
+        <SmallStat label="合格率" value={0} color="text-indigo-600" suffix={passRateValue !== '-' ? `${passRateValue}%` : '-'} />
+        <SmallStat label="叻叻獎" value={lakLakCount} color="text-amber-500" />
       </div>
 
       {/* 一鍵升帶 */}

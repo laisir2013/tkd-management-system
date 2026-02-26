@@ -2,7 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
-import { broadcastScoreUpdate, broadcastCandidateUpdate, broadcastStatsUpdate } from "./sse";
+import { broadcastScoreUpdate, broadcastCandidateUpdate, broadcastStatsUpdate, broadcastAttendanceUpdate } from "./sse";
 import { z } from "zod";
 import { 
   getStudentsByPhone, 
@@ -3670,6 +3670,20 @@ export const appRouter = router({
                 status: 'checked_in',
                 name: candidate.name,
               });
+              // 廣播點名更新
+              const allCandidates = await getExamCandidatesByExam(candidate.examId);
+              const checkedInCount = allCandidates.filter((c: any) => ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)).length;
+              broadcastAttendanceUpdate(candidate.examId, {
+                candidateId: input.candidateId,
+                candidateName: candidate.name,
+                action: 'check_in',
+                newStatus: 'checked_in',
+                checkedInCount,
+                totalCount: allCandidates.length,
+              });
+              // 也廣播統計更新
+              const stats = await getExamStatistics(candidate.examId);
+              if (stats) broadcastStatsUpdate(candidate.examId, stats);
             }
           } catch (e) { console.warn('[SSE] checkIn broadcast failed:', e); }
           return { success: true };
@@ -3687,6 +3701,18 @@ export const appRouter = router({
                 status: 'registered',
                 name: candidate.name,
               });
+              const allCandidates = await getExamCandidatesByExam(candidate.examId);
+              const checkedInCount = allCandidates.filter((c: any) => ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)).length;
+              broadcastAttendanceUpdate(candidate.examId, {
+                candidateId: input.candidateId,
+                candidateName: candidate.name,
+                action: 'undo_check_in',
+                newStatus: 'registered',
+                checkedInCount,
+                totalCount: allCandidates.length,
+              });
+              const stats = await getExamStatistics(candidate.examId);
+              if (stats) broadcastStatsUpdate(candidate.examId, stats);
             }
           } catch (e) { console.warn('[SSE] undoCheckIn broadcast failed:', e); }
           return { success: true };
@@ -3704,6 +3730,18 @@ export const appRouter = router({
                 status: input.absent ? 'absent' : 'registered',
                 name: candidate.name,
               });
+              const allCandidates = await getExamCandidatesByExam(candidate.examId);
+              const checkedInCount = allCandidates.filter((c: any) => ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)).length;
+              broadcastAttendanceUpdate(candidate.examId, {
+                candidateId: input.candidateId,
+                candidateName: candidate.name,
+                action: input.absent ? 'mark_absent' : 'undo_absent',
+                newStatus: input.absent ? 'absent' : 'registered',
+                checkedInCount,
+                totalCount: allCandidates.length,
+              });
+              const stats = await getExamStatistics(candidate.examId);
+              if (stats) broadcastStatsUpdate(candidate.examId, stats);
             }
           } catch (e) { console.warn('[SSE] markAbsent broadcast failed:', e); }
           return { success: true };
@@ -3723,6 +3761,18 @@ export const appRouter = router({
                 for (const id of input.candidateIds) {
                   broadcastCandidateUpdate(candidate.examId, { candidateId: id, status: 'checked_in' });
                 }
+                const allCandidates = await getExamCandidatesByExam(candidate.examId);
+                const checkedInCount = allCandidates.filter((c: any) => ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)).length;
+                broadcastAttendanceUpdate(candidate.examId, {
+                  candidateId: input.candidateIds[0],
+                  candidateName: candidate.name,
+                  action: 'bulk_check_in',
+                  newStatus: 'checked_in',
+                  checkedInCount,
+                  totalCount: allCandidates.length,
+                });
+                const stats = await getExamStatistics(candidate.examId);
+                if (stats) broadcastStatsUpdate(candidate.examId, stats);
               }
             }
           } catch (e) { console.warn('[SSE] bulkCheckIn broadcast failed:', e); }

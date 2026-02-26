@@ -24,8 +24,16 @@ export function addSSEClient(res: Response, examId: number): string {
     if (clients.has(clientId)) {
       try { res.write(`: heartbeat\n\n`); } catch { clearInterval(heartbeat); clients.delete(clientId); }
     } else { clearInterval(heartbeat); }
-  }, 30000);
+  }, 15000); // 15s heartbeat
   return clientId;
+}
+
+function broadcastToExam(examId: number, event: string) {
+  for (const client of Array.from(clients.values())) {
+    if (client.examId === examId) {
+      try { client.res.write(`data: ${event}\n\n`); } catch { clients.delete(client.id); }
+    }
+  }
 }
 
 export function broadcastScoreUpdate(examId: number, data: {
@@ -36,11 +44,7 @@ export function broadcastScoreUpdate(examId: number, data: {
   updatedBy?: string;
 }) {
   const event = JSON.stringify({ type: "score_update", examId, ...data, timestamp: Date.now() });
-  for (const client of Array.from(clients.values())) {
-    if (client.examId === examId) {
-      try { client.res.write(`data: ${event}\n\n`); } catch { clients.delete(client.id); }
-    }
-  }
+  broadcastToExam(examId, event);
 }
 
 export function broadcastCandidateUpdate(examId: number, data: {
@@ -50,20 +54,25 @@ export function broadcastCandidateUpdate(examId: number, data: {
   name?: string;
 }) {
   const event = JSON.stringify({ type: "candidate_update", examId, ...data, timestamp: Date.now() });
-  for (const client of Array.from(clients.values())) {
-    if (client.examId === examId) {
-      try { client.res.write(`data: ${event}\n\n`); } catch { clients.delete(client.id); }
-    }
-  }
+  broadcastToExam(examId, event);
 }
 
 export function broadcastStatsUpdate(examId: number, stats: any) {
   const event = JSON.stringify({ type: "stats_update", examId, stats, timestamp: Date.now() });
-  for (const client of Array.from(clients.values())) {
-    if (client.examId === examId) {
-      try { client.res.write(`data: ${event}\n\n`); } catch { clients.delete(client.id); }
-    }
-  }
+  broadcastToExam(examId, event);
+}
+
+// 點名更新廣播
+export function broadcastAttendanceUpdate(examId: number, data: {
+  candidateId: number;
+  candidateName: string;
+  action: 'check_in' | 'undo_check_in' | 'mark_absent' | 'undo_absent' | 'bulk_check_in';
+  newStatus: string;
+  checkedInCount?: number;
+  totalCount?: number;
+}) {
+  const event = JSON.stringify({ type: "attendance_update", examId, ...data, timestamp: Date.now() });
+  broadcastToExam(examId, event);
 }
 
 export function getConnectedClientCount(examId?: number): number {

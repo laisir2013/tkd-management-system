@@ -9,7 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { storageGetBuffer } from "../storage";
-import { addSSEClient } from "../sse";
+import { addSSEClient, getConnectedClientCount } from "../sse";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -69,17 +69,13 @@ async function startServer() {
     addSSEClient(res, examId);
   });
 
+  // SSE connected clients count (for debugging)
+  app.get('/api/exam/sse-status', (_req, res) => {
+    res.json({ connectedClients: getConnectedClientCount() });
+  });
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
-
-  // SSE endpoint for real-time exam scoring sync
-  app.get('/api/exam/sse/:examId', (req, res) => {
-    const examId = parseInt(req.params.examId);
-    if (isNaN(examId)) {
-      return res.status(400).json({ error: 'Invalid exam ID' });
-    }
-    addSSEClient(res, examId);
-  });
 
   // tRPC API
   app.use(

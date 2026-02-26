@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { trpc } from "../lib/trpc";
+import { useExamSSE } from "../lib/useExamSSE";
 import { useParams } from "wouter";
 import { toast, Toaster } from "sonner";
 
@@ -68,13 +69,35 @@ export default function ExamAttendance() {
   const params = useParams<{ examId: string }>();
   const examId = parseInt(params.examId || "0");
   const [loadingIds, setLoadingIds] = useState<Set<number>>(new Set());
+  const [sseConnected, setSseConnected] = useState(false);
 
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: schedules, isLoading: schedulesLoading } = trpc.exam.schedules.list.useQuery({ examId });
   const { data: candidates, isLoading: candidatesLoading, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery(
     { examId },
-    { refetchInterval: 3000, refetchIntervalInBackground: true }
+    // 使用較長的 refetchInterval 作為 SSE 的 fallback
+    { refetchInterval: sseConnected ? 30000 : 3000, refetchIntervalInBackground: true }
   );
+
+  // SSE 即時同步 - 取代頻繁輪詢
+  useExamSSE({
+    examId,
+    enabled: examId > 0,
+    autoInvalidate: true,
+    onConnected: () => setSseConnected(true),
+    onAttendanceUpdate: (data) => {
+      if (data.candidateName && data.action) {
+        const actionLabel = data.action === 'check_in' ? '已報到' : 
+          data.action === 'mark_absent' ? '標記缺席' : 
+          data.action === 'undo_check_in' ? '取消報到' : 
+          data.action === 'bulk_check_in' ? '批量報到' : '狀態更新';
+        toast.info(`${data.candidateName} ${actionLabel}`, { duration: 2000 });
+      }
+    },
+    onCandidateUpdate: () => {
+      // SSE 已經 autoInvalidate，這裡不需要手動 refetch
+    },
+  });
 
   const checkInMutation = trpc.exam.attendance.checkIn.useMutation({ onSuccess: () => refetchCandidates() });
   const undoCheckInMutation = trpc.exam.attendance.undoCheckIn.useMutation({ onSuccess: () => refetchCandidates() });
@@ -133,7 +156,10 @@ export default function ExamAttendance() {
       <div className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b shadow-sm">
         <div className="max-w-[1800px] mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-base sm:text-lg font-bold text-slate-900">📋 點名</h1>
+            <h1 className="text-base sm:text-lg font-bold text-slate-900">
+              📋 點名
+              {sseConnected && <span className="ml-2 text-xs text-green-500 font-normal">🟢 即時連線</span>}
+            </h1>
             {exam && <p className="text-[10px] sm:text-xs text-slate-500">{(exam as any).name}</p>}
           </div>
           <button onClick={() => refetchCandidates()} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">
@@ -150,6 +176,20 @@ export default function ExamAttendance() {
           <StatCard icon="⏳" label="未到" value={stats.notCheckedIn} color="yellow" />
           <StatCard icon="🚫" label="缺席" value={stats.absent} color="orange" />
         </div>
+
+        {/* 到場率進度條 */}
+        {stats.total > 0 && (
+          <div className="mb-3 sm:mb-4 bg-white rounded-xl border p-3">
+            <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <span>到場率</span>
+              <span className="font-semibold text-green-600">{((stats.checkedIn / stats.total) * 100).toFixed(0)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div className="bg-green-500 h-2.5 rounded-full transition-all duration-500" 
+                style={{ width: `${(stats.checkedIn / stats.total) * 100}%` }} />
+            </div>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="text-center py-12 text-gray-400">載入中...</div>
@@ -245,6 +285,7 @@ export default function ExamAttendance() {
                                 </span>
                               </div>
                               {isCheckedIn && <span className="text-sm text-green-600 font-bold">已到</span>}
+                              {candidate.hasLakLakAward && <span className="text-xs bg-amber-100 text-amber-700 px-1 rounded">⭐</span>}
                             </div>
                           </button>
                           <div className="flex flex-col gap-1">
