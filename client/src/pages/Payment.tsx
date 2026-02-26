@@ -618,29 +618,40 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
 
     setIsSubmitting(true);
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = (reader.result as string).split(",")[1];
-        for (const studentId of selectedStudentIds) {
-          const result = await createPayment.mutateAsync({
-            studentId,
-            paymentPeriod: period,
-            customMonths: period === "CUSTOM" ? customMonths.split(",").map(m => m.trim()) : undefined,
-            amount: "0",
-            receiptBase64: base64,
-            receiptMimeType: receiptFile.type,
-          });
-          if (result.extractedAmount) setExtractedAmount(result.extractedAmount);
-          if (result.extractedBank) setExtractedBank(result.extractedBank);
-          if (result.extractedStatus) setExtractedStatus(result.extractedStatus);
-          if (result.extractedDateTime) setExtractedDateTime(result.extractedDateTime);
-        }
-        toast.success("繳費記錄已成功提交!");
-        setTimeout(() => setLocation(`/history?phone=${encodeURIComponent(phone)}`), 1500);
-      };
-      reader.readAsDataURL(receiptFile);
-    } catch {
-      toast.error("提交失敗,請稍後再試");
+      // Convert file to base64 using Promise wrapper
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          try {
+            const result = (reader.result as string).split(",")[1];
+            resolve(result);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = () => reject(new Error("讀取檔案失敗"));
+        reader.readAsDataURL(receiptFile);
+      });
+
+      for (const studentId of selectedStudentIds) {
+        const result = await createPayment.mutateAsync({
+          studentId,
+          paymentPeriod: period,
+          customMonths: period === "CUSTOM" ? customMonths.split(",").map(m => m.trim()) : undefined,
+          amount: "0",
+          receiptBase64: base64,
+          receiptMimeType: receiptFile.type,
+        });
+        if (result.extractedAmount) setExtractedAmount(result.extractedAmount);
+        if (result.extractedBank) setExtractedBank(result.extractedBank);
+        if (result.extractedStatus) setExtractedStatus(result.extractedStatus);
+        if (result.extractedDateTime) setExtractedDateTime(result.extractedDateTime);
+      }
+      toast.success("繳費記錄已成功提交!");
+      setTimeout(() => setLocation(`/history?phone=${encodeURIComponent(phone)}`), 1500);
+    } catch (err: any) {
+      console.error("提交繳費失敗:", err);
+      toast.error(err?.message || "提交失敗,請稍後再試");
     } finally {
       setIsSubmitting(false);
     }

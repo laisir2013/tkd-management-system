@@ -1,8 +1,18 @@
 // Cloudflare R2 storage helpers using S3 compatible API
 // R2 provides S3-compatible API, so we use @aws-sdk/client-s3
+// Falls back to local filesystem storage when R2 credentials are not configured
 
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { ENV } from './_core/env';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Local storage directory (fallback when R2 is not configured)
+const LOCAL_STORAGE_DIR = path.join(process.cwd(), 'uploads');
+
+function isR2Configured(): boolean {
+  return !!(ENV.r2AccountId && ENV.r2AccessKeyId && ENV.r2SecretAccessKey);
+}
 
 let s3Client: S3Client | null = null;
 
@@ -60,9 +70,25 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
+  const key = normalizeKey(relKey);
+
+  // Fallback to local filesystem when R2 is not configured
+  if (!isR2Configured()) {
+    console.log('[storage] R2 not configured, using local filesystem fallback');
+    const filePath = path.join(LOCAL_STORAGE_DIR, key);
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const buffer = typeof data === 'string' ? Buffer.from(data) : Buffer.from(data);
+    fs.writeFileSync(filePath, buffer);
+    // Store content type in a sidecar file
+    fs.writeFileSync(filePath + '.meta', JSON.stringify({ contentType }));
+    return { key, url: `/api/receipts/${key}` };
+  }
+
   const client = getR2Client();
   const bucket = getBucketName();
-  const key = normalizeKey(relKey);
 
   const command = new PutObjectCommand({
     Bucket: bucket,
@@ -80,8 +106,6 @@ export async function storagePut(
   if (publicDomain) {
     url = `https://${publicDomain}/${key}`;
   } else {
-    // Use our own API endpoint to serve the file
-    // This always works and doesn't expire
     url = `/api/receipts/${key}`;
   }
 
@@ -113,9 +137,28 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
  * @returns Object with key, data buffer, and content type
  */
 export async function storageGetBuffer(relKey: string): Promise<{ key: string; data: Buffer; contentType: string }> {
+  const key = normalizeKey(relKey);
+
+  // Fallback to local filesystem when R2 is not configured
+  if (!isR2Configured()) {
+    const filePath = path.join(LOCAL_STORAGE_DIR, key);
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${key}`);
+    }
+    const data = fs.readFileSync(filePath);
+    let contentType = 'application/octet-stream';
+    const metaPath = filePath + '.meta';
+    if (fs.existsSync(metaPath)) {
+      try {
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+        contentType = meta.contentType || contentType;
+      } catch {}
+    }
+    return { key, data, contentType };
+  }
+
   const client = getR2Client();
   const bucket = getBucketName();
-  const key = normalizeKey(relKey);
 
   const command = new GetObjectCommand({ Bucket: bucket, Key: key });
   const response = await client.send(command);
@@ -144,9 +187,19 @@ export async function storageGetBuffer(relKey: string): Promise<{ key: string; d
  * @param relKey - Relative path/key for the file
  */
 export async function storageDelete(relKey: string): Promise<void> {
+  const key = normalizeKey(relKey);
+
+  // Fallback to local filesystem when R2 is not configured
+  if (!isR2Configured()) {
+    const filePath = path.join(LOCAL_STORAGE_DIR, key);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    const metaPath = filePath + '.meta';
+    if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
+    return;
+  }
+
   const client = getR2Client();
   const bucket = getBucketName();
-  const key = normalizeKey(relKey);
 
   const command = new DeleteObjectCommand({ Bucket: bucket, Key: key });
   await client.send(command);
