@@ -676,14 +676,10 @@ function ScoringForm({ candidateId, onScored }: { candidateId: number; onScored:
     }
   }, [existingScores]);
 
-  if (!candidate || !scoringItems) {
-    return <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
-  }
-
+  // 即時計算預覽 (moved before early return to comply with Rules of Hooks)
   const cand = candidate as any;
-  const items = scoringItems as any[];
+  const items = (scoringItems as any[]) || [];
 
-  // 即時計算預覽
   const previewResult = useMemo(() => {
     if (items.length === 0) return null;
     
@@ -711,6 +707,10 @@ function ScoringForm({ candidateId, onScored }: { candidateId: number; onScored:
 
     return { passed, hasAnyFailed, gradeAPercentage, hasLakLak, scoredCount, totalItems: items.length };
   }, [scores, items]);
+
+  if (!candidate || !scoringItems) {
+    return <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
+  }
 
   const handleSave = () => {
     const scoreList = Object.entries(scores)
