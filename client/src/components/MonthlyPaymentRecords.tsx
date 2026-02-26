@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2 } from "lucide-react";
+import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +28,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [coachFilter, setCoachFilter] = useState<string>(coachName || "all");
+  const [showPendingOnly, setShowPendingOnly] = useState(false);
   const { data: statuses, isLoading, refetch } = trpc.payments.getMonthlyStatuses.useQuery({ year: selectedYear });
   
   const yearOptions = [];
@@ -96,12 +97,35 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     return coaches.sort();
   }, [statuses]);
 
+  // 計算待審核數
+  const pendingCount = useMemo(() => {
+    if (!statuses) return 0;
+    let count = 0;
+    statuses.forEach((s: any) => {
+      for (let m = 1; m <= 12; m++) {
+        if (s.months[m]?.status === 'pending') count++;
+      }
+    });
+    return count;
+  }, [statuses]);
+
   // 篩選後的學生
   const filteredStatuses = useMemo(() => {
     if (!statuses) return [];
-    if (coachFilter === 'all') return statuses;
-    return statuses.filter((s: any) => s.coach === coachFilter);
-  }, [statuses, coachFilter]);
+    let result = statuses;
+    if (coachFilter !== 'all') {
+      result = result.filter((s: any) => s.coach === coachFilter);
+    }
+    if (showPendingOnly) {
+      result = result.filter((s: any) => {
+        for (let m = 1; m <= 12; m++) {
+          if (s.months[m]?.status === 'pending') return true;
+        }
+        return false;
+      });
+    }
+    return result;
+  }, [statuses, coachFilter, showPendingOnly]);
 
   if (isLoading) {
     return <div className="text-center py-8">載入中...</div>;
@@ -176,7 +200,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   };
 
   const getMonthStatusCell = (
-    monthData: { status: string; paymentDate?: string | null; confirmedBy?: string | null; receiptUrl?: string | null; paymentType?: string | null },
+    monthData: { status: string; paymentDate?: string | null; confirmedBy?: string | null; receiptUrl?: string | null; paymentType?: string | null; paymentRecordId?: number | null; amount?: string | null },
     month: number,
     studentName: string,
     studentId: number,
@@ -366,6 +390,23 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               </Select>
             </div>
           </div>
+          {/* 待審核提示 */}
+          {!readOnly && pendingCount > 0 && (
+            <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-50 border border-yellow-300">
+              <AlertTriangle className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+              <span className="text-sm font-medium text-yellow-800">
+                有 {pendingCount} 筆待審核繳費記錄（家長已上傳收據）
+              </span>
+              <Button
+                variant={showPendingOnly ? 'default' : 'outline'}
+                size="sm"
+                className={`ml-auto text-xs h-7 ${showPendingOnly ? 'bg-yellow-600 hover:bg-yellow-700' : 'border-yellow-400 text-yellow-700 hover:bg-yellow-100'}`}
+                onClick={() => setShowPendingOnly(!showPendingOnly)}
+              >
+                {showPendingOnly ? '顯示全部' : '只看待審核'}
+              </Button>
+            </div>
+          )}
           {/* 圖例 */}
           <div className="flex flex-wrap gap-3 sm:gap-4 mt-2 text-xs text-gray-500">
             <div className="flex items-center gap-1">
@@ -399,6 +440,10 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             <div className="flex items-center gap-1 border-l pl-3">
               <Undo2 className="w-3 h-3 text-orange-600" />
               <span>撤銷（轉未繳）</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse"></div>
+              <span>待審核</span>
             </div>
           </div>
         </CardHeader>
