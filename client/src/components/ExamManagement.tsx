@@ -183,7 +183,7 @@ function ExamList({ onSelectExam }: { onSelectExam: (id: number) => void }) {
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>{status.label}</span>
                 </div>
                 <div className="text-sm text-gray-500 mt-1">
-                  📅 {new Date(exam.examDate).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  📅 {new Date(exam.examDate + 'T00:00:00').toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}
                   {exam.location && <span className="ml-2">📍 {exam.location}</span>}
                 </div>
               </div>
@@ -237,7 +237,7 @@ function OverviewPage({ examId }: { examId: number }) {
         <div>
           <h1 className="text-xl font-bold">{examData.name}</h1>
           <div className="text-sm text-gray-500 flex items-center gap-3 mt-1">
-            <span>📅 {new Date(examData.examDate).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</span>
+            <span>📅 {new Date(examData.examDate + 'T00:00:00').toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</span>
             {examData.location && <span>📍 {examData.location}</span>}
             {sseConnected && <span className="text-green-500 text-xs">🟢 即時連線</span>}
           </div>

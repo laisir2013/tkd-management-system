@@ -415,7 +415,7 @@ export type InsertEventRegistration = typeof eventRegistrations.$inferInsert;
 export const examSessions = mysqlTable("exam_sessions", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
-  examDate: timestamp("exam_date").notNull(),
+  examDate: date("exam_date", { mode: 'string' }).notNull(),
   location: varchar("location", { length: 255 }),
   description: text("description"),
   status: mysqlEnum("status", ["draft", "scheduled", "in_progress", "completed"]).default("draft").notNull(),
