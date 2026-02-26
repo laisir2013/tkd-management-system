@@ -1,0 +1,9 @@
+﻿id,name,schedule_day,schedule_time,coach_name,color,address,phone,email,status,notes,created_at,updated_at
+1,寶林道場,NULL,NULL,賴政堡教練,#3b82f6,寶林邨,88888888,NULL,active,NULL,2026-02-21 18:00:02,2026-02-23 09:59:16
+2,蒲崗村道場,NULL,NULL,賴政堡教練,#3b82f6,蒲崗村道,88888888,NULL,active,NULL,2026-02-21 18:00:02,2026-02-23 10:03:28
+3,至善道場,NULL,NULL,賴政堡教練,#3b82f6,至善街,88888888,NULL,active,NULL,2026-02-21 18:00:02,2026-02-23 10:03:28
+4,油塘道場,NULL,NULL,鄺富華教練,#3b82f6,NULL,NULL,NULL,active,NULL,2026-02-23 18:28:49,2026-02-23 18:28:49
+5,柴灣道場,NULL,NULL,鄺富華教練,#3b82f6,NULL,NULL,NULL,active,NULL,2026-02-23 18:28:49,2026-02-23 18:28:49
+6,西灣河道場,NULL,NULL,鄺富華教練,#3b82f6,NULL,NULL,NULL,active,NULL,2026-02-23 18:28:49,2026-02-23 18:28:49
+7,九龍城道場,NULL,NULL,鄺富華教練,#3b82f6,NULL,NULL,NULL,active,NULL,2026-02-23 18:28:49,2026-02-23 18:28:49
+8,彩榮路道場,NULL,NULL,鄺富華教練,#3b82f6,NULL,NULL,NULL,active,NULL,2026-02-23 18:28:49,2026-02-23 18:28:49

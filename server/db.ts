@@ -1921,6 +1921,7 @@ export async function syncPaymentToAccounting(params: {
   bank?: string | null;
   studentName: string;
   coachName?: string | null;
+  dojoName?: string | null;
   category?: string;
   receiptUrl?: string | null;
   receiptKey?: string | null;
@@ -1941,6 +1942,7 @@ export async function syncPaymentToAccounting(params: {
     elitePaymentRecordId: null,
     studentName: params.studentName,
     coachName: params.coachName || null,
+    dojoName: params.dojoName || null,
     source: 'auto_sync',
   });
 }
@@ -1955,6 +1957,7 @@ export async function syncElitePaymentToAccounting(params: {
   bank?: string | null;
   studentName: string;
   coachName?: string | null;
+  dojoName?: string | null;
   receiptUrl?: string | null;
   receiptKey?: string | null;
 }): Promise<void> {
@@ -1974,6 +1977,7 @@ export async function syncElitePaymentToAccounting(params: {
     elitePaymentRecordId: params.elitePaymentRecordId,
     studentName: params.studentName,
     coachName: params.coachName || null,
+    dojoName: params.dojoName || '精英班',
     source: 'auto_sync',
   });
 }

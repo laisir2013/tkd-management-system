@@ -350,6 +350,7 @@ export const accountingRecords = mysqlTable("accounting_records", {
   elitePaymentRecordId: int("elite_payment_record_id"), // 關聯的精英班繳費記錄ID
   studentName: varchar("student_name", { length: 100 }), // 學生姓名（收入時填入）
   coachName: varchar("coach_name", { length: 100 }), // 教練姓名
+  dojoName: varchar("dojo_name", { length: 100 }), // 道場名稱（來源道場）
   
   // 來源
   source: mysqlEnum("source", ["auto_sync", "manual"]).default("manual").notNull(), // 來源：自動同步 / 手動輸入

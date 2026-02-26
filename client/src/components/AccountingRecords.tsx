@@ -79,6 +79,7 @@ export default function AccountingRecords() {
   const [formDescription, setFormDescription] = useState("");
   const [formStudentName, setFormStudentName] = useState("");
   const [formCoachName, setFormCoachName] = useState("");
+  const [formDojoName, setFormDojoName] = useState("");
 
   // Receipt upload states
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
@@ -88,6 +89,9 @@ export default function AccountingRecords() {
   const [ocrResult, setOcrResult] = useState<any>(null);
   const [isOcrProcessing, setIsOcrProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch dojos for dropdown
+  const { data: dojos } = trpc.dojos.getAll.useQuery();
 
   const yearOptions = Array.from({ length: 3 }, (_, i) => 2026 + i);
 
@@ -164,6 +168,7 @@ export default function AccountingRecords() {
     setFormDescription("");
     setFormStudentName("");
     setFormCoachName("");
+    setFormDojoName("");
     setShowAddExpense(false);
     setShowAddIncome(false);
   }
@@ -195,6 +200,7 @@ export default function AccountingRecords() {
         description: formDescription || undefined,
         studentName: formStudentName || undefined,
         coachName: formCoachName || undefined,
+        dojoName: formDojoName || undefined,
       });
     } finally {
       setIsSubmitting(false);
@@ -244,6 +250,7 @@ export default function AccountingRecords() {
         description: formDescription || undefined,
         studentName: formStudentName || undefined,
         coachName: formCoachName || undefined,
+        dojoName: formDojoName || undefined,
       });
     } finally {
       setIsSubmitting(false);
@@ -259,6 +266,7 @@ export default function AccountingRecords() {
     setFormDescription(record.description || "");
     setFormStudentName(record.studentName || "");
     setFormCoachName(record.coachName || "");
+    setFormDojoName(record.dojoName || "");
   }
 
   function handleExportExcel() {
@@ -276,6 +284,7 @@ export default function AccountingRecords() {
       '類別': CATEGORY_MAP[r.category] || r.category,
       '說明': r.description || '',
       '學生': r.studentName || '',
+      '道場': r.dojoName || '',
       '教練': r.coachName || '',
       '來源': r.source === 'auto_sync' ? '自動同步' : '手動輸入',
       '對帳狀態': r.reconciliationStatus === 'matched' ? '已對帳' : r.reconciliationStatus === 'manual' ? '人工確認' : '未對帳',
@@ -317,6 +326,7 @@ export default function AccountingRecords() {
       '類別': CATEGORY_MAP[r.category] || r.category,
       '說明': r.description || '',
       '學生姓名': r.studentName || '',
+      '道場': r.dojoName || '',
       '教練': r.coachName || '',
       '來源': r.source === 'auto_sync' ? '學費自動同步' : '手動輸入',
       '對帳狀態': r.reconciliationStatus === 'matched' ? '已對帳' : '未對帳',
@@ -502,6 +512,7 @@ export default function AccountingRecords() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-28">日期</TableHead>
+                    <TableHead>道場</TableHead>
                     <TableHead>銀行</TableHead>
                     <TableHead className="text-right">金額</TableHead>
                     <TableHead className="text-right">收入</TableHead>
@@ -517,6 +528,11 @@ export default function AccountingRecords() {
                   {records.map((record: any) => (
                     <TableRow key={record.id} className={record.type === 'income' ? 'bg-green-50/30' : 'bg-red-50/30'}>
                       <TableCell className="text-sm">{formatDate(record.transactionDate)}</TableCell>
+                      <TableCell className="text-sm">
+                        {record.dojoName ? (
+                          <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">{record.dojoName}</span>
+                        ) : '-'}
+                      </TableCell>
                       <TableCell className="text-sm">{record.bank || '-'}</TableCell>
                       <TableCell className="text-right text-sm font-medium">{formatMoney(record.amount)}</TableCell>
                       <TableCell className="text-right text-sm text-green-600 font-medium">
@@ -627,6 +643,17 @@ export default function AccountingRecords() {
               <Input placeholder="選填" value={formStudentName} onChange={e => setFormStudentName(e.target.value)} />
             </div>
             <div>
+              <Label>道場</Label>
+              <Select value={formDojoName || "_none"} onValueChange={v => setFormDojoName(v === '_none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="選擇道場" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">不指定</SelectItem>
+                  {dojos?.map((d: any) => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                  <SelectItem value="精英班">精英班</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>教練</Label>
               <Input placeholder="選填" value={formCoachName} onChange={e => setFormCoachName(e.target.value)} />
             </div>
@@ -672,6 +699,17 @@ export default function AccountingRecords() {
             <div>
               <Label>銀行</Label>
               <Input placeholder="例如：匯豐、中銀、FPS" value={formBank} onChange={e => setFormBank(e.target.value)} />
+            </div>
+            <div>
+              <Label>道場</Label>
+              <Select value={formDojoName || "_none"} onValueChange={v => setFormDojoName(v === '_none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="選擇道場" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">不指定</SelectItem>
+                  {dojos?.map((d: any) => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                  <SelectItem value="精英班">精英班</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>說明</Label>
@@ -786,6 +824,17 @@ export default function AccountingRecords() {
             <div>
               <Label>學生姓名</Label>
               <Input value={formStudentName} onChange={e => setFormStudentName(e.target.value)} />
+            </div>
+            <div>
+              <Label>道場</Label>
+              <Select value={formDojoName || "_none"} onValueChange={v => setFormDojoName(v === '_none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="選擇道場" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">不指定</SelectItem>
+                  {dojos?.map((d: any) => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                  <SelectItem value="精英班">精英班</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>教練</Label>

@@ -1268,6 +1268,7 @@ export const appRouter = router({
                   bank: extractedBank,
                   studentName: student.name,
                   coachName: student.coach,
+                  dojoName: student.venue || null,
                   category: 'tuition',
                   receiptUrl,
                   receiptKey,
@@ -2452,6 +2453,7 @@ export const appRouter = router({
         receiptKey: z.string().optional(),
         studentName: z.string().optional(),
         coachName: z.string().optional(),
+        dojoName: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
@@ -2470,6 +2472,7 @@ export const appRouter = router({
           elitePaymentRecordId: null,
           studentName: input.studentName || null,
           coachName: input.coachName || null,
+          dojoName: input.dojoName || null,
           source: 'manual',
         });
         return { success: true, id: result.insertId };
@@ -2489,6 +2492,7 @@ export const appRouter = router({
         manualBank: z.string().optional(),
         studentName: z.string().optional(),
         coachName: z.string().optional(),
+        dojoName: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
@@ -2575,6 +2579,7 @@ export const appRouter = router({
           elitePaymentRecordId: null,
           studentName: input.studentName || null,
           coachName: input.coachName || null,
+          dojoName: input.dojoName || null,
           source: 'manual',
           ocrRawResult: extractedAmount || extractedBank || extractedDateTime
             ? JSON.stringify({ amount: extractedAmount, bank: extractedBank, dateTime: extractedDateTime })
@@ -2603,6 +2608,7 @@ export const appRouter = router({
         description: z.string().optional(),
         studentName: z.string().optional(),
         coachName: z.string().optional(),
+        dojoName: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
@@ -2653,6 +2659,7 @@ export const appRouter = router({
               bank: null,
               studentName: student.name,
               coachName: student.coach,
+              dojoName: student.venue || null,
               category: 'tuition',
               receiptUrl: payment.receiptUrl,
               receiptKey: payment.receiptKey,
@@ -2681,6 +2688,7 @@ export const appRouter = router({
               bank: null,
               studentName: student.name,
               coachName: student.coach,
+              dojoName: '精英班',
               receiptUrl: payment.receiptUrl,
               receiptKey: payment.receiptKey,
             });
