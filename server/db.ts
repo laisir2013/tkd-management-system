@@ -2479,3 +2479,86 @@ export async function getExamResultsByPhone(phone: string) {
   }
   return results;
 }
+
+// ==================== Exam Schedule Functions ====================
+export async function getExamSchedulesByExam(examId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examSchedules)
+    .where(eq(examSchedules.examId, examId))
+    .orderBy(asc(examSchedules.startTime));
+}
+
+export async function getExamScheduleById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(examSchedules).where(eq(examSchedules.id, id)).limit(1);
+  return result[0] || null;
+}
+
+export async function insertExamSchedule(data: InsertExamSchedule) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(examSchedules).values(data as any);
+  return { insertId: Number(result[0].insertId) };
+}
+
+export async function updateExamSchedule(id: number, data: Partial<InsertExamSchedule>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(examSchedules).set(data as any).where(eq(examSchedules.id, id));
+}
+
+export async function deleteExamSchedule(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(examSchedules).where(eq(examSchedules.id, id));
+}
+
+export async function deleteAllExamSchedulesByExam(examId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(examSchedules).where(eq(examSchedules.examId, examId));
+}
+
+// ==================== Exam Attendance (Check-in) Functions ====================
+export async function examCheckIn(candidateId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(examCandidates).set({ status: 'checked_in' } as any).where(eq(examCandidates.id, candidateId));
+}
+
+export async function examUndoCheckIn(candidateId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(examCandidates).set({ status: 'registered' } as any).where(eq(examCandidates.id, candidateId));
+}
+
+export async function examMarkAbsent(candidateId: number, absent: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const newStatus = absent ? 'absent' : 'registered';
+  await db.update(examCandidates).set({ status: newStatus } as any).where(eq(examCandidates.id, candidateId));
+  if (absent) {
+    await deleteExamScoresByCandidate(candidateId);
+  }
+}
+
+// ==================== Exam Search & Bulk Functions ====================
+export async function searchExamCandidates(examId: number, query: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examCandidates)
+    .where(and(
+      eq(examCandidates.examId, examId),
+      sql`${examCandidates.name} LIKE ${'%' + query + '%'}`
+    ))
+    .orderBy(asc(examCandidates.name));
+}
+
+export async function bulkDeleteExamCandidates(ids: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (ids.length === 0) return;
+  await db.delete(examCandidates).where(inArray(examCandidates.id, ids));
+}

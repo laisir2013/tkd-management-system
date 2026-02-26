@@ -15,6 +15,7 @@ import CoachDashboard from "./pages/CoachDashboard";
 import Parent from "./pages/Parent";
 import EliteManagement from "./pages/EliteManagement";
 import ParentAttendance from "./pages/ParentAttendance";
+import ExamAttendance from "./pages/ExamAttendance";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <Route path={"/parent"} component={Parent} />
       <Route path={"/elite"} component={EliteManagement} />
       <Route path={"/parent-attendance"} component={ParentAttendance} />
+      <Route path={"/exam/:examId/attendance"} component={ExamAttendance} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

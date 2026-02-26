@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import { broadcastScoreUpdate, broadcastCandidateUpdate, broadcastStatsUpdate } from "./sse";
 import { z } from "zod";
 import { 
   getStudentsByPhone, 
@@ -129,6 +130,18 @@ import {
   createCandidatesFromEventRegistrations,
   getExamResultsByStudent,
   getExamResultsByPhone,
+  // Exam Schedule & Attendance
+  getExamSchedulesByExam,
+  getExamScheduleById,
+  insertExamSchedule,
+  updateExamSchedule,
+  deleteExamSchedule,
+  deleteAllExamSchedulesByExam,
+  examCheckIn,
+  examUndoCheckIn,
+  examMarkAbsent,
+  searchExamCandidates,
+  bulkDeleteExamCandidates,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -3513,12 +3526,31 @@ export const appRouter = router({
             });
           }
           // 自動計算結果
+          let calcResult: any = null;
           try {
-            await calculateExamResult(input.candidateId);
+            calcResult = await calculateExamResult(input.candidateId);
           } catch (e) {
             console.warn('[Exam] Auto-calculate failed:', e);
           }
-          return { success: true, count: input.scores.length };
+          // SSE 廣播評分變更
+          try {
+            const candidate = await getExamCandidateById(input.candidateId);
+            if (candidate) {
+              broadcastScoreUpdate(candidate.examId, {
+                candidateId: input.candidateId,
+                scores: input.scores.map(s => ({ scoringItemId: s.scoringItemId, itemName: '', score: s.score })),
+                candidateStatus: candidate.status,
+                hasLakLakAward: candidate.hasLakLakAward ?? false,
+                updatedBy: ctx.user?.name || 'admin',
+              });
+              // 也廣播統計更新
+              const stats = await getExamStatistics(candidate.examId);
+              if (stats) broadcastStatsUpdate(candidate.examId, stats);
+            }
+          } catch (e) {
+            console.warn('[SSE] Broadcast failed:', e);
+          }
+          return { success: true, count: input.scores.length, result: calcResult };
         }),
 
       calculateResult: protectedProcedure
@@ -3561,6 +3593,156 @@ export const appRouter = router({
       .input(z.object({ studentId: z.number() }))
       .query(async ({ input }) => {
         return getExamResultsByStudent(input.studentId);
+      }),
+
+    // --- 考試時間表 ---
+    schedules: router({
+      list: publicProcedure
+        .input(z.object({ examId: z.number() }))
+        .query(async ({ input }) => {
+          return getExamSchedulesByExam(input.examId);
+        }),
+
+      create: protectedProcedure
+        .input(z.object({
+          examId: z.number(),
+          beltLevel: z.string(),
+          groupCode: z.string().optional(),
+          startTime: z.string(),
+          endTime: z.string().optional(),
+          timeSlot: z.string().optional(),
+          venue: z.string().optional(),
+          notes: z.string().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const result = await insertExamSchedule({
+            examId: input.examId,
+            beltLevel: input.beltLevel,
+            groupCode: input.groupCode || null,
+            startTime: input.startTime,
+            endTime: input.endTime || null,
+            timeSlot: input.timeSlot || null,
+            venue: input.venue || null,
+            notes: input.notes || null,
+          });
+          return { success: true, id: result.insertId };
+        }),
+
+      update: protectedProcedure
+        .input(z.object({
+          id: z.number(),
+          beltLevel: z.string().optional(),
+          groupCode: z.string().optional(),
+          startTime: z.string().optional(),
+          endTime: z.string().optional(),
+          timeSlot: z.string().optional(),
+          venue: z.string().optional(),
+          notes: z.string().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const { id, ...data } = input;
+          const filtered = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+          if (Object.keys(filtered).length === 0) return { success: true };
+          await updateExamSchedule(id, filtered as any);
+          return { success: true };
+        }),
+
+      delete: protectedProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(async ({ input }) => {
+          await deleteExamSchedule(input.id);
+          return { success: true };
+        }),
+    }),
+
+    // --- 考試簽到 (公開，不需登入) ---
+    attendance: router({
+      checkIn: publicProcedure
+        .input(z.object({ candidateId: z.number() }))
+        .mutation(async ({ input }) => {
+          await examCheckIn(input.candidateId);
+          // SSE 廣播
+          try {
+            const candidate = await getExamCandidateById(input.candidateId);
+            if (candidate) {
+              broadcastCandidateUpdate(candidate.examId, {
+                candidateId: input.candidateId,
+                status: 'checked_in',
+                name: candidate.name,
+              });
+            }
+          } catch (e) { console.warn('[SSE] checkIn broadcast failed:', e); }
+          return { success: true };
+        }),
+
+      undoCheckIn: publicProcedure
+        .input(z.object({ candidateId: z.number() }))
+        .mutation(async ({ input }) => {
+          await examUndoCheckIn(input.candidateId);
+          try {
+            const candidate = await getExamCandidateById(input.candidateId);
+            if (candidate) {
+              broadcastCandidateUpdate(candidate.examId, {
+                candidateId: input.candidateId,
+                status: 'registered',
+                name: candidate.name,
+              });
+            }
+          } catch (e) { console.warn('[SSE] undoCheckIn broadcast failed:', e); }
+          return { success: true };
+        }),
+
+      markAbsent: publicProcedure
+        .input(z.object({ candidateId: z.number(), absent: z.boolean() }))
+        .mutation(async ({ input }) => {
+          await examMarkAbsent(input.candidateId, input.absent);
+          try {
+            const candidate = await getExamCandidateById(input.candidateId);
+            if (candidate) {
+              broadcastCandidateUpdate(candidate.examId, {
+                candidateId: input.candidateId,
+                status: input.absent ? 'absent' : 'registered',
+                name: candidate.name,
+              });
+            }
+          } catch (e) { console.warn('[SSE] markAbsent broadcast failed:', e); }
+          return { success: true };
+        }),
+
+      bulkCheckIn: publicProcedure
+        .input(z.object({ candidateIds: z.array(z.number()) }))
+        .mutation(async ({ input }) => {
+          for (const id of input.candidateIds) {
+            await examCheckIn(id);
+          }
+          // Broadcast for the first candidate's exam
+          try {
+            if (input.candidateIds.length > 0) {
+              const candidate = await getExamCandidateById(input.candidateIds[0]);
+              if (candidate) {
+                for (const id of input.candidateIds) {
+                  broadcastCandidateUpdate(candidate.examId, { candidateId: id, status: 'checked_in' });
+                }
+              }
+            }
+          } catch (e) { console.warn('[SSE] bulkCheckIn broadcast failed:', e); }
+          return { success: true, count: input.candidateIds.length };
+        }),
+    }),
+
+    // --- 搜尋考生 ---
+    search: publicProcedure
+      .input(z.object({ examId: z.number(), query: z.string() }))
+      .query(async ({ input }) => {
+        return searchExamCandidates(input.examId, input.query);
+      }),
+
+    // --- 批量刪除考生 ---
+    bulkDeleteCandidates: protectedProcedure
+      .input(z.object({ ids: z.array(z.number()) }))
+      .mutation(async ({ input }) => {
+        await bulkDeleteExamCandidates(input.ids);
+        return { success: true, count: input.ids.length };
       }),
   }),
 });
