@@ -2186,17 +2186,15 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return getEliteTrainingSchedules(input || {});
       }),
-    cancelSchedule: protectedProcedure
+    cancelSchedule: publicProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+      .mutation(async ({ input }) => {
         await updateEliteTrainingScheduleStatus(input.id, 'cancelled');
         return { success: true };
       }),
-    activateSchedule: protectedProcedure
+    activateSchedule: publicProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+      .mutation(async ({ input }) => {
         await updateEliteTrainingScheduleStatus(input.id, 'active');
         return { success: true };
       }),
