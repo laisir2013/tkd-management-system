@@ -9,28 +9,34 @@ import {
   ChevronDown, ChevronUp, ArrowUpCircle, Loader2, CheckCircle2,
   XCircle, AlertCircle, FileText, Upload, UserPlus, Calendar,
   Download, Search, ExternalLink, Copy, UserCheck, ArrowLeft,
-  Eye, Clock, RefreshCw
+  Eye, Clock, RefreshCw, LayoutDashboard, MessageSquare, Printer,
+  Mail, Send, ChevronRight, BarChart3
 } from "lucide-react";
 import { toast } from "sonner";
 
 // ==================== 帶級定義 ====================
-const BELT_LEVELS: Record<string, { name: string; color: string; textColor: string; order: number }> = {
-  white: { name: '白帶', color: 'bg-gray-100 border-gray-300', textColor: 'text-gray-700', order: 1 },
-  yellow: { name: '黃帶', color: 'bg-yellow-100 border-yellow-400', textColor: 'text-yellow-700', order: 2 },
-  yellow_green: { name: '黃綠帶', color: 'bg-lime-100 border-lime-400', textColor: 'text-lime-700', order: 3 },
-  green: { name: '綠帶', color: 'bg-green-100 border-green-400', textColor: 'text-green-700', order: 4 },
-  green_blue: { name: '綠藍帶', color: 'bg-teal-100 border-teal-400', textColor: 'text-teal-700', order: 5 },
-  blue: { name: '藍帶', color: 'bg-blue-100 border-blue-400', textColor: 'text-blue-700', order: 6 },
-  blue_red: { name: '藍紅帶', color: 'bg-purple-100 border-purple-400', textColor: 'text-purple-700', order: 7 },
-  red: { name: '紅帶', color: 'bg-red-100 border-red-400', textColor: 'text-red-700', order: 8 },
-  red_black: { name: '紅黑帶', color: 'bg-rose-100 border-rose-800', textColor: 'text-rose-800', order: 9 },
-  black: { name: '黑帶', color: 'bg-gray-800 border-gray-900', textColor: 'text-white', order: 10 },
-  black_2dan: { name: '黑帶二段', color: 'bg-gray-800 border-gray-900', textColor: 'text-white', order: 11 },
-  black_3dan: { name: '黑帶三段', color: 'bg-gray-800 border-gray-900', textColor: 'text-white', order: 12 },
+const BELT_LEVELS: Record<string, { name: string; color: string; textColor: string; bgColor: string; order: number }> = {
+  white: { name: '白帶', color: 'bg-gray-100 border-gray-300', textColor: 'text-gray-700', bgColor: 'bg-yellow-50', order: 1 },
+  yellow: { name: '黃帶', color: 'bg-yellow-100 border-yellow-400', textColor: 'text-yellow-700', bgColor: 'bg-green-50', order: 2 },
+  yellow_green: { name: '黃綠帶', color: 'bg-lime-100 border-lime-400', textColor: 'text-lime-700', bgColor: 'bg-lime-50', order: 3 },
+  green: { name: '綠帶', color: 'bg-green-100 border-green-400', textColor: 'text-green-700', bgColor: 'bg-green-50', order: 4 },
+  green_blue: { name: '綠藍帶', color: 'bg-teal-100 border-teal-400', textColor: 'text-teal-700', bgColor: 'bg-teal-50', order: 5 },
+  blue: { name: '藍帶', color: 'bg-blue-100 border-blue-400', textColor: 'text-blue-700', bgColor: 'bg-blue-50', order: 6 },
+  blue_red: { name: '藍紅帶', color: 'bg-purple-100 border-purple-400', textColor: 'text-purple-700', bgColor: 'bg-purple-50', order: 7 },
+  red: { name: '紅帶', color: 'bg-red-100 border-red-400', textColor: 'text-red-700', bgColor: 'bg-red-50', order: 8 },
+  red_black: { name: '紅黑帶', color: 'bg-rose-100 border-rose-800', textColor: 'text-rose-800', bgColor: 'bg-rose-50', order: 9 },
+  black: { name: '黑帶', color: 'bg-gray-800 border-gray-900', textColor: 'text-white', bgColor: 'bg-gray-100', order: 10 },
+  black_2dan: { name: '黑帶二段', color: 'bg-gray-800 border-gray-900', textColor: 'text-white', bgColor: 'bg-gray-100', order: 11 },
+  black_3dan: { name: '黑帶三段', color: 'bg-gray-800 border-gray-900', textColor: 'text-white', bgColor: 'bg-gray-100', order: 12 },
 };
 
 const BELT_ORDER_KEYS = ['white','yellow','yellow_green','green','green_blue','blue','blue_red','red','red_black','black','black_2dan','black_3dan'];
 const GENDER_MAP: Record<string, string> = { male: '男', female: '女' };
+
+const CATEGORY_NAMES: Record<string, string> = {
+  fitness: '體能', technique: '手把動作', poomsae: '品勢', board: '木板',
+  sparring: '搏擊', split: '劈叉', side_split: '大字馬', competition: '比賽',
+};
 
 function getBeltBadge(belt: string) {
   const info = BELT_LEVELS[belt];
@@ -48,7 +54,8 @@ function getBeltName(key: string) {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   registered: { label: '已報名', color: 'text-gray-500', icon: FileText },
-  checked_in: { label: '已報到', color: 'text-blue-500', icon: CheckCircle2 },
+  confirmed: { label: '已確認', color: 'text-green-600', icon: CheckCircle2 },
+  checked_in: { label: '已報到', color: 'text-blue-600', icon: UserCheck },
   examining: { label: '評分中', color: 'text-yellow-600', icon: ClipboardCheck },
   passed: { label: '合格', color: 'text-green-600', icon: Trophy },
   failed: { label: '不合格', color: 'text-red-600', icon: XCircle },
@@ -56,40 +63,68 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 };
 
 const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  draft: { label: '草稿', color: 'bg-gray-100 text-gray-700' },
+  draft: { label: '草稿', color: 'bg-gray-100 text-gray-600' },
   scheduled: { label: '已排程', color: 'bg-blue-100 text-blue-700' },
   in_progress: { label: '進行中', color: 'bg-yellow-100 text-yellow-700' },
   completed: { label: '已完成', color: 'bg-green-100 text-green-700' },
 };
 
-const GRADE_OPTIONS = ['A', 'B', 'C', '不合格'] as const;
-const PASS_FAIL_OPTIONS = ['合格', '不合格'] as const;
-const YES_NO_OPTIONS = ['有', '沒有'] as const;
-
-const CATEGORY_NAMES: Record<string, string> = {
-  fitness: '💪 體能', poomsae: '🥋 品勢', technique: '🦵 手把動作',
-  board: '🪵 踢木板', split: '🧘 一字馬', side_split: '🧘 大字馬',
-  sparring: '🥊 搏擊', competition: '🏆 外出比賽', other: '📋 其他',
-};
+// ==================== NAV ITEMS ====================
+type NavPage = 'overview' | 'candidates' | 'scoring' | 'timetable' | 'results';
+const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
+  { key: 'overview', label: '考試概覽', icon: LayoutDashboard },
+  { key: 'candidates', label: '考生管理', icon: Users },
+  { key: 'scoring', label: '評分', icon: ClipboardCheck },
+  { key: 'timetable', label: '時間表', icon: Calendar },
+  { key: 'results', label: '合格名單', icon: Trophy },
+];
 
 // ==================== 主組件 ====================
 export default function ExamManagement() {
   const [activeTab, setActiveTab] = useState<'list' | 'detail'>('list');
   const [selectedExamId, setSelectedExamId] = useState<number | null>(null);
-  const [detailTab, setDetailTab] = useState<'overview' | 'candidates' | 'scoring' | 'attendance' | 'schedule' | 'results'>('overview');
+  const [navPage, setNavPage] = useState<NavPage>('overview');
+
+  if (activeTab === 'list' || !selectedExamId) {
+    return <ExamList onSelectExam={(id) => { setSelectedExamId(id); setActiveTab('detail'); setNavPage('overview'); }} />;
+  }
 
   return (
-    <div className="space-y-4">
-      {activeTab === 'list' ? (
-        <ExamList onSelectExam={(id) => { setSelectedExamId(id); setActiveTab('detail'); setDetailTab('overview'); }} />
-      ) : selectedExamId ? (
-        <ExamDetail 
-          examId={selectedExamId} 
-          onBack={() => setActiveTab('list')}
-          detailTab={detailTab}
-          setDetailTab={setDetailTab}
-        />
-      ) : null}
+    <div className="flex h-full min-h-[calc(100vh-64px)]">
+      {/* Left Sidebar */}
+      <div className="w-48 bg-white border-r flex flex-col shrink-0">
+        <div className="p-4 border-b">
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <Award className="w-4 h-4 text-red-600" />
+            <span>創武考試管理</span>
+          </div>
+        </div>
+        <button onClick={() => { setActiveTab('list'); setSelectedExamId(null); }}
+          className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 border-b">
+          <ArrowLeft className="w-4 h-4" /> 返回儀表板
+        </button>
+        <nav className="flex-1 py-2">
+          {NAV_ITEMS.map(item => (
+            <button key={item.key}
+              onClick={() => setNavPage(item.key)}
+              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+                navPage === item.key ? 'bg-blue-50 text-blue-700 font-medium border-r-2 border-blue-600' : 'text-gray-600 hover:bg-gray-50'
+              }`}>
+              <item.icon className="w-4 h-4" />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto bg-gray-50 p-4 sm:p-6">
+        {navPage === 'overview' && <OverviewPage examId={selectedExamId} />}
+        {navPage === 'candidates' && <CandidatesPage examId={selectedExamId} />}
+        {navPage === 'scoring' && <ScoringPage examId={selectedExamId} />}
+        {navPage === 'timetable' && <TimetablePage examId={selectedExamId} />}
+        {navPage === 'results' && <ResultsPage examId={selectedExamId} />}
+      </div>
     </div>
   );
 }
@@ -105,297 +140,178 @@ function ExamList({ onSelectExam }: { onSelectExam: (id: number) => void }) {
   const [examDate, setExamDate] = useState('');
   const [location, setLocation] = useState('');
 
+  const handleCreate = () => {
+    if (!name || !examDate) { toast.error('請填寫名稱和日期'); return; }
+    createExam.mutate({ name, examDate, location: location || undefined });
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="max-w-4xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold flex items-center gap-2">
-          <Award className="w-5 h-5 text-red-600" /> 考試管理
-        </h2>
-        <Button size="sm" onClick={() => setShowCreate(!showCreate)} className="bg-red-600 hover:bg-red-700 text-white">
+        <h2 className="text-xl font-bold">考試管理</h2>
+        <Button onClick={() => setShowCreate(!showCreate)} className="bg-blue-600 hover:bg-blue-700 text-white">
           <Plus className="w-4 h-4 mr-1" /> 新增考試
         </Button>
       </div>
 
       {showCreate && (
         <div className="bg-white rounded-lg border p-4 space-y-3">
-          <h3 className="font-semibold">建立新考試</h3>
+          <h3 className="font-medium">建立新考試</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input placeholder="考試名稱" value={name} onChange={e => setName(e.target.value)} />
             <Input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} />
-            <Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} />
+            <Input placeholder="地點 (選填)" value={location} onChange={e => setLocation(e.target.value)} />
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => {
-              if (!name || !examDate) { toast.error('請填寫名稱和日期'); return; }
-              createExam.mutate({ name, examDate: new Date(examDate), location: location || undefined });
-            }} disabled={createExam.isPending}>
+            <Button onClick={handleCreate} disabled={createExam.isPending} className="bg-blue-600 text-white">
               {createExam.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : '建立'}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
           </div>
         </div>
       )}
 
-      <div className="space-y-3">
-        {(!exams || exams.length === 0) ? (
-          <div className="text-center text-gray-400 py-8">
-            <Award className="w-12 h-12 mx-auto mb-2 opacity-30" />
-            <p>尚無考試記錄</p>
-          </div>
-        ) : (exams as any[]).map((exam) => {
-          const statusInfo = EXAM_STATUS_CONFIG[exam.status] || EXAM_STATUS_CONFIG.draft;
+      <div className="space-y-2">
+        {exams?.map((exam: any) => {
+          const status = EXAM_STATUS_CONFIG[exam.status] || EXAM_STATUS_CONFIG.draft;
           return (
-            <div key={exam.id} className="bg-white rounded-lg border p-4 hover:shadow-md transition-shadow cursor-pointer"
+            <div key={exam.id} className="bg-white rounded-lg border p-4 flex items-center justify-between hover:shadow-sm transition-shadow cursor-pointer"
               onClick={() => onSelectExam(exam.id)}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-50 to-blue-50 flex items-center justify-center border border-red-200">
-                    <Award className="w-6 h-6 text-red-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-base">{exam.name}</h3>
-                    <div className="text-sm text-gray-500 flex items-center gap-3 mt-1">
-                      <span>📅 {new Date(exam.examDate).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</span>
-                      {exam.location && <span>📍 {exam.location}</span>}
-                    </div>
-                  </div>
-                </div>
+              <div>
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
-                  <Button size="sm" variant="outline">管理 →</Button>
-                  <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700"
-                    onClick={(e) => { e.stopPropagation(); if (confirm('確定刪除此考試？')) deleteExam.mutate({ id: exam.id }); }}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <h3 className="font-bold">{exam.name}</h3>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>{status.label}</span>
                 </div>
+                <div className="text-sm text-gray-500 mt-1">
+                  📅 {new Date(exam.examDate).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  {exam.location && <span className="ml-2">📍 {exam.location}</span>}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+                <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                  onClick={(e) => { e.stopPropagation(); if (confirm('確定刪除？')) deleteExam.mutate({ id: exam.id }); }}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
             </div>
           );
         })}
+        {(!exams || exams.length === 0) && (
+          <div className="text-center py-12 text-gray-400">
+            <Award className="w-12 h-12 mx-auto mb-2 opacity-30" />
+            <p>尚未建立考試</p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ==================== 考試詳情 ====================
-function ExamDetail({ examId, onBack, detailTab, setDetailTab }: {
-  examId: number;
-  onBack: () => void;
-  detailTab: 'overview' | 'candidates' | 'scoring' | 'attendance' | 'schedule' | 'results';
-  setDetailTab: (t: any) => void;
-}) {
+// ==================== 考試概覽頁 ====================
+function OverviewPage({ examId }: { examId: number }) {
   const { data: exam, refetch: refetchExam } = trpc.exam.get.useQuery({ id: examId });
   const { data: stats } = trpc.exam.statistics.useQuery({ examId });
   const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
   const updateExam = trpc.exam.update.useMutation({ onSuccess: () => { refetchExam(); toast.success('已更新'); } });
 
-  // SSE 即時同步
   const [sseConnected, setSseConnected] = useState(false);
-  useExamSSE({
-    examId,
-    enabled: true,
-    autoInvalidate: true,
-    onConnected: () => setSseConnected(true),
-    onScoreUpdate: (data) => {
-      console.log('[SSE] Score updated:', data.candidateId);
-    },
-    onAttendanceUpdate: (data) => {
-      if (data.candidateName && data.action) {
-        const actionLabel = data.action === 'check_in' ? '已報到' : data.action === 'mark_absent' ? '標記缺席' : data.action === 'undo_check_in' ? '取消報到' : '狀態更新';
-        toast.info(`${data.candidateName} ${actionLabel}`, { duration: 2000 });
-      }
-    },
-  });
+  useExamSSE({ examId, enabled: true, autoInvalidate: true, onConnected: () => setSseConnected(true) });
 
   if (!exam) return <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
 
   const examData = exam as any;
+  const s = stats as any;
   const statusInfo = EXAM_STATUS_CONFIG[examData.status] || EXAM_STATUS_CONFIG.draft;
+  const passRate = s && (s.passed + s.failed) > 0 ? ((s.passed / (s.passed + s.failed)) * 100).toFixed(1) : '-';
+  const checkedInCount = candidates ? (candidates as any[]).filter((c: any) => ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)).length : 0;
 
-  // 計算帶級分佈
   const beltCounts = candidates ? BELT_ORDER_KEYS.map(key => ({
     key, name: getBeltName(key),
     count: (candidates as any[]).filter(c => c.currentBelt === key).length,
   })).filter(b => b.count > 0) : [];
 
-  // 即時統計
-  const s = stats as any;
-  const passRate = s && (s.passed + s.failed) > 0 ? ((s.passed / (s.passed + s.failed)) * 100).toFixed(1) : '-';
-  const checkedInCount = candidates ? (candidates as any[]).filter((c: any) => ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)).length : 0;
-
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button size="sm" variant="ghost" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> 返回</Button>
-        <div className="flex-1">
-          <h2 className="text-lg font-bold">{examData.name}</h2>
-          <div className="text-sm text-gray-500 flex items-center gap-3">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">{examData.name}</h1>
+          <div className="text-sm text-gray-500 flex items-center gap-3 mt-1">
             <span>📅 {new Date(examData.examDate).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</span>
             {examData.location && <span>📍 {examData.location}</span>}
-            {sseConnected && <span className="text-green-500 text-xs flex items-center gap-1">🟢 即時連線</span>}
+            {sseConnected && <span className="text-green-500 text-xs">🟢 即時連線</span>}
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
-          {examData.status === 'draft' && (
-            <Button size="sm" variant="outline" onClick={() => updateExam.mutate({ id: examId, status: 'scheduled' })}>排程</Button>
-          )}
-          {examData.status === 'scheduled' && (
-            <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-white" onClick={() => updateExam.mutate({ id: examId, status: 'in_progress' })}>開始考試</Button>
-          )}
-          {examData.status === 'in_progress' && (
-            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => updateExam.mutate({ id: examId, status: 'completed' })}>完成考試</Button>
-          )}
+          <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
+          {examData.status === 'draft' && <Button size="sm" variant="outline" onClick={() => updateExam.mutate({ id: examId, status: 'scheduled' })}>排程</Button>}
+          {examData.status === 'scheduled' && <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-white" onClick={() => updateExam.mutate({ id: examId, status: 'in_progress' })}>開始考試</Button>}
+          {examData.status === 'in_progress' && <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => updateExam.mutate({ id: examId, status: 'completed' })}>完成考試</Button>}
         </div>
       </div>
 
-      {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-          <SmallStat label="總人數" value={(stats as any).total || 0} color="text-gray-700" />
-          <SmallStat label="已報到" value={checkedInCount} color="text-blue-600" />
-          <SmallStat label="合格" value={(stats as any).passed || 0} color="text-green-600" />
-          <SmallStat label="不合格" value={(stats as any).failed || 0} color="text-red-600" />
-          <SmallStat label="評分中" value={(stats as any).examining || 0} color="text-yellow-600" />
-          <SmallStat label="缺席" value={(stats as any).absent || 0} color="text-gray-400" />
-          <SmallStat label="合格率" value={0} color="text-indigo-600" suffix={passRate !== '-' ? `${passRate}%` : '-'} />
-          <SmallStat label="叻叻獎" value={(stats as any).lakLakCount || 0} color="text-amber-500" />
+      {/* 統計卡片 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <StatCard icon="👥" label="總人數" value={s?.total || 0} color="blue" />
+        <StatCard icon="✅" label="已報到" value={checkedInCount} color="green" />
+        <StatCard icon="🏆" label="合格" value={s?.passed || 0} color="emerald" />
+        <StatCard icon="❌" label="不合格" value={s?.failed || 0} color="red" />
+        <StatCard icon="📝" label="評分中" value={s?.examining || 0} color="yellow" />
+        <StatCard icon="🚫" label="缺席" value={s?.absent || 0} color="gray" />
+        <StatCard icon="📊" label="合格率" value={0} color="indigo" suffix={passRate !== '-' ? `${passRate}%` : '-'} />
+        <StatCard icon="⭐" label="叻叻獎" value={s?.lakLakCount || 0} color="amber" />
+      </div>
+
+      {/* 帶級分佈 */}
+      {beltCounts.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-medium mb-3">帶級分佈</h3>
+          <div className="flex flex-wrap gap-2">
+            {beltCounts.map(b => (
+              <div key={b.key} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                {getBeltBadge(b.key)}
+                <span className="text-sm font-medium">{b.count} 人</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 overflow-x-auto">
-        {[
-          { key: 'overview' as const, label: '概覽', icon: Eye },
-          { key: 'attendance' as const, label: '點名', icon: UserCheck },
-          { key: 'candidates' as const, label: '考生', icon: Users },
-          { key: 'scoring' as const, label: '評分', icon: ClipboardCheck },
-          { key: 'schedule' as const, label: '時間表', icon: Calendar },
-          { key: 'results' as const, label: '成績', icon: Trophy },
-        ].map(tab => (
-          <button key={tab.key}
-            className={`flex items-center justify-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-              detailTab === tab.key ? 'bg-white shadow text-red-700' : 'text-gray-500 hover:text-gray-700'
-            }`}
-            onClick={() => setDetailTab(tab.key)}>
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
-      {detailTab === 'overview' && <OverviewPanel examId={examId} examData={examData} beltCounts={beltCounts} stats={stats} passRate={passRate} />}
-      {detailTab === 'candidates' && <CandidateManagement examId={examId} />}
-      {detailTab === 'scoring' && <ScoringPanel examId={examId} />}
-      {detailTab === 'attendance' && <AttendancePanel examId={examId} />}
-      {detailTab === 'schedule' && <SchedulePanel examId={examId} />}
-      {detailTab === 'results' && <ResultsPanel examId={examId} />}
     </div>
   );
 }
 
-function SmallStat({ label, value, color, suffix }: { label: string; value: number; color: string; suffix?: string }) {
+function StatCard({ icon, label, value, color, suffix }: { icon: string; label: string; value: number; color: string; suffix?: string }) {
+  const colorMap: Record<string, string> = {
+    blue: 'bg-blue-50 border-blue-200 text-blue-600',
+    green: 'bg-green-50 border-green-200 text-green-600',
+    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-600',
+    red: 'bg-red-50 border-red-200 text-red-600',
+    yellow: 'bg-yellow-50 border-yellow-200 text-yellow-600',
+    gray: 'bg-gray-50 border-gray-200 text-gray-500',
+    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-600',
+    amber: 'bg-amber-50 border-amber-200 text-amber-600',
+    orange: 'bg-orange-50 border-orange-200 text-orange-600',
+    coral: 'bg-red-50 border-red-200 text-red-500',
+  };
   return (
-    <div className="bg-white rounded-lg border p-2 text-center">
-      <div className={`text-xl font-bold ${color}`}>{suffix || value}</div>
-      <div className="text-xs text-gray-500">{label}</div>
+    <div className={`rounded-xl border p-3 text-center ${colorMap[color] || colorMap.blue}`}>
+      <div className="text-lg mb-0.5">{icon}</div>
+      <div className="text-2xl font-bold">{suffix || value}</div>
+      <div className="text-xs opacity-70">{label}</div>
     </div>
   );
 }
 
-// ==================== 概覽 ====================
-function OverviewPanel({ examId, examData, beltCounts, stats, passRate }: any) {
-  return (
-    <div className="space-y-4">
-      {/* 帶級分佈 */}
-      <div className="bg-white rounded-lg border p-4">
-        <h3 className="font-semibold mb-3">級別分佈</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-          {beltCounts.map((belt: any) => (
-            <div key={belt.key} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
-              {getBeltBadge(belt.key)}
-              <span className="font-semibold text-slate-900">{belt.count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 快捷操作 */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {/* 點名頁面入口 */}
-        <div className="bg-green-50 rounded-lg border border-green-200 p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
-              <UserCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-900">點名頁面</h3>
-              <p className="text-xs text-slate-500">獨立頁面，工作人員無需密碼即可使用</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="text-green-700 border-green-300 hover:bg-green-100"
-              onClick={() => {
-                const url = `${window.location.origin}/exam/${examId}/attendance`;
-                navigator.clipboard.writeText(url);
-                toast.success("已複製點名頁面連結");
-              }}>
-              <Copy className="w-3.5 h-3.5 mr-1" /> 複製連結
-            </Button>
-            <a href={`/exam/${examId}/attendance`} target="_blank" rel="noopener noreferrer">
-              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
-                <ExternalLink className="w-3.5 h-3.5 mr-1" /> 開啟點名
-              </Button>
-            </a>
-          </div>
-        </div>
-
-        {/* 合格率統計 */}
-        <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
-              <Trophy className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-900">即時考試統計</h3>
-              <p className="text-xs text-slate-500">合格率與叻叻獎即時計算</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div>
-              <div className="text-2xl font-bold text-green-600">{stats?.passed || 0}</div>
-              <div className="text-xs text-gray-500">合格</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-red-600">{stats?.failed || 0}</div>
-              <div className="text-xs text-gray-500">不合格</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-indigo-600">{passRate !== '-' ? `${passRate}%` : '-'}</div>
-              <div className="text-xs text-gray-500">合格率</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-amber-500">{stats?.lakLakCount || 0}</div>
-              <div className="text-xs text-gray-500">叻叻獎</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ==================== 考生管理 ====================
-function CandidateManagement({ examId }: { examId: number }) {
+// ==================== 考生管理頁 ====================
+function CandidatesPage({ examId }: { examId: number }) {
+  const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: candidates, refetch } = trpc.exam.candidates.list.useQuery({ examId });
   const createCandidate = trpc.exam.candidates.create.useMutation({ onSuccess: () => { refetch(); toast.success('已新增考生'); } });
   const deleteCandidate = trpc.exam.candidates.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
   const importFromEvent = trpc.exam.candidates.importFromEvent.useMutation({ 
     onSuccess: (data: any) => { refetch(); toast.success(`已匯入 ${data.imported} 位考生`); } 
   });
-  
+
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState('');
   const [addPhone, setAddPhone] = useState('');
@@ -405,57 +321,43 @@ function CandidateManagement({ examId }: { examId: number }) {
   const [addCurrentBelt, setAddCurrentBelt] = useState('white');
   const [addTargetBelt, setAddTargetBelt] = useState('yellow');
   const [searchQuery, setSearchQuery] = useState('');
+  const [beltFilter, setBeltFilter] = useState('all');
   const [showImport, setShowImport] = useState(false);
 
   const { data: allEvents } = trpc.events.getAll.useQuery({ type: 'exam' });
 
-  // 搜尋過濾
   const filteredCandidates = useMemo(() => {
     if (!candidates) return [];
-    if (!searchQuery) return candidates as any[];
-    const q = searchQuery.toLowerCase();
-    return (candidates as any[]).filter(c => 
-      c.name.toLowerCase().includes(q) || 
-      (c.phone && c.phone.includes(q)) ||
-      (c.dojoName && c.dojoName.toLowerCase().includes(q))
-    );
-  }, [candidates, searchQuery]);
+    let list = candidates as any[];
+    if (beltFilter !== 'all') list = list.filter(c => c.currentBelt === beltFilter);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(c => c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q)));
+    }
+    return list;
+  }, [candidates, searchQuery, beltFilter]);
 
-  // 按帶級分組
-  const grouped = useMemo(() => {
-    return filteredCandidates.reduce((acc: Record<string, any[]>, c: any) => {
-      const belt = c.currentBelt || 'unknown';
-      if (!acc[belt]) acc[belt] = [];
-      acc[belt].push(c);
-      return acc;
-    }, {});
-  }, [filteredCandidates]);
-
-  const sortedBelts = Object.keys(grouped).sort((a, b) => {
-    const ia = BELT_ORDER_KEYS.indexOf(a);
-    const ib = BELT_ORDER_KEYS.indexOf(b);
-    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-  });
+  const examData = exam as any;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button size="sm" onClick={() => setShowAdd(!showAdd)} className="bg-blue-600 hover:bg-blue-700 text-white">
-          <UserPlus className="w-4 h-4 mr-1" /> 新增考生
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setShowImport(!showImport)}>
-          <Upload className="w-4 h-4 mr-1" /> 從活動匯入
-        </Button>
-        <div className="flex-1 min-w-[200px] max-w-xs">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
-            <Input placeholder="搜尋考生..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              className="pl-9 h-9" />
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-xl font-bold">考生管理</h1>
+          {examData && <p className="text-sm text-gray-500">{examData.name}</p>}
         </div>
-        <span className="text-sm text-gray-500">共 {candidates?.length || 0} 位考生</span>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowImport(!showImport)}>
+            <Upload className="w-4 h-4 mr-1" /> 匯入考生
+          </Button>
+          <Button size="sm" onClick={() => setShowAdd(!showAdd)} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Plus className="w-4 h-4 mr-1" /> 新增考生
+          </Button>
+        </div>
       </div>
 
+      {/* Import from event */}
       {showImport && (
         <div className="bg-blue-50 rounded-lg border border-blue-200 p-3 space-y-2">
           <p className="text-sm font-medium text-blue-700">選擇考試活動匯入報名學生：</p>
@@ -464,9 +366,7 @@ function CandidateManagement({ examId }: { examId: number }) {
               {(allEvents as any[]).map((ev) => (
                 <div key={ev.id} className="flex items-center justify-between bg-white rounded p-2">
                   <span className="text-sm">{ev.title} ({new Date(ev.eventDate).toLocaleDateString('zh-TW')})</span>
-                  <Button size="sm" variant="outline" 
-                    onClick={() => importFromEvent.mutate({ examId, eventId: ev.id })}
-                    disabled={importFromEvent.isPending}>
+                  <Button size="sm" variant="outline" onClick={() => importFromEvent.mutate({ examId, eventId: ev.id })} disabled={importFromEvent.isPending}>
                     {importFromEvent.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : '匯入'}
                   </Button>
                 </div>
@@ -476,852 +376,760 @@ function CandidateManagement({ examId }: { examId: number }) {
         </div>
       )}
 
+      {/* Add candidate form */}
       {showAdd && (
-        <div className="bg-white rounded-lg border p-3 space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <Input placeholder="姓名 *" value={addName} onChange={e => setAddName(e.target.value)} />
+        <div className="bg-white rounded-lg border p-4 space-y-3">
+          <h3 className="font-medium">新增考生</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Input placeholder="姓名*" value={addName} onChange={e => setAddName(e.target.value)} />
             <Input placeholder="電話" value={addPhone} onChange={e => setAddPhone(e.target.value)} />
+            <select value={addGender} onChange={e => setAddGender(e.target.value as any)} className="border rounded-md px-3 py-2 text-sm">
+              <option value="male">男</option>
+              <option value="female">女</option>
+            </select>
+            <Input placeholder="年齡" type="number" value={addAge} onChange={e => setAddAge(e.target.value)} />
             <Input placeholder="道場" value={addDojoName} onChange={e => setAddDojoName(e.target.value)} />
-            <div className="flex gap-1">
-              <select value={addGender} onChange={e => setAddGender(e.target.value as any)} className="border rounded-md px-2 py-1 text-sm w-16">
-                <option value="male">男</option>
-                <option value="female">女</option>
-              </select>
-              <Input placeholder="年齡" type="number" value={addAge} onChange={e => setAddAge(e.target.value)} className="w-20" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <select value={addCurrentBelt} onChange={e => {
-              setAddCurrentBelt(e.target.value);
-              const idx = BELT_ORDER_KEYS.indexOf(e.target.value);
-              setAddTargetBelt(BELT_ORDER_KEYS[idx + 1] || e.target.value);
-            }} className="border rounded-md px-2 py-1 text-sm">
+            <select value={addCurrentBelt} onChange={e => setAddCurrentBelt(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
               {BELT_ORDER_KEYS.map(b => <option key={b} value={b}>{getBeltName(b)}</option>)}
             </select>
-            <select value={addTargetBelt} onChange={e => setAddTargetBelt(e.target.value)} className="border rounded-md px-2 py-1 text-sm">
+            <select value={addTargetBelt} onChange={e => setAddTargetBelt(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
               {BELT_ORDER_KEYS.map(b => <option key={b} value={b}>{getBeltName(b)}</option>)}
             </select>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => {
+            <Button onClick={() => {
               if (!addName) { toast.error('請填寫姓名'); return; }
-              createCandidate.mutate({
-                examId, name: addName, phone: addPhone || undefined,
-                dojoName: addDojoName || undefined,
-                gender: addGender, age: addAge ? parseInt(addAge) : undefined,
-                currentBelt: addCurrentBelt, targetBelt: addTargetBelt,
-              });
+              createCandidate.mutate({ examId, name: addName, phone: addPhone || undefined, gender: addGender, age: addAge ? parseInt(addAge) : undefined, dojoName: addDojoName || undefined, currentBelt: addCurrentBelt, targetBelt: addTargetBelt });
               setAddName(''); setAddPhone(''); setAddAge(''); setAddDojoName('');
-            }} disabled={createCandidate.isPending}>新增</Button>
-            <Button size="sm" variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
+            }} className="bg-blue-600 text-white" disabled={createCandidate.isPending}>
+              {createCandidate.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : '新增'}
+            </Button>
+            <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
           </div>
         </div>
       )}
 
-      {/* 考生列表 */}
-      {sortedBelts.map(belt => (
-        <div key={belt} className="space-y-1">
-          <div className="flex items-center gap-2 py-1">
-            {getBeltBadge(belt)}
-            <span className="text-xs text-gray-500">({grouped[belt].length}人)</span>
-          </div>
-          <div className="bg-white rounded-lg border divide-y">
-            {grouped[belt].map((c: any) => {
-              const statusCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.registered;
-              const StatusIcon = statusCfg.icon;
-              return (
-                <div key={c.id} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
-                  <div className="flex items-center gap-2">
-                    <StatusIcon className={`w-4 h-4 ${statusCfg.color} flex-shrink-0`} />
-                    <span className="text-sm font-medium">{c.groupCode ? `${c.groupCode.toUpperCase()}${c.orderNumber || ''} ` : ''}{c.name}</span>
-                    {c.gender && <span className="text-xs text-gray-400">{GENDER_MAP[c.gender] || ''}</span>}
-                    {c.age && <span className="text-xs text-gray-400">{c.age}歲</span>}
-                    {c.dojoName && <span className="text-xs text-gray-400">{c.dojoName}</span>}
-                    {c.phone && <span className="text-xs text-gray-400">{c.phone}</span>}
-                    <span className="text-xs text-gray-400">→</span>
-                    {getBeltBadge(c.targetBelt)}
-                    {c.hasLakLakAward && <span className="text-xs bg-amber-100 text-amber-700 px-1 rounded">⭐ 叻叻獎</span>}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className={`text-xs ${statusCfg.color}`}>{statusCfg.label}</span>
-                    <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-600 h-7 w-7 p-0"
-                      onClick={() => { if (confirm(`刪除 ${c.name}？`)) deleteCandidate.mutate({ id: c.id }); }}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {/* Search + Filter */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 max-w-md relative">
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+          <Input placeholder="搜尋考生姓名..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
         </div>
-      ))}
-    </div>
-  );
-}
-
-// ==================== 評分面板 ====================
-function ScoringPanel({ examId }: { examId: number }) {
-  const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
-  const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
-  const [selectedBelt, setSelectedBelt] = useState<string>('');
-
-  const initForBelt = trpc.exam.scoringItems.initForBelt.useMutation({
-    onSuccess: (data: any) => toast.success(`已初始化 ${data.count} 個評分項目`),
-  });
-
-  const grouped = (candidates as any[])?.reduce((acc: Record<string, any[]>, c: any) => {
-    const belt = c.currentBelt || '未知';
-    if (!acc[belt]) acc[belt] = [];
-    acc[belt].push(c);
-    return acc;
-  }, {}) || {};
-
-  const sortedBelts = Object.keys(grouped).sort((a, b) => {
-    const ia = BELT_ORDER_KEYS.indexOf(a);
-    const ib = BELT_ORDER_KEYS.indexOf(b);
-    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-  });
-
-  const filteredCandidates = selectedBelt ? (grouped[selectedBelt] || []) : ((candidates as any[]) || []);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 flex-wrap">
-        <select value={selectedBelt} onChange={e => { setSelectedBelt(e.target.value); setSelectedCandidateId(null); }}
-          className="border rounded-md px-2 py-1 text-sm">
-          <option value="">全部帶級</option>
-          {sortedBelts.map(b => <option key={b} value={b}>{getBeltName(b)} ({grouped[b].length})</option>)}
+        <select value={beltFilter} onChange={e => setBeltFilter(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
+          <option value="all">全部級別</option>
+          {BELT_ORDER_KEYS.map(b => <option key={b} value={b}>{getBeltName(b)}</option>)}
         </select>
-        {selectedBelt && (
-          <Button size="sm" variant="outline" onClick={() => initForBelt.mutate({ beltLevel: selectedBelt })}
-            disabled={initForBelt.isPending}>
-            {initForBelt.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : '初始化評分項目'}
-          </Button>
-        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-1 space-y-1 max-h-[600px] overflow-y-auto">
-          {filteredCandidates.map((c: any) => {
-            const statusCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.registered;
-            const isSelected = selectedCandidateId === c.id;
-            return (
-              <div key={c.id}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                  isSelected ? 'bg-red-50 border border-red-300' : 'bg-white border hover:bg-gray-50'
-                }`}
-                onClick={() => setSelectedCandidateId(c.id)}>
-                <statusCfg.icon className={`w-4 h-4 ${statusCfg.color} flex-shrink-0`} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{c.name}</div>
-                  <div className="text-xs text-gray-400">{getBeltName(c.currentBelt)} → {getBeltName(c.targetBelt)}</div>
-                </div>
-                {c.hasLakLakAward && <span className="text-amber-500 text-xs">⭐</span>}
-              </div>
-            );
-          })}
+      {/* Candidate Table */}
+      <div className="bg-white rounded-lg border overflow-hidden">
+        <div className="px-4 py-3 border-b">
+          <h3 className="font-medium">考生列表</h3>
+          <p className="text-sm text-gray-500">共 {candidates?.length || 0} 位考生</p>
         </div>
-
-        <div className="lg:col-span-2">
-          {selectedCandidateId ? (
-            <ScoringForm candidateId={selectedCandidateId} onScored={() => refetchCandidates()} />
-          ) : (
-            <div className="bg-white rounded-lg border p-8 text-center text-gray-400">
-              <ClipboardCheck className="w-12 h-12 mx-auto mb-2 opacity-30" />
-              <p>請從左側選擇考生進行評分</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ==================== 評分表單 ====================
-function ScoringForm({ candidateId, onScored }: { candidateId: number; onScored: () => void }) {
-  const { data: candidate, refetch: refetchCandidate } = trpc.exam.candidates.get.useQuery({ id: candidateId });
-  const { data: scoringItems } = trpc.exam.scoringItems.listByBelt.useQuery(
-    { beltLevel: (candidate as any)?.currentBelt || '' },
-    { enabled: !!candidate }
-  );
-  const { data: existingScores, refetch: refetchScores } = trpc.exam.scores.getByCandidate.useQuery({ candidateId });
-  const bulkUpsert = trpc.exam.scores.bulkUpsert.useMutation({
-    onSuccess: (data: any) => { 
-      refetchScores(); 
-      refetchCandidate();
-      onScored(); 
-      // 顯示計算結果
-      if (data.result) {
-        const r = data.result;
-        if (r.passed) {
-          toast.success(`評分已保存 - 合格！${r.hasLakLakAward ? ' 🌟 獲得叻叻獎！' : ''} (A率: ${r.gradeAPercentage.toFixed(0)}%)`);
-        } else {
-          toast.success(`評分已保存 - 未合格 (A率: ${r.gradeAPercentage.toFixed(0)}%)`);
-        }
-      } else {
-        toast.success('評分已保存'); 
-      }
-    },
-  });
-
-  const [scores, setScores] = useState<Record<number, string>>({});
-
-  useEffect(() => {
-    if (existingScores) {
-      const existing: Record<number, string> = {};
-      (existingScores as any[]).forEach((s: any) => {
-        if (s.score?.score) existing[s.score.scoringItemId] = s.score.score;
-      });
-      setScores(existing);
-    }
-  }, [existingScores]);
-
-  // 即時計算預覽 (moved before early return to comply with Rules of Hooks)
-  const cand = candidate as any;
-  const items = (scoringItems as any[]) || [];
-
-  const previewResult = useMemo(() => {
-    if (items.length === 0) return null;
-    
-    const failValues = ['false', 'fail', '未達標', '否', '不合格', '沒有'];
-    let hasAnyFailed = false;
-    let totalGradable = 0;
-    let gradeACount = 0;
-    let scoredCount = 0;
-
-    for (const item of items) {
-      const scoreValue = scores[item.id];
-      if (!scoreValue) continue;
-      scoredCount++;
-      
-      if (failValues.includes(scoreValue.toLowerCase())) hasAnyFailed = true;
-      if (item.type === 'grade') {
-        totalGradable++;
-        if (scoreValue.toUpperCase() === 'A') gradeACount++;
-      }
-    }
-
-    const passed = !hasAnyFailed && scoredCount > 0;
-    const gradeAPercentage = totalGradable > 0 ? (gradeACount / totalGradable) * 100 : 0;
-    const hasLakLak = passed && gradeAPercentage >= 80;
-
-    return { passed, hasAnyFailed, gradeAPercentage, hasLakLak, scoredCount, totalItems: items.length };
-  }, [scores, items]);
-
-  if (!candidate || !scoringItems) {
-    return <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
-  }
-
-  const handleSave = () => {
-    const scoreList = Object.entries(scores)
-      .filter(([_, v]) => v)
-      .map(([itemId, score]) => ({ scoringItemId: parseInt(itemId), score }));
-    if (scoreList.length === 0) { toast.error('請至少評一個項目'); return; }
-    bulkUpsert.mutate({ candidateId, scores: scoreList });
-  };
-
-  const statusCfg = STATUS_CONFIG[cand.status] || STATUS_CONFIG.registered;
-  const categorizedItems = items.reduce((acc: Record<string, any[]>, item: any) => {
-    const cat = item.category || 'other';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(item);
-    return acc;
-  }, {});
-
-  return (
-    <div className="bg-white rounded-lg border p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h3 className="text-lg font-bold">{cand.name}</h3>
-          {getBeltBadge(cand.currentBelt)}
-          <span className="text-gray-400">→</span>
-          {getBeltBadge(cand.targetBelt)}
-        </div>
-        <div className="flex items-center gap-2">
-          <statusCfg.icon className={`w-5 h-5 ${statusCfg.color}`} />
-          <span className={`text-sm font-medium ${statusCfg.color}`}>{statusCfg.label}</span>
-          {cand.hasLakLakAward && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-medium">⭐ 叻叻獎</span>}
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {Object.entries(categorizedItems).map(([cat, catItems]) => (
-          <div key={cat} className="rounded-lg border p-3 bg-gray-50">
-            <h4 className="text-sm font-semibold mb-2">{CATEGORY_NAMES[cat] || cat}</h4>
-            <div className="space-y-2">
-              {(catItems as any[]).map((item: any) => (
-                <div key={item.id} className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium">{item.name}</div>
-                    {item.description && <div className="text-xs text-gray-500 truncate">{item.description}</div>}
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    {item.type === 'grade' && GRADE_OPTIONS.map(opt => (
-                      <button key={opt}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                          scores[item.id] === opt 
-                            ? opt === '不合格' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
-                            : 'bg-white border hover:bg-gray-100'
-                        }`}
-                        onClick={() => setScores(prev => ({ ...prev, [item.id]: opt }))}>
-                        {opt}
-                      </button>
-                    ))}
-                    {item.type === 'pass_fail' && PASS_FAIL_OPTIONS.map(opt => (
-                      <button key={opt}
-                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                          scores[item.id] === opt
-                            ? opt === '不合格' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
-                            : 'bg-white border hover:bg-gray-100'
-                        }`}
-                        onClick={() => setScores(prev => ({ ...prev, [item.id]: opt }))}>
-                        {opt}
-                      </button>
-                    ))}
-                    {item.type === 'yes_no' && YES_NO_OPTIONS.map(opt => (
-                      <button key={opt}
-                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                          scores[item.id] === opt
-                            ? opt === '沒有' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
-                            : 'bg-white border hover:bg-gray-100'
-                        }`}
-                        onClick={() => setScores(prev => ({ ...prev, [item.id]: opt }))}>
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 即時結果預覽 */}
-      {previewResult && previewResult.scoredCount > 0 && (
-        <div className={`rounded-lg border-2 p-3 ${
-          previewResult.hasAnyFailed ? 'border-red-300 bg-red-50' : 
-          previewResult.hasLakLak ? 'border-amber-300 bg-amber-50' :
-          previewResult.passed ? 'border-green-300 bg-green-50' : 'border-gray-300 bg-gray-50'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-lg">
-                {previewResult.hasAnyFailed ? '❌' : previewResult.hasLakLak ? '🌟' : previewResult.passed ? '✅' : '⏳'}
-              </span>
-              <div>
-                <div className="text-sm font-semibold">
-                  {previewResult.hasAnyFailed ? '目前: 不合格' : previewResult.passed ? '目前: 合格' : '評分中'}
-                  {previewResult.hasLakLak && <span className="ml-2 text-amber-700">叻叻獎!</span>}
-                </div>
-                <div className="text-xs text-gray-500">
-                  已評 {previewResult.scoredCount}/{previewResult.totalItems} 項 | A 率: {previewResult.gradeAPercentage.toFixed(0)}%
-                  {previewResult.gradeAPercentage >= 80 && !previewResult.hasAnyFailed && ' (達叻叻獎標準)'}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-end gap-2 pt-2 border-t">
-        <Button size="sm" onClick={handleSave} disabled={bulkUpsert.isPending}
-          className="bg-red-600 hover:bg-red-700 text-white">
-          {bulkUpsert.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-          保存評分
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ==================== 點名面板（內嵌版） ====================
-function AttendancePanel({ examId }: { examId: number }) {
-  const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
-  const { data: schedules } = trpc.exam.schedules.list.useQuery({ examId });
-  const checkIn = trpc.exam.attendance.checkIn.useMutation({ onSuccess: () => refetchCandidates() });
-  const undoCheckIn = trpc.exam.attendance.undoCheckIn.useMutation({ onSuccess: () => refetchCandidates() });
-  const markAbsent = trpc.exam.attendance.markAbsent.useMutation({ onSuccess: () => refetchCandidates() });
-  const bulkCheckInMut = trpc.exam.attendance.bulkCheckIn.useMutation({ onSuccess: () => { refetchCandidates(); toast.success('批量報到完成'); } });
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [loadingIds, setLoadingIds] = useState<Set<number>>(new Set());
-
-  const isCheckedInStatus = (status: string) => ['checked_in', 'examining', 'passed', 'failed'].includes(status);
-
-  // 統計
-  const stats = useMemo(() => {
-    if (!candidates) return { total: 0, checkedIn: 0, notCheckedIn: 0, absent: 0 };
-    const all = candidates as any[];
-    const total = all.length;
-    const checkedIn = all.filter(c => isCheckedInStatus(c.status)).length;
-    const absent = all.filter(c => c.status === 'absent').length;
-    return { total, checkedIn, notCheckedIn: total - checkedIn - absent, absent };
-  }, [candidates]);
-
-  // 按組別分組
-  const sortedSchedules = useMemo(() => {
-    if (!schedules) return [];
-    return [...(schedules as any[])].sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
-  }, [schedules]);
-
-  // 過濾搜尋
-  const filterCandidate = (c: any) => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q));
-  };
-
-  const handleCheckIn = async (candidateId: number, name: string) => {
-    setLoadingIds(prev => new Set(prev).add(candidateId));
-    try {
-      await checkIn.mutateAsync({ candidateId });
-      toast.success(`${name} 已報到`);
-    } catch (e: any) { toast.error(e.message || '報到失敗'); }
-    finally { setLoadingIds(prev => { const n = new Set(prev); n.delete(candidateId); return n; }); }
-  };
-
-  const handleUndoCheckIn = async (candidateId: number, name: string) => {
-    setLoadingIds(prev => new Set(prev).add(candidateId));
-    try {
-      await undoCheckIn.mutateAsync({ candidateId });
-      toast.success(`${name} 已取消報到`);
-    } catch (e: any) { toast.error(e.message || '取消報到失敗'); }
-    finally { setLoadingIds(prev => { const n = new Set(prev); n.delete(candidateId); return n; }); }
-  };
-
-  const handleMarkAbsent = async (candidateId: number, name: string, absent: boolean) => {
-    setLoadingIds(prev => new Set(prev).add(candidateId));
-    try {
-      await markAbsent.mutateAsync({ candidateId, absent });
-      toast.success(absent ? `${name} 已標記為缺席` : `${name} 已取消缺席`);
-    } catch (e: any) { toast.error(e.message || '操作失敗'); }
-    finally { setLoadingIds(prev => { const n = new Set(prev); n.delete(candidateId); return n; }); }
-  };
-
-  const handleBulkCheckInGroup = (groupCode: string) => {
-    const groupCandidates = (candidates as any[])?.filter(c => c.groupCode === groupCode && c.status === 'registered') || [];
-    if (groupCandidates.length === 0) { toast.info('此組全部已報到或缺席'); return; }
-    if (!confirm(`確定將 ${groupCandidates.length} 位考生全部報到？`)) return;
-    bulkCheckInMut.mutate({ candidateIds: groupCandidates.map(c => c.id) });
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* 統計 + 搜尋 */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex gap-2">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-center">
-            <div className="text-lg font-bold text-blue-600">{stats.checkedIn}/{stats.total}</div>
-            <div className="text-[10px] text-blue-500">已到/總數</div>
-          </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 text-center">
-            <div className="text-lg font-bold text-yellow-600">{stats.notCheckedIn}</div>
-            <div className="text-[10px] text-yellow-500">未到</div>
-          </div>
-          <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 text-center">
-            <div className="text-lg font-bold text-orange-600">{stats.absent}</div>
-            <div className="text-[10px] text-orange-500">缺席</div>
-          </div>
-          {stats.total > 0 && (
-            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1.5 text-center">
-              <div className="text-lg font-bold text-green-600">{((stats.checkedIn / stats.total) * 100).toFixed(0)}%</div>
-              <div className="text-[10px] text-green-500">到場率</div>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input placeholder="搜尋考生..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              className="pl-8 h-9 w-48" />
-          </div>
-          <Button size="sm" variant="outline" onClick={() => refetchCandidates()}>
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* 按組別顯示 */}
-      {sortedSchedules.length > 0 ? (
-        <div className="space-y-3">
-          {sortedSchedules.map((schedule: any) => {
-            const groupCandidates = ((candidates as any[]) || [])
-              .filter(c => c.groupCode === schedule.groupCode)
-              .filter(filterCandidate);
-            const allGroupCandidates = ((candidates as any[]) || []).filter(c => c.groupCode === schedule.groupCode);
-            const checkedInCount = allGroupCandidates.filter(c => isCheckedInStatus(c.status)).length;
-            const allDone = allGroupCandidates.length > 0 && checkedInCount === allGroupCandidates.length;
-
-            return (
-              <div key={schedule.id} className="bg-white rounded-lg border overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold">{schedule.groupCode?.toUpperCase() || '-'}</span>
-                    {getBeltBadge(schedule.beltLevel)}
-                    <span className="text-xs text-gray-500">{String(schedule.startTime || '')} - {String(schedule.endTime || '')}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${allDone ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {checkedInCount}/{allGroupCandidates.length}
-                    </span>
-                    <Button size="sm" variant="outline" className="h-7 text-xs"
-                      onClick={() => handleBulkCheckInGroup(schedule.groupCode)}
-                      disabled={bulkCheckInMut.isPending}>
-                      全組報到
-                    </Button>
-                  </div>
-                </div>
-                <div className="divide-y">
-                  {groupCandidates.length === 0 ? (
-                    <div className="px-3 py-3 text-center text-gray-400 text-sm">
-                      {searchQuery ? '無符合搜尋條件的考生' : '無考生'}
-                    </div>
-                  ) : groupCandidates.map((c: any) => {
-                    const isProcessing = loadingIds.has(c.id);
-                    const isIn = isCheckedInStatus(c.status);
-                    const isAbsent = c.status === 'absent';
-                    return (
-                      <div key={c.id} className={`flex items-center justify-between px-3 py-2 ${isAbsent ? 'bg-orange-50' : isIn ? 'bg-green-50' : 'hover:bg-gray-50'} ${isProcessing ? 'opacity-50' : ''}`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">{isAbsent ? '🚫' : isIn ? '✅' : '⭕'}</span>
-                          <span className={`text-sm font-medium ${isAbsent ? 'text-orange-600 line-through' : isIn ? 'text-green-700' : 'text-slate-700'}`}>
-                            {c.orderNumber ? `${c.orderNumber}. ` : ''}{c.name}
-                          </span>
-                          {getBeltBadge(c.currentBelt)}
-                          {c.hasLakLakAward && <span className="text-xs bg-amber-100 text-amber-700 px-1 rounded">⭐</span>}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {isAbsent ? (
-                            <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-300"
-                              onClick={() => handleMarkAbsent(c.id, c.name, false)} disabled={isProcessing}>
-                              取消缺席
-                            </Button>
-                          ) : isIn ? (
-                            <Button size="sm" variant="outline" className="h-7 text-xs text-red-500 border-red-300"
-                              onClick={() => handleUndoCheckIn(c.id, c.name)} disabled={isProcessing}>
-                              取消報到
-                            </Button>
-                          ) : (
-                            <>
-                              <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
-                                onClick={() => handleCheckIn(c.id, c.name)} disabled={isProcessing}>
-                                報到
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs text-orange-500 border-orange-300"
-                                onClick={() => handleMarkAbsent(c.id, c.name, true)} disabled={isProcessing}>
-                                缺席
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* 無時間表時按帶級分組顯示 */
-        <div className="space-y-3">
-          {BELT_ORDER_KEYS.map(belt => {
-            const beltCandidates = ((candidates as any[]) || []).filter(c => c.currentBelt === belt).filter(filterCandidate);
-            if (beltCandidates.length === 0) return null;
-            const checkedInCount = beltCandidates.filter(c => isCheckedInStatus(c.status)).length;
-            return (
-              <div key={belt} className="bg-white rounded-lg border overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b">
-                  <div className="flex items-center gap-2">
-                    {getBeltBadge(belt)}
-                    <span className="text-xs text-gray-500">{beltCandidates.length} 人</span>
-                  </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${checkedInCount === beltCandidates.length ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {checkedInCount}/{beltCandidates.length}
-                  </span>
-                </div>
-                <div className="divide-y">
-                  {beltCandidates.map((c: any) => {
-                    const isProcessing = loadingIds.has(c.id);
-                    const isIn = isCheckedInStatus(c.status);
-                    const isAbsent = c.status === 'absent';
-                    return (
-                      <div key={c.id} className={`flex items-center justify-between px-3 py-2 ${isAbsent ? 'bg-orange-50' : isIn ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
-                        <div className="flex items-center gap-2">
-                          <span>{isAbsent ? '🚫' : isIn ? '✅' : '⭕'}</span>
-                          <span className={`text-sm font-medium ${isAbsent ? 'text-orange-600 line-through' : isIn ? 'text-green-700' : ''}`}>{c.name}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {isAbsent ? (
-                            <Button size="sm" variant="outline" className="h-7 text-xs text-green-600" onClick={() => handleMarkAbsent(c.id, c.name, false)} disabled={isProcessing}>取消缺席</Button>
-                          ) : isIn ? (
-                            <Button size="sm" variant="outline" className="h-7 text-xs text-red-500" onClick={() => handleUndoCheckIn(c.id, c.name)} disabled={isProcessing}>取消報到</Button>
-                          ) : (
-                            <>
-                              <Button size="sm" className="h-7 text-xs bg-green-600 text-white" onClick={() => handleCheckIn(c.id, c.name)} disabled={isProcessing}>報到</Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs text-orange-500" onClick={() => handleMarkAbsent(c.id, c.name, true)} disabled={isProcessing}>缺席</Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ==================== 時間表 ====================
-function SchedulePanel({ examId }: { examId: number }) {
-  const { data: schedules, refetch } = trpc.exam.schedules.list.useQuery({ examId });
-  const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
-
-  const sortedSchedules = useMemo(() => {
-    if (!schedules) return [];
-    return [...(schedules as any[])].sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
-  }, [schedules]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">考試時間表</h3>
-        <Button size="sm" variant="outline" onClick={() => refetch()}>
-          <RefreshCw className="w-4 h-4 mr-1" /> 重新整理
-        </Button>
-      </div>
-
-      {sortedSchedules.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">
-          <Calendar className="w-12 h-12 mx-auto mb-2 opacity-30" />
-          <p>尚無時間表</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg border overflow-hidden">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-3 py-2 text-left font-medium text-gray-700">組別</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-700">級別</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-700">時間</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-700">地點</th>
-                <th className="px-3 py-2 text-center font-medium text-gray-700">考生數</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-700">考生名單</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600 w-12">
+                  <input type="checkbox" className="rounded" />
+                </th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">編號</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">姓名</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">電話</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">性別</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">年齡</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">道場</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">現時級別</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">繳交級別</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">狀態</th>
+                <th className="px-3 py-2 text-center font-medium text-gray-600">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {sortedSchedules.map((schedule: any) => {
-                const groupCandidates = (candidates as any[])?.filter(c => c.groupCode === schedule.groupCode) || [];
+              {filteredCandidates.map((c: any, idx: number) => {
+                const statusCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.registered;
+                const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : `${idx + 1}`;
                 return (
-                  <tr key={schedule.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-bold text-lg">{schedule.groupCode?.toUpperCase() || '-'}</td>
-                    <td className="px-3 py-2">{getBeltBadge(schedule.beltLevel)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-gray-400" />
-                        {String(schedule.startTime || '')} - {String(schedule.endTime || '')}
+                  <tr key={c.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2"><input type="checkbox" className="rounded" /></td>
+                    <td className="px-3 py-2 font-medium text-gray-700">{code}</td>
+                    <td className="px-3 py-2 font-medium text-blue-700">{c.name}</td>
+                    <td className="px-3 py-2 text-gray-600">{c.phone || '-'}</td>
+                    <td className="px-3 py-2 text-gray-600">{GENDER_MAP[c.gender] || '-'}</td>
+                    <td className="px-3 py-2 text-gray-600">{c.age ?? '-'}</td>
+                    <td className="px-3 py-2 text-gray-600">{c.dojoName || '-'}</td>
+                    <td className="px-3 py-2">{getBeltBadge(c.currentBelt)}</td>
+                    <td className="px-3 py-2">{getBeltBadge(c.targetBelt)}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium ${statusCfg.color}`}>
+                        <statusCfg.icon className="w-3 h-3" /> {statusCfg.label}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-gray-500">{schedule.venue || '-'}</td>
-                    <td className="px-3 py-2 text-center font-medium">{groupCandidates.length}</td>
-                    <td className="px-3 py-2 text-gray-500 text-xs">
-                      {groupCandidates.map((c: any) => c.name).join('、') || '-'}
+                    <td className="px-3 py-2 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button className="p-1 text-gray-400 hover:text-blue-500"><MessageSquare className="w-4 h-4" /></button>
+                        <button className="p-1 text-gray-400 hover:text-red-500"
+                          onClick={() => { if (confirm(`確定刪除 ${c.name}？`)) deleteCandidate.mutate({ id: c.id }); }}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          {filteredCandidates.length === 0 && (
+            <div className="text-center py-8 text-gray-400">沒有符合條件的考生</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== 批量評分頁 ====================
+function ScoringPage({ examId }: { examId: number }) {
+  const { data: exam } = trpc.exam.get.useQuery({ id: examId });
+  const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: schedules } = trpc.exam.schedules.list.useQuery({ examId });
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+
+  const initForBelt = trpc.exam.scoringItems.initForBelt.useMutation({
+    onSuccess: (data: any) => toast.success(`已初始化 ${data.count} 個評分項目`),
+  });
+
+  const groups = useMemo(() => {
+    if (!candidates || !schedules) return [];
+    const allCandidates = candidates as any[];
+    const allSchedules = (schedules as any[]).sort((a: any, b: any) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+
+    // Group candidates by groupCode
+    const groupMap = new Map<string, { code: string; belts: Set<string>; candidates: any[]; scored: number; pending: number }>();
+    
+    for (const c of allCandidates) {
+      const code = c.groupCode || 'ungrouped';
+      if (!groupMap.has(code)) groupMap.set(code, { code, belts: new Set(), candidates: [], scored: 0, pending: 0 });
+      const g = groupMap.get(code)!;
+      g.candidates.push(c);
+      g.belts.add(c.currentBelt);
+      if (['passed', 'failed'].includes(c.status)) g.scored++;
+      else g.pending++;
+    }
+
+    return Array.from(groupMap.values()).sort((a, b) => a.code.localeCompare(b.code));
+  }, [candidates, schedules]);
+
+  const examData = exam as any;
+
+  if (selectedGroup) {
+    return <BatchScoringTable examId={examId} groupCode={selectedGroup} onBack={() => setSelectedGroup(null)} />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">批量評分</h1>
+          {examData && <p className="text-sm text-gray-500">{examData.name}</p>}
+        </div>
+        <select className="border rounded-md px-3 py-2 text-sm">
+          <option>全部組別</option>
+        </select>
+      </div>
+
+      <div className="bg-white rounded-lg border p-6">
+        <h3 className="font-bold mb-1">請選擇組別進行評分</h3>
+        <p className="text-sm text-gray-500 mb-4">選擇一個組別以檢示該組的所有考生評分表（同一組可能包含不同級別的考生）</p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {groups.map(g => (
+            <div key={g.code}
+              onClick={() => setSelectedGroup(g.code)}
+              className="border rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer hover:border-blue-300">
+              <h4 className="text-lg font-bold mb-2">{g.code === 'ungrouped' ? '未分組' : `${g.code.toUpperCase()} 組`}</h4>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {Array.from(g.belts).sort((a, b) => (BELT_LEVELS[a]?.order ?? 99) - (BELT_LEVELS[b]?.order ?? 99)).map(belt => (
+                  <span key={belt} className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${BELT_LEVELS[belt]?.color || 'bg-gray-100'} ${BELT_LEVELS[belt]?.textColor || 'text-gray-700'}`}>
+                    {getBeltName(belt)}
+                  </span>
+                ))}
+              </div>
+              <p className="text-sm text-gray-600">共 {g.candidates.length} 位考生</p>
+              {g.scored > 0 && <p className="text-xs text-green-600">{g.scored} 位已評分</p>}
+              {g.pending > 0 && <p className="text-xs text-amber-600">{g.pending} 位待評分</p>}
+            </div>
+          ))}
+          {groups.length === 0 && (
+            <div className="col-span-full text-center py-8 text-gray-400">
+              <p>尚未建立分組</p>
+              <p className="text-sm mt-1">請先在時間表頁面進行分組</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== 批量評分表格 (A/B/C 矩陣) ====================
+function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; groupCode: string; onBack: () => void }) {
+  const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const [activeBelt, setActiveBelt] = useState<string>('');
+
+  const groupCandidates = useMemo(() => {
+    if (!candidates) return [];
+    return (candidates as any[]).filter(c => c.groupCode === groupCode);
+  }, [candidates, groupCode]);
+
+  const belts = useMemo(() => {
+    const beltSet = new Set(groupCandidates.map(c => c.currentBelt));
+    const sorted = Array.from(beltSet).sort((a, b) => (BELT_LEVELS[a]?.order ?? 99) - (BELT_LEVELS[b]?.order ?? 99));
+    return sorted;
+  }, [groupCandidates]);
+
+  const currentBelt = activeBelt || belts[0] || '';
+  const beltCandidates = groupCandidates.filter(c => c.currentBelt === currentBelt);
+
+  // scoring items for this belt
+  const { data: scoringItems } = trpc.exam.scoringItems.listByBelt.useQuery(
+    { beltLevel: currentBelt },
+    { enabled: !!currentBelt }
+  );
+
+  const initForBelt = trpc.exam.scoringItems.initForBelt.useMutation({
+    onSuccess: (data: any) => toast.success(`已初始化 ${data.count} 個評分項目`),
+  });
+
+  // Get all scores for this exam
+  const { data: allScores, refetch: refetchScores } = trpc.exam.scores.listByExam.useQuery({ examId });
+
+  const bulkUpsert = trpc.exam.scores.bulkUpsert.useMutation({
+    onSuccess: () => { refetchScores(); refetchCandidates(); toast.success('評分已保存'); },
+  });
+
+  // Organize scores by candidate
+  const scoreMap = useMemo(() => {
+    if (!allScores) return new Map<number, Map<number, string>>();
+    const map = new Map<number, Map<number, string>>();
+    (allScores as any[]).forEach((s: any) => {
+      if (!map.has(s.candidateId)) map.set(s.candidateId, new Map());
+      map.get(s.candidateId)!.set(s.scoringItemId, s.score);
+    });
+    return map;
+  }, [allScores]);
+
+  const items = (scoringItems as any[]) || [];
+
+  // Group items by category
+  const categorizedItems = useMemo(() => {
+    const cats: { category: string; name: string; items: any[] }[] = [];
+    const catMap = new Map<string, any[]>();
+    for (const item of items) {
+      const cat = item.category || 'other';
+      if (!catMap.has(cat)) catMap.set(cat, []);
+      catMap.get(cat)!.push(item);
+    }
+    catMap.forEach((items, cat) => {
+      cats.push({ category: cat, name: CATEGORY_NAMES[cat] || cat, items });
+    });
+    return cats;
+  }, [items]);
+
+  const handleScoreClick = (candidateId: number, scoringItemId: number, score: string) => {
+    bulkUpsert.mutate({ candidateId, scores: [{ scoringItemId, score }] });
+  };
+
+  const scoredCount = beltCandidates.filter(c => ['passed', 'failed'].includes(c.status)).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <Button size="sm" variant="ghost" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> 返回</Button>
+          <div>
+            <h2 className="text-lg font-bold">{groupCode === 'ungrouped' ? '未分組' : `${groupCode.toUpperCase()} 組`} 批量評分表</h2>
+            <p className="text-sm text-gray-500">
+              共 {beltCandidates.length} 位考生（{scoredCount} 位已評分）級別：{getBeltName(currentBelt)}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline"><Download className="w-4 h-4 mr-1" /> 匯出 Excel</Button>
+          <Button size="sm" variant="outline"><Printer className="w-4 h-4 mr-1" /> 列印評分表</Button>
+          {currentBelt && items.length === 0 && (
+            <Button size="sm" variant="outline" onClick={() => initForBelt.mutate({ beltLevel: currentBelt })} disabled={initForBelt.isPending}>
+              {initForBelt.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null} 初始化評分項目
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Belt tabs */}
+      {belts.length > 1 && (
+        <div className="flex gap-1">
+          {belts.map(b => (
+            <button key={b}
+              onClick={() => setActiveBelt(b)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                (activeBelt || belts[0]) === b ? 'bg-white shadow border text-gray-900' : 'text-gray-500 hover:bg-gray-100'
+              }`}>
+              {getBeltName(b)} ({groupCandidates.filter(c => c.currentBelt === b).length}人)
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Scoring Matrix Table */}
+      {items.length > 0 ? (
+        <div className="bg-white rounded-lg border overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              {/* Category header row */}
+              <tr className="border-b">
+                <th className="px-2 py-1 border-r bg-gray-50 min-w-[40px]" rowSpan={2}>編號</th>
+                <th className="px-2 py-1 border-r bg-gray-50 min-w-[60px]" rowSpan={2}>姓名</th>
+                <th className="px-2 py-1 border-r bg-gray-50 min-w-[50px]" rowSpan={2}>色帶</th>
+                <th className="px-2 py-1 border-r bg-gray-50 min-w-[60px]" rowSpan={2}>狀態</th>
+                {categorizedItems.map(cat => (
+                  <th key={cat.category} colSpan={cat.items.length}
+                    className={`px-2 py-1.5 text-center text-white text-xs font-bold ${
+                      cat.category === 'fitness' ? 'bg-green-600' :
+                      cat.category === 'technique' ? 'bg-blue-600' :
+                      cat.category === 'poomsae' ? 'bg-purple-600' :
+                      cat.category === 'board' ? 'bg-amber-600' :
+                      cat.category === 'sparring' ? 'bg-red-600' :
+                      cat.category === 'split' || cat.category === 'side_split' ? 'bg-pink-600' :
+                      cat.category === 'competition' ? 'bg-teal-600' :
+                      'bg-gray-600'
+                    }`}>
+                    {cat.name}
+                  </th>
+                ))}
+              </tr>
+              {/* Item name row */}
+              <tr className="border-b bg-gray-50">
+                {categorizedItems.flatMap(cat => cat.items.map(item => (
+                  <th key={item.id} className="px-1 py-1 text-center border-r min-w-[80px]">
+                    <div className="font-medium text-[10px] leading-tight">{item.name}</div>
+                    {item.description && <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{item.description}</div>}
+                  </th>
+                )))}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {beltCandidates.map((c: any, idx: number) => {
+                const statusCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.registered;
+                const candidateScores = scoreMap.get(c.id) || new Map<number, string>();
+                const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : `${idx + 1}`;
+                return (
+                  <tr key={c.id} className="hover:bg-gray-50">
+                    <td className="px-2 py-2 border-r font-medium text-center">{code}</td>
+                    <td className="px-2 py-2 border-r">
+                      <div className="font-medium">{c.name}</div>
+                      <div className="text-[10px] text-gray-400">{c.dojoName || ''}</div>
+                    </td>
+                    <td className="px-2 py-2 border-r text-center">{getBeltBadge(c.currentBelt)}</td>
+                    <td className="px-2 py-2 border-r text-center">
+                      <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${statusCfg.color}`}>
+                        <statusCfg.icon className="w-3 h-3" /> {statusCfg.label}
+                      </span>
+                      {c.hasLakLakAward && <div className="text-[10px] text-amber-500 font-medium">⭐叻叻獎</div>}
+                    </td>
+                    {categorizedItems.flatMap(cat => cat.items.map(item => {
+                      const currentScore = candidateScores.get(item.id) || '';
+                      const isGrade = item.type === 'grade';
+                      const isPassFail = item.type === 'pass_fail';
+                      const isYesNo = item.type === 'yes_no';
+
+                      return (
+                        <td key={item.id} className="px-1 py-1 border-r text-center">
+                          {isGrade ? (
+                            <div className="flex items-center justify-center gap-1">
+                              {['A', 'B', 'C'].map(grade => (
+                                <button key={grade}
+                                  onClick={() => handleScoreClick(c.id, item.id, grade)}
+                                  className={`w-6 h-6 rounded-full text-[10px] font-bold transition-all ${
+                                    currentScore === grade
+                                      ? grade === 'A' ? 'bg-green-500 text-white shadow'
+                                        : grade === 'B' ? 'bg-blue-500 text-white shadow'
+                                        : 'bg-orange-500 text-white shadow'
+                                      : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                  }`}>
+                                  {grade}
+                                </button>
+                              ))}
+                            </div>
+                          ) : isPassFail ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => handleScoreClick(c.id, item.id, 'true')}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
+                                  currentScore === 'true' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                }`}>合格</button>
+                              <button onClick={() => handleScoreClick(c.id, item.id, 'false')}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
+                                  currentScore === 'false' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                }`}>不合格</button>
+                            </div>
+                          ) : isYesNo ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => handleScoreClick(c.id, item.id, 'true')}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
+                                  currentScore === 'true' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                }`}>是</button>
+                              <button onClick={() => handleScoreClick(c.id, item.id, 'false')}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
+                                  currentScore === 'false' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                }`}>否</button>
+                            </div>
+                          ) : null}
+                        </td>
+                      );
+                    }))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg border p-8 text-center text-gray-400">
+          <ClipboardCheck className="w-12 h-12 mx-auto mb-2 opacity-30" />
+          <p>此帶級尚無評分項目</p>
+          <p className="text-sm mt-1">請點擊「初始化評分項目」按鈕</p>
         </div>
       )}
     </div>
   );
 }
 
-// ==================== 成績/升帶 ====================
-function ResultsPanel({ examId }: { examId: number }) {
-  const { data: candidates, refetch } = trpc.exam.candidates.list.useQuery({ examId });
+// ==================== 時間表頁 ====================
+function TimetablePage({ examId }: { examId: number }) {
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
-  const promoteAll = trpc.exam.promoteAll.useMutation({
-    onSuccess: (data: any) => {
-      refetch();
-      toast.success(`已升帶 ${data.promoted} 人${data.failed > 0 ? `，${data.failed} 人無法升帶` : ''}`);
-    },
-  });
-  const promoteSingle = trpc.exam.promote.useMutation({
-    onSuccess: (data: any) => {
-      refetch();
-      if (data.success) toast.success(`已升帶至 ${data.newBelt}`);
-      else toast.error('升帶失敗');
-    },
-  });
+  const { data: schedules, refetch } = trpc.exam.schedules.list.useQuery({ examId });
+  const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const [viewMode, setViewMode] = useState<'timetable' | 'groups'>('timetable');
 
-  const [activeTab, setActiveTab] = useState<'passed' | 'failed' | 'absent'>('passed');
-  const [selectedBelt, setSelectedBelt] = useState('all');
+  const createSchedule = trpc.exam.schedules.create.useMutation({ onSuccess: () => { refetch(); toast.success('已新增'); } });
+  const deleteSchedule = trpc.exam.schedules.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
 
-  const allCandidatesList = (candidates as any[]) || [];
-  const totalPassed = allCandidatesList.filter(c => c.status === 'passed').length;
-  const totalFailed = allCandidatesList.filter(c => c.status === 'failed').length;
-  const lakLakCount = allCandidatesList.filter(c => c.hasLakLakAward).length;
-  const passRateValue = (totalPassed + totalFailed) > 0 ? ((totalPassed / (totalPassed + totalFailed)) * 100).toFixed(1) : '-';
+  const [showCreate, setShowCreate] = useState(false);
+  const [newBelt, setNewBelt] = useState('white');
+  const [newGroup, setNewGroup] = useState('');
+  const [newStart, setNewStart] = useState('');
+  const [newEnd, setNewEnd] = useState('');
+  const [newTimeSlot, setNewTimeSlot] = useState('');
 
-  const filterByBelt = (list: any[]) => {
-    if (selectedBelt === 'all') return list;
-    return list.filter(c => c.currentBelt === selectedBelt);
-  };
+  const sortedSchedules = useMemo(() => {
+    if (!schedules) return [];
+    return [...(schedules as any[])].sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+  }, [schedules]);
 
-  const passed = filterByBelt(allCandidatesList.filter(c => c.status === 'passed'));
-  const failed = filterByBelt(allCandidatesList.filter(c => c.status === 'failed'));
-  const absent = filterByBelt(allCandidatesList.filter(c => c.status === 'absent'));
+  const examData = exam as any;
 
-  const handleExport = () => {
-    const dataToExport = activeTab === 'passed' ? passed : activeTab === 'failed' ? failed : absent;
-    if (!dataToExport || dataToExport.length === 0) { toast.error('沒有資料可匯出'); return; }
+  // Build timetable rows with candidate assignments
+  const timetableRows = useMemo(() => {
+    if (!sortedSchedules.length || !candidates) return [];
+    const allCandidates = candidates as any[];
+    
+    return sortedSchedules.map((sch: any) => {
+      const groupCandidates = allCandidates
+        .filter(c => c.groupCode === sch.groupCode)
+        .sort((a, b) => (a.orderNumber || 0) - (b.orderNumber || 0));
+      
+      return {
+        ...sch,
+        beltName: getBeltName(sch.beltLevel),
+        candidateCount: groupCandidates.length,
+        candidates: groupCandidates,
+      };
+    });
+  }, [sortedSchedules, candidates]);
 
-    const headers = ["姓名", "性別", "年齡", "道場", "現時級別", "報考級別", "組別"];
-    const rows = dataToExport.map((c: any) => [
-      c.name, GENDER_MAP[c.gender] || '', c.age?.toString() ?? '',
-      c.dojoName ?? '', getBeltName(c.currentBelt), getBeltName(c.targetBelt),
-      c.groupCode ? `${c.groupCode.toUpperCase()}${c.orderNumber ?? ''}` : '',
-    ]);
+  const maxPositions = Math.max(9, ...timetableRows.map(r => r.candidates.length));
 
-    const csvContent = [headers, ...rows].map(row => row.join(",")).join("\n");
-    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    const examName = (exam as any)?.name || '考試';
-    link.download = `${examName}_${activeTab === 'passed' ? '合格' : activeTab === 'failed' ? '不合格' : '缺席'}名單.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success("名單已匯出");
+  // Time slot color mapping
+  const getTimeSlotColor = (belt: string) => {
+    const level = BELT_LEVELS[belt];
+    if (!level) return 'bg-gray-100 text-gray-700';
+    if (level.order <= 2) return 'bg-red-100 text-red-700';
+    if (level.order <= 4) return 'bg-green-100 text-green-700';
+    if (level.order <= 6) return 'bg-amber-100 text-amber-700';
+    if (level.order <= 8) return 'bg-blue-100 text-blue-700';
+    return 'bg-purple-100 text-purple-700';
   };
 
   return (
     <div className="space-y-4">
-      {/* 統計 */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-        <SmallStat label="總考生數" value={allCandidatesList.length} color="text-gray-700" />
-        <SmallStat label="合格人數" value={totalPassed} color="text-green-600" />
-        <SmallStat label="不合格人數" value={totalFailed} color="text-red-600" />
-        <SmallStat label="缺席人數" value={allCandidatesList.filter(c => c.status === 'absent').length} color="text-orange-600" />
-        <SmallStat label="合格率" value={0} color="text-indigo-600" suffix={passRateValue !== '-' ? `${passRateValue}%` : '-'} />
-        <SmallStat label="叻叻獎" value={lakLakCount} color="text-amber-500" />
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-xl font-bold">分組時間表</h1>
+          {examData && <p className="text-sm text-gray-500">{examData.name}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline"><Mail className="w-4 h-4 mr-1" /> Email 通知家長</Button>
+          <Button size="sm" variant="outline"><Send className="w-4 h-4 mr-1" /> WhatsApp 通知</Button>
+          <Button size="sm" onClick={() => setShowCreate(!showCreate)} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Plus className="w-4 h-4 mr-1" /> 新增時間表
+          </Button>
+        </div>
       </div>
 
-      {/* 一鍵升帶 */}
-      {passed.length > 0 && activeTab === 'passed' && (
-        <div className="bg-green-50 rounded-lg border border-green-200 p-4 flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-green-700">🎉 {passed.length} 位考生合格</h3>
-            <p className="text-sm text-green-600">可一鍵升帶，自動更新學生系統的帶級記錄</p>
+      {/* View mode tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+        <button onClick={() => setViewMode('timetable')}
+          className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'timetable' ? 'bg-white shadow' : 'text-gray-500'}`}>
+          時間表
+        </button>
+        <button onClick={() => setViewMode('groups')}
+          className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'groups' ? 'bg-white shadow' : 'text-gray-500'}`}>
+          分組表
+        </button>
+      </div>
+
+      {/* Create schedule form */}
+      {showCreate && (
+        <div className="bg-white rounded-lg border p-4 space-y-3">
+          <h3 className="font-medium">新增時間表</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <select value={newBelt} onChange={e => setNewBelt(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
+              {BELT_ORDER_KEYS.map(b => <option key={b} value={b}>{getBeltName(b)}</option>)}
+            </select>
+            <Input placeholder="組別 (A/B/C...)" value={newGroup} onChange={e => setNewGroup(e.target.value)} />
+            <Input placeholder="開始時間" value={newStart} onChange={e => setNewStart(e.target.value)} />
+            <Input placeholder="結束時間" value={newEnd} onChange={e => setNewEnd(e.target.value)} />
+            <Input placeholder="時段" value={newTimeSlot} onChange={e => setNewTimeSlot(e.target.value)} />
           </div>
-          <Button className="bg-green-600 hover:bg-green-700 text-white"
-            onClick={() => { if (confirm(`確定將 ${passed.length} 位合格考生全部升帶？`)) promoteAll.mutate({ examId }); }}
-            disabled={promoteAll.isPending}>
-            {promoteAll.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <ArrowUpCircle className="w-4 h-4 mr-1" />}
-            全部升帶
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => {
+              createSchedule.mutate({ examId, beltLevel: newBelt, groupCode: newGroup || undefined, startTime: newStart, endTime: newEnd || undefined, timeSlot: newTimeSlot || undefined });
+              setNewGroup(''); setNewStart(''); setNewEnd(''); setNewTimeSlot('');
+            }} className="bg-blue-600 text-white">新增</Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
+          </div>
         </div>
       )}
 
-      {/* Tabs + Filter */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-          {[
-            { key: 'passed' as const, label: `✅ 合格 (${passed.length})` },
-            { key: 'failed' as const, label: `❌ 不合格 (${failed.length})` },
-            { key: 'absent' as const, label: `🚫 缺席 (${absent.length})` },
-          ].map(tab => (
-            <button key={tab.key}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                activeTab === tab.key ? 'bg-white shadow' : 'text-gray-500 hover:text-gray-700'
-              }`}
-              onClick={() => setActiveTab(tab.key)}>{tab.label}</button>
-          ))}
+      {/* Timetable view */}
+      {viewMode === 'timetable' && (
+        <div className="bg-white rounded-lg border overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-2 py-2 text-left font-medium border-r">級別</th>
+                <th className="px-2 py-2 text-center font-medium border-r w-12">人數</th>
+                <th className="px-2 py-2 text-center font-medium border-r">所需時間</th>
+                <th className="px-2 py-2 text-center font-medium border-r">開始時間</th>
+                <th className="px-2 py-2 text-center font-medium border-r">結束時間</th>
+                <th className="px-2 py-2 text-center font-medium border-r">實際時間</th>
+                <th className="px-2 py-2 text-center font-medium border-r w-10">組別</th>
+                {Array.from({ length: Math.min(maxPositions, 9) }, (_, i) => (
+                  <th key={i} className="px-2 py-2 text-center font-medium border-r min-w-[60px]">位置 {i + 1}</th>
+                ))}
+                <th className="px-2 py-2 text-center font-medium w-10">刪除</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {timetableRows.map((row: any) => (
+                <tr key={row.id} className="hover:bg-gray-50">
+                  <td className="px-2 py-2 border-r">
+                    {getBeltBadge(row.beltLevel)}
+                  </td>
+                  <td className="px-2 py-2 border-r text-center font-medium">{row.candidateCount}</td>
+                  <td className="px-2 py-2 border-r text-center text-gray-600">-</td>
+                  <td className="px-2 py-2 border-r text-center">{row.startTime || '-'}</td>
+                  <td className="px-2 py-2 border-r text-center">{row.endTime || '-'}</td>
+                  <td className="px-2 py-2 border-r text-center">
+                    {row.timeSlot ? (
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${getTimeSlotColor(row.beltLevel)}`}>
+                        {row.timeSlot}
+                      </span>
+                    ) : '-'}
+                  </td>
+                  <td className="px-2 py-2 border-r text-center font-bold">{row.groupCode?.toUpperCase() || '-'}</td>
+                  {Array.from({ length: Math.min(maxPositions, 9) }, (_, i) => (
+                    <td key={i} className="px-2 py-2 border-r text-center">
+                      {row.candidates[i] ? (
+                        <span className="text-xs">{row.candidates[i].name}</span>
+                      ) : null}
+                    </td>
+                  ))}
+                  <td className="px-2 py-2 text-center">
+                    <button onClick={() => deleteSchedule.mutate({ id: row.id })} className="text-red-400 hover:text-red-600">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {timetableRows.length === 0 && (
+                <tr><td colSpan={99} className="text-center py-8 text-gray-400">尚無時間表</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
-        <div className="flex items-center gap-2">
-          <select value={selectedBelt} onChange={e => setSelectedBelt(e.target.value)} className="border rounded-md px-2 py-1 text-sm">
-            <option value="all">全部級別</option>
-            {BELT_ORDER_KEYS.map(b => <option key={b} value={b}>{getBeltName(b)}</option>)}
-          </select>
-          <Button size="sm" variant="outline" onClick={handleExport}>
-            <Download className="w-4 h-4 mr-1" /> 匯出
-          </Button>
-        </div>
-      </div>
+      )}
 
-      {/* 結果表格 */}
-      <ResultTable 
-        candidates={activeTab === 'passed' ? passed : activeTab === 'failed' ? failed : absent}
-        onPromote={activeTab === 'passed' ? (id) => promoteSingle.mutate({ candidateId: id }) : undefined}
-        promoteLoading={promoteSingle.isPending}
-      />
+      {/* Groups view */}
+      {viewMode === 'groups' && (
+        <div className="space-y-3">
+          {sortedSchedules.map((sch: any) => {
+            const groupCandidates = candidates ? (candidates as any[]).filter(c => c.groupCode === sch.groupCode) : [];
+            return (
+              <div key={sch.id} className="bg-white rounded-lg border p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-lg font-bold">{sch.groupCode?.toUpperCase() || '-'} 組</span>
+                  {getBeltBadge(sch.beltLevel)}
+                  <span className="text-sm text-gray-500">{groupCandidates.length} 人</span>
+                  {sch.timeSlot && <span className={`px-2 py-0.5 rounded text-xs ${getTimeSlotColor(sch.beltLevel)}`}>{sch.timeSlot}</span>}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {groupCandidates.map((c: any) => (
+                    <span key={c.id} className="inline-flex items-center bg-gray-50 border rounded px-2 py-1 text-sm">
+                      {c.name}
+                    </span>
+                  ))}
+                  {groupCandidates.length === 0 && <span className="text-sm text-gray-400">尚無考生</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-function ResultTable({ candidates, onPromote, promoteLoading }: { 
-  candidates: any[];
-  onPromote?: (candidateId: number) => void;
-  promoteLoading?: boolean;
-}) {
-  if (candidates.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-400">
-        <Trophy className="w-12 h-12 mx-auto mb-2 opacity-30" />
-        <p>沒有符合條件的考生</p>
-      </div>
-    );
-  }
+// ==================== 考試結果頁 ====================
+function ResultsPage({ examId }: { examId: number }) {
+  const { data: exam } = trpc.exam.get.useQuery({ id: examId });
+  const { data: stats } = trpc.exam.statistics.useQuery({ examId });
+  const { data: candidates, refetch } = trpc.exam.candidates.list.useQuery({ examId });
+  const promoteAll = trpc.exam.promoteAll.useMutation({
+    onSuccess: (data: any) => { refetch(); toast.success(`已升帶 ${data.promoted} 人`); },
+    onError: (err) => toast.error(err.message),
+  });
+  const promoteSingle = trpc.exam.promote.useMutation({
+    onSuccess: () => { refetch(); toast.success('升帶成功'); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const [activeTab, setActiveTab] = useState<'passed' | 'failed' | 'absent'>('passed');
+  const [beltFilter, setBeltFilter] = useState('all');
+
+  const allCandidates = (candidates as any[]) || [];
+  const passed = allCandidates.filter(c => c.status === 'passed');
+  const failed = allCandidates.filter(c => c.status === 'failed');
+  const absent = allCandidates.filter(c => c.status === 'absent');
+  const s = stats as any;
+  const passRate = s && (s.passed + s.failed) > 0 ? ((s.passed / (s.passed + s.failed)) * 100).toFixed(1) : '0';
+
+  const currentList = activeTab === 'passed' ? passed : activeTab === 'failed' ? failed : absent;
+  const filteredList = beltFilter === 'all' ? currentList : currentList.filter(c => c.currentBelt === beltFilter);
+
+  const examData = exam as any;
 
   return (
-    <div className="bg-white rounded-lg border overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 border-b">
-          <tr>
-            <th className="px-3 py-2 text-left font-medium text-gray-700">組別</th>
-            <th className="px-3 py-2 text-left font-medium text-gray-700">姓名</th>
-            <th className="px-3 py-2 text-left font-medium text-gray-700">性別</th>
-            <th className="px-3 py-2 text-left font-medium text-gray-700">年齡</th>
-            <th className="px-3 py-2 text-left font-medium text-gray-700">道場</th>
-            <th className="px-3 py-2 text-left font-medium text-gray-700">現時級別</th>
-            <th className="px-3 py-2 text-left font-medium text-gray-700">報考級別</th>
-            {onPromote && <th className="px-3 py-2 text-center font-medium text-gray-700">操作</th>}
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {candidates.map((c: any) => (
-            <tr key={c.id} className="hover:bg-gray-50">
-              <td className="px-3 py-2 font-medium">
-                {c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : '-'}
-              </td>
-              <td className="px-3 py-2 font-medium">
-                {c.name}
-                {c.hasLakLakAward && <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1 rounded">⭐</span>}
-              </td>
-              <td className="px-3 py-2 text-gray-500">{GENDER_MAP[c.gender] || '-'}</td>
-              <td className="px-3 py-2 text-gray-500">{c.age ?? '-'}</td>
-              <td className="px-3 py-2 text-gray-500">{c.dojoName ?? '-'}</td>
-              <td className="px-3 py-2">{getBeltBadge(c.currentBelt)}</td>
-              <td className="px-3 py-2">{getBeltBadge(c.targetBelt)}</td>
-              {onPromote && (
-                <td className="px-3 py-2 text-center">
-                  <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50"
-                    onClick={() => onPromote(c.id)} disabled={promoteLoading}>
-                    <ArrowUpCircle className="w-3 h-3 mr-1" /> 升帶
-                  </Button>
-                </td>
-              )}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">考試結果</h1>
+          {examData && <p className="text-sm text-gray-500">{examData.name}</p>}
+        </div>
+        <Button size="sm" variant="outline"><Download className="w-4 h-4 mr-1" /> 匯出名單</Button>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <StatCard icon="👥" label="考生人數" value={s?.total || 0} color="blue" />
+        <StatCard icon="✅" label="合格人數" value={s?.passed || 0} color="green" />
+        <StatCard icon="❌" label="不合格人數" value={s?.failed || 0} color="red" />
+        <StatCard icon="📊" label="合格率" value={0} color="orange" suffix={`${passRate}%`} />
+        <StatCard icon="🚫" label="缺席人數" value={s?.absent || 0} color="coral" />
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <button onClick={() => setActiveTab('passed')}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm font-medium ${activeTab === 'passed' ? 'bg-white shadow' : 'text-gray-500'}`}>
+            ✓ 合格名單 ({passed.length})
+          </button>
+          <button onClick={() => setActiveTab('failed')}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm font-medium ${activeTab === 'failed' ? 'bg-white shadow' : 'text-gray-500'}`}>
+            ✗ 不合格名單 ({failed.length})
+          </button>
+          <button onClick={() => setActiveTab('absent')}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm font-medium ${activeTab === 'absent' ? 'bg-white shadow' : 'text-gray-500'}`}>
+            🔗 缺席名單 ({absent.length})
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <select value={beltFilter} onChange={e => setBeltFilter(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
+            <option value="all">全部級別</option>
+            {BELT_ORDER_KEYS.map(b => <option key={b} value={b}>{getBeltName(b)}</option>)}
+          </select>
+          {activeTab === 'passed' && (
+            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => { if (confirm('確定將所有合格考生升帶？')) promoteAll.mutate({ examId }); }}
+              disabled={promoteAll.isPending}>
+              {promoteAll.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <ArrowUpCircle className="w-4 h-4 mr-1" />}
+              一鍵升帶
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Results Table */}
+      <div className="bg-white rounded-lg border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium text-gray-600">編號</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-600">姓名</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-600">性別</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-600">年齡</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-600">道場</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-600">現時級別</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-600">報考級別</th>
+              {activeTab === 'passed' && <th className="px-3 py-2 text-center font-medium text-gray-600">操作</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y">
+            {filteredList.map((c: any) => {
+              const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : '-';
+              return (
+                <tr key={c.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 font-medium">{code}</td>
+                  <td className="px-3 py-2 font-medium text-blue-700">
+                    {c.name}
+                    {c.hasLakLakAward && <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1 rounded">⭐</span>}
+                  </td>
+                  <td className="px-3 py-2 text-gray-500">{GENDER_MAP[c.gender] || '-'}</td>
+                  <td className="px-3 py-2 text-gray-500">{c.age ?? '-'}</td>
+                  <td className="px-3 py-2 text-gray-500">{c.dojoName || '-'}</td>
+                  <td className="px-3 py-2">{getBeltBadge(c.currentBelt)}</td>
+                  <td className="px-3 py-2">{getBeltBadge(c.targetBelt)}</td>
+                  {activeTab === 'passed' && (
+                    <td className="px-3 py-2 text-center">
+                      <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50"
+                        onClick={() => promoteSingle.mutate({ candidateId: c.id })} disabled={promoteSingle.isPending}>
+                        <ArrowUpCircle className="w-3 h-3 mr-1" /> 升帶
+                      </Button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {filteredList.length === 0 && (
+          <div className="text-center py-8 text-gray-400">
+            <Trophy className="w-12 h-12 mx-auto mb-2 opacity-30" />
+            <p>沒有符合條件的考生</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
