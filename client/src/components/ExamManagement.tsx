@@ -613,9 +613,16 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
   const scoreMap = useMemo(() => {
     if (!allScores) return new Map<number, Map<number, string>>();
     const map = new Map<number, Map<number, string>>();
-    (allScores as any[]).forEach((s: any) => {
-      if (!map.has(s.candidateId)) map.set(s.candidateId, new Map());
-      map.get(s.candidateId)!.set(s.scoringItemId, s.score);
+    (allScores as any[]).forEach((entry: any) => {
+      // API returns { score: { candidateId, scoringItemId, score }, candidate, item }
+      const s = entry.score || entry;
+      const cid = s.candidateId;
+      const itemId = s.scoringItemId;
+      const scoreVal = s.score;
+      if (cid && itemId && scoreVal) {
+        if (!map.has(cid)) map.set(cid, new Map());
+        map.get(cid)!.set(itemId, scoreVal);
+      }
     });
     return map;
   }, [allScores]);
@@ -763,24 +770,24 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
                             </div>
                           ) : isPassFail ? (
                             <div className="flex items-center justify-center gap-1">
-                              <button onClick={() => handleScoreClick(c.id, item.id, 'true')}
+                              <button onClick={() => handleScoreClick(c.id, item.id, 'pass')}
                                 className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
-                                  currentScore === 'true' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                  currentScore === 'pass' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                                 }`}>合格</button>
-                              <button onClick={() => handleScoreClick(c.id, item.id, 'false')}
+                              <button onClick={() => handleScoreClick(c.id, item.id, 'fail')}
                                 className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
-                                  currentScore === 'false' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                  currentScore === 'fail' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                                 }`}>不合格</button>
                             </div>
                           ) : isYesNo ? (
                             <div className="flex items-center justify-center gap-1">
-                              <button onClick={() => handleScoreClick(c.id, item.id, 'true')}
+                              <button onClick={() => handleScoreClick(c.id, item.id, 'pass')}
                                 className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
-                                  currentScore === 'true' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                  currentScore === 'pass' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                                 }`}>是</button>
-                              <button onClick={() => handleScoreClick(c.id, item.id, 'false')}
+                              <button onClick={() => handleScoreClick(c.id, item.id, 'fail')}
                                 className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
-                                  currentScore === 'false' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                  currentScore === 'fail' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                                 }`}>否</button>
                             </div>
                           ) : null}
