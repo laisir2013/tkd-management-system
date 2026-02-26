@@ -11,13 +11,14 @@ export async function getDb() {
     try {
       // 使用 mysql2 pool 並明確指定 utf8mb4 charset，確保中文正確顯示
       const pool = mysql.createPool({
-        host: 'localhost',
-        user: 'tkd_user',
-        password: 'tkd_pass_2026',
-        database: 'taekwondo',
-        charset: 'UTF8MB4_GENERAL_CI',
+        uri: process.env.DATABASE_URL,
+        charset: 'utf8mb4',
         waitForConnections: true,
         connectionLimit: 10,
+      });
+      // 確保每個連接都使用 utf8mb4
+      pool.on('connection', (connection: any) => {
+        connection.query('SET NAMES utf8mb4');
       });
       _db = drizzle(pool);
     } catch (error) {
@@ -2374,7 +2375,7 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
   
   const isItemFailed = (scoreValue: string | null): boolean => {
     if (!scoreValue) return true;
-    const failValues = ['false', 'fail', '未達標', '否', '不合格'];
+    const failValues = ['false', 'fail', '未達標', '否', '不合格', '沒有'];
     return failValues.includes(scoreValue.toLowerCase());
   };
   
