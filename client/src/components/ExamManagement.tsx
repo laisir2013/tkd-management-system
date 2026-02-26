@@ -506,15 +506,16 @@ function ScoringPage({ examId }: { examId: number }) {
     const allSchedules = (schedules as any[]).sort((a: any, b: any) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
 
     // Group candidates by groupCode
-    const groupMap = new Map<string, { code: string; belts: Set<string>; candidates: any[]; scored: number; pending: number }>();
+    const groupMap = new Map<string, { code: string; belts: Set<string>; candidates: any[]; scored: number; pending: number; absent: number }>();
     
     for (const c of allCandidates) {
       const code = c.groupCode || 'ungrouped';
-      if (!groupMap.has(code)) groupMap.set(code, { code, belts: new Set(), candidates: [], scored: 0, pending: 0 });
+      if (!groupMap.has(code)) groupMap.set(code, { code, belts: new Set(), candidates: [], scored: 0, pending: 0, absent: 0 });
       const g = groupMap.get(code)!;
       g.candidates.push(c);
       g.belts.add(c.currentBelt);
-      if (['passed', 'failed'].includes(c.status)) g.scored++;
+      if (c.status === 'absent') g.absent++;
+      else if (['passed', 'failed'].includes(c.status)) g.scored++;
       else g.pending++;
     }
 
@@ -559,6 +560,7 @@ function ScoringPage({ examId }: { examId: number }) {
               <p className="text-sm text-gray-600">共 {g.candidates.length} 位考生</p>
               {g.scored > 0 && <p className="text-xs text-green-600">{g.scored} 位已評分</p>}
               {g.pending > 0 && <p className="text-xs text-amber-600">{g.pending} 位待評分</p>}
+              {g.absent > 0 && <p className="text-xs text-red-500">{g.absent} 位缺席</p>}
             </div>
           ))}
           {groups.length === 0 && (
@@ -609,6 +611,13 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
     onSuccess: () => { refetchScores(); refetchCandidates(); toast.success('評分已保存'); },
   });
 
+  const markAbsent = trpc.exam.attendance.markAbsent.useMutation({
+    onSuccess: (_data, variables) => {
+      refetchCandidates();
+      toast.success(variables.absent ? '已標記缺席' : '已取消缺席');
+    },
+  });
+
   // Organize scores by candidate
   const scoreMap = useMemo(() => {
     if (!allScores) return new Map<number, Map<number, string>>();
@@ -649,6 +658,7 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
   };
 
   const scoredCount = beltCandidates.filter(c => ['passed', 'failed'].includes(c.status)).length;
+  const absentCount = beltCandidates.filter(c => c.status === 'absent').length;
 
   return (
     <div className="space-y-4">
@@ -658,7 +668,7 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
           <div>
             <h2 className="text-lg font-bold">{groupCode === 'ungrouped' ? '未分組' : `${groupCode.toUpperCase()} 組`} 批量評分表</h2>
             <p className="text-sm text-gray-500">
-              共 {beltCandidates.length} 位考生（{scoredCount} 位已評分）級別：{getBeltName(currentBelt)}
+              共 {beltCandidates.length} 位考生（{scoredCount} 位已評分{absentCount > 0 ? `，${absentCount} 位缺席` : ''}）級別：{getBeltName(currentBelt)}
             </p>
           </div>
         </div>
@@ -727,28 +737,54 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
             </thead>
             <tbody className="divide-y">
               {beltCandidates.map((c: any, idx: number) => {
+                const isAbsent = c.status === 'absent';
                 const statusCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.registered;
                 const candidateScores = scoreMap.get(c.id) || new Map<number, string>();
                 const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : `${idx + 1}`;
                 return (
-                  <tr key={c.id} className="hover:bg-gray-50">
+                  <tr key={c.id} className={isAbsent ? 'bg-red-50/60 opacity-70' : 'hover:bg-gray-50'}>
                     <td className="px-2 py-2 border-r font-medium text-center">{code}</td>
                     <td className="px-2 py-2 border-r">
-                      <div className="font-medium">{c.name}</div>
+                      <div className={`font-medium ${isAbsent ? 'line-through text-gray-400' : ''}`}>{c.name}</div>
                       <div className="text-[10px] text-gray-400">{c.dojoName || ''}</div>
                     </td>
                     <td className="px-2 py-2 border-r text-center">{getBeltBadge(c.currentBelt)}</td>
                     <td className="px-2 py-2 border-r text-center">
-                      <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${statusCfg.color}`}>
-                        <statusCfg.icon className="w-3 h-3" /> {statusCfg.label}
-                      </span>
-                      {c.hasLakLakAward && <div className="text-[10px] text-amber-500 font-medium">⭐叻叻獎</div>}
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${statusCfg.color}`}>
+                          <statusCfg.icon className="w-3 h-3" /> {statusCfg.label}
+                        </span>
+                        {c.hasLakLakAward && <div className="text-[10px] text-amber-500 font-medium">⭐叻叻獎</div>}
+                        {isAbsent ? (
+                          <button
+                            onClick={() => markAbsent.mutate({ candidateId: c.id, absent: false })}
+                            disabled={markAbsent.isPending}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors">
+                            取消缺席
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => markAbsent.mutate({ candidateId: c.id, absent: true })}
+                            disabled={markAbsent.isPending}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-600 hover:bg-red-200 transition-colors">
+                            標記缺席
+                          </button>
+                        )}
+                      </div>
                     </td>
                     {categorizedItems.flatMap(cat => cat.items.map(item => {
                       const currentScore = candidateScores.get(item.id) || '';
                       const isGrade = item.type === 'grade';
                       const isPassFail = item.type === 'pass_fail';
                       const isYesNo = item.type === 'yes_no';
+
+                      if (isAbsent) {
+                        return (
+                          <td key={item.id} className="px-1 py-1 border-r text-center">
+                            <span className="text-[10px] text-gray-300">—</span>
+                          </td>
+                        );
+                      }
 
                       return (
                         <td key={item.id} className="px-1 py-1 border-r text-center">
