@@ -150,6 +150,7 @@ import { eq, gte, lte, and, desc } from "drizzle-orm";
 import { verifyPassword, hashPassword } from "./password";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "./_core/llm";
+import { ocrReceipt } from "./_core/localOcr";
 import { storagePut } from "./storage";
 import { sdk } from "./_core/sdk";
 
@@ -1129,74 +1130,92 @@ export const appRouter = router({
         let extractedStatus: string | null = null;
         let extractedDateTime: string | null = null;
         
+        // 方案1：本地 Tesseract OCR（不需要 API Key，優先使用）
         try {
-          const ocrResponse = await invokeLLM({
-            messages: [
-              {
-                role: "system",
-                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00，注意 HKD/HK$/$ 等貨幣符號後的數字\",\n  \"bank\": \"銀行名稱，如匯豐銀行/HSBC/恒生銀行/PayMe/FPS轉數快等，優先提取付款方銀行\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
-              },
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "text",
-                    text: "請識別這張轉帳收據/截圖的金額、銀行名稱、轉帳是否成功、以及轉帳日期和時間:"
-                  },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: `data:${input.receiptMimeType};base64,${input.receiptBase64}`,
-                      detail: "high"
-                    }
-                  }
-                ]
-              }
-            ],
-          });
+          console.log("[OCR] 使用本地 Tesseract OCR...");
+          const localResult = await ocrReceipt(input.receiptBase64, input.receiptMimeType);
           
-          const content = ocrResponse.choices[0]?.message?.content;
-          if (typeof content === 'string') {
-            // Strip markdown code block markers if present
-            const cleanJson = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
-            console.log('[OCR] Extracted content:', cleanJson);
-            const ocrData = JSON.parse(cleanJson);
-            
-            // Extract amount
-            if (ocrData.amount) {
-              const parsedAmount = parseFloat(ocrData.amount.replace(/[^0-9.]/g, ''));
-              if (!isNaN(parsedAmount) && parsedAmount > 0) {
-                extractedAmount = parsedAmount.toString();
-              }
-            }
-            
-            // Extract bank name
-            if (ocrData.bank) {
-              extractedBank = ocrData.bank;
-            }
-            
-            // Extract transfer status
-            if (ocrData.status) {
-              extractedStatus = ocrData.status;
-            }
-            
-            // Extract transfer date and time
-            if (ocrData.date) {
-              const dateStr = ocrData.time ? `${ocrData.date}T${ocrData.time}` : ocrData.date;
-              const parsedDate = new Date(dateStr);
-              if (!isNaN(parsedDate.getTime())) {
-                receiptTransferDate = parsedDate;
-              }
-              // Store formatted date/time string for frontend display
-              extractedDateTime = ocrData.time ? `${ocrData.date} ${ocrData.time}` : ocrData.date;
-            }
+          if (localResult.amount) {
+            extractedAmount = localResult.amount;
+            console.log("[OCR] 本地識別金額:", extractedAmount);
           }
-        } catch (error) {
-          const errMsg = error instanceof Error ? error.message : String(error);
-          if (errMsg.includes('OPENAI_API_KEY')) {
-            console.warn("[OCR] API Key 未配置，跳過收據識別。收據已上傳，金額需人工審核。");
-          } else {
-            console.error("[OCR] 收據識別失敗:", errMsg);
+          if (localResult.bank) {
+            extractedBank = localResult.bank;
+          }
+          if (localResult.status) {
+            extractedStatus = localResult.status;
+          }
+          if (localResult.date) {
+            const dateStr = localResult.time ? `${localResult.date}T${localResult.time}` : localResult.date;
+            const parsedDate = new Date(dateStr);
+            if (!isNaN(parsedDate.getTime())) {
+              receiptTransferDate = parsedDate;
+            }
+            extractedDateTime = localResult.time ? `${localResult.date} ${localResult.time}` : localResult.date;
+          }
+        } catch (localErr) {
+          console.warn("[OCR] 本地 Tesseract 識別失敗:", localErr instanceof Error ? localErr.message : String(localErr));
+        }
+        
+        // 方案2：如果本地 OCR 未識別到金額，嘗試 LLM（需要 API Key）
+        if (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) {
+          try {
+            console.log("[OCR] 本地未識別到金額，嘗試 LLM...");
+            const ocrResponse = await invokeLLM({
+              messages: [
+                {
+                  role: "system",
+                  content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00，注意 HKD/HK$/$ 等貨幣符號後的數字\",\n  \"bank\": \"銀行名稱，如匯豐銀行/HSBC/恒生銀行/PayMe/FPS轉數快等，優先提取付款方銀行\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
+                },
+                {
+                  role: "user",
+                  content: [
+                    {
+                      type: "text",
+                      text: "請識別這張轉帳收據/截圖的金額、銀行名稱、轉帳是否成功、以及轉帳日期和時間:"
+                    },
+                    {
+                      type: "image_url",
+                      image_url: {
+                        url: `data:${input.receiptMimeType};base64,${input.receiptBase64}`,
+                        detail: "high"
+                      }
+                    }
+                  ]
+                }
+              ],
+            });
+            
+            const content = ocrResponse.choices[0]?.message?.content;
+            if (typeof content === 'string') {
+              const cleanJson = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+              console.log('[OCR] LLM 識別結果:', cleanJson);
+              const ocrData = JSON.parse(cleanJson);
+              
+              if (ocrData.amount) {
+                const parsedAmount = parseFloat(ocrData.amount.replace(/[^0-9.]/g, ''));
+                if (!isNaN(parsedAmount) && parsedAmount > 0) {
+                  extractedAmount = parsedAmount.toString();
+                }
+              }
+              if (ocrData.bank) extractedBank = ocrData.bank;
+              if (ocrData.status) extractedStatus = ocrData.status;
+              if (ocrData.date) {
+                const dateStr = ocrData.time ? `${ocrData.date}T${ocrData.time}` : ocrData.date;
+                const parsedDate = new Date(dateStr);
+                if (!isNaN(parsedDate.getTime())) {
+                  receiptTransferDate = parsedDate;
+                }
+                extractedDateTime = ocrData.time ? `${ocrData.date} ${ocrData.time}` : ocrData.date;
+              }
+            }
+          } catch (llmErr) {
+            const errMsg = llmErr instanceof Error ? llmErr.message : String(llmErr);
+            if (errMsg.includes('OPENAI_API_KEY')) {
+              console.warn("[OCR] LLM API Key 未配置，使用本地 OCR 結果。");
+            } else {
+              console.error("[OCR] LLM 識別失敗:", errMsg);
+            }
           }
         }
         
