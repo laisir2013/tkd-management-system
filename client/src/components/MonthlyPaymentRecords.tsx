@@ -79,6 +79,16 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     },
   });
 
+  const approvePendingPayment = trpc.payments.approvePendingPayment.useMutation({
+    onSuccess: () => {
+      toast.success('已批准繳費');
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(`批准失敗: ${err.message}`);
+    },
+  });
+
   // 教練列表
   const coachList = useMemo(() => {
     if (!statuses) return [];
@@ -213,6 +223,36 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             >
               <Undo2 className="w-2.5 h-2.5" />
               轉未繳
+            </button>
+          )}
+        </div>
+      );
+    } else if (monthData.status === 'pending') {
+      return (
+        <div className="text-center space-y-0.5">
+          <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 text-yellow-800 border border-yellow-400 animate-pulse">
+            待審核
+          </div>
+          {monthData.amount && parseFloat(monthData.amount) > 0 && (
+            <div className="text-[9px] text-yellow-700 font-medium">${monthData.amount}</div>
+          )}
+          {monthData.receiptUrl && (
+            <button 
+              onClick={() => handleViewReceipt(monthData.receiptUrl!, studentName, `${month}月`)}
+              className="flex items-center justify-center gap-0.5 text-[9px] text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer mx-auto"
+            >
+              <Image className="w-2.5 h-2.5" />
+              收據
+            </button>
+          )}
+          {!readOnly && monthData.paymentRecordId && (
+            <button
+              onClick={() => approvePendingPayment.mutate({ paymentRecordId: monthData.paymentRecordId! })}
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-green-600 text-white hover:bg-green-700 transition-colors mx-auto"
+              title="批准此筆繳費"
+            >
+              <Check className="w-2.5 h-2.5" />
+              批准
             </button>
           )}
         </div>

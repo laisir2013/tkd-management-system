@@ -12,6 +12,8 @@ module.exports = {
         JWT_SECRET: 'taekwondo-local-dev-secret-key-2026',
         VITE_APP_ID: 'local-dev',
         OWNER_OPEN_ID: 'admin-local',
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+        OPENAI_BASE_URL: process.env.OPENAI_BASE_URL || '',
       },
       watch: false,
       instances: 1,

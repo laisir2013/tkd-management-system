@@ -538,13 +538,14 @@ function EliteAttendanceTab() {
     },
   });
 
-  // 按 A/B 班過濾學生和訓練日期
+  // 按 A/B 班過濾學生（訓練日期兩班共用，不按 scheduleTime 過濾）
   const classTimeA = '12:00-2:00pm';
   const classTimeB = '4:30-6:30pm';
   const currentClassTime = activeClass === 'A' ? classTimeA : classTimeB;
 
   const classStudents = students.filter((s: any) => s.status === 'active' && s.scheduleTime === currentClassTime);
-  const classSchedules = schedules.filter((s: any) => s.scheduleTime === currentClassTime);
+  // 訓練日期兩班共用（DB 中為 '12:00-6:30pm'），不按 scheduleTime 過濾
+  const classSchedules = schedules;
   const activeSchedules = classSchedules.filter((s: any) => s.status === 'active');
   const cancelledCount = classSchedules.filter((s: any) => s.status === 'cancelled').length;
 

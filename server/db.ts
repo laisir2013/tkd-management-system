@@ -171,6 +171,18 @@ export async function insertPaymentRecord(record: InsertPaymentRecord) {
 }
 
 /**
+ * 批准待審核的繳費記錄（將 pending 改為 confirmed）
+ */
+export async function approvePaymentRecord(recordId: number, approvedBy: string = 'admin_approved') {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(paymentRecords)
+    .set({ status: 'confirmed', confirmedBy: approvedBy })
+    .where(eq(paymentRecords.id, recordId));
+}
+
+/**
  * 撤銷繳費：刪除指定學生/年/月的繳費記錄
  * - 單月繳費(MONTHLY)：直接刪除 paymentMonth = month 的記錄
  * - 季度繳費(Q1-Q4)：刪除整筆季度記錄（同時影響該季3個月）
@@ -379,11 +391,13 @@ export interface MonthlyPaymentStatus {
   feePerQuarter: string; // 季度學費（用於計算月費 = feePerQuarter / 3）
   months: {
     [key: number]: { // 1-12
-      status: 'paid' | 'unpaid' | 'not_due';
+      status: 'paid' | 'unpaid' | 'not_due' | 'pending';
       paymentDate?: string | null;
       confirmedBy?: string | null;
       receiptUrl?: string | null;
       paymentType?: 'quarterly' | 'monthly' | null; // 繳費方式
+      amount?: string | null; // OCR 識別金額
+      paymentRecordId?: number | null; // 繳費記錄 ID（用於審核）
     };
   };
 }
@@ -403,24 +417,27 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
   const statuses: MonthlyPaymentStatus[] = allStudents
     .filter(s => s.status === 'active' && s.venue !== '精英班道場')
     .map(student => {
-      // 篩選該年份的繳費紀錄
+      // 篩選該年份的繳費紀錄（包括已確認和待審核的）
       const studentPayments = allPayments.filter(p => 
         p.studentId === student.id && 
-        p.status === 'confirmed' && 
+        (p.status === 'confirmed' || p.status === 'pending') && 
         (p.year === targetYear || (!p.year && targetYear === 2026))
       );
       
       // 建立已付款的月份 map
-      const paidMonths = new Map<number, { paymentDate: string | null; confirmedBy: string | null; receiptUrl: string | null; paymentType: 'quarterly' | 'monthly' }>();
+      const paidMonths = new Map<number, { paymentDate: string | null; confirmedBy: string | null; receiptUrl: string | null; paymentType: 'quarterly' | 'monthly'; isPending: boolean; amount: string | null; paymentRecordId: number | null }>();
       
       studentPayments.forEach(p => {
         const paymentDate = p.paymentDate ? new Date(p.paymentDate).toISOString().split('T')[0] : null;
         const confirmedBy = (p as any).confirmedBy || null;
         const receiptUrl = p.receiptUrl || null;
+        const isPending = p.status === 'pending';
+        const amount = p.amount || null;
+        const paymentRecordId = p.id || null;
         
         if (p.paymentPeriod === 'MONTHLY' && (p as any).paymentMonth) {
           // 單月繳費
-          paidMonths.set((p as any).paymentMonth, { paymentDate, confirmedBy, receiptUrl, paymentType: 'monthly' });
+          paidMonths.set((p as any).paymentMonth, { paymentDate, confirmedBy, receiptUrl, paymentType: 'monthly', isPending, amount, paymentRecordId });
         } else if (p.paymentPeriod === 'Q1' || p.paymentPeriod === 'Q2' || p.paymentPeriod === 'Q3' || p.paymentPeriod === 'Q4') {
           // 季度繳費 → 覆蓋該季度的 3 個月
           const quarterMonths: Record<string, number[]> = {
@@ -431,7 +448,7 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
           };
           const months = quarterMonths[p.paymentPeriod];
           months.forEach(m => {
-            paidMonths.set(m, { paymentDate, confirmedBy, receiptUrl, paymentType: 'quarterly' });
+            paidMonths.set(m, { paymentDate, confirmedBy, receiptUrl, paymentType: 'quarterly', isPending, amount, paymentRecordId });
           });
         } else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
           // 自選月份繳費
@@ -449,7 +466,7 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
                 monthNum = parseInt(cm.replace(/[^0-9]/g, ''));
               }
               if (monthNum && monthNum >= 1 && monthNum <= 12) {
-                paidMonths.set(monthNum, { paymentDate, confirmedBy, receiptUrl, paymentType: 'monthly' });
+                paidMonths.set(monthNum, { paymentDate, confirmedBy, receiptUrl, paymentType: 'monthly', isPending, amount, paymentRecordId });
               }
             });
           }
@@ -462,11 +479,13 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
         const paid = paidMonths.get(m);
         if (paid) {
           months[m] = {
-            status: 'paid',
+            status: paid.isPending ? 'pending' : 'paid',
             paymentDate: paid.paymentDate,
             confirmedBy: paid.confirmedBy,
             receiptUrl: paid.receiptUrl,
             paymentType: paid.paymentType,
+            amount: paid.amount,
+            paymentRecordId: paid.paymentRecordId,
           };
         } else {
           // 判斷是否到期：查過去年份全部到期；查當年只有當月或之前的到期

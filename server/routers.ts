@@ -10,6 +10,7 @@ import {
   getStudentById,
   updateStudent,
   insertPaymentRecord,
+  approvePaymentRecord,
   getPaymentRecordsByStudentIds,
   bulkInsertStudents,
   getStudentsWithPayments,
@@ -1133,7 +1134,7 @@ export const appRouter = router({
             messages: [
               {
                 role: "system",
-                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以JSON格式回傳:\n- amount: 轉帳金額（純數字字串，例如 \"1800.00\"，注意識別 HKD/HK$/$ 等貨幣符號後的數字）\n- bank: 銀行名稱（中文或英文皆可，例如 \"中國銀行\"/\"Bank of China\", \"匯豐銀行\"/\"HSBC\", \"恒生銀行\"/\"Hang Seng Bank\", \"渣打銀行\"/\"Standard Chartered\", \"星展銀行\"/\"DBS\", \"東亞銀行\"/\"BEA\", \"Wise\", \"PayMe\", \"FPS轉數快\" 等，如果有收款方和付款方銀行都顯示，優先提取付款方銀行）\n- status: 轉帳狀態，統一以中文回傳（\"成功\"/\"已完成\"/\"處理中\"/\"失敗\"）。英文收據請將 Successful/Completed/Done/Confirmed 翻譯為 \"成功\"，Processing/Pending 翻譯為 \"處理中\"，Failed/Rejected/Declined 翻譯為 \"失敗\"\n- date: 轉帳日期（YYYY-MM-DD 格式，注意英文日期格式如 23 Feb 2026 / Feb 23, 2026 / 23/02/2026 等都要轉換）\n- time: 轉帳時間（HH:mm:ss 或 HH:mm 格式，24小時制，注意 AM/PM 要轉換為24小時制）\n\n如果某個欄位無法識別，請回傳 null。"
+                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00，注意 HKD/HK$/$ 等貨幣符號後的數字\",\n  \"bank\": \"銀行名稱，如匯豐銀行/HSBC/恒生銀行/PayMe/FPS轉數快等，優先提取付款方銀行\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
               },
               {
                 role: "user",
@@ -1152,30 +1153,14 @@ export const appRouter = router({
                 ]
               }
             ],
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                name: "receipt_info",
-                strict: true,
-                schema: {
-                  type: "object",
-                  properties: {
-                    amount: { type: ["string", "null"], description: "轉帳金額" },
-                    bank: { type: ["string", "null"], description: "銀行名稱" },
-                    status: { type: ["string", "null"], description: "轉帳狀態（成功/失敗/處理中）" },
-                    date: { type: ["string", "null"], description: "轉帳日期 YYYY-MM-DD 格式" },
-                    time: { type: ["string", "null"], description: "轉帳時間 HH:mm:ss 或 HH:mm 格式" }
-                  },
-                  required: ["amount", "bank", "status", "date", "time"],
-                  additionalProperties: false
-                }
-              }
-            }
           });
           
           const content = ocrResponse.choices[0]?.message?.content;
           if (typeof content === 'string') {
-            const ocrData = JSON.parse(content);
+            // Strip markdown code block markers if present
+            const cleanJson = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+            console.log('[OCR] Extracted content:', cleanJson);
+            const ocrData = JSON.parse(cleanJson);
             
             // Extract amount
             if (ocrData.amount) {
@@ -1394,6 +1379,19 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const all = await getMonthlyPaymentStatuses(input.year);
         return all.filter(s => s.phone === input.phone);
+      }),
+
+    // 管理員批准待審核的家長上傳收據
+    approvePendingPayment: protectedProcedure
+      .input(z.object({
+        paymentRecordId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以批准繳費' });
+        }
+        await approvePaymentRecord(input.paymentRecordId, 'admin_approved');
+        return { success: true };
       }),
 
     // 教練/管理員確認繳費（不需要收據圖片）
@@ -2490,7 +2488,7 @@ export const appRouter = router({
             messages: [
               {
                 role: "system",
-                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以JSON格式回傳:\n- amount: 轉帳金額（純數字字串，例如 \"1800.00\"）\n- bank: 銀行名稱\n- status: 轉帳狀態（成功/失敗/處理中）\n- date: 轉帳日期（YYYY-MM-DD 格式）\n- time: 轉帳時間（HH:mm:ss 或 HH:mm 格式，24小時制）\n\n如果某個欄位無法識別，請回傳 null。"
+                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00\",\n  \"bank\": \"銀行名稱\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
               },
               {
                 role: "user",
@@ -2506,30 +2504,14 @@ export const appRouter = router({
                 ]
               }
             ],
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                name: "receipt_info",
-                strict: true,
-                schema: {
-                  type: "object",
-                  properties: {
-                    amount: { type: ["string", "null"] },
-                    bank: { type: ["string", "null"] },
-                    status: { type: ["string", "null"] },
-                    date: { type: ["string", "null"] },
-                    time: { type: ["string", "null"] }
-                  },
-                  required: ["amount", "bank", "status", "date", "time"],
-                  additionalProperties: false
-                }
-              }
-            }
           });
 
           const content = ocrResponse.choices[0]?.message?.content;
           if (typeof content === 'string') {
-            const ocrData = JSON.parse(content);
+            // Strip markdown code block markers if present
+            const cleanJson = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+            console.log('[OCR] Extracted content:', cleanJson);
+            const ocrData = JSON.parse(cleanJson);
             if (ocrData.amount) {
               const parsed = parseFloat(ocrData.amount.replace(/[^0-9.]/g, ''));
               if (!isNaN(parsed) && parsed > 0) extractedAmount = parsed.toFixed(2);

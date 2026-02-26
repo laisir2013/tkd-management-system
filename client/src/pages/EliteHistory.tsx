@@ -75,16 +75,17 @@ export default function EliteHistory() {
   const classTimeA = '12:00-2:00pm';
   const classTimeB = '4:30-6:30pm';
 
-  // 按班別過濾 schedules
-  const getMonthSchedules = (classTime: string) => {
+  // 按月份過濾 schedules（訓練日期兩班共用，不按 scheduleTime 過濾）
+  const getMonthSchedules = () => {
     return allSchedules.filter((s: any) => {
       const d = new Date(s.trainingDate);
-      return d.getMonth() + 1 === selectedMonth && s.scheduleTime === classTime;
+      return d.getMonth() + 1 === selectedMonth;
     });
   };
 
-  const monthSchedulesA = useMemo(() => getMonthSchedules(classTimeA), [allSchedules, selectedMonth]);
-  const monthSchedulesB = useMemo(() => getMonthSchedules(classTimeB), [allSchedules, selectedMonth]);
+  // A班和B班共用相同訓練日期
+  const monthSchedulesA = useMemo(() => getMonthSchedules(), [allSchedules, selectedMonth]);
+  const monthSchedulesB = useMemo(() => getMonthSchedules(), [allSchedules, selectedMonth]);
 
   // attendance map
   const attendanceMap = useMemo(() => {
