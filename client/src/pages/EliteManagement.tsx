@@ -76,6 +76,14 @@ function EliteStudentsTab() {
     onError: (e) => toast.error(e.message),
   });
   const COACH_OPTIONS = ["賴政堡教練","鄺富華教練","林學曉教練","何翰錕教練","許悠教練"];
+  const COACH_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
+    "賴政堡教練": { bg: "bg-blue-50", border: "border-l-4 border-l-blue-500", text: "text-blue-700", badge: "bg-blue-100 text-blue-800 border-blue-300" },
+    "鄺富華教練": { bg: "bg-emerald-50", border: "border-l-4 border-l-emerald-500", text: "text-emerald-700", badge: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+    "林學曉教練": { bg: "bg-amber-50", border: "border-l-4 border-l-amber-500", text: "text-amber-700", badge: "bg-amber-100 text-amber-800 border-amber-300" },
+    "何翰錕教練": { bg: "bg-purple-50", border: "border-l-4 border-l-purple-500", text: "text-purple-700", badge: "bg-purple-100 text-purple-800 border-purple-300" },
+    "許悠教練": { bg: "bg-rose-50", border: "border-l-4 border-l-rose-500", text: "text-rose-700", badge: "bg-rose-100 text-rose-800 border-rose-300" },
+  };
+  const DEFAULT_COACH_COLOR = { bg: "bg-gray-50", border: "border-l-4 border-l-gray-300", text: "text-gray-500", badge: "bg-gray-100 text-gray-600 border-gray-300" };
   const deactivateMutation = trpc.elite.updateStudent.useMutation({
     onSuccess: () => { utils.elite.getStudents.invalidate(); utils.elite.getAllBalances.invalidate(); setDeactivateStudent(null); toast.success("學生已停用"); },
     onError: (e) => toast.error(e.message),
@@ -111,14 +119,49 @@ function EliteStudentsTab() {
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
-  const renderClassTable = (classStudents: any[], className: string, classLabel: string, classTime: string) => (
+  // 按教練分組排序學生
+  const sortByCoach = (students: any[]) => {
+    return [...students].sort((a, b) => {
+      const coachA = a.coach || '';
+      const coachB = b.coach || '';
+      const idxA = COACH_OPTIONS.indexOf(coachA);
+      const idxB = COACH_OPTIONS.indexOf(coachB);
+      return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+    });
+  };
+
+  // 統計教練學生數
+  const getCoachStats = (students: any[]) => {
+    const map = new Map<string, number>();
+    students.forEach(s => {
+      const c = s.coach || '未指定';
+      map.set(c, (map.get(c) || 0) + 1);
+    });
+    return map;
+  };
+
+  const renderClassTable = (classStudents: any[], className: string, classLabel: string, classTime: string) => {
+    const sorted = sortByCoach(classStudents);
+    const coachStats = getCoachStats(classStudents);
+    return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Badge variant="outline" className={className === 'A' ? 'border-blue-500 text-blue-700 bg-blue-50' : 'border-orange-500 text-orange-700 bg-orange-50'}>
           {classLabel}
         </Badge>
         <span className="text-sm text-muted-foreground">星期日 {classTime}</span>
         <span className="text-sm font-medium">{classStudents.length} 人</span>
+        <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+          {Array.from(coachStats.entries()).map(([coach, count]) => {
+            const cc = COACH_COLORS[coach] || DEFAULT_COACH_COLOR;
+            return (
+              <span key={coach} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cc.badge}`}>
+                <span className={`w-2 h-2 rounded-full ${cc.border.replace('border-l-4 border-l-', 'bg-')}`} />
+                {coach}: {count}人
+              </span>
+            );
+          })}
+        </div>
       </div>
       <div className="border rounded-lg overflow-x-auto">
         <Table>
@@ -133,8 +176,10 @@ function EliteStudentsTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {classStudents.map((s: any, index: number) => (
-              <TableRow key={s.id}>
+            {sorted.map((s: any, index: number) => {
+              const cc = COACH_COLORS[s.coach] || DEFAULT_COACH_COLOR;
+              return (
+              <TableRow key={s.id} className={`${cc.bg} ${cc.border}`}>
                 <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                 <TableCell className="font-medium">{s.name}</TableCell>
                 <TableCell>
@@ -181,13 +226,21 @@ function EliteStudentsTab() {
                     value={s.coach || ""}
                     onValueChange={(v) => updateCoachMutation.mutate({ id: s.id, coach: v })}
                   >
-                    <SelectTrigger className="h-7 w-[130px] text-xs">
+                    <SelectTrigger className={`h-7 w-[130px] text-xs font-medium ${cc.text}`}>
                       <SelectValue placeholder="選擇教練" />
                     </SelectTrigger>
                     <SelectContent>
-                      {COACH_OPTIONS.map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
+                      {COACH_OPTIONS.map(c => {
+                        const optColor = COACH_COLORS[c];
+                        return (
+                          <SelectItem key={c} value={c}>
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-2 h-2 rounded-full ${optColor ? optColor.border.replace('border-l-4 border-l-', 'bg-') : 'bg-gray-300'}`} />
+                              {c}
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </TableCell>
@@ -218,7 +271,8 @@ function EliteStudentsTab() {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
             {classStudents.length === 0 && (
               <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">暫無學生</TableCell></TableRow>
             )}
@@ -226,7 +280,8 @@ function EliteStudentsTab() {
         </Table>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6">
