@@ -3798,9 +3798,10 @@ export const appRouter = router({
 });
 
 // 帶級對應評分項目定義（來源：考試系統 shared/constants.ts）
+// 注意：key 使用英文帶級名稱（與 DB 的 belt_level 欄位一致）
 function getBeltScoringItems(belt: string) {
   const BELT_SCORING_ITEMS: Record<string, Array<{ name: string; description?: string; type: string; category?: string; weight: number }>> = {
-    '白帶': [
+    white: [
       { name: "掌上壓", description: "幼稚園5次/小學8次/中學或以上12次", type: "grade", category: "fitness", weight: 1 },
       { name: "仰臥起坐", description: "幼稚園5次/小學8次/中學或以上12次", type: "grade", category: "fitness", weight: 1 },
       { name: "蹲坐跳", description: "幼稚園5次/小學8次/中學或以上12次", type: "grade", category: "fitness", weight: 1 },
@@ -3809,7 +3810,7 @@ function getBeltScoringItems(belt: string) {
       { name: "cutdown", description: "cutdown 5次左5次右", type: "grade", category: "technique", weight: 1 },
       { name: "旋踢", description: "旋踢（小學以上）5次左5次右", type: "grade", category: "technique", weight: 1 },
     ],
-    '黃帶': [
+    yellow: [
       { name: "掌上壓", description: "幼稚園8次/小學12次/中學或以上16次", type: "grade", category: "fitness", weight: 1 },
       { name: "仰臥起坐", description: "幼稚園8次/小學12次/中學或以上16次", type: "grade", category: "fitness", weight: 1 },
       { name: "蹲坐跳", description: "幼稚園8次/小學12次/中學或以上16次", type: "grade", category: "fitness", weight: 1 },
@@ -3817,7 +3818,7 @@ function getBeltScoringItems(belt: string) {
       { name: "旋踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
       { name: "上馬cut down", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
     ],
-    '黃綠帶': [
+    yellow_green: [
       { name: "掌上壓", description: "幼稚園10次/小學15次/中學或以上20次", type: "grade", category: "fitness", weight: 1 },
       { name: "仰臥起坐", description: "幼稚園10次/小學15次/中學或以上20次", type: "grade", category: "fitness", weight: 1 },
       { name: "蹲坐跳", description: "幼稚園10次/小學15次/中學或以上20次", type: "grade", category: "fitness", weight: 1 },
@@ -3826,7 +3827,7 @@ function getBeltScoringItems(belt: string) {
       { name: "跳躍前踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
       { name: "上中雙前踢", description: "10組", type: "grade", category: "technique", weight: 1 },
     ],
-    '綠帶': [
+    green: [
       { name: "掌上壓", description: "幼稚園10次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
       { name: "仰臥起坐", description: "幼稚園10次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
       { name: "蹲坐跳", description: "幼稚園10次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
@@ -3839,7 +3840,7 @@ function getBeltScoringItems(belt: string) {
       { name: "cutdown(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
       { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
     ],
-    '綠藍帶': [
+    green_blue: [
       { name: "掌上壓", description: "幼稚園15次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
       { name: "仰臥起坐", description: "幼稚園15次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
       { name: "蹲坐跳", description: "幼稚園15次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
@@ -3852,7 +3853,7 @@ function getBeltScoringItems(belt: string) {
       { name: "跳躍旋踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
       { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
     ],
-    '藍帶': [
+    blue: [
       { name: "掌上壓", description: "幼稚園20次/小學30次/中學或以上35次", type: "grade", category: "fitness", weight: 1 },
       { name: "仰臥起坐", description: "幼稚園20次/小學30次/中學或以上35次", type: "grade", category: "fitness", weight: 1 },
       { name: "蹲坐跳", description: "幼稚園20次/小學30次/中學或以上35次", type: "grade", category: "fitness", weight: 1 },
@@ -3860,23 +3861,19 @@ function getBeltScoringItems(belt: string) {
       { name: "跳躍側踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
       { name: "跳躍後踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
       { name: "360", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
-      { name: "跳躍旋踢+跳躍cutdown", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
       { name: "肘擊(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
       { name: "側踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
       { name: "上馬後踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
       { name: "一字馬", description: "", type: "pass_fail", category: "split", weight: 1 },
       { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
     ],
-    '藍紅帶': [
+    blue_red: [
       { name: "掌上壓", description: "幼稚園25次/小學40次/中學或以上50次", type: "grade", category: "fitness", weight: 1 },
       { name: "仰臥起坐", description: "幼稚園25次/小學40次/中學或以上50次", type: "grade", category: "fitness", weight: 1 },
       { name: "蹲坐跳", description: "幼稚園20次/小學30次/中學或以上35次", type: "grade", category: "fitness", weight: 1 },
       { name: "雙膝跳", description: "幼稚園20次/小學30次/中學或以上35次", type: "grade", category: "fitness", weight: 1 },
       { name: "太極六章", description: "", type: "grade", category: "poomsae", weight: 1.5 },
       { name: "太極一至五抽籤", description: "", type: "grade", category: "poomsae", weight: 1 },
-      { name: "退後跳躍後踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
-      { name: "旋踢+360旋踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
-      { name: "跳躍側踢+跳躍cutdown", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
       { name: "跳躍側踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
       { name: "跳躍後踢(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
       { name: "360(木板)", description: "幼稚園2分板/小學3分板/中學4分板/18歲以上6分板", type: "grade", category: "board", weight: 1 },
@@ -3884,7 +3881,7 @@ function getBeltScoringItems(belt: string) {
       { name: "大字馬", description: "", type: "pass_fail", category: "side_split", weight: 1 },
       { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
     ],
-    '紅帶': [
+    red: [
       { name: "掌上壓", description: "幼稚園30次/小學45次/中學或以上60次", type: "grade", category: "fitness", weight: 1 },
       { name: "仰臥起坐", description: "幼稚園30次/小學45次/中學或以上60次", type: "grade", category: "fitness", weight: 1 },
       { name: "蹲坐跳", description: "幼稚園30次/小學35次/中學或以上40次", type: "grade", category: "fitness", weight: 1 },
@@ -3901,7 +3898,7 @@ function getBeltScoringItems(belt: string) {
       { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
       { name: "外出比賽一次", description: "", type: "yes_no", category: "competition", weight: 1 },
     ],
-    '紅黑帶': [
+    red_black: [
       { name: "掌上壓", description: "幼稚園30次/小學45次/中學或以上60次", type: "grade", category: "fitness", weight: 1 },
       { name: "仰臥起坐", description: "幼稚園30次/小學45次/中學或以上60次", type: "grade", category: "fitness", weight: 1 },
       { name: "蹲坐跳", description: "幼稚園30次/小學35次/中學或以上40次", type: "grade", category: "fitness", weight: 1 },
@@ -3914,15 +3911,41 @@ function getBeltScoringItems(belt: string) {
       { name: "太極六章", type: "grade", category: "poomsae", weight: 1 },
       { name: "太極七章", type: "grade", category: "poomsae", weight: 1 },
       { name: "太極八章", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "跳躍前踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍橫踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍側踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍下壓踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍後踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "360度橫踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍凌空側踢(要跳箱)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "後旋踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "空中雙旋踢(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "分飛踢(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "雙飛踢(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "空中雙前踢(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "單手刀劈地(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "直拳(左右)(木板)", type: "grade", category: "board", weight: 1 },
       { name: "一字馬", description: "", type: "pass_fail", category: "split", weight: 1 },
       { name: "大字馬", description: "", type: "pass_fail", category: "side_split", weight: 1 },
     ],
-    '黑帶': [
+    black: [
       { name: "掌上壓", description: "小學30次X2set/中學40次X2set", type: "grade", category: "fitness", weight: 1 },
       { name: "仰臥起坐", description: "小學30次X2set/中學40次X2set", type: "grade", category: "fitness", weight: 1 },
       { name: "蹲坐跳", description: "小學30次X2set/中學40次X2set", type: "grade", category: "fitness", weight: 1 },
       { name: "雙膝跳", description: "小學30次X2set/中學40次X2set", type: "grade", category: "fitness", weight: 1 },
-      { name: "太極一至八章", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "太極一章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極二章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極三章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極四章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極五章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極六章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極七章", type: "grade", category: "poomsae", weight: 1 },
+      { name: "太極八章", type: "grade", category: "poomsae", weight: 1.5 },
+      { name: "跳躍前踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍旋踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍側踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍下壓踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
+      { name: "跳躍後踢(左右)(木板)", type: "grade", category: "board", weight: 1 },
       { name: "一字馬", description: "", type: "pass_fail", category: "split", weight: 1 },
       { name: "大字馬", description: "", type: "pass_fail", category: "side_split", weight: 1 },
       { name: "搏擊", description: "", type: "pass_fail", category: "sparring", weight: 1 },
