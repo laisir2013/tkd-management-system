@@ -434,6 +434,7 @@ export const examCandidates = mysqlTable("exam_candidates", {
   studentId: int("student_id"),  // 關聯到 students 表
   name: varchar("name", { length: 100 }).notNull(),
   phone: varchar("phone", { length: 50 }),
+  dojoName: varchar("dojo_name", { length: 100 }),
   gender: mysqlEnum("gender", ["male", "female"]).default("male").notNull(),
   age: int("age"),
   ageGroup: varchar("age_group", { length: 50 }),

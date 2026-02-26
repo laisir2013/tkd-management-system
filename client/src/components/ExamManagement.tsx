@@ -507,6 +507,7 @@ function CandidateManagement({ examId }: { examId: number }) {
               if (!addName) { toast.error('請填寫姓名'); return; }
               createCandidate.mutate({
                 examId, name: addName, phone: addPhone || undefined,
+                dojoName: addDojoName || undefined,
                 gender: addGender, age: addAge ? parseInt(addAge) : undefined,
                 currentBelt: addCurrentBelt, targetBelt: addTargetBelt,
               });

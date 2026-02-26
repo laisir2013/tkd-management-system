@@ -2315,18 +2315,21 @@ export async function createCandidatesFromEventRegistrations(examId: number, eve
     if (existing.length > 0) continue;
     
     // 取得學生資料（帶級等資訊）
-    let currentBelt = '白帶';
-    let targetBelt = '黃帶';
+    let currentBelt = 'white';
+    let targetBelt = 'yellow';
     let studentId: number | null = reg.studentId;
     let gender: 'male' | 'female' = 'male';
+    let dojoName: string | null = null;
     
     if (reg.studentId) {
       const studentList = await db.select().from(students).where(eq(students.id, reg.studentId)).limit(1);
       if (studentList.length > 0) {
         const student = studentList[0];
-        currentBelt = student.beltLevel || '白帶';
+        currentBelt = student.beltLevel || 'white';
         // 根據 belt upgrade map 自動推算目標帶級
         targetBelt = getNextBelt(currentBelt);
+        // 從學生資料取得道場名稱
+        dojoName = student.venue || null;
       }
     }
     
@@ -2335,6 +2338,7 @@ export async function createCandidatesFromEventRegistrations(examId: number, eve
       studentId,
       name: reg.studentName,
       phone: reg.phone,
+      dojoName,
       gender,
       currentBelt,
       targetBelt,
@@ -2346,23 +2350,23 @@ export async function createCandidatesFromEventRegistrations(examId: number, eve
   return created;
 }
 
-// 帶級升級對照表
+// 帶級升級對照表（使用英文 key，與 DB belt_level 欄位一致）
 function getNextBelt(currentBelt: string): string {
   const UPGRADE_MAP: Record<string, string> = {
-    '白帶': '黃帶',
-    '黃帶': '黃綠帶',
-    '黃綠帶': '綠帶',
-    '綠帶': '綠藍帶',
-    '綠藍帶': '藍帶',
-    '藍帶': '藍紅帶',
-    '藍紅帶': '紅帶',
-    '紅帶': '紅黑帶',
-    '紅黑帶': '黑帶',
-    '黑帶': '黑帶二段',
-    '黑帶二段': '黑帶三段',
-    '黑帶三段': '黑帶三段',
+    'white': 'yellow',
+    'yellow': 'yellow_green',
+    'yellow_green': 'green',
+    'green': 'green_blue',
+    'green_blue': 'blue',
+    'blue': 'blue_red',
+    'blue_red': 'red',
+    'red': 'red_black',
+    'red_black': 'black',
+    'black': 'black_2dan',
+    'black_2dan': 'black_3dan',
+    'black_3dan': 'black_3dan',
   };
-  return UPGRADE_MAP[currentBelt] || '黃帶';
+  return UPGRADE_MAP[currentBelt] || 'yellow';
 }
 
 // --- 批量計算並更新考試結果 ---
