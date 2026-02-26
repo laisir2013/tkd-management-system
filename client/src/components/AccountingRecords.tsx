@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Plus, Download, Upload, Trash2, Edit2, Eye, RefreshCw, Receipt, TrendingUp, TrendingDown, DollarSign, Filter, FileText } from "lucide-react";
+import { Loader2, Plus, Download, Upload, Trash2, Edit2, Eye, RefreshCw, Receipt, TrendingUp, TrendingDown, DollarSign, Filter, FileText, CheckCircle2, AlertCircle, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import BankStatementReconciliation from "./BankStatementReconciliation";
@@ -68,6 +68,8 @@ export default function AccountingRecords() {
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [showReceiptViewer, setShowReceiptViewer] = useState(false);
+  const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string>("");
 
   // Form states
   const [formDate, setFormDate] = useState(now.toISOString().slice(0, 10));
@@ -276,6 +278,8 @@ export default function AccountingRecords() {
       '學生': r.studentName || '',
       '教練': r.coachName || '',
       '來源': r.source === 'auto_sync' ? '自動同步' : '手動輸入',
+      '對帳狀態': r.reconciliationStatus === 'matched' ? '已對帳' : r.reconciliationStatus === 'manual' ? '人工確認' : '未對帳',
+      '銀行參考編號': r.bankReference || '',
       '收據': r.receiptUrl || '',
     }));
 
@@ -286,6 +290,74 @@ export default function AccountingRecords() {
     const monthStr = selectedMonth ? `${selectedMonth}月` : '全年';
     XLSX.writeFile(wb, `會計記錄_${selectedYear}年${monthStr}.xlsx`);
     toast.success(`成功匯出 ${exportData.length} 筆記錄`);
+  }
+
+  // 匯出核數師/報稅格式 Excel
+  const { data: auditData } = trpc.accounting.getAuditExport.useQuery({
+    year: selectedYear,
+    month: selectedMonth,
+  });
+
+  function handleExportAuditExcel() {
+    if (!auditData || !auditData.records.length) {
+      toast.error("沒有記錄可匯出");
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: 帳目明細
+    const detailData = auditData.records.map((r: any, i: number) => ({
+      '序號': i + 1,
+      '日期': formatDate(r.transactionDate),
+      '銀行': r.bank || '',
+      '銀行參考編號': r.bankReference || '',
+      '收入 (HKD)': r.type === 'income' ? parseFloat(r.amount).toFixed(2) : '',
+      '支出 (HKD)': r.type === 'expense' ? parseFloat(r.amount).toFixed(2) : '',
+      '類別': CATEGORY_MAP[r.category] || r.category,
+      '說明': r.description || '',
+      '學生姓名': r.studentName || '',
+      '教練': r.coachName || '',
+      '來源': r.source === 'auto_sync' ? '學費自動同步' : '手動輸入',
+      '對帳狀態': r.reconciliationStatus === 'matched' ? '已對帳' : '未對帳',
+      '有收據': r.receiptUrl ? '是' : '否',
+    }));
+    const ws1 = XLSX.utils.json_to_sheet(detailData);
+    XLSX.utils.book_append_sheet(wb, ws1, "帳目明細");
+
+    // Sheet 2: 月度摘要
+    const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    const monthlySummary = monthNames.map((name, i) => {
+      const md = auditData.monthlyData[`${i + 1}`];
+      return {
+        '月份': name,
+        '收入 (HKD)': md?.income.toFixed(2) || '0.00',
+        '支出 (HKD)': md?.expense.toFixed(2) || '0.00',
+        '結餘 (HKD)': ((md?.income || 0) - (md?.expense || 0)).toFixed(2),
+      };
+    });
+    monthlySummary.push({
+      '月份': '年度合計',
+      '收入 (HKD)': auditData.totalIncome.toFixed(2),
+      '支出 (HKD)': auditData.totalExpense.toFixed(2),
+      '結餘 (HKD)': auditData.netBalance.toFixed(2),
+    });
+    const ws2 = XLSX.utils.json_to_sheet(monthlySummary);
+    XLSX.utils.book_append_sheet(wb, ws2, "月度摘要");
+
+    // Sheet 3: 分類統計
+    const categoryData = Object.entries(auditData.categoryTotals).map(([cat, data]: [string, any]) => ({
+      '類別': CATEGORY_MAP[cat] || cat,
+      '收入 (HKD)': data.income.toFixed(2),
+      '支出 (HKD)': data.expense.toFixed(2),
+      '淨額 (HKD)': (data.income - data.expense).toFixed(2),
+    }));
+    const ws3 = XLSX.utils.json_to_sheet(categoryData);
+    XLSX.utils.book_append_sheet(wb, ws3, "分類統計");
+
+    const monthStr = selectedMonth ? `${selectedMonth}月` : '全年';
+    XLSX.writeFile(wb, `核數師報表_${selectedYear}年${monthStr}.xlsx`);
+    toast.success(`已匯出核數師/報稅格式報表`);
   }
 
   function handleReceiptFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -321,6 +393,9 @@ export default function AccountingRecords() {
           </Button>
           <Button onClick={handleExportExcel} size="sm" variant="outline">
             <Download className="w-4 h-4 mr-1" /> 匯出 Excel
+          </Button>
+          <Button onClick={handleExportAuditExcel} size="sm" variant="outline" className="border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+            <FileSpreadsheet className="w-4 h-4 mr-1" /> 核數師報表
           </Button>
           <Button onClick={() => syncMutation.mutate()} size="sm" variant="outline" disabled={syncMutation.isPending}>
             {syncMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
@@ -368,7 +443,7 @@ export default function AccountingRecords() {
       </div>
 
       {/* 摘要卡片 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card className="border-green-200 bg-green-50/50">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -396,6 +471,18 @@ export default function AccountingRecords() {
             <p className={`text-2xl font-bold ${balance >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>{formatMoney(balance)}</p>
           </CardContent>
         </Card>
+        {auditData && (
+          <Card className="border-indigo-200 bg-indigo-50/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                <span className="text-sm text-indigo-600 font-medium">對帳率</span>
+              </div>
+              <p className="text-2xl font-bold text-indigo-700">{auditData.reconciliation.percentage}%</p>
+              <p className="text-xs text-indigo-500 mt-0.5">{auditData.reconciliation.reconciled}/{auditData.reconciliation.total} 筆已對帳</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* 帳目表格 */}
@@ -422,6 +509,7 @@ export default function AccountingRecords() {
                     <TableHead>類別</TableHead>
                     <TableHead>說明</TableHead>
                     <TableHead>來源</TableHead>
+                    <TableHead className="text-center">對帳</TableHead>
                     <TableHead className="text-center w-20">操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -459,9 +547,24 @@ export default function AccountingRecords() {
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
+                        {record.reconciliationStatus === 'matched' ? (
+                          <span className="inline-flex items-center gap-0.5 text-xs text-green-600" title="已對帳">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </span>
+                        ) : record.reconciliationStatus === 'manual' ? (
+                          <span className="inline-flex items-center gap-0.5 text-xs text-blue-600" title="人工確認">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-xs text-gray-400" title="未對帳">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
                           {record.receiptUrl && (
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => window.open(record.receiptUrl, '_blank')}>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setViewingReceiptUrl(record.receiptUrl); setShowReceiptViewer(true); }}>
                               <Eye className="w-3.5 h-3.5" />
                             </Button>
                           )}
@@ -703,6 +806,28 @@ export default function AccountingRecords() {
         </DialogContent>
       </Dialog>
 
+      {/* 收據查看 Dialog */}
+      <Dialog open={showReceiptViewer} onOpenChange={setShowReceiptViewer}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>收據圖片</DialogTitle>
+          </DialogHeader>
+          {viewingReceiptUrl && (
+            <div className="space-y-3">
+              <div className="border rounded-lg overflow-hidden max-h-[70vh]">
+                <img src={viewingReceiptUrl} alt="收據" className="w-full object-contain" />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" size="sm" onClick={() => setShowReceiptViewer(false)}>關閉</Button>
+                <Button size="sm" onClick={() => window.open(viewingReceiptUrl, '_blank')}>
+                  <Eye className="w-4 h-4 mr-1" /> 新視窗打開
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* 銀行月結單對帳 */}
       <BankStatementReconciliation onReconciled={refetch} />
 
@@ -714,7 +839,10 @@ export default function AccountingRecords() {
           <p>• <strong>支出類別</strong>：大會比賽報名費 / 攝影 / 宣傳 / 聚餐費 / 供應商費用 / 場租 / office租金 / MPF / 教練費 / 其他</p>
           <p>• 家長上傳收據並確認繳費後，學費收入會<strong>自動同步</strong>到此帳目</p>
           <p>• 點擊「同步繳費記錄」可將所有已確認的繳費一次性匯入</p>
-          <p>• 匯出的 Excel 包含：日期、銀行、金額、收入、支出、類別，符合報稅/核數需求</p>
+          <p>• <strong>上傳收據</strong>：上傳收據圖片後，系統自動 OCR 識別日期、金額、銀行等資訊</p>
+          <p>• <strong>銀行月結單對帳</strong>：上傳月結單截圖，自動識別交易並與系統記錄比對</p>
+          <p>• <strong>核數師報表</strong>：匯出含帳目明細、月度摘要、分類統計的多工作表 Excel，符合報稅/核數需求</p>
+          <p>• 對帳狀態欄中 <CheckCircle2 className="w-3.5 h-3.5 inline text-green-600" /> 表示已與銀行記錄匹配，<AlertCircle className="w-3.5 h-3.5 inline text-gray-400" /> 表示尚未對帳</p>
         </CardContent>
       </Card>
     </div>

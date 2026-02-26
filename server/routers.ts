@@ -2554,6 +2554,9 @@ export const appRouter = router({
           studentName: input.studentName || null,
           coachName: input.coachName || null,
           source: 'manual',
+          ocrRawResult: extractedAmount || extractedBank || extractedDateTime
+            ? JSON.stringify({ amount: extractedAmount, bank: extractedBank, dateTime: extractedDateTime })
+            : null,
         });
 
         return {
@@ -2868,6 +2871,16 @@ export const appRouter = router({
               systemRecord: bestMatch,
               matchScore: bestScore,
             });
+            // 更新對帳狀態
+            try {
+              await updateAccountingRecord(bestMatch.id, {
+                reconciliationStatus: 'matched',
+                reconciliationDate: new Date(),
+                bankReference: txn.reference || null,
+              } as any);
+            } catch (e) {
+              // 如果更新失敗不影響對帳流程
+            }
           } else {
             unmatchedBank.push(txn);
           }
@@ -2929,10 +2942,94 @@ export const appRouter = router({
             studentName: item.studentName || null,
             coachName: item.coachName || null,
             source: 'manual',
-          });
+            reconciliationStatus: 'matched',
+            reconciliationDate: new Date(),
+          } as any);
           imported++;
         }
         return { success: true, imported };
+      }),
+
+    // 匯出核數師/報稅格式數據
+    getAuditExport: protectedProcedure
+      .input(z.object({
+        year: z.number(),
+        month: z.number().optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+
+        const records = await getAllAccountingRecords({
+          year: input.year,
+          month: input.month,
+        });
+
+        // 按月份分組統計
+        const monthlyData: Record<string, {
+          income: number;
+          expense: number;
+          categories: Record<string, number>;
+        }> = {};
+
+        for (let m = 1; m <= 12; m++) {
+          const key = `${m}`;
+          monthlyData[key] = { income: 0, expense: 0, categories: {} };
+        }
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+        const categoryTotals: Record<string, { income: number; expense: number }> = {};
+
+        for (const r of records) {
+          const month = new Date(r.transactionDate).getMonth() + 1;
+          const amount = parseFloat(r.amount);
+          const key = `${month}`;
+
+          if (r.type === 'income') {
+            monthlyData[key].income += amount;
+            totalIncome += amount;
+          } else {
+            monthlyData[key].expense += amount;
+            totalExpense += amount;
+          }
+
+          if (!monthlyData[key].categories[r.category]) {
+            monthlyData[key].categories[r.category] = 0;
+          }
+          monthlyData[key].categories[r.category] += amount;
+
+          if (!categoryTotals[r.category]) {
+            categoryTotals[r.category] = { income: 0, expense: 0 };
+          }
+          if (r.type === 'income') {
+            categoryTotals[r.category].income += amount;
+          } else {
+            categoryTotals[r.category].expense += amount;
+          }
+        }
+
+        // 對帳統計
+        const reconciled = records.filter(r => r.reconciliationStatus === 'matched').length;
+        const unreconciled = records.filter(r => r.reconciliationStatus === 'unmatched').length;
+
+        return {
+          year: input.year,
+          month: input.month,
+          records,
+          monthlyData,
+          totalIncome,
+          totalExpense,
+          netBalance: totalIncome - totalExpense,
+          categoryTotals,
+          reconciliation: {
+            total: records.length,
+            reconciled,
+            unreconciled,
+            percentage: records.length > 0 ? Math.round((reconciled / records.length) * 100) : 0,
+          },
+        };
       }),
   }),
 

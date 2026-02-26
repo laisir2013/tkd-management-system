@@ -354,6 +354,14 @@ export const accountingRecords = mysqlTable("accounting_records", {
   // 來源
   source: mysqlEnum("source", ["auto_sync", "manual"]).default("manual").notNull(), // 來源：自動同步 / 手動輸入
   
+  // 銀行對帳
+  bankReference: varchar("bank_reference", { length: 200 }), // 銀行交易參考編號
+  reconciliationStatus: mysqlEnum("reconciliation_status", ["unmatched", "matched", "manual"]).default("unmatched"), // 對帳狀態
+  reconciliationDate: timestamp("reconciliation_date"), // 對帳完成日期
+  
+  // OCR 識別結果
+  ocrRawResult: text("ocr_raw_result"), // OCR 原始識別結果 JSON（供後續核對）
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
