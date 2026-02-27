@@ -2753,6 +2753,12 @@ export async function createJournalEntryFromRecord(record: {
   const db = await getDb();
   if (!db) return { success: false, error: 'Database not available' };
 
+  // Skip zero-amount records
+  const amt = parseFloat(record.amount || '0');
+  if (amt === 0) {
+    return { success: false, error: `Skipped zero-amount record #${record.id}` };
+  }
+
   const rule = await findMatchingRule(record.type, record.category, record.paymentMethod ?? null);
   if (!rule) {
     return { success: false, error: `No mapping rule for type="${record.type}", category="${record.category}"` };
