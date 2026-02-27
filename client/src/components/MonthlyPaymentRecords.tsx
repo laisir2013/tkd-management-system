@@ -63,6 +63,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     receiptUrl: string | null;
   } | null>(null);
   const [approvePassword, setApprovePassword] = useState("");
+  const [approveStep, setApproveStep] = useState<1 | 2>(1);
 
   // Revert payment dialog state (已繳→未繳)
   const [revertDialog, setRevertDialog] = useState<{
@@ -285,24 +286,19 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
           {monthData.amount && parseFloat(monthData.amount) > 0 && (
             <div className="text-[9px] text-yellow-700 font-medium">${monthData.amount}</div>
           )}
-          {monthData.receiptUrl && (
-            <button 
-              onClick={() => handleViewReceipt(monthData.receiptUrl!, studentName, `${month}月`)}
-              className="flex items-center justify-center gap-0.5 text-[9px] text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer mx-auto"
-            >
-              <Image className="w-2.5 h-2.5" />
-              收據
-            </button>
-          )}
           {!readOnly && monthData.paymentRecordId && (
             <button
-              onClick={() => setApproveDialog({
-                paymentRecordId: monthData.paymentRecordId!,
-                studentName,
-                month,
-                amount: monthData.amount || null,
-                receiptUrl: monthData.receiptUrl || null,
-              })}
+              onClick={() => {
+                setApproveDialog({
+                  paymentRecordId: monthData.paymentRecordId!,
+                  studentName,
+                  month,
+                  amount: monthData.amount || null,
+                  receiptUrl: monthData.receiptUrl || null,
+                });
+                setApproveStep(1);
+                setApprovePassword("");
+              }}
               className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-green-600 text-white hover:bg-green-700 transition-colors mx-auto"
               title="審核此筆繳費"
             >
@@ -616,93 +612,100 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
         </DialogContent>
       </Dialog>
 
-      {/* 審核繳費對話框（查看收據 + 輸入密碼批准） */}
-      <Dialog open={!!approveDialog} onOpenChange={(open) => { if (!open) { setApproveDialog(null); setApprovePassword(""); } }}>
+      {/* 審核繳費對話框（Step 1: 查看收據 → Step 2: 密碼批准） */}
+      <Dialog open={!!approveDialog} onOpenChange={(open) => { if (!open) { setApproveDialog(null); setApprovePassword(""); setApproveStep(1); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-green-700">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5" />
-                審核繳費
+                審核繳費 — {approveStep === 1 ? '查看收據' : '確認批准'}
               </div>
             </DialogTitle>
             <DialogDescription>
-              請確認 <strong>{approveDialog?.studentName}</strong> {selectedYear}年<strong>{approveDialog?.month}月</strong> 的繳費資料是否正確。
+              <strong>{approveDialog?.studentName}</strong> {selectedYear}年<strong>{approveDialog?.month}月</strong>
+              {approveDialog?.amount && parseFloat(approveDialog.amount) > 0 && <> · <strong>${approveDialog.amount}</strong></>}
             </DialogDescription>
           </DialogHeader>
 
-          {/* 繳費資訊 */}
-          <div className="space-y-3">
-            {approveDialog?.amount && parseFloat(approveDialog.amount) > 0 && (
-              <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                <span className="text-sm text-gray-500">金額：</span>
-                <span className="text-sm font-semibold">${approveDialog.amount}</span>
-              </div>
-            )}
-
-            {/* 收據圖片 */}
-            {approveDialog?.receiptUrl && (
-              <div className="space-y-1.5">
-                <span className="text-sm font-medium text-gray-700">收據截圖：</span>
+          {/* Step 1: 查看收據 */}
+          {approveStep === 1 && (
+            <div className="space-y-3">
+              {approveDialog?.receiptUrl ? (
                 <div className="border rounded-lg overflow-hidden bg-white">
                   <img
                     src={approveDialog.receiptUrl.startsWith('http') ? approveDialog.receiptUrl : `/api/receipts/${approveDialog.receiptUrl}`}
                     alt="收據"
-                    className="w-full max-h-[300px] object-contain"
+                    className="w-full max-h-[400px] object-contain"
                   />
                 </div>
-              </div>
-            )}
-
-            {!approveDialog?.receiptUrl && (
-              <div className="p-3 bg-yellow-50 rounded-lg text-sm text-yellow-700 border border-yellow-200">
-                <AlertTriangle className="w-4 h-4 inline mr-1" />
-                此筆繳費記錄沒有收據圖片
-              </div>
-            )}
-
-            {/* 密碼輸入 */}
-            <div>
-              <Label htmlFor="approve-password" className="text-sm font-medium flex items-center gap-1.5 mb-2">
-                <Lock className="w-4 h-4 text-green-600" />
-                輸入管理員密碼以批准
-              </Label>
-              <Input
-                id="approve-password"
-                type="password"
-                placeholder="輸入您的登入密碼"
-                value={approvePassword}
-                onChange={(e) => setApprovePassword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && approvePassword && approveDialog) {
-                    approvePendingPayment.mutate({
-                      paymentRecordId: approveDialog.paymentRecordId,
-                      adminPassword: approvePassword,
-                    });
-                  }
-                }}
-              />
+              ) : (
+                <div className="p-4 bg-yellow-50 rounded-lg text-sm text-yellow-700 border border-yellow-200 text-center">
+                  <AlertTriangle className="w-5 h-5 inline mr-1.5" />
+                  此筆繳費記錄沒有收據圖片
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setApproveDialog(null); setApproveStep(1); }}>取消</Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={() => setApproveStep(2)}
+                >
+                  <Check className="w-4 h-4 mr-1" />
+                  確認收據正確，下一步
+                </Button>
+              </DialogFooter>
             </div>
-          </div>
+          )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setApproveDialog(null); setApprovePassword(""); }}>取消</Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700"
-              disabled={approvePendingPayment.isPending || !approvePassword}
-              onClick={() => {
-                if (approveDialog && approvePassword) {
-                  approvePendingPayment.mutate({
-                    paymentRecordId: approveDialog.paymentRecordId,
-                    adminPassword: approvePassword,
-                  });
-                }
-              }}
-            >
-              <ShieldCheck className="w-4 h-4 mr-1" />
-              {approvePendingPayment.isPending ? '處理中...' : '確認批准'}
-            </Button>
-          </DialogFooter>
+          {/* Step 2: 輸入密碼批准 */}
+          {approveStep === 2 && (
+            <div className="space-y-3">
+              <div className="p-3 bg-green-50 rounded-lg text-sm text-green-800 border border-green-200">
+                ✅ 已確認收據，請輸入管理員密碼以完成批准。
+              </div>
+              <div>
+                <Label htmlFor="approve-password" className="text-sm font-medium flex items-center gap-1.5 mb-2">
+                  <Lock className="w-4 h-4 text-green-600" />
+                  管理員密碼
+                </Label>
+                <Input
+                  id="approve-password"
+                  type="password"
+                  placeholder="輸入您的登入密碼"
+                  value={approvePassword}
+                  onChange={(e) => setApprovePassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && approvePassword && approveDialog) {
+                      approvePendingPayment.mutate({
+                        paymentRecordId: approveDialog.paymentRecordId,
+                        adminPassword: approvePassword,
+                      });
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setApproveStep(1)}>返回查看收據</Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={approvePendingPayment.isPending || !approvePassword}
+                  onClick={() => {
+                    if (approveDialog && approvePassword) {
+                      approvePendingPayment.mutate({
+                        paymentRecordId: approveDialog.paymentRecordId,
+                        adminPassword: approvePassword,
+                      });
+                    }
+                  }}
+                >
+                  <ShieldCheck className="w-4 h-4 mr-1" />
+                  {approvePendingPayment.isPending ? '處理中...' : '批准繳費'}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
