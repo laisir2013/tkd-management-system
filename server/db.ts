@@ -139,6 +139,14 @@ export async function bulkInsertStudents(studentList: InsertStudent[]) {
 
 // ============ Payment Records ============
 
+export async function getPaymentRecordById(id: number): Promise<PaymentRecord | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const results = await db.select().from(paymentRecords).where(eq(paymentRecords.id, id)).limit(1);
+  return results[0] || null;
+}
+
 export async function getPaymentRecordsByStudentId(studentId: number): Promise<PaymentRecord[]> {
   const db = await getDb();
   if (!db) return [];

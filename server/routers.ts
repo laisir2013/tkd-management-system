@@ -34,6 +34,7 @@ import {
   getQuarterlyPaymentStatuses,
   getMonthlyPaymentStatuses,
   deletePaymentForMonth,
+  getPaymentRecordById,
   getMonthlyFinanceReport,
   getDb,
   // 點名系統相關函數
@@ -90,6 +91,7 @@ import {
   deleteAccountingRecord,
   syncPaymentToAccounting,
   syncElitePaymentToAccounting,
+  getAccountingRecordByPaymentId,
   getAccountingSummary,
   // 活動管理函數
   getAllEvents,
@@ -1536,6 +1538,70 @@ export const appRouter = router({
         }
 
         await approvePaymentRecord(input.paymentRecordId, 'admin_approved');
+
+        // 批准後自動同步到會計記錄
+        try {
+          const paymentRecord = await getPaymentRecordById(input.paymentRecordId);
+          if (paymentRecord) {
+            const student = await getStudentById(paymentRecord.studentId);
+            if (student) {
+              // 方案 B：同一張收據拆分的多筆記錄，只入帳一次（用實際轉帳金額）
+              // 檢查是否有同收據的其他記錄已經入了會計帳
+              let shouldSync = true;
+              let syncAmount = paymentRecord.amount;
+
+              if (paymentRecord.receiptKey) {
+                const db = await getDb();
+                if (db) {
+                  // 找同學生、同收據的所有記錄
+                  const siblingRecords = await db.select().from(schema.paymentRecords)
+                    .where(and(
+                      eq(schema.paymentRecords.studentId, paymentRecord.studentId),
+                      eq(schema.paymentRecords.receiptKey, paymentRecord.receiptKey)
+                    ));
+
+                  if (siblingRecords.length > 1) {
+                    // 這是拆分記錄，檢查是否已有兄弟記錄入了會計帳
+                    for (const sibling of siblingRecords) {
+                      if (sibling.id !== input.paymentRecordId) {
+                        const existingAccounting = await getAccountingRecordByPaymentId(sibling.id);
+                        if (existingAccounting) {
+                          // 兄弟記錄已入帳，跳過本次同步（方案 B：一張收據只入帳一次）
+                          shouldSync = false;
+                          break;
+                        }
+                      }
+                    }
+
+                    if (shouldSync) {
+                      // 用所有拆分記錄的金額總和（= 實際轉帳金額）
+                      const totalAmount = siblingRecords.reduce((sum, r) => sum + parseFloat(r.amount), 0);
+                      syncAmount = totalAmount.toFixed(2);
+                    }
+                  }
+                }
+              }
+
+              if (shouldSync) {
+                await syncPaymentToAccounting({
+                  paymentRecordId: input.paymentRecordId,
+                  transactionDate: paymentRecord.receiptTransferDate || paymentRecord.paymentDate,
+                  amount: syncAmount,
+                  bank: null,
+                  studentName: student.name,
+                  coachName: student.coach,
+                  dojoName: student.venue || null,
+                  category: 'tuition',
+                  receiptUrl: paymentRecord.receiptUrl,
+                  receiptKey: paymentRecord.receiptKey,
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Auto sync to accounting after approval failed:", e);
+        }
+
         return { success: true };
       }),
 
