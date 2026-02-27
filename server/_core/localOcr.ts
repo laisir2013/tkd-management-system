@@ -77,8 +77,9 @@ function extractAmount(text: string): string | null {
  * 從 OCR 文字中解析銀行名稱
  */
 function extractBank(text: string): string | null {
+  // 1. 直接名稱匹配
   const bankPatterns: [RegExp, string][] = [
-    [/BANK OF CHINA|中國銀行|中银|中銀|BOC/i, "中國銀行"],
+    [/BANK OF CHINA|中國銀行|中银|中銀|BOC(?:HK)?/i, "中銀香港"],
     [/HSBC|匯豐|汇丰|灌豐|滙豐/i, "匯豐銀行"],
     [/HANG SENG|恒生|恆生/i, "恒生銀行"],
     [/STANDARD CHARTERED|渣打/i, "渣打銀行"],
@@ -94,9 +95,11 @@ function extractBank(text: string): string | null {
     [/建設銀行|CCB/i, "建設銀行"],
     [/交通銀行|BOCOM/i, "交通銀行"],
     [/招商銀行|CMB/i, "招商銀行"],
-    [/中銀香港|BOCHK/i, "中銀香港"],
     [/大新銀行|Dah Sing/i, "大新銀行"],
     [/創興銀行|Chong Hing/i, "創興銀行"],
+    [/南洋商業|Nanyang/i, "南洋商業銀行"],
+    [/集友銀行|Chiyu/i, "集友銀行"],
+    [/上海商業|SHACOM/i, "上海商業銀行"],
   ];
 
   for (const [pattern, name] of bankPatterns) {
@@ -104,6 +107,38 @@ function extractBank(text: string): string | null {
       return name;
     }
   }
+
+  // 2. 香港銀行分行編號匹配（帳號前3位）
+  const branchCodePatterns: [RegExp, string][] = [
+    [/\b003[\-\*\d]{3,}/,  "渣打銀行"],
+    [/\b004[\-\*\d]{3,}/,  "匯豐銀行"],
+    [/\b009[\-\*\d]{3,}/,  "中信銀行"],
+    [/\b012[\-\*\d]{3,}/,  "中銀香港"],
+    [/\b015[\-\*\d]{3,}/,  "東亞銀行"],
+    [/\b016[\-\*\d]{3,}/,  "星展銀行"],
+    [/\b024[\-\*\d]{3,}/,  "恒生銀行"],
+    [/\b025[\-\*\d]{3,}/,  "上海商業銀行"],
+    [/\b027[\-\*\d]{3,}/,  "招商永隆銀行"],
+    [/\b028[\-\*\d]{3,}/,  "大新銀行"],
+    [/\b035[\-\*\d]{3,}/,  "工銀亞洲"],
+    [/\b038[\-\*\d]{3,}/,  "大眾銀行"],
+    [/\b039[\-\*\d]{3,}/,  "花旗銀行"],
+    [/\b040[\-\*\d]{3,}/,  "大新銀行"],
+    [/\b041[\-\*\d]{3,}/,  "集友銀行"],
+    [/\b043[\-\*\d]{3,}/,  "南洋商業銀行"],
+  ];
+
+  for (const [pattern, name] of branchCodePatterns) {
+    if (pattern.test(text)) {
+      return name;
+    }
+  }
+
+  // 3. 「即時轉賬/即時轉帳」通常是 FPS
+  if (/即時轉[賬帳]/.test(text) && !/FPS|轉數快/.test(text)) {
+    return "FPS轉數快";
+  }
+
   return null;
 }
 
