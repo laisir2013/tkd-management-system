@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle } from "lucide-react";
+import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle, Search } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,6 +32,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [coachFilter, setCoachFilter] = useState<string>(coachName || "all");
   const [showPendingOnly, setShowPendingOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { data: statuses, isLoading, refetch } = trpc.payments.getMonthlyStatuses.useQuery({ year: selectedYear });
   
   const yearOptions = [];
@@ -141,8 +142,15 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
         return false;
       });
     }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter((s: any) =>
+        s.studentName?.toLowerCase().includes(q) ||
+        s.phone?.includes(q)
+      );
+    }
     return result;
-  }, [statuses, coachFilter, showPendingOnly]);
+  }, [statuses, coachFilter, showPendingOnly, searchQuery]);
 
   if (isLoading) {
     return <div className="text-center py-8">載入中...</div>;
@@ -411,6 +419,15 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   ))}
                 </SelectContent>
               </Select>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Input
+                  placeholder="搜尋姓名或電話..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 w-44 h-9 text-sm"
+                />
+              </div>
             </div>
           </div>
           {/* 待審核提示 */}

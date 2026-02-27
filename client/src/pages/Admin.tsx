@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Loader2, FileSpreadsheet, Users, Receipt, Filter, ChevronDown, ChevronRight, KeyRound, MoreHorizontal } from "lucide-react";
+import { Upload, Loader2, FileSpreadsheet, Users, Receipt, Filter, ChevronDown, ChevronRight, KeyRound, MoreHorizontal, Search } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
@@ -73,6 +73,7 @@ export default function Admin() {
   const [coachFilter, setCoachFilter] = useState<string>("all");
   const [trainingDayFilter, setTrainingDayFilter] = useState<string>("all");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [studentSearchQuery, setStudentSearchQuery] = useState<string>("");
   const [showPendingOnly, setShowPendingOnly] = useState<boolean>(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingStudent, setEditingStudent] = useState<any>(null);
@@ -453,6 +454,10 @@ export default function Admin() {
     }
     
     return venueMatch && coachMatch && trainingDayMatch && paymentMatch;
+  })?.filter(s => {
+    if (!studentSearchQuery.trim()) return true;
+    const q = studentSearchQuery.trim().toLowerCase();
+    return s.name?.toLowerCase().includes(q) || s.phone?.includes(q);
   });
 
   const studentsWithoutPayment = filteredStudents?.filter(student => {
@@ -577,6 +582,15 @@ export default function Admin() {
                         <SelectItem value="partial">部分繳費</SelectItem>
                       </SelectContent>
                     </Select>
+                    <div className="relative w-full sm:w-48">
+                      <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <Input
+                        placeholder="搜尋姓名或電話..."
+                        value={studentSearchQuery}
+                        onChange={(e) => setStudentSearchQuery(e.target.value)}
+                        className="pl-8 h-9 text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
               </CardHeader>
