@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Plus, Download, Upload, Trash2, Edit2, Eye, RefreshCw, Receipt, TrendingUp, TrendingDown, DollarSign, Filter, FileText, CheckCircle2, AlertCircle, FileSpreadsheet, FileDown, PackageCheck } from "lucide-react";
+import { Loader2, Plus, Download, Upload, Trash2, Edit2, Eye, RefreshCw, Receipt, TrendingUp, TrendingDown, DollarSign, Filter, FileText, CheckCircle2, AlertCircle, FileSpreadsheet, FileDown, PackageCheck, Shield, Settings } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import BankStatementReconciliation from "./BankStatementReconciliation";
@@ -73,6 +74,11 @@ export default function AccountingRecords() {
   const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string>("");
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<number>>(new Set());
   const [isBatchDownloading, setIsBatchDownloading] = useState(false);
+  const [showPayeeConfig, setShowPayeeConfig] = useState(false);
+  const [payeeAccounts, setPayeeAccounts] = useState<Array<{ name: string; account: string; type: string }>>([]);
+  const [newPayeeName, setNewPayeeName] = useState("");
+  const [newPayeeAccount, setNewPayeeAccount] = useState("");
+  const [newPayeeType, setNewPayeeType] = useState<string>("bank");
 
   // Form states
   const [formDate, setFormDate] = useState(now.toISOString().slice(0, 10));
@@ -157,6 +163,33 @@ export default function AccountingRecords() {
     },
     onError: (e) => toast.error(`同步失敗: ${e.message}`),
   });
+
+  // 收款帳號設定
+  const { data: payeeConfigData, refetch: refetchPayeeConfig } = trpc.payeeConfig.getAcceptedAccounts.useQuery(undefined, {
+    enabled: showPayeeConfig,
+  });
+
+  const updatePayeeMutation = trpc.payeeConfig.updateAcceptedAccounts.useMutation({
+    onSuccess: () => {
+      toast.success("收款帳號已更新");
+      refetchPayeeConfig();
+    },
+    onError: (e) => toast.error(`更新失敗: ${e.message}`),
+  });
+
+  const toggleValidationMutation = trpc.payeeConfig.toggleValidation.useMutation({
+    onSuccess: () => {
+      toast.success("收款驗證設定已更新");
+      refetchPayeeConfig();
+    },
+    onError: (e) => toast.error(`更新失敗: ${e.message}`),
+  });
+
+  // 同步 payeeAccounts 狀態
+  const payeeAccountsFromServer = payeeConfigData?.accounts || [];
+  if (showPayeeConfig && payeeConfigData && payeeAccounts.length === 0 && payeeAccountsFromServer.length > 0) {
+    setPayeeAccounts([...payeeAccountsFromServer]);
+  }
 
   // Calculate totals
   const totalIncome = summary?.filter(s => s.type === 'income').reduce((sum, s) => sum + parseFloat(s.total || '0'), 0) || 0;
@@ -1015,6 +1048,164 @@ export default function AccountingRecords() {
 
       {/* 銀行月結單對帳 */}
       <BankStatementReconciliation onReconciled={refetch} />
+
+      {/* 收款帳號驗證設定 */}
+      <Card className="border-amber-200">
+        <CardHeader className="pb-3 cursor-pointer" onClick={() => {
+          setShowPayeeConfig(!showPayeeConfig);
+          if (!showPayeeConfig) setPayeeAccounts([]);
+        }}>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="w-5 h-5 text-amber-600" />
+            收款帳號驗證設定
+            <Settings className="w-4 h-4 text-muted-foreground ml-auto" />
+          </CardTitle>
+          <CardDescription>
+            設定接受的收款帳號/FPS號，系統自動驗證家長上傳的收據是否轉帳到正確的帳號，防止家長轉帳給自己後上傳截圖
+          </CardDescription>
+        </CardHeader>
+        {showPayeeConfig && (
+          <CardContent className="space-y-4">
+            {/* 啟用/禁用驗證 */}
+            <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
+              <div>
+                <p className="font-medium text-sm">啟用收款人驗證</p>
+                <p className="text-xs text-muted-foreground">開啟後，上傳收據時會自動比對收款人帳號是否正確</p>
+              </div>
+              <Switch
+                checked={payeeConfigData?.validationEnabled ?? false}
+                onCheckedChange={(checked) => toggleValidationMutation.mutate({ enabled: checked })}
+              />
+            </div>
+
+            {/* 接受的帳號列表 */}
+            <div className="space-y-2">
+              <Label className="font-medium">接受的收款帳號</Label>
+              {payeeAccounts.map((acc, idx) => (
+                <div key={idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                  <Select value={acc.type} onValueChange={v => {
+                    const updated = [...payeeAccounts];
+                    updated[idx] = { ...updated[idx], type: v };
+                    setPayeeAccounts(updated);
+                  }}>
+                    <SelectTrigger className="w-24 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bank">銀行帳號</SelectItem>
+                      <SelectItem value="fps">FPS</SelectItem>
+                      <SelectItem value="payme">PayMe</SelectItem>
+                      <SelectItem value="other">其他</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    className="h-8 text-sm flex-1"
+                    placeholder="公司/收款人名稱"
+                    value={acc.name}
+                    onChange={e => {
+                      const updated = [...payeeAccounts];
+                      updated[idx] = { ...updated[idx], name: e.target.value };
+                      setPayeeAccounts(updated);
+                    }}
+                  />
+                  <Input
+                    className="h-8 text-sm w-40"
+                    placeholder="帳號/FPS號"
+                    value={acc.account}
+                    onChange={e => {
+                      const updated = [...payeeAccounts];
+                      updated[idx] = { ...updated[idx], account: e.target.value };
+                      setPayeeAccounts(updated);
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                    onClick={() => setPayeeAccounts(payeeAccounts.filter((_, i) => i !== idx))}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+
+              {/* 新增帳號 */}
+              <div className="flex items-center gap-2 p-2 border border-dashed rounded">
+                <Select value={newPayeeType} onValueChange={setNewPayeeType}>
+                  <SelectTrigger className="w-24 h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bank">銀行帳號</SelectItem>
+                    <SelectItem value="fps">FPS</SelectItem>
+                    <SelectItem value="payme">PayMe</SelectItem>
+                    <SelectItem value="other">其他</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  className="h-8 text-sm flex-1"
+                  placeholder="公司/收款人名稱"
+                  value={newPayeeName}
+                  onChange={e => setNewPayeeName(e.target.value)}
+                />
+                <Input
+                  className="h-8 text-sm w-40"
+                  placeholder="帳號/FPS號"
+                  value={newPayeeAccount}
+                  onChange={e => setNewPayeeAccount(e.target.value)}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() => {
+                    if (!newPayeeName || !newPayeeAccount) {
+                      toast.error("請填寫名稱和帳號");
+                      return;
+                    }
+                    setPayeeAccounts([...payeeAccounts, { name: newPayeeName, account: newPayeeAccount, type: newPayeeType }]);
+                    setNewPayeeName("");
+                    setNewPayeeAccount("");
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 儲存按鈕 */}
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setPayeeAccounts([...(payeeConfigData?.accounts || [])]);
+                }}
+              >
+                重設
+              </Button>
+              <Button
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700"
+                onClick={() => updatePayeeMutation.mutate({ accounts: payeeAccounts as any })}
+                disabled={updatePayeeMutation.isPending}
+              >
+                {updatePayeeMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Shield className="w-4 h-4 mr-1" />}
+                儲存收款帳號
+              </Button>
+            </div>
+
+            <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800 space-y-1">
+              <p className="font-medium">驗證邏輯說明：</p>
+              <p>• 家長上傳收據後，OCR 會自動識別收據上的<strong>收款人名稱</strong>和<strong>收款帳號</strong></p>
+              <p>• 系統比對收款人是否為上方設定的帳號之一（名稱或帳號任一匹配即通過）</p>
+              <p>• 匹配成功 + 金額正確 → 自動確認繳費</p>
+              <p>• 收款人不匹配 → 標記為「待審核」，需管理員人工確認</p>
+              <p>• 這樣可防止家長截圖自己轉帳給自己的收據來冒充繳費</p>
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
       {/* 說明 */}
       <Card className="bg-gray-50/50">

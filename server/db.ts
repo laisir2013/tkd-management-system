@@ -2590,3 +2590,57 @@ export async function bulkDeleteExamCandidates(ids: number[]) {
   if (ids.length === 0) return;
   await db.delete(examCandidates).where(inArray(examCandidates.id, ids));
 }
+
+// ==================== System Config ====================
+export async function getSystemConfig(key: string): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(schema.systemConfig)
+    .where(eq(schema.systemConfig.configKey, key))
+    .limit(1);
+  return rows.length > 0 ? rows[0].configValue : null;
+}
+
+export async function setSystemConfig(key: string, value: string, description?: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const existing = await db.select().from(schema.systemConfig)
+    .where(eq(schema.systemConfig.configKey, key))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    await db.update(schema.systemConfig)
+      .set({ configValue: value, ...(description ? { description } : {}) })
+      .where(eq(schema.systemConfig.configKey, key));
+  } else {
+    await db.insert(schema.systemConfig).values({
+      configKey: key,
+      configValue: value,
+      description: description || null,
+    });
+  }
+}
+
+export async function getAllSystemConfigs(): Promise<Array<{ configKey: string; configValue: string; description: string | null }>> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    configKey: schema.systemConfig.configKey,
+    configValue: schema.systemConfig.configValue,
+    description: schema.systemConfig.description,
+  }).from(schema.systemConfig);
+}
+
+/**
+ * 獲取接受的收款帳號列表
+ */
+export async function getAcceptedPayeeAccounts(): Promise<Array<{ name: string; account: string; type: string }>> {
+  const json = await getSystemConfig('accepted_payee_accounts');
+  if (!json) return [];
+  try {
+    return JSON.parse(json);
+  } catch {
+    return [];
+  }
+}

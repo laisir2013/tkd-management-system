@@ -143,6 +143,10 @@ import {
   examMarkAbsent,
   searchExamCandidates,
   bulkDeleteExamCandidates,
+  getSystemConfig,
+  setSystemConfig,
+  getAllSystemConfigs,
+  getAcceptedPayeeAccounts,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -1130,6 +1134,8 @@ export const appRouter = router({
         let extractedBank: string | null = null;
         let extractedStatus: string | null = null;
         let extractedDateTime: string | null = null;
+        let extractedRecipientName: string | null = null;
+        let extractedRecipientAccount: string | null = null;
         
         // 方案1：本地 Tesseract OCR（不需要 API Key，優先使用）
         try {
@@ -1145,6 +1151,14 @@ export const appRouter = router({
           }
           if (localResult.status) {
             extractedStatus = localResult.status;
+          }
+          if (localResult.recipientName) {
+            extractedRecipientName = localResult.recipientName;
+            console.log("[OCR] 識別收款人:", extractedRecipientName);
+          }
+          if (localResult.recipientAccount) {
+            extractedRecipientAccount = localResult.recipientAccount;
+            console.log("[OCR] 識別收款帳號:", extractedRecipientAccount);
           }
           if (localResult.date) {
             const dateStr = localResult.time ? `${localResult.date}T${localResult.time}` : localResult.date;
@@ -1166,7 +1180,7 @@ export const appRouter = router({
               messages: [
                 {
                   role: "system",
-                  content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00，注意 HKD/HK$/$ 等貨幣符號後的數字\",\n  \"bank\": \"銀行名稱，如匯豐銀行/HSBC/恒生銀行/PayMe/FPS轉數快等，優先提取付款方銀行\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
+                  content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00，注意 HKD/HK$/$ 等貨幣符號後的數字\",\n  \"bank\": \"銀行名稱，如匯豐銀行/HSBC/恒生銀行/PayMe/FPS轉數快等，優先提取付款方銀行\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\",\n  \"recipientName\": \"收款人名稱，例如 CHONG MO COMPANY LIMITED\",\n  \"recipientAccount\": \"收款人帳號/FPS識別碼，純數字\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
                 },
                 {
                   role: "user",
@@ -1201,6 +1215,8 @@ export const appRouter = router({
               }
               if (ocrData.bank) extractedBank = ocrData.bank;
               if (ocrData.status) extractedStatus = ocrData.status;
+              if (ocrData.recipientName && !extractedRecipientName) extractedRecipientName = ocrData.recipientName;
+              if (ocrData.recipientAccount && !extractedRecipientAccount) extractedRecipientAccount = ocrData.recipientAccount.replace(/[^0-9]/g, '');
               if (ocrData.date) {
                 const dateStr = ocrData.time ? `${ocrData.date}T${ocrData.time}` : ocrData.date;
                 const parsedDate = new Date(dateStr);
@@ -1254,8 +1270,70 @@ export const appRouter = router({
         const expectedAmount = parseFloat(student.feePerQuarter);
         const isAmountValid = parsedAmount === expectedAmount;
         
-        // 只有金額完全相等才設為 confirmed,否則設為 pending 需要人工審核
-        const recordStatus = isAmountValid ? "confirmed" : "pending";
+        // 驗證收款人是否為道場的帳號（防止家長轉帳給自己）
+        let isRecipientValid = false;
+        let recipientCheckNote = '';
+        try {
+          const validationEnabled = await getSystemConfig('receipt_validation_enabled');
+          if (validationEnabled === 'true') {
+            const acceptedAccounts = await getAcceptedPayeeAccounts();
+            
+            if (acceptedAccounts.length === 0) {
+              // 沒有設定收款帳號，跳過驗證
+              isRecipientValid = true;
+              recipientCheckNote = '未設定收款帳號，跳過收款人驗證';
+              console.log("[Receipt] 未設定接受的收款帳號，跳過收款人驗證");
+            } else {
+              // 比對收款人帳號
+              const cleanedExtractedAccount = (extractedRecipientAccount || '').replace(/[^0-9]/g, '');
+              const cleanedExtractedName = (extractedRecipientName || '').toUpperCase().trim();
+              
+              for (const accepted of acceptedAccounts) {
+                const cleanedAcceptedAccount = accepted.account.replace(/[^0-9]/g, '');
+                const cleanedAcceptedName = accepted.name.toUpperCase().trim();
+                
+                // 帳號比對（包含關係：收據帳號包含設定帳號，或設定帳號包含收據帳號）
+                const accountMatch = cleanedExtractedAccount && cleanedAcceptedAccount && 
+                  (cleanedExtractedAccount.includes(cleanedAcceptedAccount) || cleanedAcceptedAccount.includes(cleanedExtractedAccount));
+                
+                // 名稱比對（包含關係：收據名稱包含設定名稱，或設定名稱包含收據名稱）
+                const nameMatch = cleanedExtractedName && cleanedAcceptedName &&
+                  (cleanedExtractedName.includes(cleanedAcceptedName) || cleanedAcceptedName.includes(cleanedExtractedName));
+                
+                if (accountMatch || nameMatch) {
+                  isRecipientValid = true;
+                  console.log(`[Receipt] 收款人驗證通過: 帳號=${cleanedExtractedAccount}, 名稱=${cleanedExtractedName}, 匹配=${accepted.name}`);
+                  break;
+                }
+              }
+              
+              if (!isRecipientValid) {
+                recipientCheckNote = `收款人不匹配: 名稱=${extractedRecipientName || '未識別'}, 帳號=${extractedRecipientAccount || '未識別'}`;
+                console.warn(`[Receipt] 收款人驗證失敗! ${recipientCheckNote}。接受的帳號: ${acceptedAccounts.map(a => `${a.name}(${a.account})`).join(', ')}`);
+              }
+            }
+          } else {
+            // 驗證功能未啟用
+            isRecipientValid = true;
+          }
+        } catch (configErr) {
+          console.warn("[Receipt] 收款人驗證配置讀取失敗，跳過驗證:", configErr);
+          isRecipientValid = true;
+        }
+        
+        // 只有金額正確 且 收款人正確 才設為 confirmed，否則設為 pending 需要人工審核
+        let pendingReason = '';
+        if (!isAmountValid) {
+          pendingReason += `金額不符(識別=${parsedAmount}, 預期=${expectedAmount})`;
+        }
+        if (!isRecipientValid) {
+          if (pendingReason) pendingReason += '; ';
+          pendingReason += recipientCheckNote;
+        }
+        const recordStatus = (isAmountValid && isRecipientValid) ? "confirmed" : "pending";
+        if (recordStatus === 'pending' && pendingReason) {
+          console.log(`[Receipt] 設為待審核: ${pendingReason}`);
+        }
         
         await insertPaymentRecord({
           studentId: input.studentId,
@@ -1310,6 +1388,11 @@ export const appRouter = router({
           extractedBank,
           extractedStatus,
           extractedDateTime,
+          extractedRecipientName,
+          extractedRecipientAccount,
+          recipientValid: isRecipientValid,
+          pendingReason: pendingReason || undefined,
+          status: recordStatus,
         };
       }),
     
@@ -3839,6 +3922,52 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await bulkDeleteExamCandidates(input.ids);
         return { success: true, count: input.ids.length };
+      }),
+  }),
+
+  // 系統收款帳號設定
+  payeeConfig: router({
+    // 取得所有接受的收款帳號
+    getAcceptedAccounts: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const accounts = await getAcceptedPayeeAccounts();
+        const enabled = await getSystemConfig('receipt_validation_enabled');
+        return { accounts, validationEnabled: enabled === 'true' };
+      }),
+
+    // 更新接受的收款帳號列表
+    updateAcceptedAccounts: protectedProcedure
+      .input(z.object({
+        accounts: z.array(z.object({
+          name: z.string().min(1),
+          account: z.string().min(1),
+          type: z.enum(['bank', 'fps', 'payme', 'other']),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await setSystemConfig(
+          'accepted_payee_accounts',
+          JSON.stringify(input.accounts),
+          '接受的收款帳號列表 (JSON陣列)，用於驗證家長上傳的收據'
+        );
+        return { success: true };
+      }),
+
+    // 切換收款人驗證功能
+    toggleValidation: protectedProcedure
+      .input(z.object({ enabled: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await setSystemConfig('receipt_validation_enabled', input.enabled ? 'true' : 'false');
+        return { success: true };
       }),
   }),
 });

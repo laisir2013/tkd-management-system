@@ -502,3 +502,16 @@ export const examSchedules = mysqlTable("exam_schedules", {
 
 export type ExamSchedule = typeof examSchedules.$inferSelect;
 export type InsertExamSchedule = typeof examSchedules.$inferInsert;
+
+// 系統設定
+export const systemConfig = mysqlTable("system_config", {
+  id: int("id").autoincrement().primaryKey(),
+  configKey: varchar("config_key", { length: 100 }).notNull().unique(),
+  configValue: text("config_value").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SystemConfig = typeof systemConfig.$inferSelect;
+export type InsertSystemConfig = typeof systemConfig.$inferInsert;

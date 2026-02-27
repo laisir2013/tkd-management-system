@@ -633,6 +633,8 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
         reader.readAsDataURL(receiptFile);
       });
 
+      let hasPendingRecipient = false;
+      let lastPendingReason = '';
       for (const studentId of selectedStudentIds) {
         const result = await createPayment.mutateAsync({
           studentId,
@@ -646,9 +648,22 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
         if (result.extractedBank) setExtractedBank(result.extractedBank);
         if (result.extractedStatus) setExtractedStatus(result.extractedStatus);
         if (result.extractedDateTime) setExtractedDateTime(result.extractedDateTime);
+        if (result.status === 'pending') {
+          hasPendingRecipient = true;
+          lastPendingReason = result.pendingReason || '';
+        }
       }
-      toast.success("繳費記錄已成功提交!");
-      setTimeout(() => setLocation(`/history?phone=${encodeURIComponent(phone)}`), 1500);
+      if (hasPendingRecipient) {
+        // 收款人帳號不符或金額不符 → 待人工審核
+        const reasonParts: string[] = [];
+        if (lastPendingReason.includes('金額不符')) reasonParts.push('金額不符');
+        if (lastPendingReason.includes('收款人不匹配')) reasonParts.push('收款帳號不正確');
+        const reasonText = reasonParts.length > 0 ? `（${reasonParts.join('、')}）` : '';
+        toast.error(`收據已提交，但需要人工審核${reasonText}。請確認轉帳收款人是否正確。`, { duration: 8000 });
+      } else {
+        toast.success("繳費記錄已成功提交!");
+      }
+      setTimeout(() => setLocation(`/history?phone=${encodeURIComponent(phone)}`), 2000);
     } catch (err: any) {
       console.error("提交繳費失敗:", err);
       toast.error(err?.message || "提交失敗,請稍後再試");

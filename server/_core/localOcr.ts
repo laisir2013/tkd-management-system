@@ -14,6 +14,8 @@ interface OcrResult {
   status: string | null;
   date: string | null;
   time: string | null;
+  recipientName: string | null;
+  recipientAccount: string | null;
   rawText: string;
 }
 
@@ -143,6 +145,100 @@ function extractBank(text: string): string | null {
 }
 
 /**
+ * 從 OCR 文字中提取收款人資訊（名稱和帳號）
+ * 收據上通常顯示為：
+ *   收款人/賬戶             CHONG MO COMPANY
+ *   LIMITED
+ *   164577132
+ * 或：
+ *   Payee       John Smith
+ *   To Account  012-XXX-XXX
+ *
+ * 注意：OCR 文字可能含有「款項已成功發送給收款人」這類干擾文字
+ */
+function extractRecipient(text: string): { name: string | null; account: string | null } {
+  let name: string | null = null;
+  let account: string | null = null;
+
+  // 按行分割，找出「收款人/賬戶」這行及其後續行
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  
+  let recipientLineIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // 精確匹配「收款人/賬戶」或「收款人」作為行開頭（排除「發送給收款人」等）
+    if (/^收款人[/\/]?[賬帳]?[戶户]?\s/.test(line) || /^收款人[/\/]/.test(line)) {
+      recipientLineIdx = i;
+      break;
+    }
+    // 英文模式
+    if (/^(?:Payee|Recipient|Beneficiary)\s/i.test(line)) {
+      recipientLineIdx = i;
+      break;
+    }
+  }
+
+  if (recipientLineIdx >= 0) {
+    // 從「收款人/賬戶」行提取名稱（行內名稱部分）
+    const recipientLine = lines[recipientLineIdx];
+    const nameMatch = recipientLine.match(/(?:收款人[/\/]?[賬帳]?[戶户]?|Payee|Recipient|Beneficiary)\s+(.+)/i);
+    if (nameMatch) {
+      let extracted = nameMatch[1].trim();
+      // 如果下一行是名稱續行（全英文大寫，如 "LIMITED"）
+      if (recipientLineIdx + 1 < lines.length) {
+        const nextLine = lines[recipientLineIdx + 1];
+        if (/^[A-Z][A-Z\s.,&]+$/.test(nextLine) && !/^\d/.test(nextLine)) {
+          extracted += ' ' + nextLine.trim();
+        }
+      }
+      name = extracted.replace(/\s+/g, ' ').trim();
+    }
+
+    // 從收款人行之後找帳號（純數字6~20位）
+    for (let i = recipientLineIdx + 1; i < Math.min(recipientLineIdx + 5, lines.length); i++) {
+      const line = lines[i];
+      const acctMatch = line.match(/^(\d{6,20})\s*$/);
+      if (acctMatch) {
+        account = acctMatch[1];
+        break;
+      }
+      // 也匹配行內的帳號
+      const inlineMatch = line.match(/\b(\d{6,20})\b/);
+      if (inlineMatch && !/^\d{4}[\/\-]/.test(line)) { // 排除日期
+        account = inlineMatch[1];
+        break;
+      }
+    }
+  }
+
+  // 備選：如果沒找到，嘗試寬鬆模式
+  if (!name) {
+    // 「轉至」/ 「轉賬至」模式
+    const altMatch = text.match(/轉(?:至|賬至|帳至)\s*[:：]?\s*([A-Za-z\u4e00-\u9fff][A-Za-z\u4e00-\u9fff\s.,&]+)/m);
+    if (altMatch) {
+      name = altMatch[1].split('\n')[0].trim();
+    }
+  }
+
+  // FPS ID / 轉數快識別碼提取
+  if (!account) {
+    const fpsPatterns = [
+      /FPS\s*(?:ID|識別碼|編號)\s*[:：]?\s*(\d{5,})/i,
+      /轉數快\s*(?:ID|識別碼|編號)\s*[:：]?\s*(\d{5,})/,
+    ];
+    for (const pattern of fpsPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        account = match[1];
+        break;
+      }
+    }
+  }
+
+  return { name, account };
+}
+
+/**
  * 從 OCR 文字中解析交易狀態
  */
 function extractStatus(text: string): string | null {
@@ -257,12 +353,15 @@ export async function ocrReceipt(
     console.log("[Local OCR] Raw text:", rawText.substring(0, 300));
 
     // 解析結果
+    const recipient = extractRecipient(rawText);
     const result: OcrResult = {
       amount: extractAmount(rawText),
       bank: extractBank(rawText),
       status: extractStatus(rawText),
       date: extractDate(rawText),
       time: extractTime(rawText),
+      recipientName: recipient.name,
+      recipientAccount: recipient.account,
       rawText,
     };
 
@@ -272,6 +371,8 @@ export async function ocrReceipt(
       status: result.status,
       date: result.date,
       time: result.time,
+      recipientName: result.recipientName,
+      recipientAccount: result.recipientAccount,
     });
 
     return result;
