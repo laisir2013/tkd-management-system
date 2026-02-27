@@ -1,7 +1,7 @@
-import { eq, and, inArray, gte, lte, sql, or, desc, asc } from "drizzle-orm";
+import { eq, and, inArray, gte, lte, sql, or, desc, asc, isNull, between } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule } from "../drizzle/schema";
+import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1937,7 +1937,7 @@ export async function syncPaymentToAccounting(params: {
   const existing = await getAccountingRecordByPaymentId(params.paymentRecordId);
   if (existing) return;
 
-  await insertAccountingRecord({
+  const result = await insertAccountingRecord({
     transactionDate: params.transactionDate,
     bank: params.bank || null,
     amount: params.amount,
@@ -1953,6 +1953,8 @@ export async function syncPaymentToAccounting(params: {
     dojoName: params.dojoName || null,
     source: 'auto_sync',
   });
+  // Auto-generate journal entry
+  try { await onAccountingRecordCreated(result.insertId); } catch (e) { console.error('Auto journal from payment sync failed:', e); }
 }
 
 /**
@@ -1972,7 +1974,7 @@ export async function syncElitePaymentToAccounting(params: {
   const existing = await getAccountingRecordByElitePaymentId(params.elitePaymentRecordId);
   if (existing) return;
 
-  await insertAccountingRecord({
+  const result = await insertAccountingRecord({
     transactionDate: params.transactionDate,
     bank: params.bank || null,
     amount: params.amount,
@@ -1988,6 +1990,8 @@ export async function syncElitePaymentToAccounting(params: {
     dojoName: params.dojoName || '精英班',
     source: 'auto_sync',
   });
+  // Auto-generate journal entry
+  try { await onAccountingRecordCreated(result.insertId); } catch (e) { console.error('Auto journal from elite payment sync failed:', e); }
 }
 
 /**
@@ -2651,4 +2655,412 @@ export async function getAcceptedPayeeAccounts(): Promise<Array<{ name: string; 
   } catch {
     return [];
   }
+}
+
+// ==================== 會計模組 — Journal Entry Service ====================
+
+/**
+ * 生成流水編號（在 transaction 內使用 FOR UPDATE 防並發衝突）
+ */
+async function generateEntryNumber(
+  tx: any,
+  fiscalYear: number,
+  fiscalMonth: number,
+): Promise<string> {
+  const yearMonth = `${fiscalYear}${fiscalMonth.toString().padStart(2, '0')}`;
+  
+  const result = await tx.execute(sql`
+    SELECT entry_number FROM journal_entries
+    WHERE fiscal_year = ${fiscalYear} AND fiscal_month = ${fiscalMonth}
+    ORDER BY id DESC
+    LIMIT 1
+    FOR UPDATE
+  `);
+
+  let seq = 1;
+  const rows = (result[0] as Array<{ entry_number: string }>);
+  if (rows.length > 0) {
+    const lastNum = rows[0].entry_number;
+    const parts = lastNum.split('-');
+    const lastSeq = parseInt(parts[2], 10);
+    if (!isNaN(lastSeq)) {
+      seq = lastSeq + 1;
+    }
+  }
+
+  return `JE-${yearMonth}-${seq.toString().padStart(4, '0')}`;
+}
+
+/**
+ * 根據 accounting_record 找到匹配的 mapping rule
+ */
+export async function findMatchingRule(
+  recordType: 'income' | 'expense',
+  category: string,
+  paymentMethod: string | null,
+) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // 第一優先：精確匹配 recordType + category + paymentMethod
+  if (paymentMethod) {
+    const exactMatch = await db
+      .select()
+      .from(mappingRules)
+      .where(
+        and(
+          eq(mappingRules.recordType, recordType),
+          eq(mappingRules.category, category),
+          eq(mappingRules.paymentMethod, paymentMethod),
+          eq(mappingRules.isActive, true),
+        ),
+      )
+      .orderBy(desc(mappingRules.priority))
+      .limit(1);
+    if (exactMatch.length > 0) return exactMatch[0];
+  }
+
+  // 第二優先：paymentMethod 為 null 的通用規則
+  const fallback = await db
+    .select()
+    .from(mappingRules)
+    .where(
+      and(
+        eq(mappingRules.recordType, recordType),
+        eq(mappingRules.category, category),
+        isNull(mappingRules.paymentMethod),
+        eq(mappingRules.isActive, true),
+      ),
+    )
+    .orderBy(desc(mappingRules.priority))
+    .limit(1);
+
+  return fallback[0] ?? null;
+}
+
+/**
+ * 從單筆 accounting_record 自動生成 Journal Entry
+ */
+export async function createJournalEntryFromRecord(record: {
+  id: number;
+  type: 'income' | 'expense';
+  amount: string;
+  category: string;
+  paymentMethod?: string | null;
+  description?: string | null;
+  date: string; // YYYY-MM-DD
+}): Promise<{ success: boolean; journalEntryId?: number; error?: string }> {
+  const db = await getDb();
+  if (!db) return { success: false, error: 'Database not available' };
+
+  const rule = await findMatchingRule(record.type, record.category, record.paymentMethod ?? null);
+  if (!rule) {
+    return { success: false, error: `No mapping rule for type="${record.type}", category="${record.category}"` };
+  }
+
+  const entryDate = record.date;
+  const fiscalYear = parseInt(entryDate.slice(0, 4), 10);
+  const fiscalMonth = parseInt(entryDate.slice(5, 7), 10);
+
+  try {
+    const journalEntryId = await db.transaction(async (tx: any) => {
+      const entryNumber = await generateEntryNumber(tx, fiscalYear, fiscalMonth);
+
+      const insertResult = await tx.insert(journalEntries).values({
+        entryNumber,
+        entryDate,
+        description: record.description || rule.nameZh,
+        sourceType: 'auto_sync' as const,
+        sourceId: record.id,
+        sourceTable: 'accounting_records',
+        fiscalYear,
+        fiscalMonth,
+        isPosted: true,
+        postedAt: new Date(),
+        postedBy: 'system',
+      });
+
+      const newId = Number(insertResult[0].insertId);
+
+      await tx.insert(journalEntryLines).values([
+        {
+          journalEntryId: newId,
+          accountCode: rule.debitAccountCode,
+          debit: record.amount,
+          credit: '0.00',
+          description: rule.nameZh,
+        },
+        {
+          journalEntryId: newId,
+          accountCode: rule.creditAccountCode,
+          debit: '0.00',
+          credit: record.amount,
+          description: rule.nameZh,
+        },
+      ]);
+
+      return newId;
+    });
+
+    return { success: true, journalEntryId };
+  } catch (err: any) {
+    if (err?.code === 'ER_DUP_ENTRY') {
+      return { success: false, error: `Journal entry already exists for record #${record.id}` };
+    }
+    throw err;
+  }
+}
+
+/**
+ * 批量同步所有尚未生成 Journal Entry 的 accounting_records
+ */
+export async function syncAllPendingRecords(): Promise<{
+  total: number; success: number; failed: number;
+  errors: Array<{ recordId: number; error: string }>;
+}> {
+  const db = await getDb();
+  if (!db) return { total: 0, success: 0, failed: 0, errors: [] };
+
+  // 找出已有 journal entry 的 source_id
+  const existingRows = await db
+    .select({ sourceId: journalEntries.sourceId })
+    .from(journalEntries)
+    .where(
+      and(
+        eq(journalEntries.sourceType, 'auto_sync'),
+        eq(journalEntries.sourceTable, 'accounting_records'),
+      ),
+    );
+
+  const existingIdSet = new Set(
+    existingRows.map((r) => r.sourceId).filter((id): id is number => id !== null),
+  );
+
+  const allRecords = await db.select().from(accountingRecords);
+  const pendingRecords = allRecords.filter((r) => !existingIdSet.has(r.id));
+
+  const errors: Array<{ recordId: number; error: string }> = [];
+  let successCount = 0;
+
+  for (const record of pendingRecords) {
+    const dateStr = record.transactionDate instanceof Date
+      ? record.transactionDate.toISOString().split('T')[0]
+      : String(record.transactionDate).split('T')[0];
+
+    const result = await createJournalEntryFromRecord({
+      id: record.id,
+      type: record.type as 'income' | 'expense',
+      amount: String(record.amount),
+      category: record.category,
+      description: record.description ?? null,
+      date: dateStr,
+    });
+
+    if (result.success) {
+      if (result.journalEntryId) {
+        await db.update(accountingRecords)
+          .set({ journalEntryId: result.journalEntryId })
+          .where(eq(accountingRecords.id, record.id));
+      }
+      successCount++;
+    } else {
+      errors.push({ recordId: record.id, error: result.error! });
+    }
+  }
+
+  return { total: pendingRecords.length, success: successCount, failed: errors.length, errors };
+}
+
+/**
+ * 手動建立 Journal Entry
+ */
+export async function createManualJournalEntry(input: {
+  entryDate: string;
+  description: string;
+  notes?: string;
+  lines: Array<{ accountCode: string; debit: string; credit: string; description?: string }>;
+}): Promise<{ success: boolean; journalEntryId?: number; error?: string }> {
+  const db = await getDb();
+  if (!db) return { success: false, error: 'Database not available' };
+
+  // 驗證借貸平衡
+  const totalDebit = input.lines.reduce((sum, l) => sum + parseFloat(l.debit || '0'), 0);
+  const totalCredit = input.lines.reduce((sum, l) => sum + parseFloat(l.credit || '0'), 0);
+
+  if (Math.abs(totalDebit - totalCredit) > 0.001) {
+    return { success: false, error: `借貸不平衡: Dr $${totalDebit.toFixed(2)} ≠ Cr $${totalCredit.toFixed(2)}` };
+  }
+  if (totalDebit === 0) {
+    return { success: false, error: '金額不可為零' };
+  }
+
+  for (const line of input.lines) {
+    const dr = parseFloat(line.debit || '0');
+    const cr = parseFloat(line.credit || '0');
+    if (dr === 0 && cr === 0) return { success: false, error: '每行至少要有借方或貸方金額' };
+    if (dr > 0 && cr > 0) return { success: false, error: '同一行不可同時有借方和貸方金額' };
+  }
+
+  const fiscalYear = parseInt(input.entryDate.slice(0, 4), 10);
+  const fiscalMonth = parseInt(input.entryDate.slice(5, 7), 10);
+
+  try {
+    const journalEntryId = await db.transaction(async (tx: any) => {
+      const entryNumber = await generateEntryNumber(tx, fiscalYear, fiscalMonth);
+
+      const insertResult = await tx.insert(journalEntries).values({
+        entryNumber,
+        entryDate: input.entryDate,
+        description: input.description,
+        sourceType: 'manual' as const,
+        sourceId: null,
+        sourceTable: null,
+        fiscalYear,
+        fiscalMonth,
+        isPosted: false,
+        notes: input.notes ?? null,
+      });
+
+      const newId = Number(insertResult[0].insertId);
+
+      await tx.insert(journalEntryLines).values(
+        input.lines.map((line) => ({
+          journalEntryId: newId,
+          accountCode: line.accountCode,
+          debit: line.debit || '0.00',
+          credit: line.credit || '0.00',
+          description: line.description ?? null,
+        })),
+      );
+
+      return newId;
+    });
+
+    return { success: true, journalEntryId };
+  } catch (err: any) {
+    return { success: false, error: err.message ?? 'Unknown error' };
+  }
+}
+
+/**
+ * 過帳
+ */
+export async function postJournalEntry(id: number, postedBy: string) {
+  const db = await getDb();
+  if (!db) return { success: false, error: 'Database not available' };
+
+  const entry = await db.select({ isLocked: journalEntries.isLocked, isPosted: journalEntries.isPosted })
+    .from(journalEntries).where(eq(journalEntries.id, id)).limit(1);
+
+  if (!entry[0]) return { success: false, error: '找不到此分錄' };
+  if (entry[0].isLocked) return { success: false, error: '此期間已鎖定' };
+  if (entry[0].isPosted) return { success: false, error: '此分錄已過帳' };
+
+  await db.update(journalEntries)
+    .set({ isPosted: true, postedAt: new Date(), postedBy })
+    .where(eq(journalEntries.id, id));
+
+  return { success: true, journalEntryId: id };
+}
+
+/**
+ * 取消過帳
+ */
+export async function unpostJournalEntry(id: number) {
+  const db = await getDb();
+  if (!db) return { success: false, error: 'Database not available' };
+
+  const entry = await db.select({ isLocked: journalEntries.isLocked })
+    .from(journalEntries).where(eq(journalEntries.id, id)).limit(1);
+
+  if (!entry[0]) return { success: false, error: '找不到此分錄' };
+  if (entry[0].isLocked) return { success: false, error: '此期間已鎖定' };
+
+  await db.update(journalEntries)
+    .set({ isPosted: false, postedAt: null, postedBy: null })
+    .where(eq(journalEntries.id, id));
+
+  return { success: true, journalEntryId: id };
+}
+
+/**
+ * 鎖定期間
+ */
+export async function lockPeriod(fiscalYear: number, fiscalMonth: number) {
+  const db = await getDb();
+  if (!db) return { success: false, lockedCount: 0, error: 'Database not available' };
+
+  const unposted = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(journalEntries)
+    .where(and(
+      eq(journalEntries.fiscalYear, fiscalYear),
+      eq(journalEntries.fiscalMonth, fiscalMonth),
+      eq(journalEntries.isPosted, false),
+    ));
+
+  const unpostedCount = Number(unposted[0].count);
+  if (unpostedCount > 0) {
+    return { success: false, lockedCount: 0, error: `尚有 ${unpostedCount} 筆未過帳分錄，請先全部過帳再鎖定` };
+  }
+
+  const result = await db.update(journalEntries)
+    .set({ isLocked: true })
+    .where(and(
+      eq(journalEntries.fiscalYear, fiscalYear),
+      eq(journalEntries.fiscalMonth, fiscalMonth),
+    ));
+
+  return { success: true, lockedCount: Number((result[0] as any).affectedRows ?? 0) };
+}
+
+/**
+ * 刪除分錄（只能刪未過帳且未鎖定的）
+ */
+export async function deleteJournalEntry(id: number) {
+  const db = await getDb();
+  if (!db) return { success: false, error: 'Database not available' };
+
+  const entry = await db.select({ isLocked: journalEntries.isLocked, isPosted: journalEntries.isPosted })
+    .from(journalEntries).where(eq(journalEntries.id, id)).limit(1);
+
+  if (!entry[0]) return { success: false, error: '找不到此分錄' };
+  if (entry[0].isLocked) return { success: false, error: '此期間已鎖定，不可刪除' };
+  if (entry[0].isPosted) return { success: false, error: '已過帳的分錄不可刪除，請先取消過帳' };
+
+  await db.delete(journalEntries).where(eq(journalEntries.id, id));
+  return { success: true };
+}
+
+/**
+ * 當新 accounting_record 被建立後，自動生成 Journal Entry（Hook）
+ */
+export async function onAccountingRecordCreated(recordId: number) {
+  const db = await getDb();
+  if (!db) return { success: false, error: 'Database not available' };
+
+  const records = await db.select().from(accountingRecords).where(eq(accountingRecords.id, recordId)).limit(1);
+  const record = records[0];
+  if (!record) return { success: false, error: `Record #${recordId} not found` };
+
+  const dateStr = record.transactionDate instanceof Date
+    ? record.transactionDate.toISOString().split('T')[0]
+    : String(record.transactionDate).split('T')[0];
+
+  const result = await createJournalEntryFromRecord({
+    id: record.id,
+    type: record.type as 'income' | 'expense',
+    amount: String(record.amount),
+    category: record.category,
+    description: record.description ?? null,
+    date: dateStr,
+  });
+
+  if (result.success && result.journalEntryId) {
+    await db.update(accountingRecords)
+      .set({ journalEntryId: result.journalEntryId })
+      .where(eq(accountingRecords.id, recordId));
+  }
+
+  return result;
 }

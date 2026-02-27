@@ -31,6 +31,9 @@ import MonthlyFinanceReport from "@/components/MonthlyFinanceReport";
 import AccountingRecords from "@/components/AccountingRecords";
 import EventManagement from "@/components/EventManagement";
 import ExamManagement from "@/components/ExamManagement";
+import JournalEntries from "@/components/JournalEntries";
+import AccountingReports from "@/components/AccountingReports";
+import BankStatementReconciliation from "@/components/BankStatementReconciliation";
 
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -906,9 +909,32 @@ export default function Admin() {
             <MonthlyFinanceReport />
           </TabsContent>
 
-          {/* ========= 會計總帳 ========= */}
+          {/* ========= 會計總帳 (含子分頁) ========= */}
           <TabsContent value="accounting">
-            <AccountingRecords />
+            <Tabs defaultValue="records" className="space-y-4">
+              <TabsList className="flex flex-wrap h-auto gap-1 p-1.5 bg-violet-50/80 rounded-lg border border-violet-200">
+                <TabsTrigger value="records" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">流水帳</TabsTrigger>
+                <TabsTrigger value="journal" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">日記帳</TabsTrigger>
+                <TabsTrigger value="reports" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">財務報表</TabsTrigger>
+                <TabsTrigger value="reconciliation" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">銀行對帳</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="records">
+                <AccountingRecords />
+              </TabsContent>
+
+              <TabsContent value="journal">
+                <JournalEntries />
+              </TabsContent>
+
+              <TabsContent value="reports">
+                <AccountingReports />
+              </TabsContent>
+
+              <TabsContent value="reconciliation">
+                <BankStatementReconciliation />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* ========= 活動管理 ========= */}

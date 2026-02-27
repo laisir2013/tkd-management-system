@@ -149,10 +149,20 @@ import {
   setSystemConfig,
   getAllSystemConfigs,
   getAcceptedPayeeAccounts,
+  // 會計模組 — Journal Entry Service
+  findMatchingRule,
+  createJournalEntryFromRecord,
+  syncAllPendingRecords,
+  createManualJournalEntry,
+  postJournalEntry,
+  unpostJournalEntry,
+  lockPeriod,
+  deleteJournalEntry,
+  onAccountingRecordCreated,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
-import { eq, gte, lte, and, desc } from "drizzle-orm";
+import { eq, gte, lte, and, desc, sql, asc } from "drizzle-orm";
 import { verifyPassword, hashPassword } from "./password";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "./_core/llm";
@@ -2673,6 +2683,8 @@ export const appRouter = router({
           dojoName: input.dojoName || null,
           source: 'manual',
         });
+        // Auto-generate journal entry
+        try { await onAccountingRecordCreated(result.insertId); } catch (e) { console.error('Auto journal entry failed:', e); }
         return { success: true, id: result.insertId };
       }),
 
@@ -2783,6 +2795,9 @@ export const appRouter = router({
             ? JSON.stringify({ amount: extractedAmount, bank: extractedBank, dateTime: extractedDateTime })
             : null,
         });
+
+        // Auto-generate journal entry
+        try { await onAccountingRecordCreated(result.insertId); } catch (e) { console.error('Auto journal entry failed:', e); }
 
         return {
           success: true,
@@ -3157,7 +3172,7 @@ export const appRouter = router({
 
         let imported = 0;
         for (const item of input.items) {
-          await insertAccountingRecord({
+          const result = await insertAccountingRecord({
             transactionDate: new Date(item.date),
             bank: item.bank || null,
             amount: item.amount,
@@ -3174,6 +3189,8 @@ export const appRouter = router({
             reconciliationStatus: 'matched',
             reconciliationDate: new Date(),
           } as any);
+          // Auto-generate journal entry for imported record
+          try { await onAccountingRecordCreated((result as any).insertId ?? 0); } catch (e) { /* skip */ }
           imported++;
         }
         return { success: true, imported };
@@ -3259,6 +3276,531 @@ export const appRouter = router({
             percentage: records.length > 0 ? Math.round((reconciled / records.length) * 100) : 0,
           },
         };
+      }),
+
+    // ===== 會計科目表 (Chart of Accounts) =====
+    getChartOfAccounts: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const db = await getDb();
+        if (!db) return [];
+        return db.select().from(schema.chartOfAccounts)
+          .where(eq(schema.chartOfAccounts.isActive, true))
+          .orderBy(asc(schema.chartOfAccounts.sortOrder));
+      }),
+
+    // ===== 映射規則 (Mapping Rules) =====
+    getMappingRules: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const db = await getDb();
+        if (!db) return [];
+        return db.select().from(schema.mappingRules)
+          .where(eq(schema.mappingRules.isActive, true))
+          .orderBy(desc(schema.mappingRules.priority));
+      }),
+
+    // ===== 日記帳 (Journal Entries) =====
+
+    // 列出 Journal Entries（支援篩選）
+    getJournalEntries: protectedProcedure
+      .input(z.object({
+        fiscalYear: z.number().optional(),
+        fiscalMonth: z.number().min(1).max(12).optional(),
+        sourceType: z.enum(['auto_sync', 'manual', 'adjustment', 'reversal', 'deferred_split']).optional(),
+        isPosted: z.boolean().optional(),
+        page: z.number().min(1).default(1),
+        pageSize: z.number().min(1).max(100).default(50),
+      }).optional())
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const db = await getDb();
+        if (!db) return { entries: [], total: 0 };
+
+        const conditions: any[] = [];
+        if (input?.fiscalYear) conditions.push(eq(schema.journalEntries.fiscalYear, input.fiscalYear));
+        if (input?.fiscalMonth) conditions.push(eq(schema.journalEntries.fiscalMonth, input.fiscalMonth));
+        if (input?.sourceType) conditions.push(eq(schema.journalEntries.sourceType, input.sourceType));
+        if (input?.isPosted !== undefined) conditions.push(eq(schema.journalEntries.isPosted, input.isPosted));
+
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+        const page = input?.page ?? 1;
+        const pageSize = input?.pageSize ?? 50;
+
+        const [entries, countResult] = await Promise.all([
+          db.select().from(schema.journalEntries)
+            .where(whereClause)
+            .orderBy(desc(schema.journalEntries.entryDate), desc(schema.journalEntries.id))
+            .limit(pageSize)
+            .offset((page - 1) * pageSize),
+          db.select({ count: sql<number>`COUNT(*)` }).from(schema.journalEntries)
+            .where(whereClause),
+        ]);
+
+        return {
+          entries,
+          total: Number(countResult[0]?.count ?? 0),
+        };
+      }),
+
+    // 取得單筆 Journal Entry（含明細行）
+    getJournalEntryDetail: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+        const entries = await db.select().from(schema.journalEntries)
+          .where(eq(schema.journalEntries.id, input.id)).limit(1);
+        if (!entries[0]) throw new TRPCError({ code: 'NOT_FOUND', message: '找不到此分錄' });
+
+        const lines = await db.select({
+          id: schema.journalEntryLines.id,
+          accountCode: schema.journalEntryLines.accountCode,
+          debit: schema.journalEntryLines.debit,
+          credit: schema.journalEntryLines.credit,
+          description: schema.journalEntryLines.description,
+          accountName: schema.chartOfAccounts.name,
+          accountNameZh: schema.chartOfAccounts.nameZh,
+          accountType: schema.chartOfAccounts.type,
+        })
+          .from(schema.journalEntryLines)
+          .leftJoin(schema.chartOfAccounts, eq(schema.journalEntryLines.accountCode, schema.chartOfAccounts.code))
+          .where(eq(schema.journalEntryLines.journalEntryId, input.id))
+          .orderBy(asc(schema.journalEntryLines.id));
+
+        return { entry: entries[0], lines };
+      }),
+
+    // 手動建立 Journal Entry
+    createJournalEntry: protectedProcedure
+      .input(z.object({
+        entryDate: z.string(), // YYYY-MM-DD
+        description: z.string(),
+        notes: z.string().optional(),
+        lines: z.array(z.object({
+          accountCode: z.string(),
+          debit: z.string(),
+          credit: z.string(),
+          description: z.string().optional(),
+        })).min(2),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const result = await createManualJournalEntry(input);
+        if (!result.success) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
+        }
+        return { success: true, journalEntryId: result.journalEntryId };
+      }),
+
+    // 過帳 Journal Entry
+    postEntry: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const result = await postJournalEntry(input.id, ctx.user.name || 'admin');
+        if (!result.success) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
+        }
+        return result;
+      }),
+
+    // 取消過帳
+    unpostEntry: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const result = await unpostJournalEntry(input.id);
+        if (!result.success) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
+        }
+        return result;
+      }),
+
+    // 刪除 Journal Entry
+    deleteEntry: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const result = await deleteJournalEntry(input.id);
+        if (!result.success) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
+        }
+        return result;
+      }),
+
+    // 鎖定期間
+    lockPeriod: protectedProcedure
+      .input(z.object({
+        fiscalYear: z.number(),
+        fiscalMonth: z.number().min(1).max(12),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const result = await lockPeriod(input.fiscalYear, input.fiscalMonth);
+        if (!result.success) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
+        }
+        return result;
+      }),
+
+    // 批量同步 accounting_records → journal entries
+    syncPendingToJournal: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return syncAllPendingRecords();
+      }),
+
+    // ===== 報表 (Reports) =====
+
+    // 試算表 (Trial Balance)
+    trialBalance: protectedProcedure
+      .input(z.object({
+        fiscalYear: z.number(),
+        fiscalMonth: z.number().min(1).max(12).optional(),
+        postedOnly: z.boolean().default(true),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const db = await getDb();
+        if (!db) return { accounts: [], totalDebit: '0.00', totalCredit: '0.00', balanced: true };
+
+        const conditions: any[] = [
+          eq(schema.journalEntries.fiscalYear, input.fiscalYear),
+        ];
+        if (input.fiscalMonth) {
+          conditions.push(eq(schema.journalEntries.fiscalMonth, input.fiscalMonth));
+        }
+        if (input.postedOnly) {
+          conditions.push(eq(schema.journalEntries.isPosted, true));
+        }
+
+        const results = await db.select({
+          accountCode: schema.journalEntryLines.accountCode,
+          totalDebit: sql<string>`CAST(SUM(${schema.journalEntryLines.debit}) AS CHAR)`,
+          totalCredit: sql<string>`CAST(SUM(${schema.journalEntryLines.credit}) AS CHAR)`,
+        })
+          .from(schema.journalEntryLines)
+          .innerJoin(schema.journalEntries, eq(schema.journalEntryLines.journalEntryId, schema.journalEntries.id))
+          .where(and(...conditions))
+          .groupBy(schema.journalEntryLines.accountCode)
+          .orderBy(asc(schema.journalEntryLines.accountCode));
+
+        // Join account info
+        const accounts = await db.select().from(schema.chartOfAccounts);
+        const accountMap = new Map(accounts.map(a => [a.code, a]));
+
+        let totalDebit = 0;
+        let totalCredit = 0;
+
+        const trialBalanceRows = results.map(r => {
+          const account = accountMap.get(r.accountCode);
+          const dr = parseFloat(r.totalDebit || '0');
+          const cr = parseFloat(r.totalCredit || '0');
+          totalDebit += dr;
+          totalCredit += cr;
+          return {
+            accountCode: r.accountCode,
+            accountName: account?.name ?? r.accountCode,
+            accountNameZh: account?.nameZh ?? r.accountCode,
+            accountType: account?.type ?? 'unknown',
+            debit: dr.toFixed(2),
+            credit: cr.toFixed(2),
+            balance: (dr - cr).toFixed(2),
+          };
+        });
+
+        return {
+          accounts: trialBalanceRows,
+          totalDebit: totalDebit.toFixed(2),
+          totalCredit: totalCredit.toFixed(2),
+          balanced: Math.abs(totalDebit - totalCredit) < 0.01,
+        };
+      }),
+
+    // 損益表 (Profit & Loss)
+    profitAndLoss: protectedProcedure
+      .input(z.object({
+        fiscalYear: z.number(),
+        fiscalMonth: z.number().min(1).max(12).optional(),
+        postedOnly: z.boolean().default(true),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const db = await getDb();
+        if (!db) return { revenue: [], expenses: [], totalRevenue: '0.00', totalExpense: '0.00', netIncome: '0.00' };
+
+        const conditions: any[] = [
+          eq(schema.journalEntries.fiscalYear, input.fiscalYear),
+        ];
+        if (input.fiscalMonth) {
+          conditions.push(eq(schema.journalEntries.fiscalMonth, input.fiscalMonth));
+        }
+        if (input.postedOnly) {
+          conditions.push(eq(schema.journalEntries.isPosted, true));
+        }
+
+        const results = await db.select({
+          accountCode: schema.journalEntryLines.accountCode,
+          totalDebit: sql<string>`CAST(SUM(${schema.journalEntryLines.debit}) AS CHAR)`,
+          totalCredit: sql<string>`CAST(SUM(${schema.journalEntryLines.credit}) AS CHAR)`,
+        })
+          .from(schema.journalEntryLines)
+          .innerJoin(schema.journalEntries, eq(schema.journalEntryLines.journalEntryId, schema.journalEntries.id))
+          .where(and(...conditions))
+          .groupBy(schema.journalEntryLines.accountCode)
+          .orderBy(asc(schema.journalEntryLines.accountCode));
+
+        const accounts = await db.select().from(schema.chartOfAccounts);
+        const accountMap = new Map(accounts.map(a => [a.code, a]));
+
+        const revenue: any[] = [];
+        const expenses: any[] = [];
+        let totalRevenue = 0;
+        let totalExpense = 0;
+
+        for (const r of results) {
+          const account = accountMap.get(r.accountCode);
+          if (!account) continue;
+          const dr = parseFloat(r.totalDebit || '0');
+          const cr = parseFloat(r.totalCredit || '0');
+
+          if (account.type === 'revenue') {
+            // Revenue = Credit - Debit (normal balance is credit)
+            const amount = cr - dr;
+            totalRevenue += amount;
+            revenue.push({
+              accountCode: r.accountCode,
+              accountName: account.name,
+              accountNameZh: account.nameZh,
+              amount: amount.toFixed(2),
+            });
+          } else if (account.type === 'expense') {
+            // Expense = Debit - Credit (normal balance is debit)
+            const amount = dr - cr;
+            totalExpense += amount;
+            expenses.push({
+              accountCode: r.accountCode,
+              accountName: account.name,
+              accountNameZh: account.nameZh,
+              amount: amount.toFixed(2),
+            });
+          }
+        }
+
+        return {
+          revenue,
+          expenses,
+          totalRevenue: totalRevenue.toFixed(2),
+          totalExpense: totalExpense.toFixed(2),
+          netIncome: (totalRevenue - totalExpense).toFixed(2),
+        };
+      }),
+
+    // 資產負債表 (Balance Sheet)
+    balanceSheet: protectedProcedure
+      .input(z.object({
+        fiscalYear: z.number(),
+        fiscalMonth: z.number().min(1).max(12).optional(),
+        postedOnly: z.boolean().default(true),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const db = await getDb();
+        if (!db) return { assets: [], liabilities: [], equity: [], totalAssets: '0.00', totalLiabilities: '0.00', totalEquity: '0.00', balanced: true };
+
+        // For Balance Sheet, we need cumulative data up to the period
+        const conditions: any[] = [];
+        if (input.fiscalMonth) {
+          // Up to and including the specified month
+          conditions.push(
+            sql`(${schema.journalEntries.fiscalYear} < ${input.fiscalYear} OR (${schema.journalEntries.fiscalYear} = ${input.fiscalYear} AND ${schema.journalEntries.fiscalMonth} <= ${input.fiscalMonth}))`
+          );
+        } else {
+          conditions.push(
+            sql`${schema.journalEntries.fiscalYear} <= ${input.fiscalYear}`
+          );
+        }
+        if (input.postedOnly) {
+          conditions.push(eq(schema.journalEntries.isPosted, true));
+        }
+
+        const results = await db.select({
+          accountCode: schema.journalEntryLines.accountCode,
+          totalDebit: sql<string>`CAST(SUM(${schema.journalEntryLines.debit}) AS CHAR)`,
+          totalCredit: sql<string>`CAST(SUM(${schema.journalEntryLines.credit}) AS CHAR)`,
+        })
+          .from(schema.journalEntryLines)
+          .innerJoin(schema.journalEntries, eq(schema.journalEntryLines.journalEntryId, schema.journalEntries.id))
+          .where(and(...conditions))
+          .groupBy(schema.journalEntryLines.accountCode)
+          .orderBy(asc(schema.journalEntryLines.accountCode));
+
+        const allAccounts = await db.select().from(schema.chartOfAccounts);
+        const accountMap = new Map(allAccounts.map(a => [a.code, a]));
+
+        const assets: any[] = [];
+        const liabilities: any[] = [];
+        const equity: any[] = [];
+        let totalAssets = 0;
+        let totalLiabilities = 0;
+        let totalEquity = 0;
+        let netIncome = 0; // Revenue - Expense for retained earnings
+
+        for (const r of results) {
+          const account = accountMap.get(r.accountCode);
+          if (!account) continue;
+          const dr = parseFloat(r.totalDebit || '0');
+          const cr = parseFloat(r.totalCredit || '0');
+
+          const row = {
+            accountCode: r.accountCode,
+            accountName: account.name,
+            accountNameZh: account.nameZh,
+          };
+
+          if (account.type === 'asset') {
+            const amount = dr - cr; // Normal balance: debit
+            totalAssets += amount;
+            assets.push({ ...row, amount: amount.toFixed(2) });
+          } else if (account.type === 'liability') {
+            const amount = cr - dr; // Normal balance: credit
+            totalLiabilities += amount;
+            liabilities.push({ ...row, amount: amount.toFixed(2) });
+          } else if (account.type === 'equity') {
+            const amount = cr - dr;
+            totalEquity += amount;
+            equity.push({ ...row, amount: amount.toFixed(2) });
+          } else if (account.type === 'revenue') {
+            netIncome += (cr - dr);
+          } else if (account.type === 'expense') {
+            netIncome -= (dr - cr);
+          }
+        }
+
+        // Add net income to equity as "本期損益"
+        totalEquity += netIncome;
+        equity.push({
+          accountCode: '---',
+          accountName: 'Net Income (Current Period)',
+          accountNameZh: '本期損益',
+          amount: netIncome.toFixed(2),
+        });
+
+        return {
+          assets,
+          liabilities,
+          equity,
+          totalAssets: totalAssets.toFixed(2),
+          totalLiabilities: totalLiabilities.toFixed(2),
+          totalEquity: totalEquity.toFixed(2),
+          balanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01,
+        };
+      }),
+
+    // 總帳明細 (General Ledger)
+    generalLedger: protectedProcedure
+      .input(z.object({
+        accountCode: z.string(),
+        fiscalYear: z.number(),
+        fiscalMonth: z.number().min(1).max(12).optional(),
+        postedOnly: z.boolean().default(true),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const db = await getDb();
+        if (!db) return { account: null, entries: [], openingBalance: '0.00' };
+
+        // Account info
+        const accts = await db.select().from(schema.chartOfAccounts)
+          .where(eq(schema.chartOfAccounts.code, input.accountCode)).limit(1);
+        const account = accts[0] ?? null;
+
+        const conditions: any[] = [
+          eq(schema.journalEntryLines.accountCode, input.accountCode),
+          eq(schema.journalEntries.fiscalYear, input.fiscalYear),
+        ];
+        if (input.fiscalMonth) {
+          conditions.push(eq(schema.journalEntries.fiscalMonth, input.fiscalMonth));
+        }
+        if (input.postedOnly) {
+          conditions.push(eq(schema.journalEntries.isPosted, true));
+        }
+
+        const entries = await db.select({
+          lineId: schema.journalEntryLines.id,
+          journalEntryId: schema.journalEntries.id,
+          entryNumber: schema.journalEntries.entryNumber,
+          entryDate: schema.journalEntries.entryDate,
+          description: schema.journalEntries.description,
+          debit: schema.journalEntryLines.debit,
+          credit: schema.journalEntryLines.credit,
+          lineDescription: schema.journalEntryLines.description,
+          isPosted: schema.journalEntries.isPosted,
+        })
+          .from(schema.journalEntryLines)
+          .innerJoin(schema.journalEntries, eq(schema.journalEntryLines.journalEntryId, schema.journalEntries.id))
+          .where(and(...conditions))
+          .orderBy(asc(schema.journalEntries.entryDate), asc(schema.journalEntries.id));
+
+        // Calculate opening balance (all posted entries before this period)
+        const openingConditions: any[] = [
+          eq(schema.journalEntryLines.accountCode, input.accountCode),
+          eq(schema.journalEntries.isPosted, true),
+        ];
+        if (input.fiscalMonth) {
+          openingConditions.push(
+            sql`(${schema.journalEntries.fiscalYear} < ${input.fiscalYear} OR (${schema.journalEntries.fiscalYear} = ${input.fiscalYear} AND ${schema.journalEntries.fiscalMonth} < ${input.fiscalMonth}))`
+          );
+        } else {
+          openingConditions.push(
+            sql`${schema.journalEntries.fiscalYear} < ${input.fiscalYear}`
+          );
+        }
+
+        const openingResult = await db.select({
+          totalDebit: sql<string>`CAST(COALESCE(SUM(${schema.journalEntryLines.debit}), 0) AS CHAR)`,
+          totalCredit: sql<string>`CAST(COALESCE(SUM(${schema.journalEntryLines.credit}), 0) AS CHAR)`,
+        })
+          .from(schema.journalEntryLines)
+          .innerJoin(schema.journalEntries, eq(schema.journalEntryLines.journalEntryId, schema.journalEntries.id))
+          .where(and(...openingConditions));
+
+        const openDr = parseFloat(openingResult[0]?.totalDebit || '0');
+        const openCr = parseFloat(openingResult[0]?.totalCredit || '0');
+        const openingBalance = (openDr - openCr).toFixed(2);
+
+        return { account, entries, openingBalance };
       }),
   }),
 

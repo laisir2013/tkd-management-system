@@ -363,6 +363,9 @@ export const accountingRecords = mysqlTable("accounting_records", {
   // OCR 識別結果
   ocrRawResult: text("ocr_raw_result"), // OCR 原始識別結果 JSON（供後續核對）
   
+  // 會計模組連結
+  journalEntryId: int("journal_entry_id"), // 關聯的 Journal Entry ID
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
@@ -515,3 +518,91 @@ export const systemConfig = mysqlTable("system_config", {
 
 export type SystemConfig = typeof systemConfig.$inferSelect;
 export type InsertSystemConfig = typeof systemConfig.$inferInsert;
+
+// ==================== 會計模組 ====================
+
+/**
+ * 會計科目表 Chart of Accounts
+ */
+export const chartOfAccounts = mysqlTable("chart_of_accounts", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 20 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  nameZh: varchar("name_zh", { length: 100 }).notNull(),
+  type: mysqlEnum("type", ["asset", "liability", "equity", "revenue", "expense"]).notNull(),
+  parentCode: varchar("parent_code", { length: 20 }),
+  isSystem: boolean("is_system").default(true).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  description: varchar("description", { length: 255 }),
+  sortOrder: int("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ChartOfAccount = typeof chartOfAccounts.$inferSelect;
+export type InsertChartOfAccount = typeof chartOfAccounts.$inferInsert;
+
+/**
+ * 日記帳主表 Journal Entries
+ */
+export const journalEntries = mysqlTable("journal_entries", {
+  id: int("id").autoincrement().primaryKey(),
+  entryNumber: varchar("entry_number", { length: 30 }).notNull().unique(),
+  entryDate: date("entry_date", { mode: 'string' }).notNull(),
+  description: varchar("description", { length: 500 }).notNull(),
+  sourceType: mysqlEnum("source_type", ["auto_sync", "manual", "adjustment", "reversal", "deferred_split"]).notNull(),
+  sourceId: int("source_id"),
+  sourceTable: varchar("source_table", { length: 50 }),
+  fiscalYear: int("fiscal_year").notNull(),
+  fiscalMonth: int("fiscal_month").notNull(),
+  isPosted: boolean("is_posted").default(false).notNull(),
+  isLocked: boolean("is_locked").default(false).notNull(),
+  postedAt: timestamp("posted_at"),
+  postedBy: varchar("posted_by", { length: 100 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type JournalEntry = typeof journalEntries.$inferSelect;
+export type InsertJournalEntry = typeof journalEntries.$inferInsert;
+
+/**
+ * 日記帳明細 Journal Entry Lines
+ */
+export const journalEntryLines = mysqlTable("journal_entry_lines", {
+  id: int("id").autoincrement().primaryKey(),
+  journalEntryId: int("journal_entry_id").notNull(),
+  accountCode: varchar("account_code", { length: 20 }).notNull(),
+  debit: decimal("debit", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  credit: decimal("credit", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  description: varchar("description", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type JournalEntryLine = typeof journalEntryLines.$inferSelect;
+export type InsertJournalEntryLine = typeof journalEntryLines.$inferInsert;
+
+/**
+ * 映射規則 Mapping Rules（流水帳 → 會計分錄）
+ */
+export const mappingRules = mysqlTable("mapping_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  nameZh: varchar("name_zh", { length: 100 }).notNull(),
+  recordType: mysqlEnum("record_type", ["income", "expense"]).notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  paymentMethod: varchar("payment_method", { length: 50 }),
+  debitAccountCode: varchar("debit_account_code", { length: 20 }).notNull(),
+  creditAccountCode: varchar("credit_account_code", { length: 20 }).notNull(),
+  isDeferred: boolean("is_deferred").default(false).notNull(),
+  isSystem: boolean("is_system").default(true).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  priority: int("priority").default(0).notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MappingRule = typeof mappingRules.$inferSelect;
+export type InsertMappingRule = typeof mappingRules.$inferInsert;
