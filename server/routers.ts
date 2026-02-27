@@ -1645,6 +1645,34 @@ export const appRouter = router({
           status: 'confirmed',
           confirmedBy: 'admin_approved',
         });
+
+        // 自動同步到會計記錄 → 日記帳
+        try {
+          const db = await getDb();
+          if (db) {
+            const latestPayments = await db.select().from(schema.paymentRecords)
+              .where(and(
+                eq(schema.paymentRecords.studentId, input.studentId),
+                eq(schema.paymentRecords.status, 'confirmed' as any)
+              ))
+              .orderBy(desc(schema.paymentRecords.id))
+              .limit(1);
+            if (latestPayments.length > 0) {
+              await syncPaymentToAccounting({
+                paymentRecordId: latestPayments[0].id,
+                transactionDate: new Date(),
+                amount: student.feePerQuarter,
+                studentName: student.name,
+                coachName: student.coach,
+                dojoName: student.venue || null,
+                category: 'tuition',
+              });
+            }
+          }
+        } catch (e) {
+          console.error("Auto sync to accounting after confirmPayment failed:", e);
+        }
+
         return { success: true };
       }),
 
@@ -1692,6 +1720,33 @@ export const appRouter = router({
             status: 'confirmed',
             confirmedBy,
           });
+
+          // 自動同步季繳到會計記錄 → 日記帳
+          try {
+            const db = await getDb();
+            if (db) {
+              const latestPayments = await db.select().from(schema.paymentRecords)
+                .where(and(
+                  eq(schema.paymentRecords.studentId, input.studentId),
+                  eq(schema.paymentRecords.status, 'confirmed' as any)
+                ))
+                .orderBy(desc(schema.paymentRecords.id))
+                .limit(1);
+              if (latestPayments.length > 0) {
+                await syncPaymentToAccounting({
+                  paymentRecordId: latestPayments[0].id,
+                  transactionDate: new Date(),
+                  amount: String(feePerQuarter),
+                  studentName: student.name,
+                  coachName: student.coach,
+                  dojoName: student.venue || null,
+                  category: 'tuition',
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Auto sync to accounting after quarterly confirmMonthlyPayment failed:", e);
+          }
         } else {
           // 單月繳費：為每個月建立一筆記錄
           const monthlyFee = Math.round((feePerQuarter / 3) * 100) / 100;
@@ -1711,6 +1766,33 @@ export const appRouter = router({
               status: 'confirmed',
               confirmedBy,
             });
+
+            // 自動同步每筆月繳到會計記錄 → 日記帳
+            try {
+              const db = await getDb();
+              if (db) {
+                const latestPayments = await db.select().from(schema.paymentRecords)
+                  .where(and(
+                    eq(schema.paymentRecords.studentId, input.studentId),
+                    eq(schema.paymentRecords.status, 'confirmed' as any)
+                  ))
+                  .orderBy(desc(schema.paymentRecords.id))
+                  .limit(1);
+                if (latestPayments.length > 0) {
+                  await syncPaymentToAccounting({
+                    paymentRecordId: latestPayments[0].id,
+                    transactionDate: new Date(),
+                    amount: String(monthlyFee),
+                    studentName: student.name,
+                    coachName: student.coach,
+                    dojoName: student.venue || null,
+                    category: 'tuition',
+                  });
+                }
+              }
+            } catch (e) {
+              console.error("Auto sync to accounting after monthly confirmMonthlyPayment failed:", e);
+            }
           }
         }
         return { success: true };
@@ -2500,6 +2582,23 @@ export const appRouter = router({
           amount: input.amount,
           confirmedBy: input.confirmedBy || 'admin_approved',
         });
+
+        // 自動同步精英班付款到會計記錄 → 日記帳
+        try {
+          const eliteStudents = await getAllEliteStudents();
+          const student = eliteStudents.find(s => s.id === input.studentId);
+          if (student && parseFloat(input.amount) > 0) {
+            await syncElitePaymentToAccounting({
+              elitePaymentRecordId: id,
+              transactionDate: input.paymentDate,
+              amount: input.amount,
+              studentName: student.name,
+            });
+          }
+        } catch (e) {
+          console.error("Auto sync elite payment to accounting failed:", e);
+        }
+
         return { id };
       }),
 
