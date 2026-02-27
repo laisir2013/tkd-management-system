@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { storageGetBuffer } from "../storage";
 import { addSSEClient, getConnectedClientCount } from "../sse";
+import archiver from "archiver";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -57,6 +58,72 @@ async function startServer() {
     } catch (error: any) {
       console.error('Failed to serve receipt:', error.message);
       res.status(404).json({ error: 'Receipt not found' });
+    }
+  });
+
+  // Download single receipt with Content-Disposition for browser download
+  app.get('/api/receipt-download/*', async (req, res) => {
+    try {
+      const key = req.params[0];
+      if (!key) {
+        return res.status(400).json({ error: 'Missing file key' });
+      }
+      const { data, contentType } = await storageGetBuffer(key);
+      const filename = key.split('/').pop() || 'receipt';
+      res.set('Content-Type', contentType);
+      res.set('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+      res.send(data);
+    } catch (error: any) {
+      console.error('Failed to download receipt:', error.message);
+      res.status(404).json({ error: 'Receipt not found' });
+    }
+  });
+
+  // Batch download receipts as ZIP
+  // POST body: { receipts: [{ key: "receipts/...", filename: "學生名_日期.jpg" }] }
+  app.post('/api/receipts-batch-download', async (req, res) => {
+    try {
+      const { receipts } = req.body;
+      if (!receipts || !Array.isArray(receipts) || receipts.length === 0) {
+        return res.status(400).json({ error: 'No receipts specified' });
+      }
+
+      res.set('Content-Type', 'application/zip');
+      res.set('Content-Disposition', `attachment; filename="receipts_${Date.now()}.zip"`);
+
+      const archive = archiver('zip', { zlib: { level: 5 } });
+      archive.pipe(res);
+
+      let addedCount = 0;
+      for (const item of receipts) {
+        try {
+          // Extract key from receiptUrl: /api/receipts/xxx → xxx
+          let key = item.key || '';
+          if (key.startsWith('/api/receipts/')) {
+            key = key.replace('/api/receipts/', '');
+          }
+          if (!key) continue;
+
+          const { data } = await storageGetBuffer(key);
+          const filename = item.filename || key.split('/').pop() || `receipt_${addedCount}.jpg`;
+          archive.append(data, { name: filename });
+          addedCount++;
+        } catch (e: any) {
+          console.warn(`[BatchDownload] Skipping ${item.key}: ${e.message}`);
+        }
+      }
+
+      if (addedCount === 0) {
+        archive.abort();
+        return res.status(404).json({ error: 'No receipts found' });
+      }
+
+      await archive.finalize();
+    } catch (error: any) {
+      console.error('Batch download failed:', error.message);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Batch download failed' });
+      }
     }
   });
   

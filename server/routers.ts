@@ -151,6 +151,7 @@ import { verifyPassword, hashPassword } from "./password";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "./_core/llm";
 import { ocrReceipt } from "./_core/localOcr";
+import { stampReceipt } from "./_core/receiptStamp";
 import { storagePut } from "./storage";
 import { sdk } from "./_core/sdk";
 
@@ -1225,6 +1226,29 @@ export const appRouter = router({
           throw new Error("學生不存在");
         }
         
+        // 在收據上蓋上學生資訊標記（姓名、金額、繳交月份）
+        let stampedReceiptUrl = receiptUrl;
+        let stampedReceiptKey = receiptKey;
+        try {
+          console.log("[ReceiptStamp] 正在為收據加上標記...");
+          const stampedBuffer = await stampReceipt(receiptBuffer, input.receiptMimeType, {
+            studentName: student.name,
+            amount: extractedAmount || input.amount,
+            paymentPeriod: input.paymentPeriod,
+            customMonths: input.customMonths,
+            dojoName: student.venue || undefined,
+          });
+          // 儲存加標記的收據（用不同的 key，保留原始收據）
+          const stampedKey = `receipts/stamped-${input.studentId}-${Date.now()}.${fileExt}`;
+          const stampResult = await storagePut(stampedKey, stampedBuffer, input.receiptMimeType);
+          stampedReceiptUrl = stampResult.url;
+          stampedReceiptKey = stampedKey;
+          console.log("[ReceiptStamp] 收據標記完成:", stampedKey);
+        } catch (stampErr) {
+          console.warn("[ReceiptStamp] 收據標記失敗，使用原始收據:", stampErr instanceof Error ? stampErr.message : String(stampErr));
+          // 失敗時使用原始收據，不影響繳費流程
+        }
+        
         // 驗證 OCR 識別的金額是否與學費完全相等
         const parsedAmount = parseFloat(extractedAmount);
         const expectedAmount = parseFloat(student.feePerQuarter);
@@ -1239,8 +1263,8 @@ export const appRouter = router({
           customMonths: input.customMonths || null,
           amount: extractedAmount,
           classCount: input.classCount || null, // 精英班堂數
-          receiptUrl,
-          receiptKey,
+          receiptUrl: stampedReceiptUrl,
+          receiptKey: stampedReceiptKey,
           receiptTransferDate,
           paymentDate: new Date(),
           status: recordStatus,
@@ -1270,8 +1294,8 @@ export const appRouter = router({
                   coachName: student.coach,
                   dojoName: student.venue || null,
                   category: 'tuition',
-                  receiptUrl,
-                  receiptKey,
+                  receiptUrl: stampedReceiptUrl,
+                  receiptKey: stampedReceiptKey,
                 });
               }
             }

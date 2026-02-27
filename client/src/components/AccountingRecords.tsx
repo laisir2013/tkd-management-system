@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Plus, Download, Upload, Trash2, Edit2, Eye, RefreshCw, Receipt, TrendingUp, TrendingDown, DollarSign, Filter, FileText, CheckCircle2, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { Loader2, Plus, Download, Upload, Trash2, Edit2, Eye, RefreshCw, Receipt, TrendingUp, TrendingDown, DollarSign, Filter, FileText, CheckCircle2, AlertCircle, FileSpreadsheet, FileDown, PackageCheck } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import BankStatementReconciliation from "./BankStatementReconciliation";
@@ -70,6 +71,8 @@ export default function AccountingRecords() {
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [showReceiptViewer, setShowReceiptViewer] = useState(false);
   const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string>("");
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<number>>(new Set());
+  const [isBatchDownloading, setIsBatchDownloading] = useState(false);
 
   // Form states
   const [formDate, setFormDate] = useState(now.toISOString().slice(0, 10));
@@ -370,6 +373,94 @@ export default function AccountingRecords() {
     toast.success(`已匯出核數師/報稅格式報表`);
   }
 
+  // 單筆下載收據
+  function handleDownloadReceipt(receiptUrl: string, studentName?: string, date?: string) {
+    // Extract key from URL: /api/receipts/xxx -> xxx
+    const key = receiptUrl.replace('/api/receipts/', '');
+    const ext = key.split('.').pop() || 'jpg';
+    const safeName = (studentName || '收據').replace(/[^\w\u4e00-\u9fff]/g, '_');
+    const safeDate = date ? `_${date.replace(/\//g, '-')}` : '';
+    const filename = `${safeName}${safeDate}.${ext}`;
+    
+    const link = document.createElement('a');
+    link.href = `/api/receipt-download/${key}`;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // 批量下載收據 (ZIP)
+  async function handleBatchDownload() {
+    if (selectedRecordIds.size === 0) {
+      toast.error("請先勾選要下載的記錄");
+      return;
+    }
+
+    const selectedRecords = records?.filter((r: any) => selectedRecordIds.has(r.id) && r.receiptUrl) || [];
+    if (selectedRecords.length === 0) {
+      toast.error("所選記錄均無收據");
+      return;
+    }
+
+    setIsBatchDownloading(true);
+    try {
+      const receipts = selectedRecords.map((r: any) => ({
+        key: r.receiptUrl,
+        filename: `${r.studentName || r.description || '收據'}_${formatDate(r.transactionDate)}.${(r.receiptUrl || '').split('.').pop() || 'jpg'}`,
+      }));
+
+      const response = await fetch('/api/receipts-batch-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receipts }),
+      });
+
+      if (!response.ok) {
+        throw new Error('批量下載失敗');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const monthStr = selectedMonth ? `${selectedYear}年${selectedMonth}月` : `${selectedYear}年`;
+      link.download = `收據_${monthStr}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(`已下載 ${selectedRecords.length} 張收據`);
+      setSelectedRecordIds(new Set());
+    } catch (err: any) {
+      toast.error(`批量下載失敗: ${err.message}`);
+    } finally {
+      setIsBatchDownloading(false);
+    }
+  }
+
+  // 全選/取消有收據的記錄
+  function toggleSelectAll() {
+    const recordsWithReceipt = records?.filter((r: any) => r.receiptUrl) || [];
+    if (selectedRecordIds.size === recordsWithReceipt.length) {
+      setSelectedRecordIds(new Set());
+    } else {
+      setSelectedRecordIds(new Set(recordsWithReceipt.map((r: any) => r.id)));
+    }
+  }
+
+  function toggleSelectRecord(id: number) {
+    setSelectedRecordIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
   function handleReceiptFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
@@ -411,6 +502,12 @@ export default function AccountingRecords() {
             {syncMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
             同步繳費記錄
           </Button>
+          {selectedRecordIds.size > 0 && (
+            <Button onClick={handleBatchDownload} size="sm" variant="outline" className="border-orange-300 text-orange-700 hover:bg-orange-50" disabled={isBatchDownloading}>
+              {isBatchDownloading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <PackageCheck className="w-4 h-4 mr-1" />}
+              批量下載收據 ({selectedRecordIds.size})
+            </Button>
+          )}
         </div>
       </div>
 
@@ -511,6 +608,12 @@ export default function AccountingRecords() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10 text-center">
+                      <Checkbox
+                        checked={records?.filter((r: any) => r.receiptUrl).length > 0 && selectedRecordIds.size === records?.filter((r: any) => r.receiptUrl).length}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead className="w-28">日期</TableHead>
                     <TableHead>道場</TableHead>
                     <TableHead>銀行</TableHead>
@@ -521,12 +624,21 @@ export default function AccountingRecords() {
                     <TableHead>說明</TableHead>
                     <TableHead>來源</TableHead>
                     <TableHead className="text-center">對帳</TableHead>
+                    <TableHead className="text-center">收據</TableHead>
                     <TableHead className="text-center w-20">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {records.map((record: any) => (
                     <TableRow key={record.id} className={record.type === 'income' ? 'bg-green-50/30' : 'bg-red-50/30'}>
+                      <TableCell className="text-center">
+                        {record.receiptUrl ? (
+                          <Checkbox
+                            checked={selectedRecordIds.has(record.id)}
+                            onCheckedChange={() => toggleSelectRecord(record.id)}
+                          />
+                        ) : <span className="text-gray-300">-</span>}
+                      </TableCell>
                       <TableCell className="text-sm">{formatDate(record.transactionDate)}</TableCell>
                       <TableCell className="text-sm">
                         {record.dojoName ? (
@@ -578,12 +690,33 @@ export default function AccountingRecords() {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {record.receiptUrl && (
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setViewingReceiptUrl(record.receiptUrl); setShowReceiptViewer(true); }}>
+                        {record.receiptUrl ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-blue-600 hover:text-blue-800"
+                              title="查看收據"
+                              onClick={() => { setViewingReceiptUrl(record.receiptUrl); setShowReceiptViewer(true); }}
+                            >
                               <Eye className="w-3.5 h-3.5" />
                             </Button>
-                          )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-green-600 hover:text-green-800"
+                              title="下載收據"
+                              onClick={() => handleDownloadReceipt(record.receiptUrl, record.studentName, formatDate(record.transactionDate))}
+                            >
+                              <FileDown className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">無</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEditDialog(record)}>
                             <Edit2 className="w-3.5 h-3.5" />
                           </Button>
@@ -868,6 +1001,9 @@ export default function AccountingRecords() {
               </div>
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" size="sm" onClick={() => setShowReceiptViewer(false)}>關閉</Button>
+                <Button size="sm" variant="outline" onClick={() => handleDownloadReceipt(viewingReceiptUrl)}>
+                  <FileDown className="w-4 h-4 mr-1" /> 下載
+                </Button>
                 <Button size="sm" onClick={() => window.open(viewingReceiptUrl, '_blank')}>
                   <Eye className="w-4 h-4 mr-1" /> 新視窗打開
                 </Button>
