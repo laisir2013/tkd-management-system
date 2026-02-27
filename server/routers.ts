@@ -1633,11 +1633,23 @@ export const appRouter = router({
         studentId: z.number(),
         year: z.number(),
         month: z.number().min(1).max(12),
+        adminPassword: z.string().min(1, '請輸入管理員密碼'),
       }))
       .mutation(async ({ input, ctx }) => {
         // 只有管理員可以撤銷繳費
         if (ctx.user.role !== 'admin') {
           throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以撤銷繳費' });
+        }
+
+        // 驗證管理員密碼
+        // @ts-ignore - password 欄位已在資料庫中加入
+        const userPassword = ctx.user.password;
+        if (!userPassword) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '管理員帳號尚未設定密碼' });
+        }
+        const isPasswordValid = await verifyPassword(input.adminPassword, userPassword);
+        if (!isPasswordValid) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: '密碼錯誤，無法撤銷繳費' });
         }
 
         await deletePaymentForMonth(input.studentId, input.year, input.month);

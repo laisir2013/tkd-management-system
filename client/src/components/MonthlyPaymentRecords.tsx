@@ -7,6 +7,9 @@ import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Lock } from "lucide-react";
 import { toast } from "sonner";
 
 const MONTH_LABELS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -57,6 +60,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     month: number;
     paymentType: string;
   } | null>(null);
+  const [revertPassword, setRevertPassword] = useState("");
 
   const confirmMonthlyPayment = trpc.payments.confirmMonthlyPayment.useMutation({
     onSuccess: () => {
@@ -74,6 +78,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       toast.success('已撤銷繳費，狀態改為未繳');
       refetch();
       setRevertDialog(null);
+      setRevertPassword("");
     },
     onError: (err: any) => {
       toast.error(`撤銷失敗: ${err.message}`);
@@ -577,7 +582,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       </Dialog>
 
       {/* 撤銷繳費確認對話框 */}
-      <Dialog open={!!revertDialog} onOpenChange={() => setRevertDialog(null)}>
+      <Dialog open={!!revertDialog} onOpenChange={(open) => { if (!open) { setRevertDialog(null); setRevertPassword(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-orange-700">
@@ -596,18 +601,43 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               </span>
             </DialogDescription>
           </DialogHeader>
+          <div className="py-3">
+            <Label htmlFor="revert-password" className="text-sm font-medium flex items-center gap-1.5 mb-2">
+              <Lock className="w-4 h-4 text-orange-600" />
+              請輸入管理員密碼以確認操作
+            </Label>
+            <Input
+              id="revert-password"
+              type="password"
+              placeholder="輸入您的登入密碼"
+              value={revertPassword}
+              onChange={(e) => setRevertPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && revertPassword && revertDialog) {
+                  revertPayment.mutate({
+                    studentId: revertDialog.studentId,
+                    year: selectedYear,
+                    month: revertDialog.month,
+                    adminPassword: revertPassword,
+                  });
+                }
+              }}
+              autoFocus
+            />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRevertDialog(null)}>取消</Button>
             <Button
               variant="destructive"
               className="bg-orange-600 hover:bg-orange-700"
-              disabled={revertPayment.isPending}
+              disabled={revertPayment.isPending || !revertPassword}
               onClick={() => {
-                if (revertDialog) {
+                if (revertDialog && revertPassword) {
                   revertPayment.mutate({
                     studentId: revertDialog.studentId,
                     year: selectedYear,
                     month: revertDialog.month,
+                    adminPassword: revertPassword,
                   });
                 }
               }}
