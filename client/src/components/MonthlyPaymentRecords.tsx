@@ -36,7 +36,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const { data: statuses, isLoading, refetch } = trpc.payments.getMonthlyStatuses.useQuery({ year: selectedYear });
   
   const yearOptions = [];
-  for (let year = 2026; year <= currentYear + 1; year++) {
+  for (let year = 2025; year <= currentYear + 1; year++) {
     yearOptions.push(year);
   }
 
@@ -634,7 +634,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               {approveDialog?.receiptUrl ? (
                 <div className="border rounded-lg overflow-hidden bg-white">
                   <img
-                    src={approveDialog.receiptUrl.startsWith('http') ? approveDialog.receiptUrl : `/api/receipts/${approveDialog.receiptUrl}`}
+                    src={approveDialog.receiptUrl.startsWith('http') || approveDialog.receiptUrl.startsWith('/') ? approveDialog.receiptUrl : `/api/receipts/${approveDialog.receiptUrl}`}
                     alt="收據"
                     className="w-full max-h-[400px] object-contain"
                   />
