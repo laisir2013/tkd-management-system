@@ -1517,11 +1517,24 @@ export const appRouter = router({
     approvePendingPayment: protectedProcedure
       .input(z.object({
         paymentRecordId: z.number(),
+        adminPassword: z.string().min(1, '請輸入管理員密碼'),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
           throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以批准繳費' });
         }
+
+        // 驗證管理員密碼
+        // @ts-ignore - password 欄位已在資料庫中加入
+        const userPassword = ctx.user.password;
+        if (!userPassword) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '管理員帳號尚未設定密碼' });
+        }
+        const isPasswordValid = await verifyPassword(input.adminPassword, userPassword);
+        if (!isPasswordValid) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: '密碼錯誤，無法批准繳費' });
+        }
+
         await approvePaymentRecord(input.paymentRecordId, 'admin_approved');
         return { success: true };
       }),
