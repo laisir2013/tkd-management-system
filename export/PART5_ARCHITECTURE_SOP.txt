@@ -1,0 +1,628 @@
+﻿================================================================================
+跆拳道繳費系統 - 100%完整原始碼匯出
+PART 5/6: 系統架構總覽 + API清單 + 資料流程 + SOP + WhatsApp搭建資料
+================================================================================
+匯出日期: 2026-02-28
+內容: 系統架構、功能模組、完整 API 路由、資料流程圖、操作 SOP、
+      道館資料、WhatsApp Business API 搭建所需資訊
+================================================================================
+
+################################################################################
+# A. 系統架構總覽
+################################################################################
+
+## 技術棧
+- 後端: Node.js + Express + tRPC (Type-safe API)
+- ORM: Drizzle ORM (MySQL)
+- 前端: React 18 + TypeScript + Vite
+- UI: Tailwind CSS + shadcn/ui (50+ 組件)
+- 資料庫: MySQL 8.0 (30 張表)
+- 儲存: AWS S3 (收據圖片上傳/下載)
+- 認證: JWT (JSON Web Token) + bcrypt 密碼加密
+- 部署: PM2 process manager
+- AI: OpenAI API (收據 OCR + AI 對話助手)
+- 通訊: WhatsApp Business API (繳費提醒 + 出席通知)
+- 即時通訊: Server-Sent Events (考試即時評分)
+
+## 完整目錄結構（253 個檔案）
+```
+webapp/
+├── server/                           # === 後端 ===
+│   ├── routers.ts                   # tRPC API 路由 (4844 行) - 所有 API 端點
+│   ├── db.ts                        # 資料庫操作 (3072 行) - 查詢/插入/更新
+│   ├── sse.ts                       # Server-Sent Events - 考試即時評分
+│   ├── storage.ts                   # AWS S3 檔案存儲
+│   ├── password.ts                  # bcrypt 密碼加密
+│   ├── _core/                       # 核心工具模組
+│   │   ├── context.ts              # 請求上下文 (userId, role)
+│   │   ├── cookies.ts              # JWT Cookie 處理
+│   │   ├── dataApi.ts              # 資料 API 抽象層
+│   │   ├── env.ts                  # 環境變數管理
+│   │   ├── imageGeneration.ts      # 圖片生成
+│   │   ├── index.ts                # _core 入口
+│   │   ├── llm.ts                  # OpenAI LLM 對話
+│   │   ├── localOcr.ts             # 收據 OCR 識別 (387 行)
+│   │   ├── map.ts                  # 地圖功能
+│   │   ├── notification.ts         # 通知功能
+│   │   ├── oauth.ts                # OAuth 認證
+│   │   ├── receiptStamp.ts         # 收據蓋章 (學生名+金額+期別+道館)
+│   │   ├── sdk.ts                  # Manus SDK
+│   │   ├── systemRouter.ts         # 系統路由
+│   │   ├── trpc.ts                 # tRPC 初始化
+│   │   ├── vite.ts                 # Vite 整合
+│   │   ├── voiceTranscription.ts   # 語音轉文字
+│   │   ├── whatsapp.ts             # WhatsApp Business API
+│   │   └── types/
+│   │       ├── cookie.d.ts
+│   │       └── manusTypes.ts
+│   └── *.test.ts                    # 18 個測試檔案
+│       ├── attendance-month-filter.test.ts
+│       ├── attendance.upsert.test.ts
+│       ├── auth.logout.test.ts
+│       ├── cancel-schedule.test.ts
+│       ├── change-password.test.ts
+│       ├── coach-stats-fix.test.ts
+│       ├── dojos.test.ts
+│       ├── elite-cycle.test.ts
+│       ├── elite-phone.test.ts
+│       ├── elite-whatsapp.test.ts
+│       ├── parent-elite.test.ts
+│       ├── payment.test.ts
+│       ├── quarterly-payment.test.ts
+│       ├── students.test.ts
+│       ├── students.update.test.ts
+│       ├── training-schedule-gen.test.ts
+│       ├── whatsapp.test.ts
+│       └── yearly-payment.test.ts
+│
+├── client/                           # === 前端 ===
+│   ├── index.html                   # HTML 入口
+│   ├── public/
+│   │   └── data.json                # 靜態資料
+│   └── src/
+│       ├── main.tsx                 # React 入口
+│       ├── App.tsx                  # 路由配置 (所有頁面路由)
+│       ├── index.css                # 全域 CSS
+│       ├── const.ts                 # 前端常數
+│       ├── _core/hooks/useAuth.ts   # 認證 Hook
+│       ├── hooks/
+│       │   ├── useComposition.ts    # 輸入法組合
+│       │   ├── useExamSSE.ts        # 考試 SSE Hook
+│       │   ├── useMobile.tsx        # 手機偵測
+│       │   └── usePersistFn.ts      # 持久化函式
+│       ├── lib/
+│       │   ├── dateFormat.ts        # 日期格式化
+│       │   ├── trpc.ts             # tRPC 客戶端
+│       │   ├── useExamSSE.ts       # 考試 SSE
+│       │   └── utils.ts            # 工具函式
+│       ├── contexts/
+│       │   └── ThemeContext.tsx     # 主題切換
+│       ├── pages/                   # === 頁面 ===
+│       │   ├── Admin.tsx           # 管理後台 (主要入口，含所有分頁)
+│       │   ├── AdminLogin.tsx      # 管理員登入
+│       │   ├── Parent.tsx          # 家長端
+│       │   ├── ParentLogin.tsx     # 家長登入
+│       │   ├── ParentAttendance.tsx # 家長查看出席
+│       │   ├── Payment.tsx         # 繳費頁面 (1548 行)
+│       │   ├── Attendance.tsx      # 出席記錄
+│       │   ├── CoachDashboard.tsx  # 教練面板
+│       │   ├── CoachLogin.tsx      # 教練登入
+│       │   ├── EliteManagement.tsx # 精英班管理
+│       │   ├── EliteHistory.tsx    # 精英班歷史
+│       │   ├── ExamAttendance.tsx  # 考試出席
+│       │   ├── History.tsx         # 歷史記錄
+│       │   ├── Home.tsx            # 首頁
+│       │   ├── DojoManagement.tsx  # 道館管理
+│       │   ├── ComponentShowcase.tsx # 組件展示
+│       │   └── NotFound.tsx        # 404
+│       └── components/              # === 業務組件 ===
+│           ├── AccountingRecords.tsx         # 會計記錄 (1226 行)
+│           ├── AccountingReports.tsx         # 財務報表 (439 行)
+│           ├── JournalEntries.tsx            # 日記帳列表 (473 行)
+│           ├── JournalEntryManager.tsx       # 日記帳管理 (779 行)
+│           ├── BankStatementReconciliation.tsx # 銀行對帳 (671 行)
+│           ├── MonthlyPaymentRecords.tsx     # 月費記錄 (781 行)
+│           ├── QuarterlyPaymentRecords.tsx   # 季費記錄 (384 行)
+│           ├── QuarterlyFeeStatistics.tsx    # 季費統計 (357 行)
+│           ├── MonthlyFinanceReport.tsx      # 月度財務報表
+│           ├── ExamManagement.tsx            # 考試管理 (1178 行)
+│           ├── EventManagement.tsx           # 活動管理 (372 行)
+│           ├── AttendanceManagementContent.tsx # 出席管理
+│           ├── AttendanceTablePage.tsx       # 出席表格 (383 行)
+│           ├── ClassSelectionPage.tsx        # 班別選擇
+│           ├── CoachStatisticsContent.tsx    # 教練統計
+│           ├── CoachStatsWithElite.tsx       # 教練統計(含精英)
+│           ├── DojoManagementContent.tsx     # 道館管理 (381 行)
+│           ├── UserManagementContent.tsx     # 用戶管理
+│           ├── StudentEditDialog.tsx         # 學生編輯對話框
+│           ├── ChangePasswordDialog.tsx      # 更改密碼
+│           ├── MarkAsPaidButton.tsx          # 標記已付
+│           ├── DashboardLayout.tsx           # 儀表板佈局
+│           ├── DashboardLayoutSkeleton.tsx   # 載入骨架
+│           ├── ErrorBoundary.tsx             # 錯誤邊界
+│           ├── EliteAttendanceSection.tsx    # 精英出席
+│           ├── EliteParentSection.tsx        # 精英家長端
+│           ├── AIChatBox.tsx                 # AI 對話框
+│           ├── ManusDialog.tsx               # Manus 對話框
+│           ├── Map.tsx                       # 地圖
+│           ├── WhatsAppTemplates.tsx         # WhatsApp 範本管理
+│           ├── WhatsAppReminderButton.tsx    # 繳費提醒按鈕
+│           ├── WhatsAppIcon.tsx              # WhatsApp 圖標
+│           ├── StudentWhatsAppButton.tsx     # 學生 WhatsApp
+│           ├── EliteWhatsAppButton.tsx       # 精英 WhatsApp
+│           └── EliteAttendanceWhatsAppButton.tsx
+│           └── ui/                  # shadcn/ui 標準組件 (50+個)
+│
+├── drizzle/                          # === 資料庫遷移 ===
+│   ├── schema.ts                    # Drizzle ORM Schema (608 行)
+│   ├── relations.ts                 # 關聯定義
+│   ├── schema_backup.ts             # Schema 備份
+│   ├── 0000~0013_*.sql              # 14 個遷移檔
+│   ├── meta/
+│   │   ├── _journal.json
+│   │   └── 0000~0013_snapshot.json  # 15 個快照
+│   └── migrations/.gitkeep
+│
+├── shared/                           # === 前後端共用 ===
+│   ├── types.ts                     # 共用類型定義
+│   ├── const.ts                     # 共用常數
+│   └── _core/errors.ts              # 錯誤處理
+│
+├── public/downloads/                 # === 匯出資料 ===
+│   ├── students.csv                 # 學生資料 CSV
+│   ├── elite_students.csv           # 精英班學生 CSV
+│   ├── paymentRecords.csv           # 繳費記錄 CSV
+│   ├── elite_payments.csv           # 精英繳費 CSV
+│   ├── dojos.csv                    # 道館 CSV
+│   ├── exam_candidates.csv          # 考生 CSV
+│   └── full_database_dump.sql       # 完整 DB dump (9289 行)
+│
+├── SQL 種子/匯入檔:
+│   ├── seed.sql                     # 基礎種子
+│   ├── seed-production.sql          # 生產種子 (352 行)
+│   ├── seed-elite.sql               # 精英班種子
+│   ├── exam_import.sql              # 考試匯入
+│   ├── exam_scoring_items.sql       # 評分項目
+│   └── init_scoring_items_all_belts.sql
+│
+├── 工具腳本:
+│   ├── setup.sh                     # 初始設定
+│   ├── batch_setup_students.ts      # 批量設定學生
+│   ├── import_students.mjs          # 匯入學生
+│   ├── import_attendance.mjs        # 匯入出席
+│   ├── import_leaves*.ts            # 匯入請假 (3 版本)
+│   └── generate_leave_excel.py      # 生成請假 Excel
+│
+├── 設定檔:
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   ├── vitest.config.ts
+│   ├── drizzle.config.ts
+│   ├── ecosystem.config.cjs         # PM2 設定
+│   ├── components.json              # shadcn/ui 設定
+│   ├── .env                         # 環境變數
+│   ├── .gitignore
+│   └── patches/wouter@3.7.1.patch   # 路由庫修補
+│
+└── 文件:
+    ├── README.md
+    ├── WHATSAPP_BUSINESS_SETUP.md   # WhatsApp 搭建完整指南
+    ├── todo.md                      # 待辦事項
+    └── integration_todo.md          # 整合待辦
+```
+
+################################################################################
+# B. 功能模組詳解
+################################################################################
+
+### 1. 認證系統
+- 管理員登入 (電話+密碼)
+- 家長登入 (電話+密碼)  
+- 教練登入 (電話+密碼)
+- JWT Token 認證 (存在 HttpOnly Cookie)
+- 角色權限: admin, parent, coach
+- 更改密碼功能
+
+### 2. 學生管理
+- CRUD 操作 (新增/查詢/修改/刪除)
+- 帶級管理 + 歷史紀錄
+- 道館分配
+- 教練分配
+- 狀態管理 (active/inactive)
+- 季費設定 ($1,800/季 = $600/月)
+- 搜尋篩選 (姓名/電話)
+
+### 3. 繳費系統（核心流程）
+- 家長上傳收據 → OCR 自動識別 (金額/銀行/日期/戶名)
+- 收據圖片蓋章 (學生姓名 + 金額 + 期別 + 道館名)
+- 自動驗證: 金額匹配 + 收款人匹配
+- 通過 → 自動確認; 不通過 → 待審批
+- 管理員可: 審批待審核 / 手動標記已付 / 撤銷繳費
+- 季繳/月繳模式
+- 拆分收據處理 (多人合併轉帳)
+- FPS / 銀行轉帳 / PayMe / 現金
+
+### 4. 精英班管理
+- 獨立學生名冊 (與一般班分開)
+- 堂數計費制 (fee_per_class)
+- 12堂一個週期
+- 出席記錄 (附道館/日期/時間)
+- 請假管理 (申請/審批/取消)
+- 獨立繳費記錄
+- 餘額追蹤
+
+### 5. 出席記錄
+- 手動點名 (按道館/日期)
+- 月報表匯出
+- 教練統計 (含精英班)
+- 按月/按道館篩選
+
+### 6. 考試/升級管理
+- 考試場次 CRUD
+- 報名管理 (添加/移除考生)
+- 評分項目配置 (按帶級不同)
+- SSE 即時評分 (多設備同步)
+- 成績彙總
+- 考試出席追蹤
+
+### 7. 會計模組（完整複式簿記）
+- **科目表** (Chart of Accounts): 33 個科目
+  - 資產: 1001 銀行存款, 1002 應收帳款, 1003 現金
+  - 收入: 4001 學費收入, 4002 考試費, 4003 活動費, 4004 商品收入, 4005 其他收入
+  - 費用: 5001~5010 (場地租金, 教練費, MPF, 推廣, 攝影, 晚餐, 供應商, 競賽報名, 其他)
+  - 負債 + 權益科目
+- **映射規則** (Mapping Rules): 18 條
+  - 自動將繳費記錄 → 對應借貸科目
+  - 支援: 學費(銀行/現金/FPS), 考試費, 活動費, 各類費用
+- **日記帳自動生成**: 繳費確認 → accounting_records → journal_entries + journal_entry_lines
+- **手動日記帳**: 管理員可手動新增/編輯
+- **過帳/反過帳/刪除**
+- **財務報表**:
+  - 試算表 (Trial Balance) - 借貸必須平衡
+  - 損益表 (Profit & Loss) - 收入/費用/淨利
+  - 資產負債表 (Balance Sheet) - 資產=負債+權益
+  - 總帳明細 (General Ledger) - 逐筆明細
+- **銀行對帳**
+- **同步功能**: 批量將待處理記錄同步為日記帳
+
+### 8. 活動管理
+- 活動 CRUD (名稱/日期/地點/描述)
+- 報名管理
+- 出席追蹤
+
+### 9. WhatsApp 整合
+- WhatsApp Business API 整合
+- 範本管理 (CRUD)
+- 繳費提醒發送
+- 出席通知發送
+- 支援多種按鈕 (學生/精英/出席)
+
+### 10. AI 功能
+- AI 對話助手 (OpenAI)
+- 收據 OCR 識別 (視覺模型)
+- 語音轉文字
+
+### 11. 道館管理
+- 道館 CRUD (名稱/地址/上課時間)
+- 教練分配
+- 學生歸屬
+
+### 12. 用戶管理
+- 管理員帳號 CRUD
+- 角色權限控制
+
+################################################################################
+# C. 完整 API 路由清單 (tRPC)
+################################################################################
+
+=== 認證 ===
+auth.login              POST  管理員登入 (phone + password)
+auth.logout             POST  登出
+auth.me                 GET   取得當前用戶
+auth.parentLogin        POST  家長登入
+auth.coachLogin         POST  教練登入
+auth.changePassword     POST  更改密碼
+
+=== 學生 ===
+students.list           GET   學生列表 (支援搜尋/篩選)
+students.create         POST  新增學生
+students.update         POST  更新學生
+students.delete         POST  刪除學生
+students.getById        GET   取得單個學生
+students.getHistoryByYear GET 按年度取得歷史
+students.markAsPaid     POST  手動標記已付
+students.confirmPayment POST  確認季繳
+students.confirmMonthlyPayment POST 確認月繳
+students.approvePendingPayment POST 審批待審核
+students.revertPayment  POST  撤銷繳費
+students.uploadReceipt  POST  上傳收據 (含 OCR)
+students.getMonthlyPayments GET 取得月費記錄
+
+=== 道館 ===
+dojos.list              GET   道館列表
+dojos.create            POST  新增道館
+dojos.update            POST  更新道館
+dojos.delete            POST  刪除道館
+
+=== 教練 ===
+coaches.list            GET   教練列表
+coaches.create          POST  新增教練
+coaches.update          POST  更新教練
+coaches.delete          POST  刪除教練
+
+=== 帶級 ===
+beltLevels.list         GET   帶級列表
+beltLevels.create       POST  新增帶級
+beltLevels.update       POST  更新帶級
+
+=== 繳費 ===
+payments.list           GET   繳費記錄列表
+payments.getByStudent   GET   學生繳費記錄
+payments.getStatistics  GET   繳費統計
+payments.getQuarterlyStatistics GET 季度統計
+payments.sendReminder   POST  發送繳費提醒
+
+=== 用戶 ===
+users.list              GET   用戶列表
+users.create            POST  新增用戶
+users.update            POST  更新用戶
+users.delete            POST  刪除用戶
+
+=== 出席 ===
+attendance.list         GET   出席列表
+attendance.record       POST  記錄出席
+attendance.getByStudent GET   學生出席
+attendance.getMonthlyReport GET 月報表
+
+=== 精英班統計 ===
+eliteStatistics         GET   精英班統計
+coachStats              GET   教練統計
+
+=== 精英班 ===
+elite.students.list     GET   精英學生列表
+elite.students.create   POST  新增精英學生
+elite.students.update   POST  更新精英學生
+elite.payments.list     GET   精英繳費列表
+elite.createPayment     POST  新增精英繳費
+elite.attendance.list   GET   精英出席列表
+elite.attendance.record POST  記錄精英出席
+elite.getBalance        GET   學生餘額
+elite.getAllBalances     GET   所有餘額
+elite.getCycleInfo      GET   週期資訊
+elite.getAllCycleInfo    GET   所有週期
+elite.getHistoryByYear  GET   年度歷史
+elite.syncPhonesFromRegular POST 同步電話
+
+=== 會計 ===
+accounting.getChartOfAccounts    GET   科目表
+accounting.getMappingRules       GET   映射規則
+accounting.create                POST  新增會計記錄
+accounting.createWithReceipt     POST  新增會計記錄(含收據)
+accounting.getRecords            GET   會計記錄列表
+accounting.getJournalEntries     GET   日記帳列表
+accounting.getJournalEntryById   GET   日記帳詳情
+accounting.createManualJournalEntry POST 手動新增日記帳
+accounting.postJournalEntry      POST  過帳
+accounting.unpostJournalEntry    POST  反過帳
+accounting.deleteJournalEntry    POST  刪除日記帳
+accounting.lockMonth             POST  鎖定月份
+accounting.getTrialBalance       GET   試算表
+accounting.getProfitAndLoss      GET   損益表
+accounting.getBalanceSheet       GET   資產負債表
+accounting.getGeneralLedger      GET   總帳明細
+accounting.syncPendingToJournal  POST  同步待處理→日記帳
+accounting.importUnmatched       POST  匯入未匹配記錄
+accounting.getPayeeConfig        GET   收款人設定
+accounting.updatePayeeConfig     POST  更新收款人設定
+
+=== 活動 ===
+events.list             GET   活動列表
+events.create           POST  新增活動
+events.update           POST  更新活動
+events.register         POST  活動報名
+events.getRegistrations GET   報名列表
+
+=== 考試 ===
+exam.sessions.list      GET   考試場次
+exam.sessions.create    POST  新增場次
+exam.candidates.list    GET   考生列表
+exam.candidates.create  POST  新增考生
+exam.scoringItems.list  GET   評分項目
+exam.scoringItems.create POST 新增評分項目
+exam.scores.submit      POST  提交評分
+exam.scores.getByCandidate GET 考生成績
+exam.schedules.list     GET   考試排程
+exam.attendance.record  POST  考試出席
+
+=== WhatsApp ===
+whatsappTemplates.list   GET   範本列表
+whatsappTemplates.create POST  新增範本
+whatsappTemplates.update POST  更新範本
+
+################################################################################
+# D. 完整資料流程圖
+################################################################################
+
+## 繳費 → 會計 完整流程 (已驗證 8/8 路徑通過)
+
+```
+路徑1: 家長上傳收據 (OCR自動確認)
+  Parent.tsx → uploadReceipt → localOcr.ts (OCR)
+    → receiptStamp.ts (蓋章) → 驗證金額+戶名
+    → insertPaymentRecord (status='confirmed')
+    → syncPaymentToAccounting
+    → INSERT accounting_records
+    → onAccountingRecordCreated
+    → findMatchingRule → generateEntryNumber
+    → createJournalEntryFromRecord
+    → INSERT journal_entries + journal_entry_lines
+    → 自動過帳 (is_posted=1)
+
+路徑2: 家長上傳收據 (驗證失敗→待審批)
+  → insertPaymentRecord (status='pending')
+  → 管理員 approvePendingPayment
+    → syncPaymentToAccounting → ... (同路徑1)
+
+路徑3: 管理員標記已付 (markAsPaid)
+  Admin.tsx → markAsPaid
+    → insertPaymentRecord (status='confirmed')
+    → syncPaymentToAccounting → ... (同路徑1)
+
+路徑4: 管理員確認季繳 (confirmPayment)
+  → insertPaymentRecord → syncPaymentToAccounting → ...
+
+路徑5: 管理員確認月繳-季模式 (confirmMonthlyPayment)
+  → insertPaymentRecord → syncPaymentToAccounting → ...
+
+路徑6: 管理員確認月繳-月模式 (confirmMonthlyPayment)
+  → insertPaymentRecord → syncPaymentToAccounting → ...
+
+路徑7: 精英班建立付款 (elite.createPayment)
+  → insertElitePaymentRecord
+  → syncElitePaymentToAccounting → ...
+
+路徑8: 手動會計記錄 (accounting.create)
+  → INSERT accounting_records
+  → onAccountingRecordCreated → ...
+```
+
+## 資料庫三層架構
+```
+Layer 1: paymentRecords / elite_payments
+         (原始繳費記錄，含收據URL、學生、金額、狀態)
+              ↓ syncPaymentToAccounting
+Layer 2: accounting_records
+         (會計記錄，含分類、金額、日期、描述)
+              ↓ onAccountingRecordCreated
+Layer 3: journal_entries + journal_entry_lines
+         (日記帳+分錄行，複式簿記借貸雙方)
+              ↓
+         財務報表 (試算表/損益表/資產負債表/總帳)
+```
+
+################################################################################
+# E. WhatsApp Business API 搭建資料
+################################################################################
+
+## 系統中已有的 WhatsApp 相關程式碼
+1. server/_core/whatsapp.ts - 核心發送模組
+2. client/src/components/WhatsAppTemplates.tsx - 範本管理 UI
+3. client/src/components/WhatsAppReminderButton.tsx - 繳費提醒
+4. client/src/components/StudentWhatsAppButton.tsx - 學生聯絡
+5. client/src/components/EliteWhatsAppButton.tsx - 精英班聯絡
+6. client/src/components/EliteAttendanceWhatsAppButton.tsx - 出席通知
+7. client/src/components/WhatsAppIcon.tsx - 圖標組件
+8. WHATSAPP_BUSINESS_SETUP.md - 完整搭建文件
+
+## WhatsApp 範本功能
+- 資料庫 whatsapp_templates 表儲存所有範本
+- 支援 CRUD 操作
+- 範本分類: utility / marketing
+- 支援中文 (zh_HK) 語言
+
+## 搭建需要的資訊（部分需用戶提供）
+1. 道館名稱 → 見 PART6 dojos 表
+2. 地址 → 見 PART6 dojos 表
+3. 班別時間 → 見 PART6 dojos 表 + elite_schedules
+4. 學費 → 一般班 $1,800/季，精英班按堂計
+5. 試堂政策 → [需用戶確認]
+6. WhatsApp 號碼 → [需用戶提供]
+7. 社交連結 → [需用戶提供]
+8. 繳費方式 → FPS / 銀行轉帳 / PayMe / 現金
+9. 管理員數 → 目前 2 個
+10. 客戶地區 → 香港
+
+################################################################################
+# F. 系統操作 SOP
+################################################################################
+
+## 1. 全新部署 SOP
+```bash
+# 1. 系統需求
+- Node.js 18+
+- MySQL 8.0
+- PM2 (npm install -g pm2)
+
+# 2. 取得程式碼
+git clone <repo-url>
+cd webapp
+
+# 3. 安裝依賴
+npm install
+
+# 4. 設定環境變數
+cp .env.example .env
+# 編輯 .env:
+# DATABASE_URL=mysql://user:pass@localhost:3306/taekwondo
+# JWT_SECRET=your-secret-key
+# AWS_ACCESS_KEY_ID=xxx
+# AWS_SECRET_ACCESS_KEY=xxx
+# S3_BUCKET=your-bucket
+# OPENAI_API_KEY=xxx (用於 OCR + AI 對話)
+
+# 5. 建立 MySQL 資料庫
+mysql -u root -e "CREATE DATABASE taekwondo CHARACTER SET utf8mb4"
+mysql -u root -e "CREATE USER 'tkd_user'@'localhost' IDENTIFIED BY 'password'"
+mysql -u root -e "GRANT ALL ON taekwondo.* TO 'tkd_user'@'localhost'"
+
+# 6. 執行 Drizzle 遷移
+npx drizzle-kit push
+
+# 7. 匯入種子資料
+mysql -u tkd_user -p taekwondo < seed-production.sql
+mysql -u tkd_user -p taekwondo < seed-elite.sql
+mysql -u tkd_user -p taekwondo < exam_scoring_items.sql
+
+# 8. 建置前端
+npm run build
+
+# 9. 啟動服務
+pm2 start ecosystem.config.cjs
+
+# 10. 驗證
+curl http://localhost:3000
+pm2 logs taekwondo --nostream
+```
+
+## 2. 日常操作
+
+### 新增學生
+管理後台 → 學生管理 → 新增 → 填寫(姓名/電話/帶級/道館/教練/季費) → 儲存
+
+### 繳費流程
+家長登入 → 選期別 → 上傳收據 → OCR自動識別 → 自動確認或待審批
+
+### 管理員操作
+- 審批待審核: 查看收據 → 輸入密碼 → 批准/拒絕
+- 手動標記已付: 學生列表 → 標記已付
+- 撤銷繳費: 點擊撤銷 → 輸入密碼確認
+
+### 會計報表
+管理後台 → 會計總帳 → 選分頁:
+- 流水帳: 所有會計記錄
+- 日記帳: 日記帳管理 (新增/過帳/刪除)
+- 財務報表: 試算表/損益表/資產負債表/總帳
+- 銀行對帳: 對帳功能
+
+### 考試
+管理後台 → 考試管理 → 建立場次 → 設定評分項目 → 添加考生 → 即時評分
+
+## 3. 更新部署
+```bash
+git pull
+npm install
+npx drizzle-kit push  # 如有新遷移
+npm run build
+pm2 restart taekwondo
+```
+
+## 4. 備份
+```bash
+# 資料庫備份
+mysqldump -u tkd_user -p taekwondo > backup_$(date +%Y%m%d).sql
+
+# 收據圖片在 S3，不需本地備份
+```
+
+================== END OF PART 5 ==================

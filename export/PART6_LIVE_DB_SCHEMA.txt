@@ -1,0 +1,1075 @@
+﻿================================================================================
+跆拳道繳費系統 - 100%完整原始碼匯出
+PART 6/6: 即時 MySQL 資料庫 Schema + 完整資料摘要
+================================================================================
+匯出日期: 2026-02-28
+內容: 從運行中的 MySQL 即時匯出的所有 30 張表 CREATE TABLE，
+      加上每張表的資料筆數、統計摘要
+================================================================================
+
+========== 所有表的 CREATE TABLE ==========
+
+-- ============================================
+-- Table: accounting_records
+-- Row count: 164
+-- ============================================
+accounting_records
+CREATE TABLE `accounting_records` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `transaction_date` timestamp NOT NULL,
+  `bank` varchar(100) DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `type` enum('income','expense') NOT NULL,
+  `category` varchar(50) NOT NULL,
+  `description` text DEFAULT NULL,
+  `receipt_url` text DEFAULT NULL,
+  `receipt_key` text DEFAULT NULL,
+  `payment_record_id` int(11) DEFAULT NULL,
+  `elite_payment_record_id` int(11) DEFAULT NULL,
+  `student_name` varchar(100) DEFAULT NULL,
+  `coach_name` varchar(100) DEFAULT NULL,
+  `dojo_name` varchar(100) DEFAULT NULL,
+  `source` enum('auto_sync','manual') NOT NULL DEFAULT 'manual',
+  `bank_reference` varchar(200) DEFAULT NULL,
+  `reconciliation_status` enum('unmatched','matched','manual') DEFAULT 'unmatched',
+  `reconciliation_date` timestamp NULL DEFAULT NULL,
+  `ocr_raw_result` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `journal_entry_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_transaction_date` (`transaction_date`),
+  KEY `idx_type` (`type`),
+  KEY `idx_category` (`category`),
+  KEY `idx_source` (`source`),
+  KEY `idx_payment_record_id` (`payment_record_id`),
+  KEY `idx_ar_journal` (`journal_entry_id`),
+  CONSTRAINT `fk_ar_journal` FOREIGN KEY (`journal_entry_id`) REFERENCES `journal_entries` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=165 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+;
+
+-- ============================================
+-- Table: attendance_records
+-- Row count: 0
+-- ============================================
+attendance_records
+CREATE TABLE `attendance_records` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `course_id` int(11) NOT NULL,
+  `student_id` int(11) NOT NULL,
+  `attendance_date` timestamp NOT NULL,
+  `status` enum('present','absent','late','excused') NOT NULL DEFAULT 'present',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `attendance_records_course_id_courses_id_fk` (`course_id`),
+  KEY `attendance_records_student_id_students_id_fk` (`student_id`),
+  CONSTRAINT `attendance_records_course_id_courses_id_fk` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `attendance_records_student_id_students_id_fk` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: belt_levels
+-- Row count: 0
+-- ============================================
+belt_levels
+CREATE TABLE `belt_levels` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL,
+  `color` varchar(20) NOT NULL,
+  `order` int(11) NOT NULL,
+  `minimum_training_days` int(11) NOT NULL DEFAULT 90,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: chart_of_accounts
+-- Row count: 33
+-- ============================================
+chart_of_accounts
+CREATE TABLE `chart_of_accounts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `code` varchar(20) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `name_zh` varchar(100) NOT NULL,
+  `type` enum('asset','liability','equity','revenue','expense') NOT NULL,
+  `parent_code` varchar(20) DEFAULT NULL,
+  `is_system` tinyint(1) NOT NULL DEFAULT 1,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `description` varchar(255) DEFAULT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_coa_code` (`code`),
+  KEY `idx_coa_type` (`type`),
+  KEY `idx_coa_parent` (`parent_code`)
+) ENGINE=InnoDB AUTO_INCREMENT=34 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: coaches
+-- Row count: 0
+-- ============================================
+coaches
+CREATE TABLE `coaches` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `email` varchar(320) DEFAULT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `belt_level_id` int(11) DEFAULT NULL,
+  `base_salary` int(11) NOT NULL DEFAULT 0,
+  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
+  `join_date` timestamp NOT NULL DEFAULT current_timestamp(),
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `coaches_belt_level_id_belt_levels_id_fk` (`belt_level_id`),
+  CONSTRAINT `coaches_belt_level_id_belt_levels_id_fk` FOREIGN KEY (`belt_level_id`) REFERENCES `belt_levels` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: courses
+-- Row count: 12
+-- ============================================
+courses
+CREATE TABLE `courses` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(200) NOT NULL,
+  `description` text DEFAULT NULL,
+  `dojo_id` int(11) DEFAULT NULL,
+  `coach_id` int(11) DEFAULT NULL,
+  `day_of_week` enum('monday','tuesday','wednesday','thursday','friday','saturday','sunday') NOT NULL,
+  `start_time` varchar(5) NOT NULL,
+  `end_time` varchar(5) NOT NULL,
+  `max_students` int(11) DEFAULT 20,
+  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `courses_dojo_id_dojos_id_fk` (`dojo_id`),
+  KEY `courses_coach_id_coaches_id_fk` (`coach_id`),
+  CONSTRAINT `courses_coach_id_coaches_id_fk` FOREIGN KEY (`coach_id`) REFERENCES `coaches` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `courses_dojo_id_dojos_id_fk` FOREIGN KEY (`dojo_id`) REFERENCES `dojos` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: dojos
+-- Row count: 8
+-- ============================================
+dojos
+CREATE TABLE `dojos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(200) NOT NULL,
+  `schedule_day` varchar(100) DEFAULT NULL,
+  `schedule_time` varchar(100) DEFAULT NULL,
+  `coach_name` varchar(100) DEFAULT NULL,
+  `color` varchar(50) DEFAULT '#3b82f6',
+  `address` text DEFAULT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `email` varchar(320) DEFAULT NULL,
+  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: elite_attendance
+-- Row count: 6627
+-- ============================================
+elite_attendance
+CREATE TABLE `elite_attendance` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `schedule_id` int(11) NOT NULL,
+  `student_id` int(11) NOT NULL,
+  `status` enum('present','absent','late','excused') NOT NULL DEFAULT 'present',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=10897 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: elite_payments
+-- Row count: 70
+-- ============================================
+elite_payments
+CREATE TABLE `elite_payments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `student_id` int(11) NOT NULL,
+  `class_count` int(11) NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `receipt_url` text DEFAULT NULL,
+  `receipt_key` text DEFAULT NULL,
+  `payment_date` timestamp NOT NULL,
+  `confirmed_by` enum('parent_upload','admin_approved') DEFAULT 'admin_approved',
+  `status` enum('pending','confirmed') NOT NULL DEFAULT 'confirmed',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `elite_payments_student_id_elite_students_id_fk` (`student_id`),
+  CONSTRAINT `elite_payments_student_id_elite_students_id_fk` FOREIGN KEY (`student_id`) REFERENCES `elite_students` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB AUTO_INCREMENT=79 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: elite_schedules
+-- Row count: 208
+-- ============================================
+elite_schedules
+CREATE TABLE `elite_schedules` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `training_date` timestamp NOT NULL,
+  `schedule_day` varchar(50) NOT NULL,
+  `schedule_time` varchar(50) NOT NULL,
+  `status` enum('active','cancelled') NOT NULL DEFAULT 'active',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=209 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: elite_students
+-- Row count: 75
+-- ============================================
+elite_students
+CREATE TABLE `elite_students` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `phone` varchar(50) NOT NULL,
+  `password` varchar(255) DEFAULT NULL,
+  `belt_level` varchar(50) DEFAULT NULL,
+  `coach` varchar(100) DEFAULT NULL,
+  `schedule_day` varchar(50) DEFAULT NULL,
+  `schedule_time` varchar(50) DEFAULT NULL,
+  `fee_per_class` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `remaining_classes` int(11) NOT NULL DEFAULT 0,
+  `status` enum('active','inactive','suspended') NOT NULL DEFAULT 'active',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `join_date` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=78 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: event_registrations
+-- Row count: 0
+-- ============================================
+event_registrations
+CREATE TABLE `event_registrations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `event_id` int(11) NOT NULL,
+  `student_id` int(11) DEFAULT NULL,
+  `elite_student_id` int(11) DEFAULT NULL,
+  `student_name` varchar(100) NOT NULL,
+  `phone` varchar(20) NOT NULL,
+  `status` enum('registered','confirmed','cancelled') DEFAULT 'registered',
+  `notes` text DEFAULT NULL,
+  `registered_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_event_id` (`event_id`),
+  KEY `idx_phone` (`phone`),
+  KEY `idx_student_id` (`student_id`),
+  CONSTRAINT `event_registrations_ibfk_1` FOREIGN KEY (`event_id`) REFERENCES `events` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: events
+-- Row count: 0
+-- ============================================
+events
+CREATE TABLE `events` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `title` varchar(200) NOT NULL,
+  `type` enum('exam','competition','training') NOT NULL COMMENT '考試/比賽/交流訓練',
+  `description` text DEFAULT NULL,
+  `event_date` date NOT NULL,
+  `event_time` varchar(50) DEFAULT NULL,
+  `location` varchar(200) DEFAULT NULL,
+  `fee` decimal(10,2) DEFAULT 0.00,
+  `max_participants` int(11) DEFAULT NULL,
+  `registration_deadline` date DEFAULT NULL,
+  `status` enum('open','closed','cancelled') DEFAULT 'open',
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_event_date` (`event_date`),
+  KEY `idx_type` (`type`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: exam_candidates
+-- Row count: 84
+-- ============================================
+exam_candidates
+CREATE TABLE `exam_candidates` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `exam_id` int(11) NOT NULL,
+  `student_id` int(11) DEFAULT NULL,
+  `name` varchar(100) NOT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `dojo_name` varchar(100) DEFAULT NULL,
+  `gender` enum('male','female') NOT NULL DEFAULT 'male',
+  `age` int(11) DEFAULT NULL,
+  `age_group` varchar(50) DEFAULT NULL,
+  `current_belt` varchar(50) NOT NULL,
+  `target_belt` varchar(50) NOT NULL,
+  `group_code` varchar(10) DEFAULT NULL,
+  `order_number` int(11) DEFAULT NULL,
+  `status` enum('registered','checked_in','examining','passed','failed','absent') NOT NULL DEFAULT 'registered',
+  `has_lak_lak_award` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_exam_id` (`exam_id`),
+  KEY `idx_student_id` (`student_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_current_belt` (`current_belt`),
+  CONSTRAINT `exam_candidates_ibfk_1` FOREIGN KEY (`exam_id`) REFERENCES `exam_sessions` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=249 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: exam_schedules
+-- Row count: 11
+-- ============================================
+exam_schedules
+CREATE TABLE `exam_schedules` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `exam_id` int(11) NOT NULL,
+  `belt_level` varchar(50) NOT NULL,
+  `group_code` varchar(10) DEFAULT NULL,
+  `start_time` varchar(30) NOT NULL,
+  `end_time` varchar(30) DEFAULT NULL,
+  `time_slot` varchar(50) DEFAULT NULL,
+  `venue` varchar(255) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_exam_id` (`exam_id`),
+  CONSTRAINT `exam_schedules_ibfk_1` FOREIGN KEY (`exam_id`) REFERENCES `exam_sessions` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: exam_scores
+-- Row count: 799
+-- ============================================
+exam_scores
+CREATE TABLE `exam_scores` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `candidate_id` int(11) NOT NULL,
+  `scoring_item_id` int(11) NOT NULL,
+  `score` varchar(50) DEFAULT NULL,
+  `comment` text DEFAULT NULL,
+  `scored_by` varchar(100) DEFAULT NULL,
+  `scored_at` timestamp NULL DEFAULT current_timestamp(),
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_candidate_item` (`candidate_id`,`scoring_item_id`),
+  KEY `idx_candidate_id` (`candidate_id`),
+  KEY `idx_scoring_item_id` (`scoring_item_id`),
+  CONSTRAINT `exam_scores_ibfk_1` FOREIGN KEY (`candidate_id`) REFERENCES `exam_candidates` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `exam_scores_ibfk_2` FOREIGN KEY (`scoring_item_id`) REFERENCES `exam_scoring_items` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=807 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: exam_scoring_items
+-- Row count: 109
+-- ============================================
+exam_scoring_items
+CREATE TABLE `exam_scoring_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `description` text DEFAULT NULL,
+  `type` enum('grade','pass_fail','yes_no') NOT NULL DEFAULT 'grade',
+  `category` varchar(50) DEFAULT NULL,
+  `max_score` decimal(5,2) NOT NULL DEFAULT 10.00,
+  `weight` decimal(3,2) NOT NULL DEFAULT 1.00,
+  `belt_level` varchar(50) DEFAULT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_belt_level` (`belt_level`)
+) ENGINE=InnoDB AUTO_INCREMENT=324 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: exam_sessions
+-- Row count: 1
+-- ============================================
+exam_sessions
+CREATE TABLE `exam_sessions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `exam_date` date NOT NULL,
+  `location` varchar(255) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `status` enum('draft','scheduled','in_progress','completed') NOT NULL DEFAULT 'draft',
+  `event_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_exam_date` (`exam_date`),
+  KEY `idx_status` (`status`),
+  KEY `idx_event_id` (`event_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: journal_entries
+-- Row count: 141
+-- ============================================
+journal_entries
+CREATE TABLE `journal_entries` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `entry_number` varchar(30) NOT NULL,
+  `entry_date` date NOT NULL,
+  `description` varchar(500) NOT NULL,
+  `source_type` enum('auto_sync','manual','adjustment','reversal','deferred_split') NOT NULL,
+  `source_id` int(11) DEFAULT NULL,
+  `source_table` varchar(50) DEFAULT NULL,
+  `fiscal_year` int(11) NOT NULL,
+  `fiscal_month` int(11) NOT NULL,
+  `is_posted` tinyint(1) NOT NULL DEFAULT 0,
+  `is_locked` tinyint(1) NOT NULL DEFAULT 0,
+  `posted_at` timestamp NULL DEFAULT NULL,
+  `posted_by` varchar(100) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_je_number` (`entry_number`),
+  UNIQUE KEY `uk_je_source` (`source_type`,`source_id`,`source_table`),
+  KEY `idx_je_date` (`entry_date`),
+  KEY `idx_je_fiscal` (`fiscal_year`,`fiscal_month`),
+  KEY `idx_je_posted` (`is_posted`)
+) ENGINE=InnoDB AUTO_INCREMENT=165 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: journal_entry_lines
+-- Row count: 282
+-- ============================================
+journal_entry_lines
+CREATE TABLE `journal_entry_lines` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `journal_entry_id` int(11) NOT NULL,
+  `account_code` varchar(20) NOT NULL,
+  `debit` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `credit` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `description` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_jel_journal` (`journal_entry_id`),
+  KEY `idx_jel_account` (`account_code`),
+  KEY `idx_jel_report` (`account_code`,`journal_entry_id`),
+  CONSTRAINT `fk_jel_account` FOREIGN KEY (`account_code`) REFERENCES `chart_of_accounts` (`code`),
+  CONSTRAINT `fk_jel_journal` FOREIGN KEY (`journal_entry_id`) REFERENCES `journal_entries` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=329 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: mapping_rules
+-- Row count: 18
+-- ============================================
+mapping_rules
+CREATE TABLE `mapping_rules` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `name_zh` varchar(100) NOT NULL,
+  `record_type` enum('income','expense') NOT NULL,
+  `category` varchar(50) NOT NULL,
+  `payment_method` varchar(50) DEFAULT NULL,
+  `debit_account_code` varchar(20) NOT NULL,
+  `credit_account_code` varchar(20) NOT NULL,
+  `is_deferred` tinyint(1) NOT NULL DEFAULT 0,
+  `is_system` tinyint(1) NOT NULL DEFAULT 1,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `priority` int(11) NOT NULL DEFAULT 0,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_mr_match` (`record_type`,`category`,`payment_method`),
+  KEY `idx_mr_lookup` (`record_type`,`category`,`payment_method`,`is_active`),
+  KEY `fk_mr_debit` (`debit_account_code`),
+  KEY `fk_mr_credit` (`credit_account_code`),
+  CONSTRAINT `fk_mr_credit` FOREIGN KEY (`credit_account_code`) REFERENCES `chart_of_accounts` (`code`),
+  CONSTRAINT `fk_mr_debit` FOREIGN KEY (`debit_account_code`) REFERENCES `chart_of_accounts` (`code`)
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: paymentRecords
+-- Row count: 93
+-- ============================================
+paymentRecords
+CREATE TABLE `paymentRecords` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `studentId` int(11) NOT NULL,
+  `paymentPeriod` enum('Q1','Q2','Q3','Q4','CUSTOM','MONTHLY') NOT NULL,
+  `customMonths` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`customMonths`)),
+  `amount` decimal(10,2) NOT NULL,
+  `receiptUrl` text DEFAULT NULL,
+  `receiptKey` text DEFAULT NULL,
+  `paymentDate` timestamp NOT NULL,
+  `status` enum('pending','confirmed') NOT NULL DEFAULT 'confirmed',
+  `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updatedAt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `receiptTransferDate` timestamp NULL DEFAULT NULL,
+  `classCount` int(11) DEFAULT NULL,
+  `year` int(11) NOT NULL DEFAULT 2026,
+  `confirmedBy` enum('parent_upload','admin_approved','coach_approved') DEFAULT 'admin_approved',
+  `paymentMonth` int(11) DEFAULT NULL COMMENT '單月繳費時的月份(1-12)',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=177 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: payment_reminders
+-- Row count: 0
+-- ============================================
+payment_reminders
+CREATE TABLE `payment_reminders` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `student_id` int(11) NOT NULL,
+  `reminded_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `reminded_by` int(11) NOT NULL,
+  `month` int(11) NOT NULL,
+  `year` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `payment_reminders_student_id_students_id_fk` (`student_id`),
+  KEY `payment_reminders_reminded_by_users_id_fk` (`reminded_by`),
+  CONSTRAINT `payment_reminders_reminded_by_users_id_fk` FOREIGN KEY (`reminded_by`) REFERENCES `users` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `payment_reminders_student_id_students_id_fk` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: student_belt_history
+-- Row count: 0
+-- ============================================
+student_belt_history
+CREATE TABLE `student_belt_history` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `student_id` int(11) NOT NULL,
+  `from_belt_level_id` int(11) DEFAULT NULL,
+  `to_belt_level_id` int(11) NOT NULL,
+  `promotion_date` timestamp NOT NULL DEFAULT current_timestamp(),
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `student_belt_history_student_id_students_id_fk` (`student_id`),
+  KEY `student_belt_history_from_belt_level_id_belt_levels_id_fk` (`from_belt_level_id`),
+  KEY `student_belt_history_to_belt_level_id_belt_levels_id_fk` (`to_belt_level_id`),
+  CONSTRAINT `student_belt_history_from_belt_level_id_belt_levels_id_fk` FOREIGN KEY (`from_belt_level_id`) REFERENCES `belt_levels` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `student_belt_history_student_id_students_id_fk` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `student_belt_history_to_belt_level_id_belt_levels_id_fk` FOREIGN KEY (`to_belt_level_id`) REFERENCES `belt_levels` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: students
+-- Row count: 132
+-- ============================================
+students
+CREATE TABLE `students` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `birthDate` date DEFAULT NULL,
+  `phone` varchar(50) NOT NULL,
+  `venue` varchar(100) NOT NULL,
+  `scheduleDay` varchar(50) DEFAULT NULL,
+  `scheduleTime` varchar(50) DEFAULT NULL,
+  `feePerQuarter` decimal(10,2) NOT NULL,
+  `beltLevel` varchar(50) DEFAULT NULL,
+  `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updatedAt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `student_number` varchar(50) DEFAULT NULL,
+  `gender` enum('male','female','other') DEFAULT NULL,
+  `email` varchar(320) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `emergency_contact` varchar(100) DEFAULT NULL,
+  `emergency_phone` varchar(20) DEFAULT NULL,
+  `dojo_id` int(11) DEFAULT NULL,
+  `coach_id` int(11) DEFAULT NULL,
+  `current_belt_level_id` int(11) DEFAULT NULL,
+  `status` enum('active','inactive','suspended') NOT NULL DEFAULT 'active',
+  `join_date` timestamp NULL DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `password` varchar(255) DEFAULT NULL,
+  `coach` varchar(100) DEFAULT '?????',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `students_student_number_unique` (`student_number`),
+  KEY `students_dojo_id_dojos_id_fk` (`dojo_id`),
+  KEY `students_coach_id_coaches_id_fk` (`coach_id`),
+  KEY `students_current_belt_level_id_belt_levels_id_fk` (`current_belt_level_id`),
+  CONSTRAINT `students_coach_id_coaches_id_fk` FOREIGN KEY (`coach_id`) REFERENCES `coaches` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `students_current_belt_level_id_belt_levels_id_fk` FOREIGN KEY (`current_belt_level_id`) REFERENCES `belt_levels` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `students_dojo_id_dojos_id_fk` FOREIGN KEY (`dojo_id`) REFERENCES `dojos` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB AUTO_INCREMENT=191 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: system_config
+-- Row count: 2
+-- ============================================
+system_config
+CREATE TABLE `system_config` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `config_key` varchar(100) NOT NULL,
+  `config_value` text NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `config_key` (`config_key`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: training_schedules
+-- Row count: 211
+-- ============================================
+training_schedules
+CREATE TABLE `training_schedules` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `training_date` timestamp NOT NULL,
+  `venue` varchar(100) NOT NULL,
+  `schedule_day` varchar(50) NOT NULL,
+  `schedule_time` varchar(50) NOT NULL,
+  `status` enum('active','cancelled') NOT NULL DEFAULT 'active',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=212 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: users
+-- Row count: 4
+-- ============================================
+users
+CREATE TABLE `users` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `openId` varchar(64) NOT NULL,
+  `name` text DEFAULT NULL,
+  `email` varchar(320) DEFAULT NULL,
+  `loginMethod` varchar(64) DEFAULT NULL,
+  `role` enum('user','admin','coach') NOT NULL DEFAULT 'user',
+  `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updatedAt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `lastSignedIn` timestamp NOT NULL DEFAULT current_timestamp(),
+  `phone` varchar(20) DEFAULT NULL,
+  `password` varchar(255) DEFAULT NULL,
+  `coach_name` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `users_openId_unique` (`openId`)
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+-- ============================================
+-- Table: whatsapp_templates
+-- Row count: 0
+-- ============================================
+whatsapp_templates
+CREATE TABLE `whatsapp_templates` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `content` text NOT NULL,
+  `is_default` tinyint(1) NOT NULL DEFAULT 0,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+;
+
+========== 完整資料摘要 ==========
+
+-- === dojos (完整資料) ===
+id	name	schedule_day	schedule_time	coach_name	color	address	phone	email	status	notes	created_at	updated_at
+1	????	NULL	NULL	?????	#3b82f6	???	88888888	NULL	active	NULL	2026-02-21 18:00:02	2026-02-23 09:59:16
+2	?????	NULL	NULL	?????	#3b82f6	????	88888888	NULL	active	NULL	2026-02-21 18:00:02	2026-02-23 10:03:28
+3	????	NULL	NULL	?????	#3b82f6	???	88888888	NULL	active	NULL	2026-02-21 18:00:02	2026-02-23 10:03:28
+4	????	NULL	NULL	?????	#3b82f6	NULL	NULL	NULL	active	NULL	2026-02-23 18:28:49	2026-02-23 18:28:49
+5	????	NULL	NULL	?????	#3b82f6	NULL	NULL	NULL	active	NULL	2026-02-23 18:28:49	2026-02-23 18:28:49
+6	?????	NULL	NULL	?????	#3b82f6	NULL	NULL	NULL	active	NULL	2026-02-23 18:28:49	2026-02-23 18:28:49
+7	?????	NULL	NULL	?????	#3b82f6	NULL	NULL	NULL	active	NULL	2026-02-23 18:28:49	2026-02-23 18:28:49
+8	?????	NULL	NULL	?????	#3b82f6	NULL	NULL	NULL	active	NULL	2026-02-23 18:28:49	2026-02-23 18:28:49
+
+-- === coaches (完整資料) ===
+
+-- === belt_levels (完整資料) ===
+
+-- === users (完整資料) ===
+id	openId	name	email	loginMethod	role	createdAt	updatedAt	lastSignedIn	phone	password	coach_name
+1	admin-local	?????	admin@tkd.local	phone	admin	2026-02-21 18:00:02	2026-02-27 11:11:50	2026-02-26 03:34:59	88888888	$2b$10$FHWlKean1x/R0QdxyptLq.8enjQ0EDtw1/K/MlRFJ6kqjh3C.1xzq	NULL
+3	coach-local	???	NULL	phone	coach	2026-02-21 18:01:57	2026-02-21 18:01:57	2026-02-21 18:01:57	99999999	$2b$10$CTKo28IAOYVm3bDOuoigWODYAmHz5.NMjj.t21AveeYdSC/d40OrW	???
+4	admin-94839882	???	NULL	phone	admin	2026-02-21 18:01:58	2026-02-21 18:01:58	2026-02-21 18:01:58	94839882	$2b$10$4pV5cNqOQIAROuI3QawdI.YFOxQa/hCbEkxpy/UpA9FOkRxRj3u86	NULL
+5	coach-60971572	?????	NULL	NULL	coach	2026-02-23 18:29:59	2026-02-23 18:29:59	2026-02-23 18:29:59	60971572	$2b$10$/mFSID65FMZ.cm9O3NCEH.wxr01Fuaf0SgwgyVFvhrvXLyuJ6BnfK	?????
+
+-- === courses (完整資料) ===
+id	name	description	dojo_id	coach_id	day_of_week	start_time	end_time	max_students	status	created_at	updated_at
+1	???? ??? 4:00-5:00pm	NULL	1	NULL	monday	04:00	05:00	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+2	???? ??? 5:00-6:00pm	NULL	1	NULL	monday	05:00	06:00	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+3	???? ??? 4:00-5:00pm	NULL	1	NULL	wednesday	04:00	05:00	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+4	???? ??? 5:00-6:30pm	NULL	1	NULL	wednesday	05:00	06:30	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+5	???? ??? 10:00-11:30am	NULL	1	NULL	saturday	10:00	11:30	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+6	???? ??? 10?00-11?30	NULL	1	NULL	saturday	10:00	11:30	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+7	???? ??? 10?00-11?00	NULL	1	NULL	sunday	10:00	11:00	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+8	???? ??? 11?00-12?00	NULL	1	NULL	sunday	11:00	12:00	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+9	???? ??? 3?00-4?30	NULL	1	NULL	sunday	03:00	04:30	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+10	???? ??? 6?00-7?00	NULL	3	NULL	tuesday	06:00	07:00	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+11	???? ??? 6?00-7?00	NULL	3	NULL	thursday	06:00	07:00	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+12	????? ??? 6?00-7?00	NULL	2	NULL	friday	06:00	07:00	20	active	2026-02-21 18:00:02	2026-02-21 18:00:02
+
+-- === system_config (完整資料) ===
+id	config_key	config_value	description	created_at	updated_at
+1	accepted_payee_accounts	[{"name":"CHONG MO COMPANY LIMITED","account":"16457713","type":"bank"},{"name":"CHONG MO","account":"164577132","type":"fps"}]	????????? (JSON??)????????????	2026-02-27 03:54:47	2026-02-27 03:54:47
+2	receipt_validation_enabled	true	???????????	2026-02-27 03:54:47	2026-02-27 03:54:47
+
+-- === whatsapp_templates (完整資料) ===
+
+-- === chart_of_accounts (完整資料) ===
+id	code	name	name_zh	type	parent_code	is_system	is_active	description	sort_order	created_at	updated_at
+1	1000	Assets	資產	asset	NULL	1	1	NULL	1000	2026-02-27 09:07:42	2026-02-27 09:07:42
+2	1001	Bank	銀行	asset	1000	1	1	NULL	1001	2026-02-27 09:07:42	2026-02-27 09:07:42
+3	1002	Cash on Hand	現金	asset	1000	1	1	NULL	1002	2026-02-27 09:07:42	2026-02-27 09:07:42
+4	1003	Accounts Receivable	應收帳款	asset	1000	1	1	NULL	1003	2026-02-27 09:07:42	2026-02-27 09:07:42
+5	1004	Prepaid Expenses	預付費用	asset	1000	1	1	NULL	1004	2026-02-27 09:07:42	2026-02-27 09:07:42
+6	1005	Fixed Assets - Equipment	固定資產 — 器材	asset	1000	1	1	NULL	1005	2026-02-27 09:07:42	2026-02-27 09:07:42
+7	1006	Accumulated Depreciation	累計折舊	asset	1000	1	1	NULL	1006	2026-02-27 09:07:42	2026-02-27 09:07:42
+8	1007	Inventory - Uniforms	存貨 — 道服	asset	1000	1	1	NULL	1007	2026-02-27 09:07:42	2026-02-27 09:07:42
+9	2000	Liabilities	負債	liability	NULL	1	1	NULL	2000	2026-02-27 09:07:42	2026-02-27 09:07:42
+10	2001	Deferred Income	預收收入	liability	2000	1	1	NULL	2001	2026-02-27 09:07:42	2026-02-27 09:07:42
+11	2002	Other Payables	其他應付款項	liability	2000	1	1	NULL	2002	2026-02-27 09:07:42	2026-02-27 09:07:42
+12	2003	Accrued Expenses	應計費用	liability	2000	1	1	NULL	2003	2026-02-27 09:07:42	2026-02-27 09:07:42
+13	3000	Equity	權益	equity	NULL	1	1	NULL	3000	2026-02-27 09:07:42	2026-02-27 09:07:42
+14	3001	Owner's Equity / Share Capital	股本	equity	3000	1	1	NULL	3001	2026-02-27 09:07:42	2026-02-27 09:07:42
+15	3002	Retained Earnings	保留盈餘	equity	3000	1	1	NULL	3002	2026-02-27 09:07:42	2026-02-27 09:07:42
+16	4000	Revenue	收入	revenue	NULL	1	1	NULL	4000	2026-02-27 09:07:42	2026-02-27 09:07:42
+17	4001	Tuition Fee Income	學費收入	revenue	4000	1	1	NULL	4001	2026-02-27 09:07:42	2026-02-27 09:07:42
+18	4002	Grading/Exam Fee Income	考帶費收入	revenue	4000	1	1	NULL	4002	2026-02-27 09:07:42	2026-02-27 09:07:42
+19	4003	Uniform Sales Income	道服銷售收入	revenue	4000	1	1	NULL	4003	2026-02-27 09:07:42	2026-02-27 09:07:42
+20	4004	Elite Class Income	精英班收入	revenue	4000	1	1	NULL	4004	2026-02-27 09:07:42	2026-02-27 09:07:42
+21	4005	Other Income	其他收入	revenue	4000	1	1	NULL	4005	2026-02-27 09:07:42	2026-02-27 09:07:42
+22	5000	Expenses	支出	expense	NULL	1	1	NULL	5000	2026-02-27 09:07:42	2026-02-27 09:07:42
+23	5001	Venue Rental	場地租金	expense	5000	1	1	NULL	5001	2026-02-27 09:07:42	2026-02-27 09:07:42
+24	5002	Coach Fee	教練費	expense	5000	1	1	NULL	5002	2026-02-27 09:07:42	2026-02-27 09:07:42
+25	5003	Salaries	薪金	expense	5000	1	1	NULL	5003	2026-02-27 09:07:42	2026-02-27 09:07:42
+26	5004	Utilities	水電費	expense	5000	1	1	NULL	5004	2026-02-27 09:07:42	2026-02-27 09:07:42
+27	5005	Insurance	保險	expense	5000	1	1	NULL	5005	2026-02-27 09:07:42	2026-02-27 09:07:42
+28	5006	Equipment & Supplies	器材及用品	expense	5000	1	1	NULL	5006	2026-02-27 09:07:42	2026-02-27 09:07:42
+29	5007	Marketing	推廣費用	expense	5000	1	1	NULL	5007	2026-02-27 09:07:42	2026-02-27 09:07:42
+30	5008	Depreciation	折舊	expense	5000	1	1	NULL	5008	2026-02-27 09:07:42	2026-02-27 09:07:42
+31	5009	Bank Charges	銀行手續費	expense	5000	1	1	NULL	5009	2026-02-27 09:07:42	2026-02-27 09:07:42
+32	5010	Miscellaneous Expenses	雜項開支	expense	5000	1	1	NULL	5010	2026-02-27 09:07:42	2026-02-27 09:07:42
+33	5011	Transportation	交通費	expense	5000	1	1	NULL	5011	2026-02-27 09:07:42	2026-02-27 09:07:42
+
+-- === mapping_rules (完整資料) ===
+id	name	name_zh	record_type	category	payment_method	debit_account_code	credit_account_code	is_deferred	is_system	is_active	priority	description	created_at	updated_at
+1	Tuition Fee - Bank	學費收入 — 銀行	income	tuition	bank	1001	4001	0	1	1	10	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+2	Tuition Fee - Cash	學費收入 — 現金	income	tuition	cash	1002	4001	0	1	1	10	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+3	Tuition Fee - FPS	學費收入 — FPS	income	tuition	fps	1001	4001	0	1	1	10	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+4	Tuition Fee - Default	學費收入 — 預設	income	tuition	NULL	1001	4001	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+5	Exam/Grading Fee	考帶費收入	income	exam_fee	NULL	1001	4002	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+6	Competition Fee	比賽費收入	income	competition_fee	NULL	1001	4005	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+7	Equipment Fee	用具費收入	income	equipment_fee	NULL	1001	4003	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+8	Other Income	其他收入	income	other_income	NULL	1001	4005	0	1	1	0	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+9	Competition Entry Fee	比賽報名費	expense	competition_entry	NULL	5010	1001	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+10	Photography	攝影	expense	photography	NULL	5010	1001	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+11	Promotion	宣傳	expense	promotion	NULL	5007	1001	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+12	Dinner	聚餐費	expense	dinner	NULL	5010	1001	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+13	Supplier	供應商費用	expense	supplier	NULL	5006	1001	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+14	Venue Rental	場地租金	expense	venue_rental	NULL	5001	1001	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+15	Office Rental	Office租金	expense	office_rental	NULL	5001	1001	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+16	MPF	MPF	expense	mpf	NULL	5003	1001	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+17	Coach Fee	教練費	expense	coach_fee	NULL	5002	1001	0	1	1	1	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+18	Other Expense	其他支出	expense	other_expense	NULL	5010	1001	0	1	1	0	NULL	2026-02-27 09:07:42	2026-02-27 09:07:42
+
+-- === students (完整資料) ===
+id	name	birthDate	phone	venue	scheduleDay	scheduleTime	feePerQuarter	beltLevel	createdAt	updatedAt	student_number	gender	email	address	emergency_contact	emergency_phone	dojo_id	coach_id	current_belt_level_id	status	join_date	notes	password	coach
+1	???	2019-07-27	90971420	????	???	4:00-5:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$eGZECe05dIHBRNA.kQsiC.cn1opWCTLrVG8B8UMBMSXHqZF4N5DLO	?????
+2	???	2018-02-19	92756760	????	???	4:00-5:00pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$g6VI5pG0pjefSW4tJxUSHeMgYi4RXZV38qDNnQPpWkuxtOHq4vrza	?????
+3	???	2019-02-07	67351169	????	???	4:00-5:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$LkDo0qvbcKN/GbuuWNRF0.bLh1/03JvhEGxaWVAyN68IlGAWRTAbK	?????
+4	???	2019-02-17	62556224	????	???	4:00-5:00pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$tHerQAZzxyYT1NkWjhleN.DRWhtm9um087BlrViD4HxHHcCxEhECC	?????
+5	???	2017-10-18	96224749	????	???	4:00-5:00pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$UTUrfaiJWRIos0pW70BEwutqFd11SqhTPJNZcUKe.YbDk8ACzRZnS	?????
+6	???	2019-10-24	90192599	????	???	4:00-5:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$uIqm.qmTVjaNT5MRvPSmmuwTyQoNUaQ8zFsCMD3T3p3f6zTnP15tq	?????
+7	??	2019-10-19	65015000	????	???	4:00-5:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$vuMvtsXa178ngQyByVDaAO8SxDG1y7QwckAhW/5sHuXm2ug0Lspuy	?????
+8	???	2019-01-02	69061109	????	???	4:00-5:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$frXK6Nzp5Re00pB8Vorx6u3i4FalEb6hszVvy963phAwMQN1FvhNe	?????
+9	???	2017-04-20	92365066	????	???	4:00-5:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$KblLpgn7OSwdW6XXJmTuOORN3bEpoeTjc5lwLofK0oYdH3GjvyEiq	?????
+10	???	2019-07-22	96799633	????	???	5:00-6:00pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$/Q48fo.00K0YL5ed6NyoUeixE5GObt/Q4fIW7kODD1ypyHYhXJeL6	?????
+11	???	2017-10-05	94030392	????	???	5:00-6:00pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$ek3qRiEOcooKl7jNCwX8luEpveu2f06GF12WWJoAmx.pJqBAblTmq	?????
+12	???	2020-01-12	63521866	????	???	5:00-6:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$eD1tBWd2PQRfc6mN5RVlROoUawJi8BiRtQBx6k9sfj0ZBeSfmjZd.	?????
+13	???	2019-02-13	96613148	????	???	5:00-6:30pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:58	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$0BNQ619GQ2crkatBpc6TJOBiGYI0sjbvOGkJesKCi3NMRoFDO5H6i	?????
+14	???	NULL	62270911	????	???	5:00-6:00pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$tPDw.Eh6zVqZSTvooED0auW/jhqvXy7G0eP3LXGi7OT1jdLBN2Dtm	?????
+15	???	2020-07-23	92557326	????	???	4:00-5:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$OPKbsyDnfhbTfT/x.uCKUeinODVRi2N6GvevBp.IaUopTCH4pvjee	?????
+16	???	2019-12-06	92760849	????	???	5:00-6:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$qUiGvBZtq2rBFqlPIJ5RqODLP49Z5h2f5D3TLj8aJdZ3fvgT4297C	?????
+17	???	2023-03-11	92760849	????	???	5:00-6:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$eLoDLwyedseoQu4roDtWK.sKD0HPIRtZL9v91KIurAq0.ZmLcv3Aa	?????
+18	???	2020-03-23	90594674	????	???	5:00-6:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$sffn4s1c4Tuz4LF.E/MHo..uO1HWTJTfLCzu2gD7YAaOxZqPDGurO	?????
+19	???	2022-02-17	91335093	????	???	5:00-6:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$fZacwiC1HQIi.5AxP/e2DuSGTaYPeEyz54v.7HZgGSxaGzToRCMRi	?????
+20	???	2020-07-13	92355055	????	???	6?00-7?00	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$kgF0ixuVQBP/J1lFboOMxuoFw3LVATXp3BgQGa9R20U8GgrdfKwFC	?????
+21	???	2019-02-08	91224220	????	???	6?00-7?00	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$fmztO4mEDTabhohLeAh6TuVyLIzDy43WMRJOLn5cKYwigRifstIlq	?????
+22	???	NULL	54888308	????	???	6?00-7?00	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$kr2FV.5cBzP5.IjwYa30w.Z1kXXKOCuGicCcIxnisC.k9VxGweseW	?????
+23	???	NULL	92355055	????	???	6?00-7?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$dDVIErtqzU3NWaS2r7Y.VetKqno9R1Czb4X4hwkXLhSFvWhrQzWt.	?????
+24	???	2020-06-02	61980823	????	???	4:00-5:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$3rmGrIpFM6zc0NMLPuO5d.ZqHU.Vros2eEidy3SO4dfDf4T.BTkJG	?????
+25	???	2020-05-09	97100235	????	???	4:00-5:00pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$QWD4Gl4n/iDL.7fw5LffYO1ddb3FZ84LgLpA.fV/7y0o3Lwslx6aG	?????
+26	???	2020-06-01	61946276	????	???	4:00-5:00pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:01:59	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$KdSVf56ViFrspvb57cFvcucRh1T9nRBVNhX4imfnrjJ5tgRqeQ3aW	?????
+27	???	2020-02-22	64630040/61760596	????	???	4:00-5:00pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:00	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$QaIqUvYrnJ/Bh.ZmjKj0E.YEO7M5xpHWGylTZAGGqqINUuC8o7VNW	?????
+28	???	2020-08-05	67643898	????	???	5:00-6:30pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:00	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$x61pfXABRNkfxVcPuzi/e.wureXKXP02C.5cQQo3w/hvvGz99.xX2	?????
+29	???	2019-11-23	90979276	????	???	4:00-5:00pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:00	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$wmNa0Sxs5eYb8ONP/Rav2u99lzpcrAcs1M4lEF5hQTl/M2frSkmU2	?????
+30	???	2020-03-18	91316861/60181061	????	???	4:00-5:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:00	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$CP5ItVX6dN1HmJuVTW2k5uH4hjXswSuSAm1fhvwIacM3EPKnJnkI.	?????
+31	???	2020-06-16	97887265	????	???	4:00-5:00pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:00	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$sn4lQXkj/ODQfyyC9em.EOWRY7oDSYBKHXY53aEJ9m2/fiKW2HoDO	?????
+32	???	2014-12-16	92330424	????	???	5:00-6:30pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:00	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$MbpdMgVJQg5Z9wGoa8.Lg.P2XPHW9tcN92Q4g.zfomWX7s3ot9HoG	?????
+33	???	NULL	90303283	????	???	10:00-11:30am	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:00	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$/i/ySoClAvXsfDwGQB.NDO6YAEgjyTO5gvghzh5hVa8QW/kHbqixa	?????
+34	???	NULL	55792767	????	???	5:00-6:30pm	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:00	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$jr5/eJ/P9MpOiqDFSSVuSeW.YgYgWxKiaTosUSUdkqBi5lsHRaQUq	?????
+35	???	2016-10-31	84891247	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:00	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$j2l6JFoa91cngh9FaQaxy.IGMH0YMnNP7kYamGhZ7bRj0VkcDNqje	?????
+36	???	2014-04-21	61820245	????	???	5:00-6:30pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:00	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$dGnEiQ1bi/C4C7cf1u6FGu/B38oftPf5SwWOckYC210BSAM/hB3q.	?????
+37	???	2014-08-15	98103369	????	???	5:00-6:30pm	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$erqu462/BzwH63xz18hisOaypUpTKvKitmyi9yWNSkvIDn4XZW6BC	?????
+38	???	2022-01-31	98139623	????	???	6?00-7?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$05m0CK623JTZUGmdXLgI7eLV7L14kD0FVBU.iKdk4mjGP.cZILqYq	?????
+39	??	2022-05-20	95148890	????	???	6?00-7?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$kr4ZqhPeuzZMxOy7WmHjx.6asn.shbRpvU0y/iklPGIY33lS3YsdO	?????
+40	???	2021-11-29	68068683	????	???	6?00-7?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$OczWMugfBKFiEYHepQz3PuAy/saL0mLWobUrj5avgQ7LAlu.bI/gy	?????
+41	???	2022-03-03	96735433	????	???	6?00-7?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$U0exB0yN6PYtl5C2J9ZBH.Io6QF6k0f2ACpnCQpPkrI8xlPAJ87OO	?????
+42	???	NULL	61246186	????	???	6?00-7?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$aqkSpXatIfx2r8q7CN5HCusF/4b5yUUCty31atDe3CeARLaolMfJm	?????
+43	???	2022-03-20	62034209	????	???	6?00-7?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$gUYSk1S6fUZ9GKjpypxY..7LJWzQAhqo2Ao.UXSAIXTtNtB6wldZq	?????
+44	???	2017-03-19	96852018	?????	???	6?00-7?00	1440.00	???	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$RK3PikbDL5.ZJuJIFDeDheAEJtZ14bC731p/d3yTSFmK38cebA6W2	?????
+45	???	2021-11-14	62066990/97352974	?????	???	6?00-7?00	1440.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$DPcoSx9eQnl97PKhbOuZauNpEpxpOtzH2tP/pTw7MR0MJkzQ2TUC.	?????
+46	???	2018-09-05	57266698	?????	???	6?00-7?00	1440.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$/C8utUQQHI8hZ9Wy007HZec/oaPz25uWTEEEkpXlXCuss1oXIwEmG	?????
+47	???	2017-11-09	68431041	?????	???	6?00-7?00	1440.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$Nqyfu1Ycdi6/soPNzMKKv.jS5Dt9pnqdQa5HC2ftC.WrWynYQX86y	?????
+48	???	2019-12-03	67090499	?????	???	6?00-7?00	1440.00	??	2026-02-21 18:00:02	2026-02-21 18:02:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$whB4BkxNLDUz58wPOeb7yeQ6Q2fslXt1tNNBam9Cco9QwP0y7I4TW	?????
+49	???	2013-06-20	60686558	?????	???	6?00-7?00	1440.00	???	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$/cqPn3Nh.Nt9rEDWt/rCUOOVvDp/.ktEuDEBLfCsoJ5HM4iyab1xm	?????
+50	???	2011-10-23	97992389	?????	???	6?00-7?00	1440.00	???	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$khTbzmntk.5anQ4bQaS6COK03lNnSiYBQwcohcBL8mee0.BroXCDK	?????
+51	???	2016-07-16	97296818	?????	???	6?00-7?00	1440.00	??	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$6xfEfhmh3BXsHG/j.KvjjOyT9LbYWVfFTDhgJEmPH.PPfOp4ExQgO	?????
+52	???	2010-04-05	98240781	?????	???	6?00-7?00	1440.00	???	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$CCoTdRMngsCTBe9WNc9Apub6wYktFFQcFFNY2A6CVPV9praM9BoCe	?????
+53	???	2018-02-21	91234338	?????	???	6?00-7?00	1440.00	??	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$.Mj7SNed/yTxIccYS627fO64/2Rd76OgUhfUWn3MpWf8xZD9Cz0By	?????
+54	???	2018-02-21	91234338	?????	???	6?00-7?00	1440.00	???	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$Qxy1Zqn9qROLYSbP4G4SU.S/N4F6NOYCGEZW7jWJ9JsVUjbKTZjNW	?????
+55	???	2019-12-03	67544963	?????	???	6?00-7?00	1440.00	???	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$rlxtBzsFAH.kyLGwBJr0feE8n0Y0M0nBhS8kGQu/mIPFBvLGhdskC	?????
+56	???	2017-11-20	90965636	?????	???	6?00-7?00	1440.00	???	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$aE8L1CXOcoQyfNSLAS041e3rtlEAtVhOPodejUf2p4KaJy3aoYaeW	?????
+57	???	2019-12-16	95107971	?????	???	6?00-7?00	1440.00	??	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$Mme9q0zvE5FWPkDDFjzGMep55J0Tk1MQnqlVClK2KFEH1l0.qv43.	?????
+58	???	2014-06-01	95107971	?????	???	6?00-7?00	1440.00	???	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$8ZWQ6lDCDMfH.WMNxAd0petJj31OYl3PEGzU/oXqGJcFz5sSQqZJm	?????
+59	???	2016-01-15	95107971	?????	???	6?00-7?00	1440.00	???	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$GO8jJn3zZBDurFSKfrtXbuBl.PckqO2cOZ0KgOuUJIC2wXBoqeUY6	?????
+60	???	2020-04-17	61051516	?????	???	6?00-7?00	1440.00	??	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$R.AwWesb7XeSqpsiOZediuLsvuGUGQ.0M7Zd280xyIxxC2xGdkSFC	?????
+61	???	2020-04-20	61051516	?????	???	6?00-7?00	1440.00	??	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$Uyjk5jrfKZ3wJjmdIbJNverFpruAK3uhoe8jzro7t6fF97vCRnQaa	?????
+62	???	2021-09-29	97339729	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$0O7J4tfhj13fKU.4WGoALemSJXkGyZgCuQJXYmcpwmLGOVjSVsPXO	?????
+63	???	2013-07-31	91392077	????	???	3?00-4?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:02	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$2c3qd1dB7ocCa.9OklSFSe2ZQI6V3IFvQ3rmxvTwEer7KK4RUF8su	?????
+64	???	NULL	93498497	????	???	10?00-11?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$rEQHSDJnYJ8q7Mf67DqbgeldH02bbioZyX35Cl/Ww770pp.SEux.m	?????
+65	???	2011-05-20	90835119	????	???	10?00-11?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$y6BPP73o3W46WV/BhunuKO5NDD38yy6vgWz7aJoIhUJkIc07WrrqW	?????
+66	???	2017-11-04	66228863	????	???	10?00-11?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$kyXKnwPrJ4Wy0o0AZ9cIzuM6kyOBVI2zZIy1n2V1gxujqc2TUOsCS	?????
+67	???	2019-10-22	98356407	????	???	10?00-11?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$tTNXeBVHUpx9A4lzXK0YwunjjGsk./bloNEHPh2cDph8BoNR0/pEa	?????
+68	???	2019-10-23	56333770	????	???	10?00-11?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$IO1D7OAoxXtjp1/EiAT1neqBjdZz3L6VWK9s86vv8Rprfo0ZWT4k6	?????
+69	???	2020-06-18	69289234	????	???	10?00-11?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$qN/fkK5iQoMvQDiyTu7IROE7SBI8CIYedscN7/PfPucSwgVLYWKGq	?????
+70	???	2020-01-28	98467227	????	???	10?00-11?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$CvaXUX.EyJFFzVcDPxIZVumAwVKhldy8lGPv/50aNXOhdJ4z8XsWW	?????
+71	???	2020-10-22	90423665	????	???	10?00-11?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$YzS7RWleYvNsMmqeiKRXCui2vSblOrTLMbk0n76/MlHMu9LNifbN.	?????
+72	???	2019-09-18	60977125	????	???	10?00-11?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$0X2P7aX7Iw/imxW7DlX9yuLlQ2kx9jwb0M31umgnywB7rr9jKpzzW	?????
+73	???	2017-12-07	66226137	????	???	10?00-11?00	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$BE8lGcVVDaGaOZPi6nH.Nefgjv/QMzjlhrO76g7aDVId.v.t/26Uu	?????
+74	???	2016-07-01	96124300	????	???	10?00-11?00	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$J7OS6cCN5AWqG62QDh597uPIFnvKl3T61FrC6ZBtCQPUHBjy0t8YS	?????
+75	???	2019-10-12	64849229	????	???	10?00-11?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$l.OVa4q936EBcLj0bxvd1OPNVl3/gBuC04iV28i1oUvopBJYsFMOG	?????
+76	???	2017-07-12	93498497	????	???	10?00-11?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$OuI6157p5WvLCTt3ENI/AetrbTFHwA2FJbituRaoIz6Jko7Atdmz.	?????
+77	???	2017-07-12	93498497	????	???	10?00-11?00	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:03	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$ShFewLCI5W7DgtG/1qUpEO.FJItlfaBCKxIINR0tpUqj2h.JSVE.y	?????
+78	???	2021-04-07	64849229	????	???	10?00-11?00	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$.e3CGpjUP08omVcx9y7KBeEADAzzIye01ynK4vbmSeZFsKrYXwLXu	?????
+79	???	2021-08-07	98066019	????	???	11?00-12?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$IGP.WFGOXMkzzt2nNtsgruO5.2HOBZ58dcFhPfWADjZ8nxrnQlB3a	?????
+80	???	2022-09-10	92853082	????	???	11?00-12?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$NSTOFuogsMgt/BLJvwAnUO0nZKbj6RgJakroSdKu1zrFN50bdXIYC	?????
+81	???	2022-04-15	67730148	????	???	11?00-12?00	1800.00	??	2026-02-21 18:00:02	2026-02-23 09:48:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	inactive	NULL	 [2026Q1??]	$2b$10$ZTAlDRQ7tD4fscRIgjh3tOkmYPIEyZsAnVvtfYUa.aCB.743bpWsO	?????
+82	???	2012-08-22	93339521	????	???	3?00-4?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$j1m5Ccw6nlmbFPcmCMXzUO9Pt4SoAjUBJ5ObT2me0kTte.CwmS3NC	?????
+83	???	2019-01-26	98597310	????	???	3?00-4?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$FOb70fk6glUZopRpf2EcA.kKaDNmsUrYV23VZC/ZlCz98T5Akqmi2	?????
+84	???	2015-06-07	98350858	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$St7K0o.uCXpGniT/byT7NO22vjqoQQiOEwvdR0GVWI7YaO3CzBcXm	?????
+85	???	2016-01-21	97478091	????	???	3?00-4?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$Ja.SEhDwkNOWfaFrCfnpAOCflHZhHLkNWL0m.wEGqKbAtyBxENW2O	?????
+86	???	2012-03-12	98483822	????	???	3?00-4?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$B5e6TcfbN04/6hj83AEPb.54az4NamvBZOXpxjcgFD3RKBQMJSDH6	?????
+87	???	NULL	92507585	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-23 09:49:23	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	 [2026Q1????,??1?4?]	$2b$10$s/GwjX2PTTkz/vzIQyjmk.GdgYVOlsvIFTkF440FnUrsCGh.bJ1LS	?????
+88	???	2012-12-18	61214704	????	???	3?00-4?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$eNw9DDk/U.a6cfjwLocU7uVec/5xwWlWW5t9.6A3c9cO8ndU.kNx6	?????
+89	???	2015-01-05	57033893	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$HqRwjChJ8rbods.AA51hNuyfdmCJLCQbrJ.S9a3XAw1JZR.QM/FGa	?????
+90	???	2014-12-02	92729422	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$mV0eeOTnP/..Q1wcKG5TbOdhfyuqSLoj0WVdwci6mO0g3YW8BxdnS	?????
+91	???	2016-09-19	92729422	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:04	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$0gaP/IApOZQR9Kf7Y890xeV9wJGH1skx2k9zhRaL3zvn/zrDZOOV6	?????
+92	???	2016-03-03	60777261	????	???	6?00-7?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$t.r2SfOTrNYWcLGk8v6ILO9Rt4TtmzToJ9QCpqyJVb/VKaf5OpAhu	?????
+93	???	2023-12-23	62223444	????	???	6?00-7?00	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$E9jBSu.IZR2TGboF.cxyteHthT8F93KxVIH9IagyB8tXF62tlnxaK	?????
+94	???	2016-03-26	96849267	????	???	3?00-4?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$wHvnYHpyiXgAkm92sQ7tYOAJEv//5FARqPdwg5V.RzP15KxDwERVy	?????
+95	???	2013-11-28	96019280	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$L1V8pZ7E4KdX1cQchdPbEOiycrM1x/R/gQzqFO2JM26fYR8GFyNWq	?????
+96	???	NULL	96769072	????	???	6?00-7?00	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$ZwD4Z7htLTmf7JDhicUzCuvlQVads6KbHWWxiKOUx8X6DdB6HiAhW	?????
+97	???	NULL	92760188	????	???	6?00-7?00	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$8nqtndeMQyfvilGsYA7tEuEbWEziR/8RHgymWk5uWPqnVULnV8PJO	?????
+98	???	NULL	61521528	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$1bTBQiHn4FtkVv7k0LsOdeDvj7SY4BUs5Q7mufPVYxBJ3nvlL9zX2	?????
+99	???	2017-04-14	62238604	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$Erj0D6/jEoJ.6LYaQqmdPe0T9Cz3Ckb77wGdpC18cbAW5hxP84ILm	?????
+100	???	2016-08-18	91813441	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$M4mLD3lvn/ZU7JK1Ej3bDeTB4LM.AIgAS.YFCEGlfAl/U8xB//tm.	?????
+101	???	2013-10-08	53822755	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$IknCfAS2RIo.o7C3da9vuezH2dNba3lHjL8BtscuFvNLDh6Z1Ohh.	?????
+102	???	2013-08-31	97291797	????	???	3?00-4?30	1800.00	???	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$NlsYs/BVWNMr8ogG3gSiPuamSdth21fX/RSk3p04TEPwUstevJsA.	?????
+103	???	2018-01-08	93537253	????	???	3?00-4?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$MYHG1YWi3ftAWRy6DgveEeYRQ.pHGkmq4xpK1FxTeuaprMnV1Qu/C	?????
+104	Andre	2016-03-26	96849267	????	???	3?00-4?30	1800.00	??	2026-02-21 18:00:02	2026-02-21 18:02:05	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	$2b$10$SyFecjB8tnmkrhRe3W5gPeEk.xHPNteCSojbejmDYVKimJ0USZOk.	?????
+163	???	2013-08-01	91204372	????	???	6:00-7:00pm	1440.00	??	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+164	???	NULL	64321400	????	???	6:00-7:00pm	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+165	???	NULL	93516499	????	???	6:00-7:00pm	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+166	???	NULL	93516499	????	???	6:00-7:00pm	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+167	???	NULL	91204372	????	???	6:00-7:00pm	1560.00	??	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+168	???	NULL	96402758	????	???	6:00-7:00pm	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+169	???	2009-09-24	96402758	????	???	6:00-8:00pm	1440.00	??3?	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+170	???	NULL	98010509	????	???	6:00-8:00pm	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+171	???	NULL	94929714	????	???	6:00-8:00pm	1440.00	??	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+172	???	NULL	62970521	????	???	11:00-12:00am	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+173	???	NULL	93461169	????	???	6:00-7:00pm	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+174	???	NULL	93461169	????	???	6:00-7:00pm	1560.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+175	???	NULL	94682928	????	???	6:00-8:00pm	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+176	???	NULL	92027646	????	???	11:00-12:00am	1800.00	??2?	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+177	???	NULL	61595401	????	???	6:00-7:00pm	1800.00	??	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+178	???	NULL	67685606	????	???	5:00-6:00pm	1440.00	??	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+179	???	NULL	67685606	????	???	5:00-6:00pm	1800.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+180	???	NULL	96615863	?????	???	5:00-6:00pm	1560.00	??	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+181	???	NULL	60208412	?????	???	5:00-6:00pm	1560.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+182	???	NULL	94620771	?????	???	5:00-6:00pm	1800.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+183	???	NULL	94620771	?????	???	5:00-6:00pm	1800.00	??	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+184	???	NULL	62242679	?????	???	5:00-6:00pm	1440.00	??	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+185	???	NULL	59910302	?????	???	5:00-6:00pm	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+186	???	NULL	59910302	?????	???	5:00-6:00pm	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+187	???	NULL	63313232	?????	???	5:00-6:00pm	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+188	???	NULL	92168463	?????	???	9:00-10:00am	1440.00	???	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+189	???	NULL	98544052	?????	???	9:00-10:00am	1800.00	??	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+190	???	NULL	69924655	?????	???	9:00-10:00am	1440.00	??	2026-02-23 18:12:40	2026-02-23 18:12:40	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	active	NULL	NULL	NULL	?????
+
+-- === elite_students (完整資料) ===
+id	name	phone	password	belt_level	coach	schedule_day	schedule_time	fee_per_class	remaining_classes	status	notes	created_at	updated_at	join_date
+1	???	90971420	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2025-03-23 00:00:00
+2	???	92756760	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2024-09-22 00:00:00
+3	???	67351169	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2024-10-27 00:00:00
+4	???	62556224	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2024-09-22 00:00:00
+5	???	96224749	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2024-09-22 00:00:00
+6	???	90192599	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+7	??	65015000	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2025-02-26 00:00:00
+8	???	92365066	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:29:09	2024-03-17 00:00:00
+9	???	94030392	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2024-10-27 00:00:00
+10	???	92355055	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+11	???	90303283	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:29:25	2022-12-27 00:00:00
+12	???	55792767	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:29:19	NULL
+13	???	84891247	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:29:01	2023-03-12 00:00:00
+14	???	96852018	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:29:31	NULL
+15	???	62066990/97352974	NULL	NULL	NULL	???	12:00-2:00pm	0.00	0	inactive	NULL	2026-02-21 18:00:02	2026-02-22 18:03:34	NULL
+16	???	57266698	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:33:24	NULL
+17	???	67090499	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2025-02-26 00:00:00
+18	???	97992389	NULL	NULL	NULL	???	12:00-2:00pm	0.00	0	inactive	NULL	2026-02-21 18:00:02	2026-02-22 18:03:34	NULL
+19	???	98240781	NULL	NULL	NULL	???	12:00-2:00pm	0.00	0	inactive	NULL	2026-02-21 18:00:02	2026-02-22 18:03:34	NULL
+20	???	95107971	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2024-09-08 00:00:00
+21	???	95107971	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2024-09-08 00:00:00
+22	???	97339729	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2025-01-25 00:00:00
+23	???	62242679	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:04	NULL
+24	???	97291797	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2023-01-15 00:00:00
+25	???	61702662	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:37:12	2023-03-05 00:00:00
+26	???	98350858	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2023-01-29 00:00:00
+27	???	97478091	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2022-12-27 00:00:00
+28	???	98597310	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2023-01-15 00:00:00
+29	???	67685606	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:38:20	NULL
+30	Luna	67580607	NULL		?????	???	4:30-6:30pm	0.00	0	active		2026-02-21 18:00:02	2026-02-23 10:04:42	2022-12-04 00:00:00
+31	???	92266599	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:35:14	2022-12-04 00:00:00
+32	???	92266599	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:35:17	2022-12-04 00:00:00
+33	???	95091713	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:34:01	NULL
+34	???	95091713	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:34:05	NULL
+35	???	61214704	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2022-12-27 00:00:00
+36	???	92507585	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2023-03-19 00:00:00
+37	???	93537253	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2024-03-03 00:00:00
+38	???	61521528	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+39	???	91392077	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2024-07-07 00:00:00
+40	???	62238604	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:33:20	2024-03-10 00:00:00
+41	???	62378265	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:47	2025-02-23 00:00:00
+42	???	92760188	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2024-03-03 00:00:00
+43	???	96769072	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:34:50	2024-03-03 00:00:00
+44	???	53822755	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2025-02-22 00:00:00
+45	???	96849267	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	2025-08-10 00:00:00
+46	???	64849229	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:33:08	2025-08-31 00:00:00
+47	Enzo	67580607	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+48	???	94682928	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:04	NULL
+49	???	64321400	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:04	NULL
+50	???	93461169	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:04	NULL
+51	???	93461169	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:04	NULL
+53	???	91234338	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+54	???	91234338	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+55	???	93498497	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+56	???	93498497	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+57	???	69924655	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:04	NULL
+58	???	60686558	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:29:36	NULL
+59	???	93052574	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:37:46	NULL
+60	???	95107971	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+61	???	67685606	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:04	NULL
+62	???	61980823	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:24	NULL
+63	???	96615863	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:04	NULL
+64	???	96769072	NULL	NULL	NULL	???	12:00-2:00pm	0.00	0	inactive	NULL	2026-02-21 18:00:02	2026-02-22 18:03:34	NULL
+65	???	96124300	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+66	???	90965636	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:31:09	NULL
+67	???	92027646	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:36:04	NULL
+68	???	90979276	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+69	???	66226137	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+70	???	91316861	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+71	???	56333770	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+72	???	96799633	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+74	???	96613148	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+75	???	98356407	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+76	???	60777261	NULL	NULL	?????	???	4:30-6:30pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-26 09:29:54	NULL
+77	???	63521866	NULL	NULL	?????	???	12:00-2:00pm	0.00	0	active	NULL	2026-02-21 18:00:02	2026-02-23 10:04:42	NULL
+
+-- === 繳費記錄統計 ===
+status	cnt	total
+pending	4	2400.00
+confirmed	89	150360.00
+
+-- === 精英班繳費統計 ===
+status	cnt	total
+confirmed	70	381600.00
+
+-- === 會計記錄統計 ===
+category	cnt	total
+coach_fee	1	300.00
+exam_fee	1	200.00
+office_rental	1	750.00
+other_income	1	150.00
+tuition	159	531960.00
+venue_rental	1	500.00
+
+-- === 日記帳統計 ===
+fiscal_year	fiscal_month	cnt	posted
+2022	12	3	3
+2023	1	1	1
+2023	3	1	1
+2024	3	4	4
+2024	7	1	1
+2024	9	1	1
+2024	10	1	1
+2024	12	2	2
+2025	1	1	1
+2025	2	5	5
+2025	3	1	1
+2025	6	2	2
+2025	7	4	4
+2025	8	4	4
+2025	10	3	3
+2025	11	3	3
+2026	1	77	77
+2026	2	27	27
+
+-- === 試算表 (2026) ===
+code	name	type	total_debit	total_credit
+1001	Bank	asset	196310.00	1550.00
+4001	Tuition Fee Income	revenue	0.00	195960.00
+4002	Grading/Exam Fee Income	revenue	0.00	200.00
+4005	Other Income	revenue	0.00	150.00
+5001	Venue Rental	expense	1250.00	0.00
+5002	Coach Fee	expense	300.00	0.00
+
+================== END OF PART 6 ==================

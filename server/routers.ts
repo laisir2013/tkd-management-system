@@ -185,7 +185,7 @@ export const appRouter = router({
     // 家長登入 - 同時檢查恆常班和精英班學生表
     loginParent: publicProcedure
       .input(z.object({ phone: z.string(), password: z.string() }))
-      .query(async ({ input }) => {
+      .mutation(async ({ input }) => {
         const db = await getDb();
         if (!db) return { success: false, error: "系統錯誤" };
         
@@ -243,7 +243,7 @@ export const appRouter = router({
     // 教練登入 - 只檢查 role='coach' 的 users
     loginCoach: publicProcedure
       .input(z.object({ phone: z.string(), password: z.string() }))
-      .query(async ({ input }) => {
+      .mutation(async ({ input }) => {
         const db = await getDb();
         if (!db) return { success: false, error: "系統錯誤" };
         
@@ -288,7 +288,7 @@ export const appRouter = router({
     // 管理員登入 - 只檢查 role='admin' 的 users
     loginAdmin: publicProcedure
       .input(z.object({ phone: z.string(), password: z.string() }))
-      .query(async ({ input }) => {
+      .mutation(async ({ input }) => {
         const db = await getDb();
         if (!db) return { success: false, error: "系統錯誤" };
         
@@ -1347,7 +1347,7 @@ export const appRouter = router({
           console.log(`[Receipt] 設為待審核: ${pendingReason}`);
         }
         
-        await insertPaymentRecord({
+        const newPaymentId = await insertPaymentRecord({
           studentId: input.studentId,
           paymentPeriod: input.paymentPeriod,
           customMonths: input.customMonths || null,
@@ -1364,31 +1364,18 @@ export const appRouter = router({
         // 自動同步到會計記錄（確認的繳費才同步）
         if (recordStatus === 'confirmed') {
           try {
-            // 取得剛插入的 payment record ID
-            const db = await getDb();
-            if (db) {
-              const latestPayments = await db.select().from(schema.paymentRecords)
-                .where(and(
-                  eq(schema.paymentRecords.studentId, input.studentId),
-                  eq(schema.paymentRecords.status, 'confirmed')
-                ))
-                .orderBy(desc(schema.paymentRecords.id))
-                .limit(1);
-              if (latestPayments.length > 0) {
-                await syncPaymentToAccounting({
-                  paymentRecordId: latestPayments[0].id,
-                  transactionDate: receiptTransferDate || new Date(),
-                  amount: extractedAmount,
-                  bank: extractedBank,
-                  studentName: student.name,
-                  coachName: student.coach,
-                  dojoName: student.venue || null,
-                  category: 'tuition',
-                  receiptUrl: stampedReceiptUrl,
-                  receiptKey: stampedReceiptKey,
-                });
-              }
-            }
+            await syncPaymentToAccounting({
+              paymentRecordId: newPaymentId,
+              transactionDate: receiptTransferDate || new Date(),
+              amount: extractedAmount,
+              bank: extractedBank,
+              studentName: student.name,
+              coachName: student.coach,
+              dojoName: student.venue || null,
+              category: 'tuition',
+              receiptUrl: stampedReceiptUrl,
+              receiptKey: stampedReceiptKey,
+            });
           } catch (e) {
             console.error("Auto sync to accounting failed:", e);
           }
@@ -1422,7 +1409,7 @@ export const appRouter = router({
         }
         
         // 創建繳費記錄,不需要收據圖片
-        await insertPaymentRecord({
+        const newPaymentId2 = await insertPaymentRecord({
           studentId: input.studentId,
           paymentPeriod: "CUSTOM",
           customMonths: [`${input.year}-${String(input.month).padStart(2, '0')}`],
@@ -1440,26 +1427,14 @@ export const appRouter = router({
         try {
           const student = await getStudentById(input.studentId);
           if (student) {
-            const db = await getDb();
-            if (db) {
-              const latestPayments = await db.select().from(schema.paymentRecords)
-                .where(and(
-                  eq(schema.paymentRecords.studentId, input.studentId),
-                  eq(schema.paymentRecords.status, 'confirmed')
-                ))
-                .orderBy(desc(schema.paymentRecords.id))
-                .limit(1);
-              if (latestPayments.length > 0) {
-                await syncPaymentToAccounting({
-                  paymentRecordId: latestPayments[0].id,
-                  transactionDate: new Date(),
-                  amount: input.amount,
-                  studentName: student.name,
-                  coachName: student.coach,
-                  category: 'tuition',
-                });
-              }
-            }
+            await syncPaymentToAccounting({
+              paymentRecordId: newPaymentId2,
+              transactionDate: new Date(),
+              amount: input.amount,
+              studentName: student.name,
+              coachName: student.coach,
+              category: 'tuition',
+            });
           }
         } catch (e) {
           console.error("Auto sync to accounting failed:", e);
@@ -1631,7 +1606,7 @@ export const appRouter = router({
         const student = await getStudentById(input.studentId);
         if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: '學生不存在' });
 
-        await insertPaymentRecord({
+        const confirmPmtId = await insertPaymentRecord({
           studentId: input.studentId,
           year: input.year,
           paymentPeriod: input.quarter,
@@ -1648,27 +1623,15 @@ export const appRouter = router({
 
         // 自動同步到會計記錄 → 日記帳
         try {
-          const db = await getDb();
-          if (db) {
-            const latestPayments = await db.select().from(schema.paymentRecords)
-              .where(and(
-                eq(schema.paymentRecords.studentId, input.studentId),
-                eq(schema.paymentRecords.status, 'confirmed' as any)
-              ))
-              .orderBy(desc(schema.paymentRecords.id))
-              .limit(1);
-            if (latestPayments.length > 0) {
-              await syncPaymentToAccounting({
-                paymentRecordId: latestPayments[0].id,
-                transactionDate: new Date(),
-                amount: student.feePerQuarter,
-                studentName: student.name,
-                coachName: student.coach,
-                dojoName: student.venue || null,
-                category: 'tuition',
-              });
-            }
-          }
+          await syncPaymentToAccounting({
+            paymentRecordId: confirmPmtId,
+            transactionDate: new Date(),
+            amount: student.feePerQuarter,
+            studentName: student.name,
+            coachName: student.coach,
+            dojoName: student.venue || null,
+            category: 'tuition',
+          });
         } catch (e) {
           console.error("Auto sync to accounting after confirmPayment failed:", e);
         }
@@ -1705,7 +1668,7 @@ export const appRouter = router({
           else if (firstMonth <= 9) quarter = 'Q3';
           else quarter = 'Q4';
           
-          await insertPaymentRecord({
+          const qtrPmtId = await insertPaymentRecord({
             studentId: input.studentId,
             year: input.year,
             paymentPeriod: quarter,
@@ -1723,27 +1686,15 @@ export const appRouter = router({
 
           // 自動同步季繳到會計記錄 → 日記帳
           try {
-            const db = await getDb();
-            if (db) {
-              const latestPayments = await db.select().from(schema.paymentRecords)
-                .where(and(
-                  eq(schema.paymentRecords.studentId, input.studentId),
-                  eq(schema.paymentRecords.status, 'confirmed' as any)
-                ))
-                .orderBy(desc(schema.paymentRecords.id))
-                .limit(1);
-              if (latestPayments.length > 0) {
-                await syncPaymentToAccounting({
-                  paymentRecordId: latestPayments[0].id,
-                  transactionDate: new Date(),
-                  amount: String(feePerQuarter),
-                  studentName: student.name,
-                  coachName: student.coach,
-                  dojoName: student.venue || null,
-                  category: 'tuition',
-                });
-              }
-            }
+            await syncPaymentToAccounting({
+              paymentRecordId: qtrPmtId,
+              transactionDate: new Date(),
+              amount: String(feePerQuarter),
+              studentName: student.name,
+              coachName: student.coach,
+              dojoName: student.venue || null,
+              category: 'tuition',
+            });
           } catch (e) {
             console.error("Auto sync to accounting after quarterly confirmMonthlyPayment failed:", e);
           }
@@ -1751,7 +1702,7 @@ export const appRouter = router({
           // 單月繳費：為每個月建立一筆記錄
           const monthlyFee = Math.round((feePerQuarter / 3) * 100) / 100;
           for (const month of input.months) {
-            await insertPaymentRecord({
+            const monthPmtId = await insertPaymentRecord({
               studentId: input.studentId,
               year: input.year,
               paymentPeriod: 'MONTHLY',
@@ -1769,27 +1720,15 @@ export const appRouter = router({
 
             // 自動同步每筆月繳到會計記錄 → 日記帳
             try {
-              const db = await getDb();
-              if (db) {
-                const latestPayments = await db.select().from(schema.paymentRecords)
-                  .where(and(
-                    eq(schema.paymentRecords.studentId, input.studentId),
-                    eq(schema.paymentRecords.status, 'confirmed' as any)
-                  ))
-                  .orderBy(desc(schema.paymentRecords.id))
-                  .limit(1);
-                if (latestPayments.length > 0) {
-                  await syncPaymentToAccounting({
-                    paymentRecordId: latestPayments[0].id,
-                    transactionDate: new Date(),
-                    amount: String(monthlyFee),
-                    studentName: student.name,
-                    coachName: student.coach,
-                    dojoName: student.venue || null,
-                    category: 'tuition',
-                  });
-                }
-              }
+              await syncPaymentToAccounting({
+                paymentRecordId: monthPmtId,
+                transactionDate: new Date(),
+                amount: String(monthlyFee),
+                studentName: student.name,
+                coachName: student.coach,
+                dojoName: student.venue || null,
+                category: 'tuition',
+              });
             } catch (e) {
               console.error("Auto sync to accounting after monthly confirmMonthlyPayment failed:", e);
             }
@@ -1855,8 +1794,16 @@ export const appRouter = router({
         if (ctx.user.role !== 'admin') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
-        // TODO: Update user by ID instead of openId
-        // await updateUserRole(input.userId, input.role);
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '資料庫不可用' });
+        
+        const updateData: Record<string, any> = { role: input.role };
+        if (input.role === 'coach' && input.coachName) {
+          updateData.coach_name = input.coachName;
+        }
+        await db.update(schema.users)
+          .set(updateData)
+          .where(eq(schema.users.id, input.userId));
         return { success: true };
       }),
 
@@ -1970,7 +1917,7 @@ export const appRouter = router({
           }
           // 自選月份
           else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
-            const cms = typeof p.customMonths === 'string' ? JSON.parse(p.customMonths as string) : p.customMonths;
+            const cms = (() => { const v = p.customMonths; if (!v) return null; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p2 = JSON.parse(v); return Array.isArray(p2) ? p2 : null; } catch { return null; } } return null; })();
             if (Array.isArray(cms)) {
               cms.forEach((cm: string) => {
                 let mn: number | null = null;
@@ -2499,15 +2446,17 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return getEliteTrainingSchedules(input || {});
       }),
-    cancelSchedule: publicProcedure
+    cancelSchedule: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
         await updateEliteTrainingScheduleStatus(input.id, 'cancelled');
         return { success: true };
       }),
-    activateSchedule: publicProcedure
+    activateSchedule: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
         await updateEliteTrainingScheduleStatus(input.id, 'active');
         return { success: true };
       }),

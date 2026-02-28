@@ -8,8 +8,17 @@ interface SSEClient {
 
 const clients: Map<string, SSEClient> = new Map();
 let clientIdCounter = 0;
+const MAX_CLIENTS_PER_EXAM = 50;
 
 export function addSSEClient(res: Response, examId: number): string {
+  // 防止單一考試連線過多（DoS 防護）
+  const examClientCount = Array.from(clients.values()).filter(c => c.examId === examId).length;
+  if (examClientCount >= MAX_CLIENTS_PER_EXAM) {
+    res.writeHead(429, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: 'Too many connections for this exam' }));
+    return '';
+  }
+  
   const clientId = `sse-${++clientIdCounter}-${Date.now()}`;
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -24,7 +33,7 @@ export function addSSEClient(res: Response, examId: number): string {
     if (clients.has(clientId)) {
       try { res.write(`: heartbeat\n\n`); } catch { clearInterval(heartbeat); clients.delete(clientId); }
     } else { clearInterval(heartbeat); }
-  }, 15000); // 15s heartbeat
+  }, 30000); // 30s heartbeat (optimized from 15s)
   return clientId;
 }
 

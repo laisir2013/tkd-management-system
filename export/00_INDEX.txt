@@ -1,0 +1,45 @@
+﻿================================================================================
+跆拳道繳費系統 (Taekwondo Fee System) - 100% 完整原始碼匯出
+================================================================================
+匯出日期: 2026-02-28
+格式: 純 UTF-8 文字 (.txt)
+可讀取工具: Claude / Kimi / ChatGPT / 任何文字編輯器
+
+================================================================================
+檔案清單（6 個 PART + 索引）
+================================================================================
+
+  PART1_BACKEND_CORE.txt  (13790 行, 492K)
+  PART2_FRONTEND_COMPLETE.txt  (30590 行, 1.2M)
+  PART3_CONFIG_SQL_SCRIPTS.txt  (21506 行, 716K)
+  PART4_DATA_FILES.txt  (13411 行, 760K)
+  PART5_ARCHITECTURE_SOP.txt  (628 行, 28K)
+  PART6_LIVE_DB_SCHEMA.txt  (1075 行, 80K)
+
+PART1: 核心後端 - server/routers.ts, server/db.ts, server/_core/*, 
+       drizzle/schema.ts, shared/*, 全部 18 個測試檔案
+PART2: 前端完整 - 所有頁面、所有業務組件、所有 UI 組件、
+       hooks、lib、contexts、client/public/data.json
+PART3: 設定+SQL+文件 - package.json, tsconfig, vite.config, .env, 
+       14個遷移SQL, 15個meta snapshots, 8個種子SQL, 
+       4個文件MD, 15個工具腳本, patches
+PART4: 資料檔 - elite_leaves.json, 6個CSV, full_database_dump.sql (9289行)
+PART5: 架構總覽 - 系統架構、功能模組、完整API清單、資料流程圖、
+       WhatsApp搭建資料、操作SOP
+PART6: 即時DB - MySQL 30張表 CREATE TABLE + 完整資料摘要 + 
+       學生完整資料 + 會計科目表 + 試算表
+
+================================================================================
+使用建議
+================================================================================
+給 Claude/Kimi 讀取:
+  1. 先上傳 PART5 (架構總覽，最小最重要)
+  2. 再上傳 PART1 (後端核心)
+  3. 按需上傳 PART2 (前端) / PART3 (設定) / PART4 (資料) / PART6 (DB)
+
+給 WhatsApp 搭建人員:
+  上傳 PART5 + PART6 即可
+
+重建整個系統:
+  全部 6 個 PART 都需要
+================================================================================

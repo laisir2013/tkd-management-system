@@ -13,10 +13,7 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const loginMutation = trpc.auth.loginAdmin.useQuery(
-    { phone: phone.trim(), password: password.trim() },
-    { enabled: false }
-  );
+  const loginMutation = trpc.auth.loginAdmin.useMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,12 +25,12 @@ export default function AdminLogin() {
     setIsLoading(true);
     setError("");
     try {
-      const result = await loginMutation.refetch();
+      const result = await loginMutation.mutateAsync({ phone: phone.trim(), password: password.trim() });
       
-      if (result.data?.success) {
+      if (result?.success) {
         setLocation('/admin');
       } else {
-        setError(result.data?.error || "登入失敗,請確認電話號碼和密碼是否正確");
+        setError(result?.error || "登入失敗,請確認電話號碼和密碼是否正確");
       }
     } catch (error) {
       console.error("登入失敗:", error);

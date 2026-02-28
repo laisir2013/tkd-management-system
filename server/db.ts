@@ -4,6 +4,19 @@ import mysql from "mysql2/promise";
 import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
+// 安全解析 customMonths JSON：防止 double-parse 和無效格式
+function safeParseCustomMonths(value: any): string[] | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try { 
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch { return null; }
+  }
+  return null;
+}
+
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
@@ -170,12 +183,12 @@ export async function getAllPaymentRecords(): Promise<PaymentRecord[]> {
   return db.select().from(paymentRecords);
 }
 
-export async function insertPaymentRecord(record: InsertPaymentRecord) {
+export async function insertPaymentRecord(record: InsertPaymentRecord): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
   const result = await db.insert(paymentRecords).values(record);
-  return result;
+  return result[0].insertId;
 }
 
 /**
@@ -238,7 +251,7 @@ export async function deletePaymentForMonth(studentId: number, year: number, mon
   
   for (const rec of customRecords) {
     if (!rec.customMonths) continue;
-    const customMonthsData = typeof rec.customMonths === 'string' ? JSON.parse(rec.customMonths as string) : rec.customMonths;
+    const customMonthsData = safeParseCustomMonths(rec.customMonths);
     if (!Array.isArray(customMonthsData)) continue;
     
     const matchesMonth = customMonthsData.some((cm: string) => {
@@ -460,7 +473,7 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
           });
         } else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
           // 自選月份繳費
-          const customMonthsData = typeof p.customMonths === 'string' ? JSON.parse(p.customMonths as string) : p.customMonths;
+          const customMonthsData = safeParseCustomMonths(p.customMonths);
           if (Array.isArray(customMonthsData)) {
             customMonthsData.forEach((cm: string) => {
               // 格式: "2026-01" or "1月" etc
@@ -664,12 +677,12 @@ export async function getCoachStatistics(coachName?: string) {
   const allStudents = await getAllStudents();
   
   // 從學生的 coach 欄位取得所有教練名稱
-  const COACHES = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
-  const coachNames = new Set<string>(COACHES);
+  const COACHES_FALLBACK = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
+  const coachNames = new Set<string>(COACHES_FALLBACK);
   allStudents.forEach(s => {
     if (s.coach) coachNames.add(s.coach);
   });
-  
+
   // 如果指定了教練名稱，只統計該教練
   if (coachName) {
     coachNames.clear();
@@ -740,7 +753,7 @@ export async function getQuarterlyFeeStatistics(year: number, quarter: 'Q1' | 'Q
     }
     // 自選月份
     else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
-      const cms = typeof p.customMonths === 'string' ? JSON.parse(p.customMonths as string) : p.customMonths;
+      const cms = safeParseCustomMonths(p.customMonths);
       if (Array.isArray(cms)) {
         cms.forEach((cm: string) => {
           let mn: number | null = null;
@@ -1112,9 +1125,9 @@ export async function getEliteClassBalance(studentId: number) {
     .filter(p => p.status === 'confirmed' && p.classCount)
     .reduce((sum, p) => sum + (p.classCount || 0), 0);
   
-  // 計算已上堂數（出席記錄）
-  const attendanceList = await getAttendanceRecords({ studentId });
-  const attendedClasses = attendanceList.filter(a => a.status === 'present').length;
+  // 計算已上堂數（使用精英班出席記錄，而非恆常班）
+  const attendanceList = await getEliteAttendanceRecords({ studentId });
+  const attendedClasses = attendanceList.filter(a => a.status === 'present' || a.status === 'late').length;
   
   // 計算剩餘堂數
   const remainingClasses = paidClasses - attendedClasses;
@@ -1379,15 +1392,9 @@ export async function insertElitePaymentRecord(data: InsertElitePaymentRecord): 
   if (!db) throw new Error("Database not available");
   const result = await db.insert(elitePaymentRecords).values(data);
   
-  // 更新學生的剩餘堂數
-  if (data.status === 'confirmed') {
-    const student = await getEliteStudentById(data.studentId);
-    if (student) {
-      await db.update(eliteStudents)
-        .set({ remainingClasses: student.remainingClasses + data.classCount })
-        .where(eq(eliteStudents.id, data.studentId));
-    }
-  }
+  // 注意：不再手動更新 eliteStudents.remainingClasses，
+  // 改由 getEliteStudentBalance() 從付款與出席記錄即時計算，
+  // 避免雙重記帳造成資料不一致。
   
   return result[0].insertId;
 }
@@ -1437,9 +1444,11 @@ export async function getCoachStatsWithElite(year?: number, quarter?: number) {
   const db = await getDb();
   if (!db) return [];
   
-  const COACHES = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
-  
+  // 動態從學生資料取得教練名稱
   const allStudents = await getAllStudents();
+  const coachNameSet = new Set<string>();
+  allStudents.forEach(s => { if (s.coach) coachNameSet.add(s.coach); });
+  const COACHES = Array.from(coachNameSet);
   const allEliteStudents = await getAllEliteStudents();
   const allElitePayments = await db.select().from(elitePaymentRecords).orderBy(desc(elitePaymentRecords.paymentDate));
   
@@ -1532,13 +1541,16 @@ export async function getMonthlyFinanceReport(year: number) {
   const db = await getDb();
   if (!db) return [];
 
-  const COACHES = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
-
   // 恆常班學生 + 繳費
   const allStudents = await getAllStudents();
   const allPayments = await getAllPaymentRecords();
   const regularStudents = allStudents.filter(s => s.status === 'active' && s.venue !== '精英班道場');
   const regularStudentIdSet = new Set(regularStudents.map(s => s.id));
+
+  // 動態從學生資料取得教練名稱
+  const coachNameSet = new Set<string>();
+  allStudents.forEach(s => { if (s.coach) coachNameSet.add(s.coach); });
+  const COACHES = Array.from(coachNameSet);
 
   // 精英班學生 + 繳費
   const allEliteStudents = await getAllEliteStudents();
