@@ -58,7 +58,7 @@ export default function ReceiptReviewContent() {
   });
 
   const { data: compareData, isLoading: compareLoading } = trpc.receiptReview.compare.useQuery(
-    { paymentId: selectedId!, paymentType: selectedType },
+    { paymentId: selectedId ?? 0, paymentType: selectedType },
     { enabled: !!selectedId && showCompare }
   );
 

@@ -179,15 +179,6 @@ export default function EliteHistory() {
     return Array.from(months).sort((a, b) => a - b);
   }, [allSchedules]);
 
-  if (yearsLoading) {
-    return (
-      <div className="p-6 space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
-
   const MONTH_NAMES = ['', '1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
   // 需繳費 (combined)
@@ -202,6 +193,15 @@ export default function EliteHistory() {
     allActiveStudents.forEach((s: any) => { if (s.coach) coaches.add(s.coach); });
     return Array.from(coaches).sort();
   }, [allActiveStudents]);
+
+  if (yearsLoading) {
+    return (
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   // 渲染單班表格
   const renderClassTable = (
