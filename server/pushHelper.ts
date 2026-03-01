@@ -4,6 +4,9 @@
  * Provides utility functions for sending automated push notifications
  * with per-type enable/disable settings from push_settings table.
  * 
+ * Uses student_contacts table to resolve phones for each student,
+ * with fallback to the student's own phone field.
+ * 
  * All push calls are wrapped in try-catch so failures never block the main operation.
  */
 import { Expo, ExpoPushMessage } from "expo-server-sdk";
@@ -72,6 +75,48 @@ export async function getAllParentTokens(): Promise<string[]> {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════════
+//  Student Contacts — phone resolution
+// ════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get all push-enabled phone numbers for a student from student_contacts.
+ * Falls back to the student's own phone if no contacts found.
+ */
+export async function getPushPhonesForStudent(
+  studentId: number,
+  studentType: "regular" | "elite" = "regular",
+): Promise<string[]> {
+  try {
+    const pool = await getRawPool();
+    if (!pool) return [];
+
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT phone FROM student_contacts
+       WHERE student_id = ? AND student_type = ? AND receive_push = 1`,
+      [studentId, studentType]
+    ) as any;
+
+    const phones: string[] = (rows || []).map((r: any) => r.phone);
+
+    // Fallback: if no contacts, use the student table phone
+    if (phones.length === 0) {
+      const table = studentType === "elite" ? "elite_students" : "students";
+      const [fallback] = await pool.execute(
+        `SELECT phone FROM ${table} WHERE id = ?`, [studentId]
+      ) as any;
+      if (fallback?.[0]?.phone) {
+        phones.push(fallback[0].phone);
+      }
+    }
+
+    return phones;
+  } catch (err) {
+    console.error("[PushHelper] getPushPhonesForStudent error:", err);
+    return [];
+  }
+}
+
 // ── Send push notifications (generic) ─────────────────────────────────
 export async function sendPushNotifications(
   tokens: string[],
@@ -106,22 +151,22 @@ export async function sendPushNotifications(
   return sentCount;
 }
 
-// ── Send + Log to notifications table ─────────────────────────────────
-export async function sendAndLog(
+// ── Send + Log helper (internal) ─────────────────────────────────────
+async function sendToStudentAndLog(
   settingKey: string,
-  phones: string[],
+  studentId: number,
+  studentType: "regular" | "elite",
   title: string,
   body: string,
   senderPhone: string,
   senderRole: string,
-  targetType: string,
-  targetValue: string,
   data?: Record<string, any>,
 ): Promise<boolean> {
   try {
     const enabled = await isPushEnabled(settingKey);
     if (!enabled) return false;
 
+    const phones = await getPushPhonesForStudent(studentId, studentType);
     const tokens = await getTokensByPhones(phones);
     const sentCount = await sendPushNotifications(tokens, title, body, data);
 
@@ -131,13 +176,13 @@ export async function sendAndLog(
       await pool.execute(
         `INSERT INTO notifications (title, body, sender_phone, sender_role, target_type, target_value, sent_count)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [title, body, senderPhone, senderRole, targetType, targetValue, sentCount]
+        [title, body, senderPhone, senderRole, "individual", phones.join(","), sentCount]
       );
     }
 
     return true;
   } catch (err) {
-    console.error("[PushHelper] sendAndLog error:", err);
+    console.error("[PushHelper] sendToStudentAndLog error:", err);
     return false;
   }
 }
@@ -174,15 +219,15 @@ export async function sendToAllParentsAndLog(
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  Scenario-specific push functions
+//  Scenario-specific push functions (using student_contacts)
 // ════════════════════════════════════════════════════════════════════════
 
 /**
  * 1. 精英班點名後 → 通知家長「小明 已完成第 X/12 堂訓練」
  */
 export async function notifyEliteClassProgress(
+  studentId: number,
   studentName: string,
-  studentPhone: string,
   cycleNumber: number,
   totalAttended: number,
   senderPhone: string,
@@ -190,12 +235,11 @@ export async function notifyEliteClassProgress(
   const title = "精英班訓練通知";
   const body = `${studentName} 已完成第 ${cycleNumber}/12 堂訓練（累計第 ${totalAttended} 堂）`;
 
-  await sendAndLog(
+  await sendToStudentAndLog(
     "elite_class_progress",
-    [studentPhone],
+    studentId, "elite",
     title, body,
     senderPhone, "system",
-    "individual", studentPhone,
     { type: "elite_progress", cycleNumber, totalAttended },
   );
 }
@@ -204,20 +248,20 @@ export async function notifyEliteClassProgress(
  * 2. 管理員確認繳費 → 通知家長「繳費已確認」
  */
 export async function notifyPaymentConfirmed(
+  studentId: number,
+  studentType: "regular" | "elite",
   studentName: string,
-  parentPhone: string,
   amount: string,
   senderPhone: string,
 ) {
   const title = "繳費確認";
   const body = `${studentName} 的繳費 $${Number(amount).toLocaleString()} 已確認，感謝！`;
 
-  await sendAndLog(
+  await sendToStudentAndLog(
     "payment_confirmed",
-    [parentPhone],
+    studentId, studentType,
     title, body,
     senderPhone, "admin",
-    "individual", parentPhone,
     { type: "payment_confirmed" },
   );
 }
@@ -247,66 +291,80 @@ export async function notifyNewEvent(
  * 4. 精英班剩餘堂數 ≤ 2 → 通知家長「請準備續費」
  */
 export async function notifyEliteLowBalance(
+  studentId: number,
   studentName: string,
-  studentPhone: string,
   remainingClasses: number,
   senderPhone: string,
 ) {
   const title = "精英班續費提醒";
   const body = `${studentName} 精英班剩餘 ${remainingClasses} 堂，請準備續費（12堂 $2,400）`;
 
-  await sendAndLog(
+  await sendToStudentAndLog(
     "elite_low_balance",
-    [studentPhone],
+    studentId, "elite",
     title, body,
     senderPhone, "system",
-    "individual", studentPhone,
     { type: "elite_low_balance", remainingClasses },
   );
 }
 
 /**
  * 5. 考試成績公布 → 通知相關家長
+ *    考生可能是恆常班或精英班，兩邊都查
  */
 export async function notifyExamResult(
+  studentId: number,
   examName: string,
   studentName: string,
-  studentPhone: string,
   passed: boolean,
   senderPhone: string,
 ) {
-  const title = "考試結果通知";
-  const body = passed
-    ? `恭喜！${studentName} 在「${examName}」中通過考試，即將升級！`
-    : `${studentName} 在「${examName}」的考試結果已公布，請查看詳情`;
+  try {
+    const enabled = await isPushEnabled("exam_result");
+    if (!enabled) return;
 
-  await sendAndLog(
-    "exam_result",
-    [studentPhone],
-    title, body,
-    senderPhone, "admin",
-    "individual", studentPhone,
-    { type: "exam_result", passed },
-  );
+    // Gather phones from both regular and elite contacts
+    const regularPhones = await getPushPhonesForStudent(studentId, "regular");
+    const elitePhones = await getPushPhonesForStudent(studentId, "elite");
+    const phones = [...new Set([...regularPhones, ...elitePhones])];
+
+    const title = "考試結果通知";
+    const body = passed
+      ? `恭喜！${studentName} 在「${examName}」中通過考試，即將升級！`
+      : `${studentName} 在「${examName}」的考試結果已公布，請查看詳情`;
+
+    const tokens = await getTokensByPhones(phones);
+    const sentCount = await sendPushNotifications(tokens, title, body, { type: "exam_result", passed });
+
+    const pool = await getRawPool();
+    if (pool) {
+      await pool.execute(
+        `INSERT INTO notifications (title, body, sender_phone, sender_role, target_type, target_value, sent_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [title, body, senderPhone, "admin", "individual", phones.join(","), sentCount]
+      );
+    }
+  } catch (err) {
+    console.error("[PushHelper] notifyExamResult error:", err);
+  }
 }
 
 /**
  * 6. 繳費逾期 30 天 → 催繳通知
  */
 export async function notifyPaymentOverdue(
+  studentId: number,
   studentName: string,
-  parentPhone: string,
   senderPhone: string,
 ) {
   const title = "繳費提醒";
   const body = `提醒：${studentName} 本季度學費尚未繳納，請盡快處理`;
 
-  await sendAndLog(
+  await sendToStudentAndLog(
     "payment_overdue",
-    [parentPhone],
+    studentId, "regular",
     title, body,
     senderPhone, "system",
-    "individual", parentPhone,
     { type: "payment_overdue" },
   );
 }

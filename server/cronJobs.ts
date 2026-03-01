@@ -62,29 +62,29 @@ export async function checkOverduePayments(): Promise<void> {
     // 3. For each overdue payment, check last notification time
     for (const row of rows) {
       try {
-        // Check if we already notified within last 7 days
+        // Check if we already notified this student within last 7 days
         const [recent] = await pool.execute(`
           SELECT id FROM notifications 
           WHERE target_type = 'individual' 
-            AND target_value = ?
             AND title = '繳費提醒'
+            AND body LIKE ?
             AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
           LIMIT 1
-        `, [row.parentPhone]) as any;
+        `, [`%${row.studentName}%`]) as any;
 
         if (recent && recent.length > 0) {
           console.log(`[CronJob] Already notified ${row.studentName} within 7 days, skipping`);
           continue;
         }
 
-        // 4. Send notification
+        // 4. Send notification (now uses studentId, resolves phones via student_contacts)
         await notifyPaymentOverdue(
+          row.studentId,
           row.studentName,
-          row.parentPhone,
           "system", // sender is system/cron
         );
 
-        console.log(`[CronJob] Sent overdue notification for ${row.studentName} (phone: ${row.parentPhone})`);
+        console.log(`[CronJob] Sent overdue notification for ${row.studentName} (studentId: ${row.studentId})`);
       } catch (innerErr) {
         console.error(`[CronJob] Error processing student ${row.studentId}:`, innerErr);
       }

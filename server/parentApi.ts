@@ -784,7 +784,7 @@ parentRouter.post("/coach/elite-attendance", requireRole("coach", "admin"), asyn
           // 通知上課進度
           if (cycle) {
             await notifyEliteClassProgress(
-              student.name, student.phone,
+              studentId, student.name,
               cycle.cycleNumber || 0, balance?.attendedClasses || 0,
               req.userPhone || "system"
             );
@@ -792,7 +792,7 @@ parentRouter.post("/coach/elite-attendance", requireRole("coach", "admin"), asyn
           // 檢查剩餘堂數 ≤ 2
           if (balance && balance.remainingClasses <= 2 && balance.remainingClasses >= 0) {
             await notifyEliteLowBalance(
-              student.name, student.phone,
+              studentId, student.name,
               balance.remainingClasses,
               req.userPhone || "system"
             );
@@ -1024,8 +1024,8 @@ parentRouter.put("/admin/elite-payments/:id/confirm", requireRole("admin"), asyn
           // ✅ 自動推播：精英班繳費確認通知家長
           try {
             await notifyPaymentConfirmed(
-              student.name, student.phone,
-              String(p.amount),
+              Number(student.id), "elite",
+              student.name, String(p.amount),
               req.userPhone || "admin"
             );
           } catch (pushErr) { console.error("[AutoPush] elite-payment-confirm:", pushErr); }
@@ -1354,7 +1354,7 @@ parentRouter.post("/admin/exam-calculate/:candidateId", requireRole("admin"), as
       const pool = await getRawPool();
       if (pool) {
         const [rows] = await pool.execute(
-          `SELECT ec.student_name as studentName, ec.phone,
+          `SELECT ec.student_name as studentName, ec.phone, ec.student_id,
                   es.title as examName,
                   ec.result
            FROM exam_candidates ec
@@ -1364,12 +1364,12 @@ parentRouter.post("/admin/exam-calculate/:candidateId", requireRole("admin"), as
         ) as any;
         if (rows.length > 0) {
           const c = rows[0];
-          const phone = c.phone;
-          if (phone) {
-            const passed = (result as any).result === "passed" || (result as any).passed === true;
+          const passed = (result as any).result === "passed" || (result as any).passed === true;
+          if (c.student_id || c.studentId) {
             await notifyExamResult(
+              c.student_id || c.studentId,
               c.examName || "考試", c.studentName || "學生",
-              phone, passed,
+              passed,
               req.userPhone || "admin"
             );
           }
@@ -1540,8 +1540,8 @@ parentRouter.post("/admin/payments/mark-paid", requireRole("admin"), async (req:
         const student = await getStudentById(record.studentId);
         if (student) {
           await notifyPaymentConfirmed(
-            student.name, student.phone,
-            String(record.amount),
+            record.studentId, "regular",
+            student.name, String(record.amount),
             req.userPhone || "admin"
           );
         }
@@ -1842,6 +1842,152 @@ parentRouter.get("/notification-targets", requireRole("admin", "coach"), async (
   } catch (err: any) {
     console.error("Get notification targets error:", err);
     res.status(500).json({ error: "查詢推送對象失敗" });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  Student Contacts API (學生聯絡人管理)
+// ════════════════════════════════════════════════════════════════════════
+
+// GET /student-contacts/:studentId — 取得學生的所有聯絡人
+parentRouter.get("/student-contacts/:studentId", async (req: AuthenticatedRequest, res) => {
+  try {
+    const studentId = Number(req.params.studentId);
+    const studentType = (req.query.type as string) || "regular";
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ success: false, error: "DB 不可用" });
+
+    const [rows] = await pool.execute(
+      `SELECT * FROM student_contacts
+       WHERE student_id = ? AND student_type = ?
+       ORDER BY is_primary DESC, created_at ASC`,
+      [studentId, studentType]
+    ) as any;
+
+    res.json({ success: true, contacts: rows || [] });
+  } catch (err: any) {
+    console.error("[AppAPI] student-contacts GET error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /student-contacts — 新增聯絡人
+parentRouter.post("/student-contacts", requireRole("admin", "coach"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { studentId, studentType, phone, label, name, receivePush } = req.body;
+    if (!studentId || !phone || !label) {
+      return res.status(400).json({ success: false, error: "缺少必要欄位（學生、電話、標籤）" });
+    }
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ success: false, error: "DB 不可用" });
+
+    const sType = studentType || "regular";
+    // 檢查是否已存在相同電話
+    const [existing] = await pool.execute(
+      `SELECT id FROM student_contacts WHERE student_id = ? AND student_type = ? AND phone = ?`,
+      [studentId, sType, phone]
+    ) as any;
+    if (existing && existing.length > 0) {
+      return res.status(409).json({ success: false, error: "此電話已存在" });
+    }
+
+    const [result] = await pool.execute(
+      `INSERT INTO student_contacts (student_id, student_type, phone, label, name, is_primary, receive_push)
+       VALUES (?, ?, ?, ?, ?, 0, ?)`,
+      [studentId, sType, phone, label, name || null, receivePush !== false ? 1 : 0]
+    ) as any;
+
+    res.json({ success: true, id: result?.insertId });
+  } catch (err: any) {
+    console.error("[AppAPI] student-contacts POST error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /student-contacts/:id — 更新聯絡人
+parentRouter.put("/student-contacts/:id", requireRole("admin", "coach"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { phone, label, name, receivePush } = req.body;
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ success: false, error: "DB 不可用" });
+
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (phone !== undefined) { updates.push("phone = ?"); values.push(phone); }
+    if (label !== undefined) { updates.push("label = ?"); values.push(label); }
+    if (name !== undefined) { updates.push("name = ?"); values.push(name || null); }
+    if (receivePush !== undefined) { updates.push("receive_push = ?"); values.push(receivePush ? 1 : 0); }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: "沒有要更新的欄位" });
+    }
+
+    values.push(id);
+    await pool.execute(
+      `UPDATE student_contacts SET ${updates.join(", ")} WHERE id = ?`,
+      values
+    );
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] student-contacts PUT error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /student-contacts/:id — 刪除聯絡人
+parentRouter.delete("/student-contacts/:id", requireRole("admin", "coach"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ success: false, error: "DB 不可用" });
+
+    // 不能刪除主要聯絡人
+    const [contact] = await pool.execute("SELECT is_primary FROM student_contacts WHERE id = ?", [id]) as any;
+    if (contact?.[0]?.is_primary === 1) {
+      return res.status(400).json({ success: false, error: "不能刪除主要聯絡人，請先變更主要聯絡人" });
+    }
+
+    await pool.execute("DELETE FROM student_contacts WHERE id = ?", [id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] student-contacts DELETE error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /student-contacts/:id/set-primary — 設為主要聯絡人
+parentRouter.post("/student-contacts/:id/set-primary", requireRole("admin", "coach"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ success: false, error: "DB 不可用" });
+
+    // 取得該聯絡人的學生資訊
+    const [contact] = await pool.execute(
+      "SELECT student_id, student_type FROM student_contacts WHERE id = ?", [id]
+    ) as any;
+    if (!contact || contact.length === 0) {
+      return res.status(404).json({ success: false, error: "聯絡人不存在" });
+    }
+
+    const { student_id, student_type } = contact[0];
+
+    // 先把該學生的所有聯絡人取消主要
+    await pool.execute(
+      "UPDATE student_contacts SET is_primary = 0 WHERE student_id = ? AND student_type = ?",
+      [student_id, student_type]
+    );
+
+    // 設定新的主要
+    await pool.execute("UPDATE student_contacts SET is_primary = 1 WHERE id = ?", [id]);
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] student-contacts set-primary error:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
