@@ -184,6 +184,14 @@ import { invokeLLM } from "./_core/llm";
 import { stampReceipt } from "./_core/receiptStamp";
 import { students as studentsTable, users as usersTable, paymentRecords as paymentRecordsTable } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
+import {
+  notifyEliteClassProgress,
+  notifyPaymentConfirmed,
+  notifyNewEvent,
+  notifyEliteLowBalance,
+  notifyExamResult,
+  getRawPool as getPushRawPool,
+} from "./pushHelper";
 
 // ── Multer ───────────────────────────────────────────────────────────────
 const upload = multer({
@@ -765,6 +773,34 @@ parentRouter.post("/coach/elite-attendance", requireRole("coach", "admin"), asyn
     }
 
     const id = await upsertEliteAttendanceRecord({ scheduleId, studentId, status });
+
+    // ✅ 自動推播：出席時通知家長進度 + 檢查剩餘堂數
+    if (status === "present" || status === "late") {
+      try {
+        const student = (await getAllEliteStudents()).find((s: any) => s.id === studentId);
+        if (student) {
+          const cycle = await getEliteCycleInfo(studentId);
+          const balance = await getEliteStudentBalance(studentId);
+          // 通知上課進度
+          if (cycle) {
+            await notifyEliteClassProgress(
+              student.name, student.phone,
+              cycle.cycleNumber || 0, balance?.attendedClasses || 0,
+              req.userPhone || "system"
+            );
+          }
+          // 檢查剩餘堂數 ≤ 2
+          if (balance && balance.remainingClasses <= 2 && balance.remainingClasses >= 0) {
+            await notifyEliteLowBalance(
+              student.name, student.phone,
+              balance.remainingClasses,
+              req.userPhone || "system"
+            );
+          }
+        }
+      } catch (pushErr) { console.error("[AutoPush] elite-attendance:", pushErr); }
+    }
+
     return res.json({ success: true, id });
   } catch (err: any) {
     console.error("[AppAPI] coach/elite-attendance POST error:", err);
@@ -895,6 +931,13 @@ parentRouter.post("/admin/events/create", requireRole("admin"), async (req: Auth
     const { title, type, description, eventDate, eventTime, location, fee, maxParticipants, registrationDeadline } = req.body;
     if (!title || !type || !eventDate) return res.status(400).json({ success: false, error: "缺少必要欄位" });
     const result = await insertEvent({ title, type, description: description || null, eventDate: new Date(eventDate), eventTime: eventTime || null, location: location || null, fee: fee || "0", maxParticipants: maxParticipants || null, registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null, status: "open" });
+
+    // ✅ 自動推播：通知所有家長新活動
+    try {
+      const dateStr = eventDate ? new Date(eventDate).toLocaleDateString("zh-TW") : null;
+      await notifyNewEvent(title, dateStr, req.userPhone || "admin");
+    } catch (pushErr) { console.error("[AutoPush] new-event:", pushErr); }
+
     return res.json({ success: true, id: result.insertId });
   } catch { return res.status(500).json({ success: false, error: "系統錯誤" }); }
 });
@@ -978,6 +1021,14 @@ parentRouter.put("/admin/elite-payments/:id/confirm", requireRole("admin"), asyn
             classCount: p.class_count || p.classCount,
             paymentDate: p.payment_date || p.paymentDate,
           });
+          // ✅ 自動推播：精英班繳費確認通知家長
+          try {
+            await notifyPaymentConfirmed(
+              student.name, student.phone,
+              String(p.amount),
+              req.userPhone || "admin"
+            );
+          } catch (pushErr) { console.error("[AutoPush] elite-payment-confirm:", pushErr); }
         }
       }
     } catch (syncErr) { console.error("[AppAPI] elite payment sync error:", syncErr); }
@@ -1110,6 +1161,15 @@ parentRouter.post("/admin/exams", requireRole("admin"), async (req: Authenticate
     const { title, examDate, location, description, status } = req.body;
     if (!title || !examDate) return res.status(400).json({ success: false, error: "考試名稱和日期為必填" });
     const result = await insertExamSession({ title, examDate: new Date(examDate), location: location || null, description: description || null, status: status || "upcoming" } as any);
+
+    // ✅ 自動推播：非草稿考試通知所有家長
+    if (!status || status !== "draft") {
+      try {
+        const dateStr = new Date(examDate).toLocaleDateString("zh-TW");
+        await notifyNewEvent(`升級考試：${title}`, dateStr, req.userPhone || "admin");
+      } catch (pushErr) { console.error("[AutoPush] new-exam:", pushErr); }
+    }
+
     return res.json({ success: true, id: result.insertId });
   } catch (err: any) {
     console.error("[AppAPI] admin/exams POST error:", err);
@@ -1286,7 +1346,37 @@ parentRouter.get("/admin/exam-statistics/:examId", requireRole("admin"), async (
 
 parentRouter.post("/admin/exam-calculate/:candidateId", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
   try {
-    const result = await calculateExamResult(parseInt(req.params.candidateId));
+    const candidateId = parseInt(req.params.candidateId);
+    const result = await calculateExamResult(candidateId);
+
+    // ✅ 自動推播：考試成績通知家長
+    try {
+      const pool = await getRawPool();
+      if (pool) {
+        const [rows] = await pool.execute(
+          `SELECT ec.student_name as studentName, ec.phone,
+                  es.title as examName,
+                  ec.result
+           FROM exam_candidates ec
+           JOIN exam_sessions es ON ec.exam_id = es.id
+           WHERE ec.id = ?`,
+          [candidateId]
+        ) as any;
+        if (rows.length > 0) {
+          const c = rows[0];
+          const phone = c.phone;
+          if (phone) {
+            const passed = (result as any).result === "passed" || (result as any).passed === true;
+            await notifyExamResult(
+              c.examName || "考試", c.studentName || "學生",
+              phone, passed,
+              req.userPhone || "admin"
+            );
+          }
+        }
+      }
+    } catch (pushErr) { console.error("[AutoPush] exam-result:", pushErr); }
+
     return res.json({ success: true, ...result });
   } catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
 });
@@ -1441,6 +1531,23 @@ parentRouter.post("/admin/payments/mark-paid", requireRole("admin"), async (req:
     const { recordId } = req.body;
     if (!recordId) return res.status(400).json({ success: false, error: "recordId 為必填" });
     await approvePaymentRecord(recordId, "admin_approved");
+
+    // ✅ 自動推播：通知家長繳費已確認
+    try {
+      const { getPaymentRecordById } = await import("./db");
+      const record = await getPaymentRecordById(recordId);
+      if (record) {
+        const student = await getStudentById(record.studentId);
+        if (student) {
+          await notifyPaymentConfirmed(
+            student.name, student.phone,
+            String(record.amount),
+            req.userPhone || "admin"
+          );
+        }
+      }
+    } catch (pushErr) { console.error("[AutoPush] mark-paid:", pushErr); }
+
     return res.json({ success: true });
   } catch (err: any) {
     console.error("[AppAPI] admin/payments/mark-paid error:", err);
@@ -1735,6 +1842,47 @@ parentRouter.get("/notification-targets", requireRole("admin", "coach"), async (
   } catch (err: any) {
     console.error("Get notification targets error:", err);
     res.status(500).json({ error: "查詢推送對象失敗" });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  Admin Push Settings API
+// ════════════════════════════════════════════════════════════════════════
+
+// GET /admin/push-settings — 取得所有推播設定
+parentRouter.get("/admin/push-settings", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try {
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ error: "DB 不可用" });
+    const [rows] = await pool.execute("SELECT * FROM push_settings ORDER BY id ASC") as any;
+    res.json(rows);
+  } catch (err: any) {
+    console.error("[AppAPI] admin/push-settings GET error:", err);
+    res.status(500).json({ error: "查詢推播設定失敗" });
+  }
+});
+
+// PUT /admin/push-settings/:key — 更新推播設定開關
+parentRouter.put("/admin/push-settings/:key", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { key } = req.params;
+    const { enabled } = req.body;
+    if (enabled === undefined || enabled === null) {
+      return res.status(400).json({ error: "缺少 enabled 參數" });
+    }
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ error: "DB 不可用" });
+    const [result] = await pool.execute(
+      "UPDATE push_settings SET enabled = ? WHERE setting_key = ?",
+      [enabled ? 1 : 0, key]
+    ) as any;
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "找不到此推播設定" });
+    }
+    res.json({ success: true, setting_key: key, enabled: !!enabled });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/push-settings PUT error:", err);
+    res.status(500).json({ error: "更新推播設定失敗" });
   }
 });
 

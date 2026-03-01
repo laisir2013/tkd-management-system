@@ -12,7 +12,7 @@ import { storageGetBuffer } from "../storage";
 import { addSSEClient, getConnectedClientCount } from "../sse";
 import archiver from "archiver";
 import { parentRouter } from "../parentApi";
-import { parentRouter } from "../parentApi";
+import { startCronJobs } from "../cronJobs";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -189,6 +189,8 @@ async function startServer() {
 
   server.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${port}/`);
+    // Start scheduled cron jobs (e.g. overdue payment reminders)
+    startCronJobs();
   });
 }
 
