@@ -446,18 +446,147 @@ parentRouter.get("/coach/schedules", requireRole("coach", "admin"), async (req: 
 parentRouter.get("/coach/attendance", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
   try {
     const scheduleId = req.query.scheduleId ? parseInt(req.query.scheduleId as string) : undefined;
-    const records = await getAttendanceRecords({ scheduleId });
+    const records = await getAttendanceRecords({ courseId: scheduleId });
     return res.json(records);
   } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+// 📊 整月點名表格 API — 返回整個班級一個月的所有點名資料
+parentRouter.get("/coach/attendance-grid", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+    const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+    const venue = req.query.venue as string;
+    const scheduleDay = req.query.scheduleDay as string;
+    const scheduleTime = req.query.scheduleTime as string;
+
+    if (!venue || !scheduleDay || !scheduleTime) {
+      return res.status(400).json({ error: "需要 venue, scheduleDay, scheduleTime 參數" });
+    }
+
+    // 1. 取得該班級本月所有排程
+    const allSchedules = await getTrainingSchedules({ year, month, venue, scheduleDay, scheduleTime });
+    const schedules = allSchedules
+      .filter((s: any) => s.status !== "cancelled")
+      .sort((a: any, b: any) => new Date(a.trainingDate).getTime() - new Date(b.trainingDate).getTime());
+
+    // 2. 取得該班級的所有學生
+    const allStudents = await getAllStudents();
+    const students = allStudents
+      .filter((s: any) => s.venue === venue && s.scheduleDay === scheduleDay && s.scheduleTime === scheduleTime && s.status === "active")
+      .sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "", "zh-TW"));
+
+    // 3. 取得這些排程的所有點名記錄
+    // attendance_records 用 courseId (來自 courses 表) + attendanceDate 來關聯
+    const db = await getDb();
+    let records: any[] = [];
+    if (db && schedules.length > 0) {
+      const { inArray, eq: eqOp, and: andOp, gte, lte } = await import("drizzle-orm");
+      const { attendanceRecords: arTable, courses: coursesTable } = await import("../drizzle/schema");
+
+      // 找到對應的 course（用 venue+day+time 合成的名字）
+      const venueName = `${venue} ${scheduleDay} ${scheduleTime}`;
+      const courseRows = await db.select().from(coursesTable).where(eqOp(coursesTable.name, venueName)).limit(1);
+
+      if (courseRows.length > 0) {
+        const courseId = courseRows[0].id;
+        // 取得該月的所有出席記錄
+        const startDate = new Date(Date.UTC(year, month - 1, 1));
+        const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+        records = await db.select().from(arTable).where(
+          andOp(eqOp(arTable.courseId, courseId), gte(arTable.attendanceDate, startDate), lte(arTable.attendanceDate, endDate))
+        );
+      }
+    }
+
+    // 4. 構造 map: { `${scheduleId}-${studentId}`: status }
+    // 需要用 attendanceDate 匹配回 scheduleId
+    const attendanceMap: Record<string, string> = {};
+    for (const r of records) {
+      // 找到 attendanceDate 對應的 schedule
+      const rDate = new Date(r.attendanceDate).toISOString().slice(0, 10);
+      const matchedSch = schedules.find((s: any) => new Date(s.trainingDate).toISOString().slice(0, 10) === rDate);
+      if (matchedSch) {
+        attendanceMap[`${matchedSch.id}-${r.studentId}`] = r.status;
+      }
+    }
+
+    return res.json({
+      schedules: schedules.map((s: any) => ({
+        id: s.id,
+        date: s.trainingDate,
+        day: s.scheduleDay,
+      })),
+      students: students.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        belt: s.belt || "",
+      })),
+      attendance: attendanceMap,
+    });
+  } catch (err: any) {
+    console.error("attendance-grid error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
 });
 
 parentRouter.post("/coach/attendance", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
   try {
     const { scheduleId, studentId, status } = req.body;
     if (!scheduleId || !studentId || !status) return res.status(400).json({ success: false, error: "缺少必要欄位" });
-    const id = await upsertAttendanceRecord(scheduleId, studentId, status);
-    return res.json({ success: true, id });
-  } catch (err: any) { return res.status(500).json({ success: false, error: "系統錯誤" }); }
+
+    // 取得排程資訊
+    const allSchedules = await getTrainingSchedules({});
+    const schedule = allSchedules.find((s: any) => s.id === scheduleId);
+    if (!schedule) return res.status(404).json({ success: false, error: "排程不存在" });
+
+    const attendanceDate = new Date(schedule.trainingDate);
+
+    // 找到或創建對應的 course（attendance_records.course_id 有 FK 到 courses）
+    const db = await getDb();
+    if (!db) return res.status(500).json({ success: false, error: "資料庫不可用" });
+
+    const { eq: eqOp, and: andOp } = await import("drizzle-orm");
+    const { courses, attendanceRecords: arTable } = await import("../drizzle/schema");
+
+    // 用 venue + day + time 找 course
+    const venueName = `${schedule.venue} ${schedule.scheduleDay} ${schedule.scheduleTime}`;
+    let courseRows = await db.select().from(courses).where(eqOp(courses.name, venueName)).limit(1);
+
+    let courseId: number;
+    if (courseRows.length > 0) {
+      courseId = courseRows[0].id;
+    } else {
+      // 創建 course
+      const dayMap: Record<string, string> = {
+        "星期一": "monday", "星期二": "tuesday", "星期三": "wednesday",
+        "星期四": "thursday", "星期五": "friday", "星期六": "saturday", "星期日": "sunday"
+      };
+      const result = await db.insert(courses).values({
+        name: venueName,
+        dayOfWeek: dayMap[schedule.scheduleDay] || "monday",
+        startTime: "00:00",
+        endTime: "00:00",
+      });
+      courseId = (result as any)[0]?.insertId || (result as any).insertId;
+    }
+
+    // Upsert attendance
+    const existing = await db.select().from(arTable).where(
+      andOp(eqOp(arTable.studentId, studentId), eqOp(arTable.courseId, courseId), eqOp(arTable.attendanceDate, attendanceDate))
+    ).limit(1);
+
+    if (existing.length > 0) {
+      await db.update(arTable).set({ status }).where(eqOp(arTable.id, existing[0].id));
+    } else {
+      await db.insert(arTable).values({ studentId, courseId, attendanceDate, status });
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("mark-attendance error:", err);
+    return res.status(500).json({ success: false, error: "系統錯誤" });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════
