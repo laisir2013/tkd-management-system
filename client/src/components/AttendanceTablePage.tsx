@@ -226,43 +226,7 @@ export function AttendanceTablePage({
         <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
           <table className="border-collapse w-full table-fixed">
             <thead>
-              {/* 取消/恢復按鈕行 */}
-              <tr className="bg-gray-50">
-                <th className="sticky left-0 z-20 bg-gray-50 border-b border-r border-gray-200 px-1 sm:px-2 py-1 w-10 sm:w-12"></th>
-                <th className="sticky left-10 sm:left-12 z-20 bg-gray-50 border-b border-r border-gray-200 px-1 sm:px-3 py-1 text-center" style={{ width: trainingDates.length > 0 ? `${Math.max(20, Math.round(100 / (trainingDates.length + 1)))}%` : '25%' }}>
-                  <span className="text-[9px] sm:text-xs text-muted-foreground">操作</span>
-                </th>
-                {trainingDates.map((td) => {
-                  const isCancelled = td.status === "cancelled";
-                  return (
-                    <th
-                      key={`action-${td.scheduleId}`}
-                      className="border-b border-r border-gray-200 px-0 py-1 text-center"
-                    >
-                      {isCancelled ? (
-                        <button
-                          onClick={() => handleActivateSchedule(td.scheduleId)}
-                          disabled={activateScheduleMutation.isPending}
-                          className="inline-flex items-center justify-center px-1.5 h-6 sm:h-7 rounded bg-green-100 hover:bg-green-200 text-green-700 transition-colors text-[9px] sm:text-xs font-medium"
-                          title="恢復此課堂"
-                        >
-                          恢復
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleCancelSchedule(td.scheduleId)}
-                          disabled={cancelScheduleMutation.isPending}
-                          className="inline-flex items-center justify-center px-1.5 h-6 sm:h-7 rounded bg-red-100 hover:bg-red-200 text-red-600 transition-colors text-[9px] sm:text-xs font-medium"
-                          title="取消此課堂（休息日）"
-                        >
-                          取消
-                        </button>
-                      )}
-                    </th>
-                  );
-                })}
-              </tr>
-              {/* 日期行 */}
+              {/* 日期行 + 取消/恢復按鈕整合 */}
               <tr className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
                 <th className="sticky left-0 z-20 bg-blue-600 border-b border-r border-blue-400 px-1 sm:px-2 py-1 sm:py-2 text-center w-10 sm:w-12">
                   <span className="text-[10px] sm:text-sm font-semibold">#</span>
@@ -275,19 +239,40 @@ export function AttendanceTablePage({
                   return (
                     <th
                       key={td.scheduleId}
-                      className={`border-b border-r border-blue-400 px-0 sm:px-2 py-1 sm:py-2 text-center ${
-                        isCancelled ? "opacity-50" : ""
+                      className={`border-b border-r border-blue-400 px-0 sm:px-1 py-1 sm:py-2 text-center ${
+                        isCancelled ? "bg-blue-400/50" : ""
                       }`}
                     >
-                      <span className={`text-[10px] sm:text-sm font-bold ${isCancelled ? "line-through" : ""}`}>
-                        {format(td.date, "d/M", { locale: zhTW })}
-                      </span>
-                      {isCancelled && (
-                        <div className="text-[8px] sm:text-[10px] text-yellow-200 font-normal leading-tight">休息</div>
-                      )}
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className={`text-[10px] sm:text-sm font-bold leading-tight ${isCancelled ? "line-through opacity-60" : ""}`}>
+                          {format(td.date, "d/M", { locale: zhTW })}
+                        </span>
+                        {isCancelled ? (
+                          <button
+                            onClick={() => handleActivateSchedule(td.scheduleId)}
+                            disabled={activateScheduleMutation.isPending}
+                            className="inline-flex items-center justify-center px-1 h-5 sm:h-6 rounded bg-yellow-300/90 hover:bg-yellow-400 text-yellow-900 transition-colors text-[8px] sm:text-[10px] font-bold leading-none whitespace-nowrap"
+                            title="恢復此課堂"
+                          >
+                            休息
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleCancelSchedule(td.scheduleId)}
+                            disabled={cancelScheduleMutation.isPending}
+                            className="inline-flex items-center justify-center px-1 h-5 sm:h-6 rounded bg-white/20 hover:bg-white/40 text-white/80 hover:text-white transition-colors text-[8px] sm:text-[10px] font-medium leading-none whitespace-nowrap"
+                            title="取消此課堂（休息日）"
+                          >
+                            取消
+                          </button>
+                        )}
+                      </div>
                     </th>
                   );
                 })}
+                <th className="border-b border-r border-blue-400 px-1 sm:px-2 py-1 sm:py-2 text-center w-10 sm:w-14">
+                  <span className="text-[10px] sm:text-sm font-semibold">出席</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -336,6 +321,18 @@ export function AttendanceTablePage({
                       </td>
                     );
                   })}
+                  {/* 出席統計 */}
+                  <td className="border-b border-r border-gray-200 p-1 sm:p-2 text-center w-10 sm:w-14">
+                    {(() => {
+                      const presentCount = activeDates.filter((td) => getAttendanceStatus(student.id, td.date) === "present").length;
+                      const markedCount = activeDates.filter((td) => getAttendanceStatus(student.id, td.date) !== null).length;
+                      return (
+                        <span className={`text-[11px] sm:text-sm font-bold ${presentCount > 0 ? "text-emerald-600" : "text-gray-400"}`}>
+                          {markedCount > 0 ? `${presentCount}/${markedCount}` : "0"}
+                        </span>
+                      );
+                    })()}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -347,35 +344,28 @@ export function AttendanceTablePage({
       <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
         <p className="text-xs text-blue-800 dark:text-blue-200 flex items-center gap-2">
           <span className="text-base">💡</span>
-          <span>點擊格子可以切換出席/缺席狀態，點擊日期上方的按鈕可以取消或恢復課堂</span>
+          <span>點擊格子切換出席狀態，點擊日期下方的「取消」可取消課堂</span>
         </p>
         <div className="flex flex-wrap gap-3 mt-2 text-xs">
           <span className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
-              <Check className="h-3 w-3 text-white" />
+            <span className="w-5 h-5 rounded bg-emerald-100 flex items-center justify-center">
+              <Check className="h-3 w-3 text-emerald-700" />
             </span>
             <span className="text-green-700 dark:text-green-300 font-medium">出席</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center">
-              <X className="h-3 w-3 text-red-600" />
+            <span className="w-5 h-5 rounded bg-red-400 flex items-center justify-center">
+              <X className="h-3 w-3 text-white" />
             </span>
             <span className="text-red-700 dark:text-red-300 font-medium">缺席</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-              <span className="text-gray-400 text-xs">—</span>
+              <span className="text-gray-400 text-xs">-</span>
             </span>
             <span className="text-gray-600 dark:text-gray-400 font-medium">未點名</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="px-1.5 h-5 rounded bg-red-100 flex items-center justify-center text-[9px] font-medium text-red-600">取消</span>
-            <span className="text-red-600 dark:text-red-400 font-medium">取消課堂</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="px-1.5 h-5 rounded bg-green-100 flex items-center justify-center text-[9px] font-medium text-green-700">恢復</span>
-            <span className="text-green-700 dark:text-green-300 font-medium">恢復課堂</span>
-          </span>
+          <span className="ml-1 text-muted-foreground">點擊格子切換狀態</span>
         </div>
       </div>
     </div>
