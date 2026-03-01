@@ -417,9 +417,13 @@ parentRouter.get("/coach/students", requireRole("coach", "admin"), async (req: A
 parentRouter.get("/coach/statistics", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
   try {
     const coachName = req.userRole === "coach" ? req.coachName : (req.query.coachName as string) || undefined;
-    const allStats = await getCoachStatsWithElite();
+    // ✅ 支援按月份篩選：月份自動轉成季度
+    const year = req.query.year ? Number(req.query.year) : undefined;
+    const month = req.query.month ? Number(req.query.month) : undefined;
+    const quarter = month ? Math.ceil(month / 3) : (req.query.quarter ? Number(req.query.quarter) : undefined);
+    
+    const allStats = await getCoachStatsWithElite(year, quarter);
     if (coachName) {
-      // 教練只能看到自己的統計
       const myStats = allStats.find((s: any) => s.coachName === coachName);
       return res.json(myStats || { coachName, regularStudentCount: 0, eliteStudentCount: 0, totalStudentCount: 0, totalRevenue: 0, eliteStudents: [] });
     }
