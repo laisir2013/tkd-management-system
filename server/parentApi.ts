@@ -1,23 +1,35 @@
 /**
- * Parent App REST API Router
+ * Unified Mobile App REST API
  * 
- * Prefix: /api/v1/parent
- * All endpoints (except /login) require JWT Bearer token.
+ * Prefix: /api/v1/parent  (kept for backward compat)
+ * Supports ALL roles: parent, coach, admin
+ * Login auto-detects role by phone number.
  * 
- * Endpoints:
- *   POST /login                  – 家長登入，回傳 JWT token
- *   GET  /students               – 取得該家長所有學生
- *   GET  /elite-info             – 精英班出席+繳費資訊
- *   GET  /attendance             – 恆常班出席記錄 (?year=&month=)
- *   GET  /monthly-statuses       – 月份繳費狀態 (?year=)
- *   GET  /payments               – 所有繳費記錄
- *   POST /payments/upload        – 上傳收據繳費 (multipart/form-data)
- *   GET  /events                 – 開放報名的活動
- *   GET  /events/my-registrations – 我的報名記錄
- *   POST /events/register        – 報名活動
- *   POST /events/cancel          – 取消報名
- *   GET  /exam-results           – 考試成績
- *   POST /change-password        – 修改密碼
+ * ── PUBLIC ──
+ *   POST /login  — unified login (auto-detect role)
+ * 
+ * ── PARENT ──
+ *   GET  /students, /elite-info, /attendance, /monthly-statuses, /payments
+ *   POST /payments/upload, /events/register, /events/cancel
+ *   GET  /events, /events/my-registrations, /exam-results
+ *   POST /change-password
+ *   GET  /profile
+ * 
+ * ── COACH ──
+ *   GET  /coach/students       — my students
+ *   GET  /coach/attendance     — class attendance (?year=&month=&classGroup=)
+ *   POST /coach/attendance     — mark attendance
+ *   GET  /coach/statistics     — my statistics
+ *   GET  /coach/schedules      — training schedules
+ * 
+ * ── ADMIN ──
+ *   GET  /admin/students       — all students
+ *   GET  /admin/users          — all users
+ *   GET  /admin/payments       — all payments overview
+ *   GET  /admin/statistics     — global statistics
+ *   GET  /admin/events         — all events (incl. closed)
+ *   POST /admin/events/create  — create event
+ *   GET  /admin/finance        — monthly finance report
  */
 import { Router } from "express";
 import multer from "multer";
@@ -41,57 +53,70 @@ import {
   getDb,
   getSystemConfig,
   getAcceptedPayeeAccounts,
+  // Coach
+  getAllStudents,
+  getCoachStatistics,
+  getTrainingSchedules,
+  getAttendanceRecords,
+  upsertAttendanceRecord,
+  getStudentsByClass,
+  getAllClassGroups,
+  getCoachStatsWithElite,
+  // Admin
+  getAllUsers,
+  getAllCoachUsers,
+  getStudentsWithPayments,
+  getQuarterlyPaymentStatuses,
+  getQuarterlyFeeStatistics,
+  getMonthlyFinanceReport,
+  getAllEliteStudents,
+  getAllEliteClassBalances,
+  getAllEliteCycleInfo,
+  insertEvent,
+  updateEvent,
+  deleteEvent,
+  updateEventRegistrationStatus,
+  getEliteClassStatistics,
 } from "./db";
 import { verifyPassword, hashPassword } from "./password";
 import {
   generateToken,
-  parentAuthMiddleware,
+  authMiddleware,
+  requireRole,
   type AuthenticatedRequest,
 } from "./parentAuth";
 import { storagePut } from "./storage";
 import { ocrReceipt } from "./_core/localOcr";
 import { invokeLLM } from "./_core/llm";
 import { stampReceipt } from "./_core/receiptStamp";
-import { students as studentsTable } from "../drizzle/schema";
+import { students as studentsTable, users as usersTable } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
-// ── Multer setup (memory storage, 10 MB limit) ──────────────────────────
+// ── Multer ───────────────────────────────────────────────────────────────
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
-      cb(null, true);
-    } else {
-      cb(new Error("只接受圖片檔案"));
-    }
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("只接受圖片檔案"));
   },
 });
 
-// ── Router ───────────────────────────────────────────────────────────────
 const parentRouter = Router();
 
-// ── CORS for mobile app (no Origin header) ───────────────────────────────
+// ── CORS ─────────────────────────────────────────────────────────────────
 parentRouter.use((_req, res, next) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (_req.method === "OPTIONS") {
-    res.sendStatus(204);
-    return;
-  }
+  if (_req.method === "OPTIONS") { res.sendStatus(204); return; }
   next();
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-//  PUBLIC (no auth)
+//  PUBLIC — unified login
 // ══════════════════════════════════════════════════════════════════════════
 
-/**
- * POST /login
- * Body: { phone: string, password: string }
- * Returns: { success, token?, students?, hasElite?, needPasswordChange?, error? }
- */
 parentRouter.post("/login", async (req, res) => {
   try {
     const { phone, password } = req.body;
@@ -99,540 +124,426 @@ parentRouter.post("/login", async (req, res) => {
       return res.status(400).json({ success: false, error: "請輸入電話號碼和密碼" });
     }
 
+    const db = await getDb();
+    if (!db) return res.status(500).json({ success: false, error: "系統錯誤" });
+
+    // 1) Check users table first (coach / admin)
+    const userResult = await db.select().from(usersTable)
+      // @ts-ignore
+      .where(eq(usersTable.phone, phone)).limit(1);
+
+    if (userResult.length > 0) {
+      const user: any = userResult[0];
+      let needPasswordChange = false;
+      if (!user.password) {
+        if (password !== phone) return res.status(401).json({ success: false, error: "密碼錯誤" });
+        needPasswordChange = true;
+      } else {
+        const ok = await verifyPassword(password, user.password);
+        if (!ok) return res.status(401).json({ success: false, error: "密碼錯誤" });
+      }
+      const role = user.role as "coach" | "admin";
+      const token = generateToken(phone, role, { userId: user.id, coachName: user.coachName || user.coach_name });
+      return res.json({
+        success: true, token, role,
+        user: { id: user.id, phone: user.phone, role: user.role, coachName: user.coachName || user.coach_name },
+        needPasswordChange,
+      });
+    }
+
+    // 2) Check students table (parent)
     const regularStudents = await getStudentsByPhone(phone);
     const eliteStudentList = await getEliteStudentsByPhone(phone);
-
-    if (
-      (!regularStudents || regularStudents.length === 0) &&
-      (!eliteStudentList || eliteStudentList.length === 0)
-    ) {
-      return res.status(401).json({ success: false, error: "找不到此電話號碼的學生記錄" });
+    if ((!regularStudents || regularStudents.length === 0) && (!eliteStudentList || eliteStudentList.length === 0)) {
+      return res.status(401).json({ success: false, error: "找不到此電話號碼的帳號" });
     }
-
-    // Prefer regular student for auth, fallback to elite
-    const authTarget: any =
-      regularStudents && regularStudents.length > 0
-        ? regularStudents[0]
-        : eliteStudentList![0];
-
+    const authTarget: any = regularStudents?.length ? regularStudents[0] : eliteStudentList![0];
     let needPasswordChange = false;
-
     if (!authTarget.password) {
-      // No password set → use phone as default
-      if (password !== phone) {
-        return res.status(401).json({ success: false, error: "密碼錯誤" });
-      }
+      if (password !== phone) return res.status(401).json({ success: false, error: "密碼錯誤" });
       needPasswordChange = true;
     } else {
-      const isValid = await verifyPassword(password, authTarget.password);
-      if (!isValid) {
-        return res.status(401).json({ success: false, error: "密碼錯誤" });
-      }
+      const ok = await verifyPassword(password, authTarget.password);
+      if (!ok) return res.status(401).json({ success: false, error: "密碼錯誤" });
     }
-
-    // Issue JWT
-    const token = generateToken(phone);
-
+    const token = generateToken(phone, "parent");
     return res.json({
-      success: true,
-      token,
+      success: true, token, role: "parent",
       students: regularStudents || [],
-      hasElite: (eliteStudentList && eliteStudentList.length > 0) || false,
+      hasElite: !!(eliteStudentList && eliteStudentList.length > 0),
       needPasswordChange,
     });
   } catch (err: any) {
-    console.error("[ParentAPI] login error:", err);
+    console.error("[AppAPI] login error:", err);
     return res.status(500).json({ success: false, error: "系統錯誤" });
   }
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-//  PROTECTED (require JWT)
+//  PROTECTED — all routes below require JWT
 // ══════════════════════════════════════════════════════════════════════════
-parentRouter.use(parentAuthMiddleware);
+parentRouter.use(authMiddleware);
 
-// ── GET /students ────────────────────────────────────────────────────────
+// ── GET /profile (all roles) ─────────────────────────────────────────────
+parentRouter.get("/profile", async (req: AuthenticatedRequest, res) => {
+  try {
+    const phone = req.userPhone!;
+    const role = req.userRole!;
+
+    if (role === "parent") {
+      const regular = await getStudentsByPhone(phone);
+      const elite = await getEliteStudentsByPhone(phone);
+      return res.json({
+        phone, role,
+        students: (regular || []).map((s: any) => ({ id: s.id, name: s.name, belt: s.belt, venue: s.venue, coach: s.coach })),
+        eliteStudents: (elite || []).map((s: any) => ({ id: s.id, name: s.name, beltLevel: s.beltLevel })),
+      });
+    }
+
+    if (role === "coach") {
+      return res.json({
+        phone, role,
+        userId: req.userId,
+        coachName: req.coachName,
+      });
+    }
+
+    // admin
+    return res.json({ phone, role, userId: req.userId });
+  } catch (err: any) {
+    console.error("[AppAPI] profile error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// ── POST /change-password (all roles) ────────────────────────────────────
+parentRouter.post("/change-password", async (req: AuthenticatedRequest, res) => {
+  try {
+    const phone = req.userPhone!;
+    const role = req.userRole!;
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) return res.status(400).json({ success: false, error: "請輸入舊密碼和新密碼" });
+    if (newPassword.length < 6) return res.status(400).json({ success: false, error: "新密碼至少需要6個字元" });
+
+    const db = await getDb();
+    if (!db) return res.status(500).json({ success: false, error: "系統錯誤" });
+
+    if (role === "parent") {
+      const r = await db.select().from(studentsTable).where(eq(studentsTable.phone, phone)).limit(1);
+      if (!r.length) return res.status(404).json({ success: false, error: "找不到帳號" });
+      const s: any = r[0];
+      const ok = !s.password ? oldPassword === phone : await verifyPassword(oldPassword, s.password);
+      if (!ok) return res.status(401).json({ success: false, error: "舊密碼錯誤" });
+      await db.update(studentsTable).set({ password: await hashPassword(newPassword) } as any).where(eq(studentsTable.phone, phone));
+    } else {
+      // @ts-ignore
+      const r = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
+      if (!r.length) return res.status(404).json({ success: false, error: "找不到帳號" });
+      const u: any = r[0];
+      const ok = !u.password ? oldPassword === phone : await verifyPassword(oldPassword, u.password);
+      if (!ok) return res.status(401).json({ success: false, error: "舊密碼錯誤" });
+      // @ts-ignore
+      await db.update(usersTable).set({ password: await hashPassword(newPassword) }).where(eq(usersTable.phone, phone));
+    }
+    return res.json({ success: true, message: "密碼已成功修改" });
+  } catch (err: any) {
+    console.error("[AppAPI] change-password error:", err);
+    return res.status(500).json({ success: false, error: "系統錯誤" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+//  PARENT endpoints
+// ══════════════════════════════════════════════════════════════════════════
+
 parentRouter.get("/students", async (req: AuthenticatedRequest, res) => {
   try {
-    const phone = req.parentPhone!;
+    const phone = req.userPhone!;
     const regular = await getStudentsByPhone(phone);
     const elite = await getEliteStudentsByPhone(phone);
     return res.json({ students: regular || [], eliteStudents: elite || [] });
-  } catch (err: any) {
-    console.error("[ParentAPI] students error:", err);
-    return res.status(500).json({ error: "系統錯誤" });
-  }
+  } catch (err: any) { return res.status(500).json({ error: "系統錯誤" }); }
 });
 
-// ── GET /elite-info ──────────────────────────────────────────────────────
 parentRouter.get("/elite-info", async (req: AuthenticatedRequest, res) => {
-  try {
-    const phone = req.parentPhone!;
-    const info = await getParentEliteInfo(phone);
-    return res.json(info);
-  } catch (err: any) {
-    console.error("[ParentAPI] elite-info error:", err);
-    return res.status(500).json({ error: "系統錯誤" });
-  }
+  try { return res.json(await getParentEliteInfo(req.userPhone!)); }
+  catch (err: any) { return res.status(500).json({ error: "系統錯誤" }); }
 });
 
-// ── GET /attendance?year=YYYY&month=MM ───────────────────────────────────
 parentRouter.get("/attendance", async (req: AuthenticatedRequest, res) => {
   try {
-    const phone = req.parentPhone!;
     const year = parseInt(req.query.year as string) || new Date().getFullYear();
     const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
-    const data = await getParentAttendanceRecords(phone, year, month);
-    return res.json(data);
-  } catch (err: any) {
-    console.error("[ParentAPI] attendance error:", err);
-    return res.status(500).json({ error: "系統錯誤" });
-  }
+    return res.json(await getParentAttendanceRecords(req.userPhone!, year, month));
+  } catch (err: any) { return res.status(500).json({ error: "系統錯誤" }); }
 });
 
-// ── GET /monthly-statuses?year=YYYY ──────────────────────────────────────
 parentRouter.get("/monthly-statuses", async (req: AuthenticatedRequest, res) => {
   try {
-    const phone = req.parentPhone!;
     const year = req.query.year ? parseInt(req.query.year as string) : undefined;
     const all = await getMonthlyPaymentStatuses(year);
-    const filtered = all.filter((s: any) => s.phone === phone);
-    return res.json(filtered);
-  } catch (err: any) {
-    console.error("[ParentAPI] monthly-statuses error:", err);
-    return res.status(500).json({ error: "系統錯誤" });
-  }
+    return res.json(all.filter((s: any) => s.phone === req.userPhone));
+  } catch (err: any) { return res.status(500).json({ error: "系統錯誤" }); }
 });
 
-// ── GET /payments ────────────────────────────────────────────────────────
 parentRouter.get("/payments", async (req: AuthenticatedRequest, res) => {
   try {
-    const phone = req.parentPhone!;
-    const students = await getStudentsByPhone(phone);
-    if (!students || students.length === 0) {
-      return res.json([]);
-    }
-    const studentIds = students.map((s: any) => s.id);
-    const payments = await getPaymentRecordsByStudentIds(studentIds);
-    return res.json(payments);
-  } catch (err: any) {
-    console.error("[ParentAPI] payments error:", err);
-    return res.status(500).json({ error: "系統錯誤" });
-  }
+    const students = await getStudentsByPhone(req.userPhone!);
+    if (!students?.length) return res.json([]);
+    return res.json(await getPaymentRecordsByStudentIds(students.map((s: any) => s.id)));
+  } catch (err: any) { return res.status(500).json({ error: "系統錯誤" }); }
 });
 
-// ── POST /payments/upload (multipart: receipt file + JSON fields) ─────────
-parentRouter.post(
-  "/payments/upload",
-  upload.single("receipt"),
-  async (req: AuthenticatedRequest, res) => {
+// ── Receipt upload ───────────────────────────────────────────────────────
+parentRouter.post("/payments/upload", upload.single("receipt"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const phone = req.userPhone!;
+    const file = req.file;
+    if (!file) return res.status(400).json({ success: false, error: "請上傳收據圖片" });
+    const { studentId, paymentPeriod, customMonths, amount, classCount } = req.body;
+    if (!studentId || !paymentPeriod || !amount) return res.status(400).json({ success: false, error: "缺少必要欄位" });
+    const numId = parseInt(studentId);
+
+    // Verify ownership
+    const ps = await getStudentsByPhone(phone);
+    if (!ps?.some((s: any) => s.id === numId)) return res.status(403).json({ success: false, error: "無權為此學生繳費" });
+
+    const buf = file.buffer, mime = file.mimetype;
+    const ext = mime.split("/")[1] || "jpg";
+    const rKey = `receipts/${numId}-${Date.now()}.${ext}`;
+    const { url: rUrl } = await storagePut(rKey, buf, mime);
+
+    // OCR
+    let exAmt = amount, rDate: Date | null = null, exBank: string | null = null;
+    let exStatus: string | null = null, exDT: string | null = null;
+    let exRName: string | null = null, exRAcc: string | null = null;
+    const b64 = buf.toString("base64");
     try {
-      const phone = req.parentPhone!;
-      const file = req.file;
-      if (!file) {
-        return res.status(400).json({ success: false, error: "請上傳收據圖片" });
-      }
-
-      const { studentId, paymentPeriod, customMonths, amount, classCount } = req.body;
-      if (!studentId || !paymentPeriod || !amount) {
-        return res.status(400).json({ success: false, error: "缺少必要欄位" });
-      }
-
-      const numericStudentId = parseInt(studentId);
-
-      // Verify student belongs to this parent
-      const parentStudents = await getStudentsByPhone(phone);
-      const ownsStudent = parentStudents?.some((s: any) => s.id === numericStudentId);
-      if (!ownsStudent) {
-        return res.status(403).json({ success: false, error: "無權為此學生繳費" });
-      }
-
-      // Upload receipt to R2/local
-      const receiptBuffer = file.buffer;
-      const mimeType = file.mimetype;
-      const fileExt = mimeType.split("/")[1] || "jpg";
-      const receiptKey = `receipts/${numericStudentId}-${Date.now()}.${fileExt}`;
-      const { url: receiptUrl } = await storagePut(receiptKey, receiptBuffer, mimeType);
-
-      // ── OCR ────────────────────────────────────────────────────────
-      let extractedAmount = amount;
-      let receiptTransferDate: Date | null = null;
-      let extractedBank: string | null = null;
-      let extractedStatus: string | null = null;
-      let extractedDateTime: string | null = null;
-      let extractedRecipientName: string | null = null;
-      let extractedRecipientAccount: string | null = null;
-
-      const base64Data = receiptBuffer.toString("base64");
-
-      // 1) Local Tesseract
+      const lr = await ocrReceipt(b64, mime);
+      if (lr.amount) exAmt = lr.amount;
+      if (lr.bank) exBank = lr.bank;
+      if (lr.status) exStatus = lr.status;
+      if (lr.recipientName) exRName = lr.recipientName;
+      if (lr.recipientAccount) exRAcc = lr.recipientAccount;
+      if (lr.date) { const d = new Date(lr.time ? `${lr.date}T${lr.time}` : lr.date); if (!isNaN(d.getTime())) rDate = d; exDT = lr.time ? `${lr.date} ${lr.time}` : lr.date; }
+    } catch {}
+    if (!exAmt || exAmt === "0" || exAmt === amount) {
       try {
-        const localResult = await ocrReceipt(base64Data, mimeType);
-        if (localResult.amount) extractedAmount = localResult.amount;
-        if (localResult.bank) extractedBank = localResult.bank;
-        if (localResult.status) extractedStatus = localResult.status;
-        if (localResult.recipientName) extractedRecipientName = localResult.recipientName;
-        if (localResult.recipientAccount) extractedRecipientAccount = localResult.recipientAccount;
-        if (localResult.date) {
-          const dateStr = localResult.time
-            ? `${localResult.date}T${localResult.time}`
-            : localResult.date;
-          const parsed = new Date(dateStr);
-          if (!isNaN(parsed.getTime())) receiptTransferDate = parsed;
-          extractedDateTime = localResult.time
-            ? `${localResult.date} ${localResult.time}`
-            : localResult.date;
-        }
-      } catch (e) {
-        console.warn("[ParentAPI] Local OCR failed:", e);
-      }
-
-      // 2) LLM fallback
-      if (!extractedAmount || extractedAmount === "0" || extractedAmount === amount) {
-        try {
-          const ocrResponse = await invokeLLM({
-            messages: [
-              {
-                role: "system",
-                content:
-                  '你是一個銀行轉帳收據識別助手。請從收據中提取以下資訊並以純JSON格式回傳：\n{"amount":"金額","bank":"銀行名","status":"成功/失敗","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人","recipientAccount":"帳號"}\n無法識別的欄位回傳 null。只回傳JSON。',
-              },
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: "請識別這張轉帳收據:" },
-                  {
-                    type: "image_url",
-                    image_url: { url: `data:${mimeType};base64,${base64Data}`, detail: "high" },
-                  },
-                ],
-              },
-            ],
-          });
-          const content = ocrResponse.choices[0]?.message?.content;
-          if (typeof content === "string") {
-            const clean = content
-              .replace(/^```(?:json)?\s*\n?/i, "")
-              .replace(/\n?```\s*$/i, "")
-              .trim();
-            const ocrData = JSON.parse(clean);
-            if (ocrData.amount) {
-              const p = parseFloat(ocrData.amount.replace(/[^0-9.]/g, ""));
-              if (!isNaN(p) && p > 0) extractedAmount = p.toString();
-            }
-            if (ocrData.bank) extractedBank = ocrData.bank;
-            if (ocrData.status) extractedStatus = ocrData.status;
-            if (ocrData.recipientName && !extractedRecipientName) extractedRecipientName = ocrData.recipientName;
-            if (ocrData.recipientAccount && !extractedRecipientAccount)
-              extractedRecipientAccount = ocrData.recipientAccount.replace(/[^0-9]/g, "");
-            if (ocrData.date) {
-              const ds = ocrData.time ? `${ocrData.date}T${ocrData.time}` : ocrData.date;
-              const pd = new Date(ds);
-              if (!isNaN(pd.getTime())) receiptTransferDate = pd;
-              extractedDateTime = ocrData.time ? `${ocrData.date} ${ocrData.time}` : ocrData.date;
-            }
-          }
-        } catch (llmErr) {
-          console.warn("[ParentAPI] LLM OCR failed:", llmErr);
-        }
-      }
-
-      // ── Stamp receipt ──────────────────────────────────────────────
-      const student = await getStudentById(numericStudentId);
-      if (!student) {
-        return res.status(404).json({ success: false, error: "學生不存在" });
-      }
-
-      let stampedReceiptUrl = receiptUrl;
-      let stampedReceiptKey = receiptKey;
-      try {
-        const parsedCustomMonths = customMonths ? JSON.parse(customMonths) : undefined;
-        const stampedBuffer = await stampReceipt(receiptBuffer, mimeType, {
-          studentName: student.name,
-          amount: extractedAmount || amount,
-          paymentPeriod,
-          customMonths: parsedCustomMonths,
-          dojoName: student.venue || undefined,
-        });
-        const sKey = `receipts/stamped-${numericStudentId}-${Date.now()}.${fileExt}`;
-        const sResult = await storagePut(sKey, stampedBuffer, mimeType);
-        stampedReceiptUrl = sResult.url;
-        stampedReceiptKey = sKey;
-      } catch (e) {
-        console.warn("[ParentAPI] Receipt stamp failed:", e);
-      }
-
-      // ── Validate amount & recipient ────────────────────────────────
-      const parsedAmount = parseFloat(extractedAmount);
-      const expectedAmount = parseFloat(student.feePerQuarter);
-      const isAmountValid = parsedAmount === expectedAmount;
-
-      let isRecipientValid = false;
-      let recipientCheckNote = "";
-      try {
-        const validationEnabled = await getSystemConfig("receipt_validation_enabled");
-        if (validationEnabled === "true") {
-          const accepted = await getAcceptedPayeeAccounts();
-          if (accepted.length === 0) {
-            isRecipientValid = true;
-          } else {
-            const cleanAcct = (extractedRecipientAccount || "").replace(/[^0-9]/g, "");
-            const cleanName = (extractedRecipientName || "").toUpperCase().trim();
-            for (const a of accepted) {
-              const ca = a.account.replace(/[^0-9]/g, "");
-              const cn = a.name.toUpperCase().trim();
-              if (
-                (cleanAcct && ca && (cleanAcct.includes(ca) || ca.includes(cleanAcct))) ||
-                (cleanName && cn && (cleanName.includes(cn) || cn.includes(cleanName)))
-              ) {
-                isRecipientValid = true;
-                break;
-              }
-            }
-            if (!isRecipientValid) {
-              recipientCheckNote = `收款人不匹配: ${extractedRecipientName || "未識別"}`;
-            }
-          }
-        } else {
-          isRecipientValid = true;
-        }
-      } catch {
-        isRecipientValid = true;
-      }
-
-      let pendingReason = "";
-      if (!isAmountValid) pendingReason += `金額不符(識別=${parsedAmount}, 預期=${expectedAmount})`;
-      if (!isRecipientValid) {
-        if (pendingReason) pendingReason += "; ";
-        pendingReason += recipientCheckNote;
-      }
-      const recordStatus = isAmountValid && isRecipientValid ? "confirmed" : "pending";
-
-      // ── Insert payment record ──────────────────────────────────────
-      const parsedCustomMonths2 = customMonths ? JSON.parse(customMonths) : null;
-      const newPaymentId = await insertPaymentRecord({
-        studentId: numericStudentId,
-        paymentPeriod,
-        customMonths: parsedCustomMonths2,
-        amount: extractedAmount,
-        classCount: classCount ? parseInt(classCount) : null,
-        receiptUrl: stampedReceiptUrl,
-        receiptKey: stampedReceiptKey,
-        receiptTransferDate,
-        paymentDate: new Date(),
-        status: recordStatus,
-        confirmedBy: "parent_upload",
-      });
-
-      // Auto sync confirmed to accounting
-      if (recordStatus === "confirmed") {
-        try {
-          await syncPaymentToAccounting({
-            paymentRecordId: newPaymentId,
-            transactionDate: receiptTransferDate || new Date(),
-            amount: extractedAmount,
-            bank: extractedBank,
-            studentName: student.name,
-            coachName: student.coach,
-            dojoName: student.venue || null,
-            category: "tuition",
-            receiptUrl: stampedReceiptUrl,
-            receiptKey: stampedReceiptKey,
-          });
-        } catch (e) {
-          console.error("[ParentAPI] Accounting sync failed:", e);
-        }
-      }
-
-      return res.json({
-        success: true,
-        extractedAmount,
-        extractedBank,
-        extractedStatus,
-        extractedDateTime,
-        extractedRecipientName,
-        extractedRecipientAccount,
-        recipientValid: isRecipientValid,
-        pendingReason: pendingReason || undefined,
-        status: recordStatus,
-      });
-    } catch (err: any) {
-      console.error("[ParentAPI] upload error:", err);
-      return res.status(500).json({ success: false, error: "上傳失敗" });
+        const oR = await invokeLLM({ messages: [{ role: "system", content: '從收據提取JSON: {"amount","bank","status","date","time","recipientName","recipientAccount"}' }, { role: "user", content: [{ type: "text", text: "識別收據:" }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }] }] });
+        const c = oR.choices[0]?.message?.content;
+        if (typeof c === "string") { const d = JSON.parse(c.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim()); if (d.amount) { const p = parseFloat(d.amount.replace(/[^0-9.]/g, "")); if (!isNaN(p) && p > 0) exAmt = p.toString(); } if (d.bank) exBank = d.bank; if (d.date) { const pd = new Date(d.time ? `${d.date}T${d.time}` : d.date); if (!isNaN(pd.getTime())) rDate = pd; } }
+      } catch {}
     }
-  }
-);
 
-// ── GET /events ──────────────────────────────────────────────────────────
+    const student = await getStudentById(numId);
+    if (!student) return res.status(404).json({ success: false, error: "學生不存在" });
+
+    let sUrl = rUrl, sKey = rKey;
+    try { const cm = customMonths ? JSON.parse(customMonths) : undefined; const sb = await stampReceipt(buf, mime, { studentName: student.name, amount: exAmt || amount, paymentPeriod, customMonths: cm, dojoName: student.venue || undefined }); const sk = `receipts/stamped-${numId}-${Date.now()}.${ext}`; const sr = await storagePut(sk, sb, mime); sUrl = sr.url; sKey = sk; } catch {}
+
+    const pAmt = parseFloat(exAmt), eAmt = parseFloat(student.feePerQuarter);
+    const amtOk = pAmt === eAmt;
+    let rcpOk = false, rcpNote = "";
+    try { const v = await getSystemConfig("receipt_validation_enabled"); if (v === "true") { const acc = await getAcceptedPayeeAccounts(); if (!acc.length) rcpOk = true; else { for (const a of acc) { if ((exRAcc && a.account && (exRAcc.includes(a.account) || a.account.includes(exRAcc))) || (exRName && a.name && (exRName.toUpperCase().includes(a.name.toUpperCase()) || a.name.toUpperCase().includes(exRName.toUpperCase())))) { rcpOk = true; break; } } if (!rcpOk) rcpNote = `收款人不匹配`; } } else rcpOk = true; } catch { rcpOk = true; }
+
+    let reason = ""; if (!amtOk) reason += `金額不符`; if (!rcpOk) { if (reason) reason += "; "; reason += rcpNote; }
+    const st = amtOk && rcpOk ? "confirmed" : "pending";
+    const cm2 = customMonths ? JSON.parse(customMonths) : null;
+    const pid = await insertPaymentRecord({ studentId: numId, paymentPeriod, customMonths: cm2, amount: exAmt, classCount: classCount ? parseInt(classCount) : null, receiptUrl: sUrl, receiptKey: sKey, receiptTransferDate: rDate, paymentDate: new Date(), status: st, confirmedBy: "parent_upload" });
+    if (st === "confirmed") { try { await syncPaymentToAccounting({ paymentRecordId: pid, transactionDate: rDate || new Date(), amount: exAmt, bank: exBank, studentName: student.name, coachName: student.coach, dojoName: student.venue || null, category: "tuition", receiptUrl: sUrl, receiptKey: sKey }); } catch {} }
+
+    return res.json({ success: true, extractedAmount: exAmt, extractedBank: exBank, status: st, pendingReason: reason || undefined });
+  } catch (err: any) { console.error("[AppAPI] upload error:", err); return res.status(500).json({ success: false, error: "上傳失敗" }); }
+});
+
 parentRouter.get("/events", async (_req: AuthenticatedRequest, res) => {
-  try {
-    const events = await getOpenEvents();
-    return res.json(events);
-  } catch (err: any) {
-    console.error("[ParentAPI] events error:", err);
-    return res.status(500).json({ error: "系統錯誤" });
-  }
+  try { return res.json(await getOpenEvents()); } catch { return res.status(500).json({ error: "系統錯誤" }); }
 });
 
-// ── GET /events/my-registrations ─────────────────────────────────────────
 parentRouter.get("/events/my-registrations", async (req: AuthenticatedRequest, res) => {
-  try {
-    const phone = req.parentPhone!;
-    const registrations = await getEventRegistrations(undefined, phone);
-    return res.json(registrations);
-  } catch (err: any) {
-    console.error("[ParentAPI] my-registrations error:", err);
-    return res.status(500).json({ error: "系統錯誤" });
-  }
+  try { return res.json(await getEventRegistrations(undefined, req.userPhone!)); } catch { return res.status(500).json({ error: "系統錯誤" }); }
 });
 
-// ── POST /events/register ────────────────────────────────────────────────
 parentRouter.post("/events/register", async (req: AuthenticatedRequest, res) => {
   try {
-    const phone = req.parentPhone!;
     const { eventId, studentId, eliteStudentId, studentName, notes } = req.body;
-    if (!eventId || !studentName) {
-      return res.status(400).json({ success: false, error: "缺少必要欄位" });
-    }
-
-    // Check duplicate
-    const existing = await getEventRegistrations(eventId, phone);
-    const dup = existing.find(
-      (r: any) => r.studentName === studentName && r.status !== "cancelled"
-    );
-    if (dup) {
-      return res.status(409).json({ success: false, error: "該學生已報名此活動" });
-    }
-
-    // Check capacity
-    const count = await getEventRegistrationCount(eventId);
-    const allEvents = await getAllEvents();
-    const event = allEvents.find((e: any) => e.id === eventId);
-    if (event?.maxParticipants && count >= event.maxParticipants) {
-      return res.status(409).json({ success: false, error: "報名人數已滿" });
-    }
-
-    const result = await registerForEvent({
-      eventId,
-      studentId: studentId || null,
-      eliteStudentId: eliteStudentId || null,
-      studentName,
-      phone,
-      status: "registered",
-      notes: notes || null,
-    });
-    return res.json({ success: true, id: result.insertId });
-  } catch (err: any) {
-    console.error("[ParentAPI] register error:", err);
-    return res.status(500).json({ success: false, error: "系統錯誤" });
-  }
+    if (!eventId || !studentName) return res.status(400).json({ success: false, error: "缺少必要欄位" });
+    const existing = await getEventRegistrations(eventId, req.userPhone!);
+    if (existing.find((r: any) => r.studentName === studentName && r.status !== "cancelled")) return res.status(409).json({ success: false, error: "該學生已報名此活動" });
+    const cnt = await getEventRegistrationCount(eventId);
+    const evts = await getAllEvents();
+    const evt = evts.find((e: any) => e.id === eventId);
+    if (evt?.maxParticipants && cnt >= evt.maxParticipants) return res.status(409).json({ success: false, error: "報名人數已滿" });
+    const r = await registerForEvent({ eventId, studentId: studentId || null, eliteStudentId: eliteStudentId || null, studentName, phone: req.userPhone!, status: "registered", notes: notes || null });
+    return res.json({ success: true, id: r.insertId });
+  } catch (err: any) { return res.status(500).json({ success: false, error: "系統錯誤" }); }
 });
 
-// ── POST /events/cancel ──────────────────────────────────────────────────
 parentRouter.post("/events/cancel", async (req: AuthenticatedRequest, res) => {
-  try {
-    const { id } = req.body;
-    if (!id) {
-      return res.status(400).json({ success: false, error: "缺少報名 ID" });
-    }
-    await cancelEventRegistration(id);
-    return res.json({ success: true });
-  } catch (err: any) {
-    console.error("[ParentAPI] cancel error:", err);
-    return res.status(500).json({ success: false, error: "系統錯誤" });
-  }
+  try { const { id } = req.body; if (!id) return res.status(400).json({ success: false, error: "缺少報名ID" }); await cancelEventRegistration(id); return res.json({ success: true }); }
+  catch { return res.status(500).json({ success: false, error: "系統錯誤" }); }
 });
 
-// ── GET /exam-results ────────────────────────────────────────────────────
 parentRouter.get("/exam-results", async (req: AuthenticatedRequest, res) => {
-  try {
-    const phone = req.parentPhone!;
-    const results = await getExamResultsByPhone(phone);
-    return res.json(results);
-  } catch (err: any) {
-    console.error("[ParentAPI] exam-results error:", err);
-    return res.status(500).json({ error: "系統錯誤" });
-  }
+  try { return res.json(await getExamResultsByPhone(req.userPhone!)); } catch { return res.status(500).json({ error: "系統錯誤" }); }
 });
 
-// ── POST /change-password ────────────────────────────────────────────────
-parentRouter.post("/change-password", async (req: AuthenticatedRequest, res) => {
+// ══════════════════════════════════════════════════════════════════════════
+//  COACH endpoints
+// ══════════════════════════════════════════════════════════════════════════
+
+parentRouter.get("/coach/students", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
   try {
-    const phone = req.parentPhone!;
-    const { oldPassword, newPassword } = req.body;
-    if (!oldPassword || !newPassword) {
-      return res.status(400).json({ success: false, error: "請輸入舊密碼和新密碼" });
+    const all = await getAllStudents();
+    if (req.userRole === "coach" && req.coachName) {
+      return res.json(all.filter((s: any) => s.coach === req.coachName));
     }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, error: "新密碼至少需要6個字元" });
-    }
-
-    const db = await getDb();
-    if (!db) {
-      return res.status(500).json({ success: false, error: "系統錯誤" });
-    }
-
-    const studentResult = await db
-      .select()
-      .from(studentsTable)
-      .where(eq(studentsTable.phone, phone))
-      .limit(1);
-    if (studentResult.length === 0) {
-      return res.status(404).json({ success: false, error: "找不到帳號" });
-    }
-
-    const student = studentResult[0] as any;
-    let isValid = false;
-    if (!student.password) {
-      isValid = oldPassword === phone;
-    } else {
-      isValid = await verifyPassword(oldPassword, student.password);
-    }
-    if (!isValid) {
-      return res.status(401).json({ success: false, error: "舊密碼錯誤" });
-    }
-
-    const hashed = await hashPassword(newPassword);
-    await db
-      .update(studentsTable)
-      .set({ password: hashed } as any)
-      .where(eq(studentsTable.phone, phone));
-
-    return res.json({ success: true, message: "密碼已成功修改" });
-  } catch (err: any) {
-    console.error("[ParentAPI] change-password error:", err);
-    return res.status(500).json({ success: false, error: "系統錯誤" });
-  }
+    return res.json(all);
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
 });
 
-// ── GET /profile ─────────────────────────────────────────────────────────
-// Returns a summary for the app's home screen
-parentRouter.get("/profile", async (req: AuthenticatedRequest, res) => {
+parentRouter.get("/coach/statistics", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
   try {
-    const phone = req.parentPhone!;
-    const regular = await getStudentsByPhone(phone);
-    const elite = await getEliteStudentsByPhone(phone);
-    return res.json({
-      phone,
-      regularStudentCount: regular?.length || 0,
-      eliteStudentCount: elite?.length || 0,
-      students: (regular || []).map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        belt: s.belt,
-        venue: s.venue,
-        coach: s.coach,
-      })),
-      eliteStudents: (elite || []).map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        beltLevel: s.beltLevel,
-      })),
-    });
-  } catch (err: any) {
-    console.error("[ParentAPI] profile error:", err);
-    return res.status(500).json({ error: "系統錯誤" });
-  }
+    const coachName = req.userRole === "coach" ? req.coachName : (req.query.coachName as string) || undefined;
+    const allStats = await getCoachStatsWithElite();
+    if (coachName) {
+      // 教練只能看到自己的統計
+      const myStats = allStats.find((s: any) => s.coachName === coachName);
+      return res.json(myStats || { coachName, regularStudentCount: 0, eliteStudentCount: 0, totalStudentCount: 0, totalRevenue: 0, eliteStudents: [] });
+    }
+    return res.json(allStats);
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/coach/class-groups", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const allGroups = await getAllClassGroups();
+    if (req.userRole === "coach" && req.coachName) {
+      // 教練只看自己的班級：先找出自己的學生的 venue+day+time 組合
+      const myStudents = (await getAllStudents()).filter((s: any) => s.coach === req.coachName);
+      const myKeys = new Set(myStudents.map((s: any) => `${s.venue}-${s.scheduleDay}-${s.scheduleTime}`));
+      return res.json(allGroups.filter((g: any) => myKeys.has(`${g.venue}-${g.scheduleDay}-${g.scheduleTime}`)));
+    }
+    return res.json(allGroups);
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/coach/schedules", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+    const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+    const schedules = await getTrainingSchedules({ year, month });
+    if (req.userRole === "coach" && req.coachName) {
+      // 教練只看自己負責的班級排程
+      const myStudents = (await getAllStudents()).filter((s: any) => s.coach === req.coachName);
+      const myKeys = new Set(myStudents.map((s: any) => `${s.venue}-${s.scheduleDay}-${s.scheduleTime}`));
+      return res.json(schedules.filter((s: any) => myKeys.has(`${s.venue}-${s.scheduleDay}-${s.scheduleTime}`)));
+    }
+    return res.json(schedules);
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/coach/attendance", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const scheduleId = req.query.scheduleId ? parseInt(req.query.scheduleId as string) : undefined;
+    const records = await getAttendanceRecords({ scheduleId });
+    return res.json(records);
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.post("/coach/attendance", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { scheduleId, studentId, status } = req.body;
+    if (!scheduleId || !studentId || !status) return res.status(400).json({ success: false, error: "缺少必要欄位" });
+    const id = await upsertAttendanceRecord(scheduleId, studentId, status);
+    return res.json({ success: true, id });
+  } catch (err: any) { return res.status(500).json({ success: false, error: "系統錯誤" }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+//  ADMIN endpoints
+// ══════════════════════════════════════════════════════════════════════════
+
+parentRouter.get("/admin/students", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try { return res.json(await getAllStudents()); } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/elite-students", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try { return res.json(await getAllEliteStudents()); } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/users", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try { return res.json(await getAllUsers()); } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/coaches", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try { return res.json(await getAllCoachUsers()); } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/payments-overview", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+    return res.json(await getMonthlyPaymentStatuses(year));
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/quarterly-stats", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+    const quarter = parseInt(req.query.quarter as string) || 1;
+    return res.json(await getQuarterlyFeeStatistics(year, quarter));
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/statistics", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const coachName = req.query.coachName as string || undefined;
+    return res.json(await getCoachStatsWithElite(coachName));
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/finance", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+    const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+    return res.json(await getMonthlyFinanceReport(year, month));
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/elite-balances", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try { return res.json(await getAllEliteClassBalances()); } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/elite-cycles", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try { return res.json(await getAllEliteCycleInfo()); } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/elite-stats", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try { return res.json(await getEliteClassStatistics()); } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/events", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const type = req.query.type as string || undefined;
+    const status = req.query.status as string || undefined;
+    return res.json(await getAllEvents({ type, status }));
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.post("/admin/events/create", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { title, type, description, eventDate, eventTime, location, fee, maxParticipants, registrationDeadline } = req.body;
+    if (!title || !type || !eventDate) return res.status(400).json({ success: false, error: "缺少必要欄位" });
+    const result = await insertEvent({ title, type, description: description || null, eventDate: new Date(eventDate), eventTime: eventTime || null, location: location || null, fee: fee || "0", maxParticipants: maxParticipants || null, registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null, status: "open" });
+    return res.json({ success: true, id: result.insertId });
+  } catch { return res.status(500).json({ success: false, error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/event-registrations", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const eventId = req.query.eventId ? parseInt(req.query.eventId as string) : undefined;
+    return res.json(await getEventRegistrations(eventId));
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
 });
 
 export { parentRouter };
