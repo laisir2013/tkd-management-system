@@ -16,11 +16,17 @@
  *   GET  /profile
  * 
  * ── COACH ──
- *   GET  /coach/students       — my students
- *   GET  /coach/attendance     — class attendance (?year=&month=&classGroup=)
- *   POST /coach/attendance     — mark attendance
- *   GET  /coach/statistics     — my statistics
- *   GET  /coach/schedules      — training schedules
+ *   GET  /coach/students            — my students
+ *   GET  /coach/attendance          — class attendance (?year=&month=&classGroup=)
+ *   POST /coach/attendance          — mark attendance
+ *   GET  /coach/statistics          — my statistics
+ *   GET  /coach/schedules           — training schedules
+ *   GET  /coach/elite-students      — my elite students (with balance & cycle)
+ *   GET  /coach/elite-schedules     — elite training schedules (?year=&month=)
+ *   GET  /coach/elite-attendance    — elite attendance records (?scheduleId=&studentId=)
+ *   POST /coach/elite-attendance    — mark elite attendance
+ *   GET  /coach/elite-payments      — elite payment records (?studentId=)
+ *   GET  /coach/elite-cycles        — 12-class cycle info
  * 
  * ── ADMIN ──
  *   GET  /admin/students       — all students
@@ -64,6 +70,13 @@ import {
   getStudentsByClass,
   getAllClassGroups,
   getCoachStatsWithElite,
+  // Coach Elite
+  getEliteStudentBalance,
+  getEliteCycleInfo,
+  getEliteTrainingSchedules,
+  getEliteAttendanceRecords,
+  upsertEliteAttendanceRecord,
+  getElitePaymentRecords,
   // Admin
   getAllUsers,
   getAllCoachUsers,
@@ -602,6 +615,130 @@ parentRouter.post("/coach/attendance", requireRole("coach", "admin"), async (req
   } catch (err: any) {
     console.error("mark-attendance error:", err);
     return res.status(500).json({ success: false, error: "系統錯誤" });
+  }
+});
+
+// ── COACH ELITE endpoints ─────────────────────────────────────────────────
+
+// 1. GET /coach/elite-students — 教練的精英班學生
+parentRouter.get("/coach/elite-students", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const coachName = req.userRole === "coach" ? req.coachName : (req.query.coachName as string) || undefined;
+    const allElite = await getAllEliteStudents();
+    const filtered = coachName ? allElite.filter((s: any) => s.status === "active" && s.coach === coachName) : allElite.filter((s: any) => s.status === "active");
+
+    // 為每個學生附加餘額和循環資訊
+    const results = await Promise.all(filtered.map(async (s: any) => {
+      const balance = await getEliteStudentBalance(s.id);
+      const cycle = await getEliteCycleInfo(s.id);
+      return {
+        ...s,
+        balance: balance ? { paidClasses: balance.paidClasses, attendedClasses: balance.attendedClasses, remainingClasses: balance.remainingClasses, totalPaid: balance.totalPaid, amountDue: balance.amountDue } : null,
+        cycle: cycle ? { cycleNumber: cycle.cycleNumber, completedCycles: cycle.completedCycles, needPaymentReminder: cycle.needPaymentReminder, lastAttendedDate: cycle.lastAttendedDate } : null,
+      };
+    }));
+    return res.json(results);
+  } catch (err: any) {
+    console.error("[AppAPI] coach/elite-students error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// 2. GET /coach/elite-schedules — 精英班訓練日期
+parentRouter.get("/coach/elite-schedules", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+    const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+    const schedules = await getEliteTrainingSchedules({ year, month, status: "active" });
+    return res.json(schedules);
+  } catch (err: any) {
+    console.error("[AppAPI] coach/elite-schedules error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// 3. GET /coach/elite-attendance — 精英班出席記錄
+parentRouter.get("/coach/elite-attendance", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const scheduleId = req.query.scheduleId ? parseInt(req.query.scheduleId as string) : undefined;
+    const studentId = req.query.studentId ? parseInt(req.query.studentId as string) : undefined;
+    const records = await getEliteAttendanceRecords({ scheduleId, studentId });
+    return res.json(records);
+  } catch (err: any) {
+    console.error("[AppAPI] coach/elite-attendance error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// 4. POST /coach/elite-attendance — 精英班點名
+parentRouter.post("/coach/elite-attendance", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { scheduleId, studentId, status } = req.body;
+    if (!scheduleId || !studentId || !status) return res.status(400).json({ success: false, error: "缺少必要欄位" });
+    if (!["present", "absent", "late", "excused"].includes(status)) return res.status(400).json({ success: false, error: "無效的狀態" });
+
+    // 驗證教練權限：教練只能為自己的精英班學生點名
+    if (req.userRole === "coach" && req.coachName) {
+      const allElite = await getAllEliteStudents();
+      const student = allElite.find((s: any) => s.id === studentId);
+      if (!student || student.coach !== req.coachName) {
+        return res.status(403).json({ success: false, error: "您只能為自己的精英班學生點名" });
+      }
+    }
+
+    const id = await upsertEliteAttendanceRecord({ scheduleId, studentId, status });
+    return res.json({ success: true, id });
+  } catch (err: any) {
+    console.error("[AppAPI] coach/elite-attendance POST error:", err);
+    return res.status(500).json({ success: false, error: "系統錯誤" });
+  }
+});
+
+// 5. GET /coach/elite-payments — 精英班繳費記錄
+parentRouter.get("/coach/elite-payments", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const studentId = req.query.studentId ? parseInt(req.query.studentId as string) : undefined;
+    const coachName = req.userRole === "coach" ? req.coachName : undefined;
+
+    // 如果查特定學生，先驗證是否屬於該教練
+    if (studentId && coachName) {
+      const allElite = await getAllEliteStudents();
+      const student = allElite.find((s: any) => s.id === studentId);
+      if (!student || student.coach !== coachName) {
+        return res.status(403).json({ error: "您只能查看自己的精英班學生繳費" });
+      }
+    }
+
+    let payments = await getElitePaymentRecords(studentId);
+
+    // 教練：只返回自己學生的繳費記錄
+    if (!studentId && coachName) {
+      const allElite = await getAllEliteStudents();
+      const myStudentIds = new Set(allElite.filter((s: any) => s.coach === coachName).map((s: any) => s.id));
+      payments = payments.filter((p: any) => myStudentIds.has(p.studentId));
+    }
+
+    return res.json(payments);
+  } catch (err: any) {
+    console.error("[AppAPI] coach/elite-payments error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// 6. GET /coach/elite-cycles — 精英班 12 堂循環資訊
+parentRouter.get("/coach/elite-cycles", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const coachName = req.userRole === "coach" ? req.coachName : undefined;
+    const allElite = await getAllEliteStudents();
+    const activeStudents = coachName
+      ? allElite.filter((s: any) => s.status === "active" && s.coach === coachName)
+      : allElite.filter((s: any) => s.status === "active");
+
+    const results = await Promise.all(activeStudents.map((s: any) => getEliteCycleInfo(s.id)));
+    return res.json(results.filter(r => r !== null));
+  } catch (err: any) {
+    console.error("[AppAPI] coach/elite-cycles error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
   }
 });
 
