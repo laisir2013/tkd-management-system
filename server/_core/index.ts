@@ -12,6 +12,7 @@ import { storageGetBuffer } from "../storage";
 import { addSSEClient, getConnectedClientCount } from "../sse";
 import archiver from "archiver";
 import { parentRouter } from "../parentApi";
+import { parentRouter } from "../parentApi";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -156,6 +157,10 @@ async function startServer() {
     next();
   });
   app.use('/api/v1/parent', parentRouter);
+
+  // ── Parent App REST API (v1) ──
+  // CORS bypass for mobile app (no Origin header)
+  app.use('/api/v1/parent', express.json({ limit: '15mb' }), parentRouter);
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
