@@ -170,6 +170,11 @@ import {
   examMarkAbsent,
   searchExamCandidates,
   bulkDeleteExamCandidates,
+  // 收據審查
+  checkDuplicateReceipt,
+  getReceiptReviews,
+  getReceiptCompare,
+  reviewReceipt,
 } from "./db";
 import { verifyPassword, hashPassword } from "./password";
 import {
@@ -191,6 +196,8 @@ import {
   notifyEliteLowBalance,
   notifyExamResult,
   getRawPool as getPushRawPool,
+  notifyAdminReviewNeeded,
+  notifyParentReviewResult,
 } from "./pushHelper";
 
 // ── Multer ───────────────────────────────────────────────────────────────
@@ -460,10 +467,30 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
     let reason = ""; if (!amtOk) reason += `金額不符`; if (!rcpOk) { if (reason) reason += "; "; reason += rcpNote; }
     const st = amtOk && rcpOk ? "confirmed" : "pending";
     const cm2 = customMonths ? JSON.parse(customMonths) : null;
-    const pid = await insertPaymentRecord({ studentId: numId, paymentPeriod, customMonths: cm2, amount: exAmt, classCount: classCount ? parseInt(classCount) : null, receiptUrl: sUrl, receiptKey: sKey, receiptTransferDate: rDate, paymentDate: new Date(), status: st, confirmedBy: "parent_upload" });
-    if (st === "confirmed") { try { await syncPaymentToAccounting({ paymentRecordId: pid, transactionDate: rDate || new Date(), amount: exAmt, bank: exBank, studentName: student.name, coachName: student.coach, dojoName: student.venue || null, category: "tuition", receiptUrl: sUrl, receiptKey: sKey }); } catch {} }
 
-    return res.json({ success: true, extractedAmount: exAmt, extractedBank: exBank, status: st, pendingReason: reason || undefined });
+    // ── 重複收據檢測 ──
+    let needsReview = false;
+    let reviewReason = '';
+    let reviewMatchType: string | null = null;
+    let reviewMatchPaymentId: number | null = null;
+    const dupCheck = await checkDuplicateReceipt({ studentId: numId, amount: exAmt, receiptTransferDate: rDate, receiptKey: sKey, paymentType: 'regular' });
+    if (dupCheck.isDuplicate) {
+      needsReview = true;
+      reviewMatchType = dupCheck.matchType;
+      reviewMatchPaymentId = dupCheck.matchPaymentId;
+      reviewReason = dupCheck.reason || '疑似重複收據';
+      console.log(`[ReceiptReview] 偵測到疑似重複: ${reviewReason}`);
+    }
+
+    const pid = await insertPaymentRecord({ studentId: numId, paymentPeriod, customMonths: cm2, amount: exAmt, classCount: classCount ? parseInt(classCount) : null, receiptUrl: sUrl, receiptKey: sKey, receiptTransferDate: rDate, paymentDate: new Date(), status: needsReview ? 'pending' : st, confirmedBy: "parent_upload", reviewStatus: needsReview ? 'pending_review' : 'normal', reviewReason: needsReview ? reviewReason : (reason || null), reviewMatchType, reviewMatchPaymentId });
+    if (st === "confirmed" && !needsReview) { try { await syncPaymentToAccounting({ paymentRecordId: pid, transactionDate: rDate || new Date(), amount: exAmt, bank: exBank, studentName: student.name, coachName: student.coach, dojoName: student.venue || null, category: "tuition", receiptUrl: sUrl, receiptKey: sKey }); } catch {} }
+
+    // 通知管理員審查
+    if (needsReview) {
+      notifyAdminReviewNeeded({ studentName: student.name, amount: exAmt, matchType: reviewMatchType || 'unknown', reason: reviewReason }).catch(() => {});
+    }
+
+    return res.json({ success: true, extractedAmount: exAmt, extractedBank: exBank, status: needsReview ? 'pending' : st, pendingReason: reason || undefined, needsReview, reviewReason: needsReview ? reviewReason : undefined });
   } catch (err: any) { console.error("[AppAPI] upload error:", err); return res.status(500).json({ success: false, error: "上傳失敗" }); }
 });
 
@@ -1601,6 +1628,112 @@ parentRouter.get("/admin/coach-statistics/:coachName", requireRole("admin"), asy
     return res.json(myStats || { coachName, regularStudentCount: 0, eliteStudentCount: 0, totalStudentCount: 0, totalRevenue: 0 });
   } catch (err: any) {
     console.error("[AppAPI] admin/coach-statistics/:coachName error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+//  收據審查 REST API (Admin)
+// ══════════════════════════════════════════════════════════════════════════
+
+// 取得待審查收據列表
+parentRouter.get("/admin/receipt-reviews", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const status = (req.query.status as string) || 'pending_review';
+    const reviews = await getReceiptReviews(status);
+    return res.json(reviews);
+  } catch (err: any) {
+    console.error("[AppAPI] admin/receipt-reviews error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// 取得收據比對詳情
+parentRouter.get("/admin/receipt-compare/:paymentId", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const paymentId = parseInt(req.params.paymentId);
+    const paymentType = (req.query.type as string) || 'regular';
+    const compare = await getReceiptCompare(paymentId, paymentType);
+    if (!compare) return res.status(404).json({ error: "找不到記錄" });
+    return res.json(compare);
+  } catch (err: any) {
+    console.error("[AppAPI] admin/receipt-compare error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// 審查決定：批准或拒絕
+parentRouter.post("/admin/receipt-review/:paymentId", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const paymentId = parseInt(req.params.paymentId);
+    const { decision, paymentType } = req.body;
+    if (!decision || !['approved', 'rejected'].includes(decision)) {
+      return res.status(400).json({ error: "decision 必須為 approved 或 rejected" });
+    }
+
+    const result = await reviewReceipt({
+      paymentId,
+      paymentType: paymentType || 'regular',
+      decision,
+      reviewedBy: req.userPhone || 'admin',
+    });
+
+    if (!result) return res.status(500).json({ error: "審查處理失敗" });
+
+    // 批准後同步到會計
+    if (decision === 'approved' && (!paymentType || paymentType === 'regular')) {
+      try {
+        const { getPaymentRecordById, syncPaymentToAccounting } = await import("./db");
+        const payment = await getPaymentRecordById(paymentId);
+        if (payment) {
+          const student = await getStudentById(payment.studentId);
+          if (student) {
+            await syncPaymentToAccounting({
+              paymentRecordId: paymentId,
+              transactionDate: payment.receiptTransferDate || payment.paymentDate,
+              amount: String(payment.amount),
+              bank: null,
+              studentName: student.name,
+              coachName: student.coach,
+              dojoName: student.venue || null,
+              category: 'tuition',
+              receiptUrl: payment.receiptUrl,
+              receiptKey: payment.receiptKey,
+            });
+          }
+        }
+      } catch (e) {
+        console.error("[ReceiptReview] 批准後同步會計失敗:", e);
+      }
+    }
+
+    // 通知家長
+    try {
+      const compare = await getReceiptCompare(paymentId, paymentType || 'regular');
+      if (compare?.current) {
+        notifyParentReviewResult({
+          studentId: compare.current.studentId || compare.current.student_id,
+          studentType: paymentType === 'elite' ? 'elite' : 'regular',
+          studentName: compare.current.studentName || '學生',
+          decision,
+          amount: String(compare.current.amount),
+        }).catch(() => {});
+      }
+    } catch {}
+
+    return res.json({ success: true, decision });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/receipt-review error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// 待審查數量
+parentRouter.get("/admin/receipt-review-count", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try {
+    const items = await getReceiptReviews('pending_review');
+    return res.json({ count: items.length });
+  } catch (err: any) {
     return res.status(500).json({ error: "系統錯誤" });
   }
 });

@@ -635,6 +635,8 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
 
       let hasPendingRecipient = false;
       let lastPendingReason = '';
+      let hasNeedsReview = false;
+      let lastReviewReason = '';
       for (const studentId of selectedStudentIds) {
         const result = await createPayment.mutateAsync({
           studentId,
@@ -648,12 +650,23 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
         if (result.extractedBank) setExtractedBank(result.extractedBank);
         if (result.extractedStatus) setExtractedStatus(result.extractedStatus);
         if (result.extractedDateTime) setExtractedDateTime(result.extractedDateTime);
-        if (result.status === 'pending') {
+        if (result.needsReview) {
+          hasNeedsReview = true;
+          lastReviewReason = result.reviewReason || '';
+        }
+        if (result.status === 'pending' && !result.needsReview) {
           hasPendingRecipient = true;
           lastPendingReason = result.pendingReason || '';
         }
       }
-      if (hasPendingRecipient) {
+      if (hasNeedsReview) {
+        // 疑似重複收據 → 需審查
+        toast("收據已提交，但偵測到疑似重複交易，管理員將進行審查。", {
+          duration: 8000,
+          icon: "⚠️",
+          description: lastReviewReason || "請耐心等待審查結果通知。",
+        });
+      } else if (hasPendingRecipient) {
         // 收款人帳號不符或金額不符 → 待人工審核
         const reasonParts: string[] = [];
         if (lastPendingReason.includes('金額不符')) reasonParts.push('金額不符');

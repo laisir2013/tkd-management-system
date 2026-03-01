@@ -368,3 +368,80 @@ export async function notifyPaymentOverdue(
     { type: "payment_overdue" },
   );
 }
+
+// ════════════════════════════════════════════════════════════════════════
+//  7. 收據審查通知 — 通知管理員有新的待審查收據
+// ════════════════════════════════════════════════════════════════════════
+
+/**
+ * 通知管理員有新的待審查收據
+ */
+export async function notifyAdminReviewNeeded(params: {
+  studentName: string;
+  amount: string;
+  matchType: string;
+  reason: string;
+}) {
+  try {
+    const pool = await getRawPool();
+    if (!pool) return;
+
+    // 取得所有管理員的 push tokens
+    const [rows] = await pool.execute(
+      "SELECT DISTINCT token FROM push_tokens WHERE role = 'admin'"
+    ) as any;
+    const tokens = (rows || []).map((r: any) => r.token).filter((t: string) => Expo.isExpoPushToken(t));
+
+    if (tokens.length === 0) {
+      console.log("[PushHelper] 沒有管理員 push token，跳過審查通知");
+      return;
+    }
+
+    const matchTypeLabels: Record<string, string> = {
+      'same_amount_date': '同金額+同日期',
+      'same_transaction_ref': '疑似同一筆交易',
+      'exact_image': '相同收據圖片',
+      'similar_image': '相似收據圖片',
+    };
+
+    const title = "📋 收據需要審查";
+    const body = `${params.studentName} 上傳的收據($${params.amount})疑似重複：${matchTypeLabels[params.matchType] || params.matchType}`;
+
+    await sendPushNotifications(tokens, title, body, { type: "receipt_review" });
+
+    // 寫入 notifications 表
+    await pool.execute(
+      `INSERT INTO notifications (title, body, sender_phone, sender_role, target_type, target_value, sent_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [title, body, "system", "system", "role", "admin", tokens.length]
+    );
+
+    console.log(`[PushHelper] 已通知 ${tokens.length} 位管理員審查收據`);
+  } catch (err) {
+    console.error("[PushHelper] notifyAdminReviewNeeded error:", err);
+  }
+}
+
+/**
+ * 通知家長收據審查結果
+ */
+export async function notifyParentReviewResult(params: {
+  studentId: number;
+  studentType: 'regular' | 'elite';
+  studentName: string;
+  decision: 'approved' | 'rejected';
+  amount: string;
+}) {
+  const title = params.decision === 'approved' ? "✅ 收據審查通過" : "❌ 收據審查未通過";
+  const body = params.decision === 'approved'
+    ? `${params.studentName} 的繳費收據($${params.amount})已通過審查，繳費確認完成。`
+    : `${params.studentName} 的繳費收據($${params.amount})審查未通過，請重新上傳正確的轉帳收據。`;
+
+  await sendToStudentAndLog(
+    "receipt_review_result",
+    params.studentId, params.studentType,
+    title, body,
+    "system", "system",
+    { type: "receipt_review_result", decision: params.decision },
+  );
+}

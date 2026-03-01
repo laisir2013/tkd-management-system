@@ -34,6 +34,7 @@ import ExamManagement from "@/components/ExamManagement";
 import JournalEntries from "@/components/JournalEntries";
 import AccountingReports from "@/components/AccountingReports";
 import BankStatementReconciliation from "@/components/BankStatementReconciliation";
+import ReceiptReviewContent from "@/components/ReceiptReviewContent";
 
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -505,6 +506,7 @@ export default function Admin() {
             <TabsTrigger value="exam" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-red-300 bg-red-50 text-red-700 rounded-md data-[state=active]:border-red-500 data-[state=active]:bg-red-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">🥋 考試評分</TabsTrigger>
             <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">用戶管理</TabsTrigger>
             <TabsTrigger value="whatsapp" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">WhatsApp範本</TabsTrigger>
+            <TabsTrigger value="receipt-review" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-yellow-300 bg-yellow-50 text-yellow-700 rounded-md data-[state=active]:border-yellow-500 data-[state=active]:bg-yellow-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📋 收據審查</TabsTrigger>
           </TabsList>
 
           {/* ========= 恆常班管理 (內含子分頁) ========= */}
@@ -955,6 +957,11 @@ export default function Admin() {
           {/* ========= WhatsApp 範本 ========= */}
           <TabsContent value="whatsapp">
             <WhatsAppTemplates />
+          </TabsContent>
+
+          {/* ========= 收據審查 ========= */}
+          <TabsContent value="receipt-review">
+            <ReceiptReviewContent />
           </TabsContent>
         </Tabs>
       </div>

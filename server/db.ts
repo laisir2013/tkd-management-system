@@ -3082,3 +3082,209 @@ export async function onAccountingRecordCreated(recordId: number) {
 
   return result;
 }
+
+// ════════════════════════════════════════════════════════════════════════
+//  收據審查系統 — Receipt Review System
+// ════════════════════════════════════════════════════════════════════════
+
+/**
+ * 檢測疑似重複收據：根據轉帳日期、金額、收據 key 比對
+ */
+export async function checkDuplicateReceipt(params: {
+  studentId: number;
+  amount: string;
+  receiptTransferDate: Date | null;
+  receiptKey: string | null;
+  paymentType: 'regular' | 'elite';
+}): Promise<{ isDuplicate: boolean; matchType: string | null; matchPaymentId: number | null; reason: string | null }> {
+  const pool = await getRawPool();
+  if (!pool) return { isDuplicate: false, matchType: null, matchPaymentId: null, reason: null };
+
+  try {
+    const parsedAmount = parseFloat(params.amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return { isDuplicate: false, matchType: null, matchPaymentId: null, reason: null };
+    }
+
+    const table = params.paymentType === 'elite' ? 'elite_payments' : 'paymentRecords';
+    const studentIdCol = params.paymentType === 'elite' ? 'student_id' : 'studentId';
+    const dateCol = params.paymentType === 'elite' ? 'payment_date' : 'receiptTransferDate';
+
+    // 1. 同學生 + 同金額 + 同日期（±24小時）
+    if (params.receiptTransferDate) {
+      const [rows] = await pool.execute(
+        `SELECT id, amount, ${dateCol} as txDate
+         FROM ${table}
+         WHERE ${studentIdCol} = ?
+           AND ABS(CAST(amount AS DECIMAL(10,2)) - ?) < 0.01
+           AND ${dateCol} IS NOT NULL
+           AND ABS(TIMESTAMPDIFF(HOUR, ${dateCol}, ?)) <= 24
+           AND review_status != 'rejected'
+         ORDER BY id DESC LIMIT 1`,
+        [params.studentId, parsedAmount, params.receiptTransferDate]
+      ) as any;
+      if (rows?.length > 0) {
+        return {
+          isDuplicate: true,
+          matchType: 'same_amount_date',
+          matchPaymentId: rows[0].id,
+          reason: `同學生、同金額($${parsedAmount})、相近轉帳時間`
+        };
+      }
+    }
+
+    // 2. 同金額 + 同日期 跨學生（±2小時，可能同一張收據重複用）
+    if (params.receiptTransferDate) {
+      const [rows2] = await pool.execute(
+        `SELECT id, ${studentIdCol} as sid, amount
+         FROM ${table}
+         WHERE ABS(CAST(amount AS DECIMAL(10,2)) - ?) < 0.01
+           AND ${dateCol} IS NOT NULL
+           AND ABS(TIMESTAMPDIFF(HOUR, ${dateCol}, ?)) <= 2
+           AND review_status != 'rejected'
+         ORDER BY id DESC LIMIT 1`,
+        [parsedAmount, params.receiptTransferDate]
+      ) as any;
+      if (rows2?.length > 0) {
+        return {
+          isDuplicate: true,
+          matchType: 'same_transaction_ref',
+          matchPaymentId: rows2[0].id,
+          reason: `同金額($${parsedAmount})、極相近轉帳時間（可能為同一筆交易）`
+        };
+      }
+    }
+
+    return { isDuplicate: false, matchType: null, matchPaymentId: null, reason: null };
+  } catch (err) {
+    console.error("[ReceiptReview] checkDuplicateReceipt error:", err);
+    return { isDuplicate: false, matchType: null, matchPaymentId: null, reason: null };
+  }
+}
+
+/**
+ * 取得待審查收據列表
+ */
+export async function getReceiptReviews(status: string = 'pending_review'): Promise<any[]> {
+  const pool = await getRawPool();
+  if (!pool) return [];
+
+  try {
+    const [regularRows] = await pool.execute(
+      `SELECT p.id, p.studentId, s.name as studentName, p.amount, p.paymentPeriod, p.paymentDate,
+              p.receiptUrl, p.receiptTransferDate, p.review_status, p.review_reason, p.review_match_type,
+              p.review_match_payment_id, p.reviewed_by, p.reviewed_at, p.createdAt,
+              'regular' as paymentType, s.venue
+       FROM paymentRecords p
+       LEFT JOIN students s ON p.studentId = s.id
+       WHERE p.review_status = ?
+       ORDER BY p.createdAt DESC`,
+      [status]
+    ) as any;
+
+    const [eliteRows] = await pool.execute(
+      `SELECT p.id, p.student_id as studentId, s.name as studentName, p.amount,
+              CONCAT(p.class_count, '堂') as paymentPeriod, p.payment_date as paymentDate,
+              p.receipt_url as receiptUrl, p.payment_date as receiptTransferDate,
+              p.review_status, p.review_reason, p.review_match_type,
+              p.review_match_payment_id, p.reviewed_by, p.reviewed_at, p.created_at as createdAt,
+              'elite' as paymentType, '' as venue
+       FROM elite_payments p
+       LEFT JOIN elite_students s ON p.student_id = s.id
+       WHERE p.review_status = ?
+       ORDER BY p.created_at DESC`,
+      [status]
+    ) as any;
+
+    return [...(regularRows || []), ...(eliteRows || [])].sort(
+      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  } catch (err) {
+    console.error("[ReceiptReview] getReceiptReviews error:", err);
+    return [];
+  }
+}
+
+/**
+ * 取得收據比對詳情
+ */
+export async function getReceiptCompare(paymentId: number, paymentType: string = 'regular'): Promise<any> {
+  const pool = await getRawPool();
+  if (!pool) return null;
+
+  try {
+    if (paymentType === 'elite') {
+      const [rows] = await pool.execute(
+        `SELECT p.*, s.name as studentName
+         FROM elite_payments p LEFT JOIN elite_students s ON p.student_id = s.id
+         WHERE p.id = ?`, [paymentId]
+      ) as any;
+      if (!rows?.length) return null;
+      const current = rows[0];
+      let matchedReceipt = null;
+      if (current.review_match_payment_id) {
+        const [mRows] = await pool.execute(
+          `SELECT p.*, s.name as studentName
+           FROM elite_payments p LEFT JOIN elite_students s ON p.student_id = s.id
+           WHERE p.id = ?`, [current.review_match_payment_id]
+        ) as any;
+        if (mRows?.length) matchedReceipt = mRows[0];
+      }
+      return { current, matchedReceipt, paymentType };
+    } else {
+      const [rows] = await pool.execute(
+        `SELECT p.*, s.name as studentName, s.venue
+         FROM paymentRecords p LEFT JOIN students s ON p.studentId = s.id
+         WHERE p.id = ?`, [paymentId]
+      ) as any;
+      if (!rows?.length) return null;
+      const current = rows[0];
+      let matchedReceipt = null;
+      if (current.review_match_payment_id) {
+        const [mRows] = await pool.execute(
+          `SELECT p.*, s.name as studentName, s.venue
+           FROM paymentRecords p LEFT JOIN students s ON p.studentId = s.id
+           WHERE p.id = ?`, [current.review_match_payment_id]
+        ) as any;
+        if (mRows?.length) matchedReceipt = mRows[0];
+      }
+      return { current, matchedReceipt, paymentType };
+    }
+  } catch (err) {
+    console.error("[ReceiptReview] getReceiptCompare error:", err);
+    return null;
+  }
+}
+
+/**
+ * 審查收據：批准或拒絕
+ */
+export async function reviewReceipt(params: {
+  paymentId: number;
+  paymentType: 'regular' | 'elite';
+  decision: 'approved' | 'rejected';
+  reviewedBy: string;
+}): Promise<boolean> {
+  const pool = await getRawPool();
+  if (!pool) return false;
+
+  try {
+    const table = params.paymentType === 'elite' ? 'elite_payments' : 'paymentRecords';
+    await pool.execute(
+      `UPDATE ${table}
+       SET review_status = ?, reviewed_by = ?, reviewed_at = NOW(),
+           status = ?
+       WHERE id = ?`,
+      [
+        params.decision,
+        params.reviewedBy,
+        params.decision === 'approved' ? 'confirmed' : 'pending',
+        params.paymentId
+      ]
+    );
+    return true;
+  } catch (err) {
+    console.error("[ReceiptReview] reviewReceipt error:", err);
+    return false;
+  }
+}

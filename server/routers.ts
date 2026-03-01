@@ -159,6 +159,11 @@ import {
   lockPeriod,
   deleteJournalEntry,
   onAccountingRecordCreated,
+  // 收據審查系統
+  checkDuplicateReceipt,
+  getReceiptReviews,
+  getReceiptCompare,
+  reviewReceipt,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -1347,22 +1352,49 @@ export const appRouter = router({
           console.log(`[Receipt] 設為待審核: ${pendingReason}`);
         }
         
+        // ── 重複收據檢測 ──
+        let needsReview = false;
+        let reviewReason = '';
+        let reviewMatchType: string | null = null;
+        let reviewMatchPaymentId: number | null = null;
+        
+        const dupCheck = await checkDuplicateReceipt({
+          studentId: input.studentId,
+          amount: extractedAmount,
+          receiptTransferDate,
+          receiptKey: stampedReceiptKey,
+          paymentType: 'regular',
+        });
+        
+        if (dupCheck.isDuplicate) {
+          needsReview = true;
+          reviewMatchType = dupCheck.matchType;
+          reviewMatchPaymentId = dupCheck.matchPaymentId;
+          reviewReason = dupCheck.reason || '疑似重複收據';
+          console.log(`[ReceiptReview] 偵測到疑似重複: ${reviewReason}, matchId=${reviewMatchPaymentId}`);
+        }
+        
         const newPaymentId = await insertPaymentRecord({
           studentId: input.studentId,
           paymentPeriod: input.paymentPeriod,
           customMonths: input.customMonths || null,
           amount: extractedAmount,
-          classCount: input.classCount || null, // 精英班堂數
+          classCount: input.classCount || null,
           receiptUrl: stampedReceiptUrl,
           receiptKey: stampedReceiptKey,
           receiptTransferDate,
           paymentDate: new Date(),
-          status: recordStatus,
+          status: needsReview ? 'pending' : recordStatus,
           confirmedBy: 'parent_upload',
+          // 審查欄位
+          reviewStatus: needsReview ? 'pending_review' : 'normal',
+          reviewReason: needsReview ? reviewReason : (pendingReason || null),
+          reviewMatchType: reviewMatchType,
+          reviewMatchPaymentId: reviewMatchPaymentId,
         });
         
-        // 自動同步到會計記錄（確認的繳費才同步）
-        if (recordStatus === 'confirmed') {
+        // 自動同步到會計記錄（確認的繳費才同步，需審查的不同步）
+        if (recordStatus === 'confirmed' && !needsReview) {
           try {
             await syncPaymentToAccounting({
               paymentRecordId: newPaymentId,
@@ -1381,6 +1413,17 @@ export const appRouter = router({
           }
         }
         
+        // 通知管理員審查（非同步，不阻塞回應）
+        if (needsReview) {
+          const { notifyAdminReviewNeeded } = await import("./pushHelper");
+          notifyAdminReviewNeeded({
+            studentName: student.name,
+            amount: extractedAmount,
+            matchType: reviewMatchType || 'unknown',
+            reason: reviewReason,
+          }).catch(err => console.error("[ReceiptReview] 通知失敗:", err));
+        }
+        
         return { 
           success: true,
           extractedAmount,
@@ -1391,7 +1434,9 @@ export const appRouter = router({
           extractedRecipientAccount,
           recipientValid: isRecipientValid,
           pendingReason: pendingReason || undefined,
-          status: recordStatus,
+          status: needsReview ? 'pending' : recordStatus,
+          needsReview,
+          reviewReason: needsReview ? reviewReason : undefined,
         };
       }),
     
@@ -4649,6 +4694,113 @@ export const appRouter = router({
         }
         await setSystemConfig('receipt_validation_enabled', input.enabled ? 'true' : 'false');
         return { success: true };
+      }),
+  }),
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  收據審查系統 — Receipt Review Router
+  // ════════════════════════════════════════════════════════════════════════
+  receiptReview: router({
+    // 取得待審查收據列表
+    list: protectedProcedure
+      .input(z.object({
+        status: z.enum(['pending_review', 'approved', 'rejected']).default('pending_review'),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return await getReceiptReviews(input.status);
+      }),
+
+    // 取得收據比對詳情
+    compare: protectedProcedure
+      .input(z.object({
+        paymentId: z.number(),
+        paymentType: z.enum(['regular', 'elite']).default('regular'),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return await getReceiptCompare(input.paymentId, input.paymentType);
+      }),
+
+    // 審查決定：批准或拒絕
+    decide: protectedProcedure
+      .input(z.object({
+        paymentId: z.number(),
+        paymentType: z.enum(['regular', 'elite']),
+        decision: z.enum(['approved', 'rejected']),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+
+        const result = await reviewReceipt({
+          paymentId: input.paymentId,
+          paymentType: input.paymentType,
+          decision: input.decision,
+          reviewedBy: ctx.user.openId || 'admin',
+        });
+
+        if (!result) {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '審查處理失敗' });
+        }
+
+        // 批准後同步到會計（恆常班）
+        if (input.decision === 'approved' && input.paymentType === 'regular') {
+          try {
+            const payment = await getPaymentRecordById(input.paymentId);
+            if (payment) {
+              const student = await getStudentById(payment.studentId);
+              if (student) {
+                await syncPaymentToAccounting({
+                  paymentRecordId: input.paymentId,
+                  transactionDate: payment.receiptTransferDate || payment.paymentDate,
+                  amount: String(payment.amount),
+                  bank: null,
+                  studentName: student.name,
+                  coachName: student.coach,
+                  dojoName: student.venue || null,
+                  category: 'tuition',
+                  receiptUrl: payment.receiptUrl,
+                  receiptKey: payment.receiptKey,
+                });
+              }
+            }
+          } catch (e) {
+            console.error("[ReceiptReview] 批准後同步會計失敗:", e);
+          }
+        }
+
+        // 通知家長審查結果
+        try {
+          const { notifyParentReviewResult } = await import("./pushHelper");
+          const compare = await getReceiptCompare(input.paymentId, input.paymentType);
+          if (compare?.current) {
+            notifyParentReviewResult({
+              studentId: compare.current.studentId || compare.current.student_id,
+              studentType: input.paymentType === 'elite' ? 'elite' : 'regular',
+              studentName: compare.current.studentName || '學生',
+              decision: input.decision,
+              amount: String(compare.current.amount),
+            }).catch(() => {});
+          }
+        } catch {}
+
+        return { success: true, decision: input.decision };
+      }),
+
+    // 統計待審查數量
+    pendingCount: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const items = await getReceiptReviews('pending_review');
+        return { count: items.length };
       }),
   }),
 });

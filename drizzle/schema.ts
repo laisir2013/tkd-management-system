@@ -146,6 +146,13 @@ export const paymentRecords = mysqlTable("paymentRecords", {
   paymentDate: timestamp("paymentDate").notNull(),
   status: mysqlEnum("status", ["pending", "confirmed"]).default("confirmed").notNull(),
   confirmedBy: mysqlEnum("confirmedBy", ["parent_upload", "admin_approved", "coach_approved"]).default("admin_approved"),
+  // 收據審查欄位
+  reviewStatus: mysqlEnum("review_status", ["normal", "pending_review", "approved", "rejected"]).default("normal").notNull(),
+  reviewReason: varchar("review_reason", { length: 500 }),
+  reviewMatchType: varchar("review_match_type", { length: 50 }),
+  reviewMatchPaymentId: int("review_match_payment_id"),
+  reviewedBy: varchar("reviewed_by", { length: 50 }),
+  reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -311,6 +318,13 @@ export const elitePaymentRecords = mysqlTable("elite_payments", {
   confirmedBy: mysqlEnum("confirmed_by", ["parent_upload", "admin_approved"]).default("admin_approved"),
   status: mysqlEnum("status", ["pending", "confirmed"]).default("confirmed").notNull(),
   notes: text("notes"),
+  // 收據審查欄位
+  reviewStatus: mysqlEnum("review_status", ["normal", "pending_review", "approved", "rejected"]).default("normal").notNull(),
+  reviewReason: varchar("review_reason", { length: 500 }),
+  reviewMatchType: varchar("review_match_type", { length: 50 }),
+  reviewMatchPaymentId: int("review_match_payment_id"),
+  reviewedBy: varchar("reviewed_by", { length: 50 }),
+  reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
