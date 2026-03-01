@@ -843,8 +843,13 @@ parentRouter.get("/notifications", async (req: AuthenticatedRequest, res) => {
         "SELECT * FROM notifications ORDER BY created_at DESC LIMIT ? OFFSET ?", [limit, offset]
       ) as any;
     } else if (role === "coach") {
+      // 教練可以看到：自己發的 + 全體通知 + 針對教練角色的通知
       [rows] = await pool.execute(
-        "SELECT * FROM notifications WHERE sender_phone = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        `SELECT * FROM notifications WHERE
+          sender_phone = ?
+          OR target_type = 'all'
+          OR (target_type = 'role' AND target_value = 'coach')
+        ORDER BY created_at DESC LIMIT ? OFFSET ?`,
         [phone, limit, offset]
       ) as any;
     } else {
