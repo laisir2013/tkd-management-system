@@ -33,6 +33,8 @@
  */
 import { Router } from "express";
 import multer from "multer";
+import { Expo, ExpoPushMessage } from "expo-server-sdk";
+import mysql from "mysql2/promise";
 import {
   getStudentsByPhone,
   getEliteStudentsByPhone,
@@ -103,6 +105,16 @@ const upload = multer({
 });
 
 const parentRouter = Router();
+
+// ── Expo Push + Raw MySQL pool ─────────────────────────────────────────
+const expo = new Expo();
+let _rawPool: mysql.Pool | null = null;
+async function getRawPool() {
+  if (!_rawPool && process.env.DATABASE_URL) {
+    _rawPool = mysql.createPool({ uri: process.env.DATABASE_URL, charset: "utf8mb4", waitForConnections: true, connectionLimit: 5 });
+  }
+  return _rawPool;
+}
 
 // ── CORS ─────────────────────────────────────────────────────────────────
 parentRouter.use((_req, res, next) => {
@@ -673,6 +685,241 @@ parentRouter.get("/admin/event-registrations", requireRole("admin"), async (req:
     const eventId = req.query.eventId ? parseInt(req.query.eventId as string) : undefined;
     return res.json(await getEventRegistrations(eventId));
   } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+//  PUSH NOTIFICATION endpoints
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── 1. 註冊 Push Token ──────────────────────────────────────
+parentRouter.post("/push-token", async (req: AuthenticatedRequest, res) => {
+  try {
+    const { token, platform } = req.body;
+    const phone = req.userPhone || req.parentPhone;
+    const role = req.userRole || "parent";
+    if (!token || !phone) return res.status(400).json({ error: "缺少 token 或 phone" });
+    if (!Expo.isExpoPushToken(token)) return res.status(400).json({ error: "無效的 Push Token 格式" });
+
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ error: "DB 不可用" });
+
+    await pool.execute(
+      `INSERT INTO push_tokens (phone, role, token, platform, updated_at)
+       VALUES (?, ?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE phone=VALUES(phone), role=VALUES(role), platform=VALUES(platform), updated_at=NOW()`,
+      [phone, role, token, platform || "unknown"]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Push token registration error:", err);
+    res.status(500).json({ error: "註冊推播失敗" });
+  }
+});
+
+// ── 2. 發送推播通知 ─────────────────────────────────────────
+parentRouter.post("/send-notification", requireRole("admin", "coach"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { title, body, targetType, targetValue } = req.body;
+    const senderPhone = req.userPhone || req.parentPhone;
+    const senderRole = req.userRole || "parent";
+    const coachName = req.coachName;
+    if (!title?.trim() || !body?.trim()) return res.status(400).json({ error: "請填寫標題和內容" });
+    if (!["all","role","class","coach_students","individual"].includes(targetType)) return res.status(400).json({ error: "無效的推送對象類型" });
+
+    // 教練只能用 class 和 individual
+    if (senderRole === "coach" && !["class","individual"].includes(targetType)) {
+      return res.status(403).json({ error: "教練只能推送給自己的班級或個別學生" });
+    }
+
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ error: "DB 不可用" });
+
+    let tokens: string[] = [];
+
+    if (targetType === "all") {
+      const [rows] = await pool.execute("SELECT token FROM push_tokens");
+      tokens = (rows as any[]).map(r => r.token);
+    } else if (targetType === "role") {
+      const [rows] = await pool.execute("SELECT token FROM push_tokens WHERE role = ?", [targetValue]);
+      tokens = (rows as any[]).map(r => r.token);
+    } else if (targetType === "class") {
+      const parts = (targetValue || "").split("|");
+      if (parts.length < 3) return res.status(400).json({ error: "班級格式錯誤" });
+      const [venue, day, time] = parts;
+      const [stuRows] = await pool.execute(
+        "SELECT DISTINCT phone FROM students WHERE venue=? AND scheduleDay=? AND scheduleTime=? AND status='active'",
+        [venue, day, time]
+      );
+      const phones = (stuRows as any[]).map(r => r.phone).filter(Boolean);
+      if (phones.length > 0) {
+        const ph = phones.map(() => "?").join(",");
+        const [tokenRows] = await pool.execute(`SELECT token FROM push_tokens WHERE phone IN (${ph})`, phones);
+        tokens = (tokenRows as any[]).map(r => r.token);
+      }
+    } else if (targetType === "coach_students") {
+      const [stuRows] = await pool.execute(
+        "SELECT DISTINCT phone FROM students WHERE coach=? AND status='active'", [targetValue]
+      );
+      const phones = (stuRows as any[]).map((r: any) => r.phone).filter(Boolean);
+      if (phones.length > 0) {
+        const ph = phones.map(() => "?").join(",");
+        const [tokenRows] = await pool.execute(`SELECT token FROM push_tokens WHERE phone IN (${ph})`, phones);
+        tokens = (tokenRows as any[]).map(r => r.token);
+      }
+    } else if (targetType === "individual") {
+      const phones = (targetValue || "").split(",").map((p: string) => p.trim()).filter(Boolean);
+      // 教練：只能推送給自己的學生
+      if (senderRole === "coach" && coachName && phones.length > 0) {
+        const ph = phones.map(() => "?").join(",");
+        const [validRows] = await pool.execute(
+          `SELECT DISTINCT phone FROM students WHERE phone IN (${ph}) AND coach=? AND status='active'`,
+          [...phones, coachName]
+        ) as any;
+        const validPhones = validRows.map((r: any) => r.phone);
+        if (validPhones.length === 0) return res.status(403).json({ error: "您只能推送給自己的學生" });
+        const tph = validPhones.map(() => "?").join(",");
+        const [tokenRows] = await pool.execute(`SELECT token FROM push_tokens WHERE phone IN (${tph})`, validPhones);
+        tokens = (tokenRows as any[]).map(r => r.token);
+      } else if (phones.length > 0) {
+        const ph = phones.map(() => "?").join(",");
+        const [tokenRows] = await pool.execute(`SELECT token FROM push_tokens WHERE phone IN (${ph})`, phones);
+        tokens = (tokenRows as any[]).map(r => r.token);
+      }
+    }
+
+    tokens = tokens.filter(t => Expo.isExpoPushToken(t));
+
+    let sentCount = 0;
+    if (tokens.length > 0) {
+      const messages: ExpoPushMessage[] = tokens.map(pushToken => ({
+        to: pushToken, sound: "default" as const, title: title.trim(), body: body.trim(), data: { type: "notification" },
+      }));
+      const chunks = expo.chunkPushNotifications(messages);
+      for (const chunk of chunks) {
+        try {
+          const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+          for (let i = 0; i < ticketChunk.length; i++) {
+            const ticket = ticketChunk[i];
+            if (ticket.status === "ok") { sentCount++; }
+            else if (ticket.status === "error" && ticket.details && (ticket.details as any).error === "DeviceNotRegistered") {
+              await pool.execute("DELETE FROM push_tokens WHERE token = ?", [chunk[i].to]).catch(() => {});
+            }
+          }
+        } catch (e) { console.error("Expo push chunk error:", e); }
+      }
+    }
+
+    // 記錄通知
+    await pool.execute(
+      "INSERT INTO notifications (title, body, sender_phone, sender_role, target_type, target_value, sent_count) VALUES (?,?,?,?,?,?,?)",
+      [title.trim(), body.trim(), senderPhone, senderRole, targetType, targetValue || null, sentCount]
+    );
+
+    res.json({
+      success: true, sentCount,
+      message: sentCount > 0 ? `已成功推送給 ${sentCount} 人` : "沒有找到可推送的裝置（使用者可能尚未開啟 App 授權通知）",
+    });
+  } catch (err: any) {
+    console.error("Send notification error:", err);
+    res.status(500).json({ error: "推送失敗: " + err.message });
+  }
+});
+
+// ── 3. 查詢通知歷史 ─────────────────────────────────────────
+parentRouter.get("/notifications", async (req: AuthenticatedRequest, res) => {
+  try {
+    const role = req.userRole || "parent";
+    const phone = req.userPhone || req.parentPhone;
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const offset = Number(req.query.offset) || 0;
+
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ error: "DB 不可用" });
+
+    let rows: any[];
+
+    if (role === "admin") {
+      [rows] = await pool.execute(
+        "SELECT * FROM notifications ORDER BY created_at DESC LIMIT ? OFFSET ?", [limit, offset]
+      ) as any;
+    } else if (role === "coach") {
+      [rows] = await pool.execute(
+        "SELECT * FROM notifications WHERE sender_phone = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        [phone, limit, offset]
+      ) as any;
+    } else {
+      // 家長
+      if (!phone) return res.json([]);
+
+      const [studentRows] = await pool.execute(
+        "SELECT venue, scheduleDay, scheduleTime, coach FROM students WHERE phone = ? AND status = 'active'", [phone]
+      ) as any;
+
+      const conditions: string[] = [
+        "target_type = 'all'",
+        "(target_type = 'role' AND target_value = 'parent')",
+        "(target_type = 'individual' AND FIND_IN_SET(?, target_value) > 0)",
+      ];
+      const params: any[] = [phone];
+
+      for (const stu of studentRows) {
+        if (stu.venue && stu.scheduleDay && stu.scheduleTime) {
+          conditions.push("(target_type = 'class' AND target_value = ?)");
+          params.push(`${stu.venue}|${stu.scheduleDay}|${stu.scheduleTime}`);
+        }
+        if (stu.coach) {
+          conditions.push("(target_type = 'coach_students' AND target_value = ?)");
+          params.push(stu.coach);
+        }
+      }
+
+      const whereClause = conditions.join(" OR ");
+      [rows] = await pool.execute(
+        `SELECT id, title, body, target_type, created_at FROM notifications WHERE ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [...params, limit, offset]
+      ) as any;
+    }
+
+    res.json(rows);
+  } catch (err: any) {
+    console.error("Get notifications error:", err);
+    res.status(500).json({ error: "查詢通知失敗" });
+  }
+});
+
+// ── 4. 推送對象列表 ─────────────────────────────────────────
+parentRouter.get("/notification-targets", requireRole("admin", "coach"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const role = req.userRole;
+    const coachName = req.coachName;
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ error: "DB 不可用" });
+
+    let classQuery = "SELECT DISTINCT venue, scheduleDay, scheduleTime, coach FROM students WHERE status = 'active'";
+    const classParams: any[] = [];
+    if (role === "coach" && coachName) { classQuery += " AND coach = ?"; classParams.push(coachName); }
+    classQuery += " ORDER BY venue, scheduleDay, scheduleTime";
+    const [classRows] = await pool.execute(classQuery, classParams) as any;
+
+    let coaches: any[] = [];
+    if (role === "admin") {
+      const [coachRows] = await pool.execute(
+        "SELECT DISTINCT coach FROM students WHERE status = 'active' AND coach IS NOT NULL ORDER BY coach"
+      ) as any;
+      coaches = coachRows.map((r: any) => r.coach);
+    }
+
+    let studentQuery = "SELECT id, name, phone, venue, coach FROM students WHERE status = 'active'";
+    const studentParams: any[] = [];
+    if (role === "coach" && coachName) { studentQuery += " AND coach = ?"; studentParams.push(coachName); }
+    studentQuery += " ORDER BY name";
+    const [studentRows] = await pool.execute(studentQuery, studentParams) as any;
+
+    res.json({ classes: classRows, coaches, students: studentRows });
+  } catch (err: any) {
+    console.error("Get notification targets error:", err);
+    res.status(500).json({ error: "查詢推送對象失敗" });
+  }
 });
 
 export { parentRouter };
