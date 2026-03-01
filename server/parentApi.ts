@@ -21,6 +21,7 @@
  *   POST /coach/attendance          — mark attendance
  *   GET  /coach/statistics          — my statistics
  *   GET  /coach/schedules           — training schedules
+ *   GET  /coach/payment-records     — regular class payment records (?year=&quarter=)
  *   GET  /coach/elite-students      — my elite students (with balance & cycle)
  *   GET  /coach/elite-schedules     — elite training schedules (?year=&month=)
  *   GET  /coach/elite-attendance    — elite attendance records (?scheduleId=&studentId=)
@@ -30,12 +31,20 @@
  * 
  * ── ADMIN ──
  *   GET  /admin/students       — all students
+ *   POST /admin/students       — create student
+ *   PUT  /admin/students/:id   — edit student
+ *   DELETE /admin/students/:id — soft-delete student (set inactive)
  *   GET  /admin/users          — all users
  *   POST /admin/users          — create user
  *   PUT  /admin/users/:id      — edit user
  *   DELETE /admin/users/:id    — delete user
  *   GET  /admin/payments       — all payments overview
+ *   POST /admin/payments/mark-paid   — confirm payment
+ *   POST /admin/payments/unmark-paid — revert to pending
  *   GET  /admin/statistics     — global statistics
+ *   GET  /admin/coach-list     — coach user list
+ *   GET  /admin/all-coach-statistics — all coaches stats (?year=&quarter=)
+ *   GET  /admin/coach-statistics/:coachName — single coach stats
  *   GET  /admin/events         — all events (incl. closed)
  *   POST /admin/events/create  — create event
  *   GET  /admin/finance        — monthly finance report
@@ -109,6 +118,11 @@ import {
   deleteEvent,
   updateEventRegistrationStatus,
   getEliteClassStatistics,
+  // Admin — Student + Payment helpers
+  updateStudent,
+  getAllPaymentRecords,
+  getPaymentRecordsByStudentIds,
+  approvePaymentRecord,
   // Admin CRUD — Elite
   getEliteStudentById,
   insertEliteStudent,
@@ -168,7 +182,7 @@ import { storagePut } from "./storage";
 import { ocrReceipt } from "./_core/localOcr";
 import { invokeLLM } from "./_core/llm";
 import { stampReceipt } from "./_core/receiptStamp";
-import { students as studentsTable, users as usersTable } from "../drizzle/schema";
+import { students as studentsTable, users as usersTable, paymentRecords as paymentRecordsTable } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
 // ── Multer ───────────────────────────────────────────────────────────────
@@ -1319,6 +1333,169 @@ parentRouter.delete("/admin/exam-schedules/exam/:examId", requireRole("admin"), 
     await deleteAllExamSchedulesByExam(parseInt(req.params.examId));
     return res.json({ success: true });
   } catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
+});
+
+// ── Coach: Payment Records (regular class) ──────────────────────────────
+parentRouter.get("/coach/payment-records", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const coachName = req.userRole === "coach" ? req.coachName : (req.query.coachName as string) || undefined;
+    const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
+    const quarter = req.query.quarter ? parseInt(req.query.quarter as string) : undefined;
+
+    // 取得教練的學生
+    const allStudents = await getAllStudents();
+    const myStudents = coachName ? allStudents.filter((s: any) => s.coach === coachName && s.status === "active") : allStudents.filter((s: any) => s.status === "active");
+    const studentIds = myStudents.map((s: any) => s.id);
+    if (studentIds.length === 0) return res.json([]);
+
+    const allPayments = await getPaymentRecordsByStudentIds(studentIds);
+
+    // 按年份 + 季度篩選
+    const filtered = allPayments.filter((p: any) => {
+      if (!p.paymentDate) return false;
+      const d = new Date(p.paymentDate);
+      if (d.getFullYear() !== year) return false;
+      if (quarter) {
+        const qMap: Record<number, number[]> = { 1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12] };
+        if (!qMap[quarter]?.includes(d.getMonth() + 1)) return false;
+      }
+      return true;
+    });
+
+    // 附加學生姓名
+    const studentMap = new Map(myStudents.map((s: any) => [s.id, s]));
+    const result = filtered.map((p: any) => {
+      const stu = studentMap.get(p.studentId);
+      return { ...p, studentName: stu?.name || "未知", studentVenue: stu?.venue || "", studentCoach: stu?.coach || "" };
+    });
+
+    return res.json(result);
+  } catch (err: any) {
+    console.error("[AppAPI] coach/payment-records error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// ── Admin CRUD: Students (regular) ──────────────────────────────────────
+parentRouter.post("/admin/students", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { name, phone, venue, scheduleDay, scheduleTime, coach, beltLevel, feePerQuarter, status, notes, studentNumber, gender, email, dojoId } = req.body;
+    if (!name || !phone) return res.status(400).json({ success: false, error: "姓名和電話為必填" });
+    const db = await getDb();
+    if (!db) return res.status(500).json({ success: false, error: "系統錯誤" });
+    const result = await db.insert(studentsTable).values({
+      name, phone, venue: venue || null, scheduleDay: scheduleDay || null, scheduleTime: scheduleTime || null,
+      coach: coach || null, belt: beltLevel || null, feePerQuarter: feePerQuarter || "0",
+      status: status || "active", notes: notes || null, studentNumber: studentNumber || null,
+      gender: gender || null, email: email || null, dojoId: dojoId || null,
+    } as any);
+    return res.json({ success: true, id: (result as any)[0]?.insertId || (result as any).insertId });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/students POST error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.put("/admin/students/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, phone, venue, scheduleDay, scheduleTime, coach, beltLevel, feePerQuarter, status, notes, studentNumber, gender, email, dojoId } = req.body;
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (venue !== undefined) updateData.venue = venue;
+    if (scheduleDay !== undefined) updateData.scheduleDay = scheduleDay;
+    if (scheduleTime !== undefined) updateData.scheduleTime = scheduleTime;
+    if (coach !== undefined) updateData.coach = coach;
+    if (beltLevel !== undefined) updateData.belt = beltLevel;
+    if (feePerQuarter !== undefined) updateData.feePerQuarter = feePerQuarter;
+    if (status !== undefined) updateData.status = status;
+    if (notes !== undefined) updateData.notes = notes;
+    if (studentNumber !== undefined) updateData.studentNumber = studentNumber;
+    if (gender !== undefined) updateData.gender = gender;
+    if (email !== undefined) updateData.email = email;
+    if (dojoId !== undefined) updateData.dojoId = dojoId;
+    await updateStudent(id, updateData);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/students PUT error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.delete("/admin/students/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    // 軟刪除：把狀態改為 inactive
+    await updateStudent(id, { status: "inactive" } as any);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/students DELETE error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+// ── Admin: Mark / Unmark Payment Paid ───────────────────────────────────
+parentRouter.post("/admin/payments/mark-paid", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { recordId } = req.body;
+    if (!recordId) return res.status(400).json({ success: false, error: "recordId 為必填" });
+    await approvePaymentRecord(recordId, "admin_approved");
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/payments/mark-paid error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.post("/admin/payments/unmark-paid", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { recordId } = req.body;
+    if (!recordId) return res.status(400).json({ success: false, error: "recordId 為必填" });
+    const db = await getDb();
+    if (!db) return res.status(500).json({ success: false, error: "系統錯誤" });
+    await db.update(paymentRecordsTable).set({ status: "pending", confirmedBy: null } as any).where(eq(paymentRecordsTable.id, recordId));
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/payments/unmark-paid error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+// ── Admin: Coach List (name list) ───────────────────────────────────────
+parentRouter.get("/admin/coach-list", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try {
+    const coaches = await getAllCoachUsers();
+    return res.json(coaches);
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+// ── Admin: All Coach Statistics ─────────────────────────────────────────
+parentRouter.get("/admin/all-coach-statistics", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+    const quarter = req.query.quarter ? parseInt(req.query.quarter as string) : undefined;
+    const allStats = await getCoachStatsWithElite(year, quarter);
+    return res.json(allStats);
+  } catch (err: any) {
+    console.error("[AppAPI] admin/all-coach-statistics error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// ── Admin: Single Coach Statistics ──────────────────────────────────────
+parentRouter.get("/admin/coach-statistics/:coachName", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const coachName = decodeURIComponent(req.params.coachName);
+    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+    const quarter = req.query.quarter ? parseInt(req.query.quarter as string) : undefined;
+    const allStats = await getCoachStatsWithElite(year, quarter);
+    const myStats = allStats.find((s: any) => s.coachName === coachName);
+    return res.json(myStats || { coachName, regularStudentCount: 0, eliteStudentCount: 0, totalStudentCount: 0, totalRevenue: 0 });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/coach-statistics/:coachName error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════
