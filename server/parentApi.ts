@@ -31,11 +31,28 @@
  * ── ADMIN ──
  *   GET  /admin/students       — all students
  *   GET  /admin/users          — all users
+ *   POST /admin/users          — create user
+ *   PUT  /admin/users/:id      — edit user
+ *   DELETE /admin/users/:id    — delete user
  *   GET  /admin/payments       — all payments overview
  *   GET  /admin/statistics     — global statistics
  *   GET  /admin/events         — all events (incl. closed)
  *   POST /admin/events/create  — create event
  *   GET  /admin/finance        — monthly finance report
+ *   POST /admin/elite-students — add elite student
+ *   PUT  /admin/elite-students/:id  — edit elite student
+ *   DELETE /admin/elite-students/:id — disable elite student
+ *   POST /admin/elite-payments — add elite payment
+ *   PUT  /admin/elite-payments/:id/confirm — confirm payment
+ *   GET  /admin/dojos          — list dojos
+ *   POST /admin/dojos          — add dojo
+ *   PUT  /admin/dojos/:id      — edit dojo
+ *   DELETE /admin/dojos/:id    — delete dojo
+ *   GET  /admin/exams          — exam sessions
+ *   POST /admin/exams          — create exam
+ *   PUT  /admin/exams/:id      — edit exam
+ *   DELETE /admin/exams/:id    — delete exam
+ *   + exam candidates, scoring, schedules, check-in, etc.
  */
 import { Router } from "express";
 import multer from "multer";
@@ -92,6 +109,53 @@ import {
   deleteEvent,
   updateEventRegistrationStatus,
   getEliteClassStatistics,
+  // Admin CRUD — Elite
+  getEliteStudentById,
+  insertEliteStudent,
+  updateEliteStudent,
+  deleteEliteStudent,
+  insertElitePaymentRecord,
+  syncElitePaymentToAccounting,
+  // Admin CRUD — Users
+  getUserByPhone,
+  updateUserRole,
+  // Admin CRUD — Dojos
+  getAllDojos,
+  getDojoById,
+  insertDojo,
+  updateDojo,
+  deleteDojo,
+  // Admin CRUD — Exams
+  getAllExamSessions,
+  getExamSessionById,
+  insertExamSession,
+  updateExamSession,
+  deleteExamSession,
+  getExamCandidatesByExam,
+  getExamCandidatesByBelt,
+  insertExamCandidate,
+  bulkInsertExamCandidates,
+  updateExamCandidate,
+  deleteExamCandidate,
+  getExamScoringItems,
+  getExamScoringItemsByBelt,
+  upsertExamScore,
+  getExamScoresByExam,
+  getExamScoresWithItemsByCandidate,
+  getExamStatistics,
+  calculateExamResult,
+  promoteAllPassedCandidates,
+  createCandidatesFromEventRegistrations,
+  getExamSchedulesByExam,
+  insertExamSchedule,
+  updateExamSchedule,
+  deleteExamSchedule,
+  deleteAllExamSchedulesByExam,
+  examCheckIn,
+  examUndoCheckIn,
+  examMarkAbsent,
+  searchExamCandidates,
+  bulkDeleteExamCandidates,
 } from "./db";
 import { verifyPassword, hashPassword } from "./password";
 import {
@@ -826,6 +890,435 @@ parentRouter.get("/admin/event-registrations", requireRole("admin"), async (req:
     const eventId = req.query.eventId ? parseInt(req.query.eventId as string) : undefined;
     return res.json(await getEventRegistrations(eventId));
   } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+// ── Admin CRUD: Elite Students ─────────────────────────────────────────
+parentRouter.post("/admin/elite-students", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { name, phone, beltLevel, coach, scheduleDay, scheduleTime, feePerClass, notes } = req.body;
+    if (!name || !phone) return res.status(400).json({ success: false, error: "姓名和電話為必填" });
+    const id = await insertEliteStudent({ name, phone, password: null, beltLevel: beltLevel || null, coach: coach || null, scheduleDay: scheduleDay || null, scheduleTime: scheduleTime || null, feePerClass: feePerClass || "200", remainingClasses: 0, status: "active", joinDate: new Date(), notes: notes || null } as any);
+    return res.json({ success: true, id });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/elite-students POST error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.put("/admin/elite-students/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, phone, beltLevel, coach, scheduleDay, scheduleTime, feePerClass, status, notes } = req.body;
+    await updateEliteStudent(id, { name, phone, beltLevel, coach, scheduleDay, scheduleTime, feePerClass, status, notes } as any);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/elite-students PUT error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.delete("/admin/elite-students/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await deleteEliteStudent(id);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/elite-students DELETE error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+// ── Admin CRUD: Elite Payments ─────────────────────────────────────────
+parentRouter.post("/admin/elite-payments", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { studentId, classCount, amount, paymentDate, notes } = req.body;
+    if (!studentId || !classCount || !amount) return res.status(400).json({ success: false, error: "缺少必填欄位" });
+    const id = await insertElitePaymentRecord({ studentId, classCount, amount, paymentDate: paymentDate ? new Date(paymentDate) : new Date(), status: "pending", notes: notes || null } as any);
+    return res.json({ success: true, id });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/elite-payments POST error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.put("/admin/elite-payments/:id/confirm", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const paymentId = parseInt(req.params.id);
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ success: false, error: "DB 不可用" });
+    await pool.execute(
+      "UPDATE elite_payments SET status = 'confirmed', confirmed_by = ? WHERE id = ?",
+      [req.userPhone || "admin", paymentId]
+    );
+    // Sync to accounting
+    try {
+      const [rows] = await pool.execute("SELECT * FROM elite_payments WHERE id = ?", [paymentId]) as any;
+      if (rows.length > 0) {
+        const p = rows[0];
+        const student = await getEliteStudentById(p.student_id || p.studentId);
+        if (student) {
+          await syncElitePaymentToAccounting({
+            elitePaymentId: paymentId,
+            studentName: student.name,
+            amount: p.amount,
+            classCount: p.class_count || p.classCount,
+            paymentDate: p.payment_date || p.paymentDate,
+          });
+        }
+      }
+    } catch (syncErr) { console.error("[AppAPI] elite payment sync error:", syncErr); }
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/elite-payments confirm error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+// ── Admin CRUD: Users ──────────────────────────────────────────────────
+parentRouter.post("/admin/users", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { name, phone, role, email, coachName } = req.body;
+    if (!name || !phone || !role) return res.status(400).json({ success: false, error: "姓名、電話和角色為必填" });
+    if (!["admin", "coach"].includes(role)) return res.status(400).json({ success: false, error: "角色只能是 admin 或 coach" });
+    const db = await getDb();
+    if (!db) return res.status(500).json({ success: false, error: "系統錯誤" });
+    // Check duplicate phone
+    const existing = await getUserByPhone(phone);
+    if (existing) return res.status(400).json({ success: false, error: "此電話號碼已存在" });
+    const hashedPw = await hashPassword(phone); // default password = phone
+    const result = await db.insert(usersTable).values({
+      openId: `app_${phone}_${Date.now()}`,
+      name, phone, password: hashedPw, role: role as any,
+      email: email || null, coachName: coachName || null,
+    } as any);
+    return res.json({ success: true, id: (result as any)[0]?.insertId || (result as any).insertId });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/users POST error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.put("/admin/users/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, phone, role, email, coachName } = req.body;
+    const db = await getDb();
+    if (!db) return res.status(500).json({ success: false, error: "系統錯誤" });
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (role !== undefined) updateData.role = role;
+    if (email !== undefined) updateData.email = email;
+    if (coachName !== undefined) updateData.coachName = coachName;
+    await db.update(usersTable).set(updateData).where(eq(usersTable.id, id));
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/users PUT error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.delete("/admin/users/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const db = await getDb();
+    if (!db) return res.status(500).json({ success: false, error: "系統錯誤" });
+    await db.delete(usersTable).where(eq(usersTable.id, id));
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/users DELETE error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+// ── Admin CRUD: Dojos ──────────────────────────────────────────────────
+parentRouter.get("/admin/dojos", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try { return res.json(await getAllDojos()); } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.post("/admin/dojos", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { name, scheduleDay, scheduleTime, coachName, color, status } = req.body;
+    if (!name) return res.status(400).json({ success: false, error: "道場名稱為必填" });
+    const result = await insertDojo({ name, scheduleDay: scheduleDay || null, scheduleTime: scheduleTime || null, coachName: coachName || null, color: color || null, status: status || "active" } as any);
+    return res.json({ success: true, id: (result as any)?.insertId || (result as any)?.[0]?.insertId });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/dojos POST error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.put("/admin/dojos/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, scheduleDay, scheduleTime, coachName, color, status } = req.body;
+    await updateDojo(id, { name, scheduleDay, scheduleTime, coachName, color, status } as any);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/dojos PUT error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.delete("/admin/dojos/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await deleteDojo(id);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/dojos DELETE error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+// ── Admin: Coach Dojos (also for coach) ────────────────────────────────
+parentRouter.get("/coach/dojos", requireRole("coach", "admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const all = await getAllDojos();
+    if (req.userRole === "coach" && req.coachName) {
+      return res.json(all.filter((d: any) => d.coachName === req.coachName));
+    }
+    return res.json(all);
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+// ── Admin CRUD: Exams — Sessions ───────────────────────────────────────
+parentRouter.get("/admin/exams", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try { return res.json(await getAllExamSessions()); } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.get("/admin/exams/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try { return res.json(await getExamSessionById(parseInt(req.params.id))); } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.post("/admin/exams", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { title, examDate, location, description, status } = req.body;
+    if (!title || !examDate) return res.status(400).json({ success: false, error: "考試名稱和日期為必填" });
+    const result = await insertExamSession({ title, examDate: new Date(examDate), location: location || null, description: description || null, status: status || "upcoming" } as any);
+    return res.json({ success: true, id: result.insertId });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/exams POST error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.put("/admin/exams/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { title, examDate, location, description, status } = req.body;
+    const update: any = {};
+    if (title !== undefined) update.title = title;
+    if (examDate !== undefined) update.examDate = new Date(examDate);
+    if (location !== undefined) update.location = location;
+    if (description !== undefined) update.description = description;
+    if (status !== undefined) update.status = status;
+    await updateExamSession(id, update);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/exams PUT error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.delete("/admin/exams/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    await deleteExamSession(parseInt(req.params.id));
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/exams DELETE error:", err);
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+// ── Admin CRUD: Exam Candidates ────────────────────────────────────────
+parentRouter.get("/admin/exam-candidates", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const examId = parseInt(req.query.examId as string);
+    const belt = req.query.belt as string;
+    if (!examId) return res.status(400).json({ error: "examId 為必填" });
+    if (belt) return res.json(await getExamCandidatesByBelt(examId, belt));
+    return res.json(await getExamCandidatesByExam(examId));
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.post("/admin/exam-candidates", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { examId, studentId, studentName, currentBelt, targetBelt, phone } = req.body;
+    if (!examId) return res.status(400).json({ success: false, error: "examId 為必填" });
+    const result = await insertExamCandidate({ examId, studentId: studentId || null, studentName: studentName || null, currentBelt: currentBelt || null, targetBelt: targetBelt || null, phone: phone || null } as any);
+    return res.json({ success: true, id: result.insertId });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.post("/admin/exam-candidates/bulk", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { candidates } = req.body;
+    if (!Array.isArray(candidates) || candidates.length === 0) return res.status(400).json({ success: false, error: "candidates 不能為空" });
+    const count = await bulkInsertExamCandidates(candidates);
+    return res.json({ success: true, count });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.post("/admin/exam-candidates/from-event", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { examId, eventId } = req.body;
+    if (!examId || !eventId) return res.status(400).json({ success: false, error: "examId 和 eventId 為必填" });
+    const count = await createCandidatesFromEventRegistrations(examId, eventId);
+    return res.json({ success: true, count });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.put("/admin/exam-candidates/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await updateExamCandidate(id, req.body);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.delete("/admin/exam-candidates/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    await deleteExamCandidate(parseInt(req.params.id));
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.post("/admin/exam-candidates/bulk-delete", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ success: false, error: "ids 不能為空" });
+    await bulkDeleteExamCandidates(ids);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+parentRouter.get("/admin/exam-candidates/search", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const examId = parseInt(req.query.examId as string);
+    const query = req.query.q as string;
+    if (!examId || !query) return res.status(400).json({ error: "examId 和 q 為必填" });
+    return res.json(await searchExamCandidates(examId, query));
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+// ── Admin: Exam Check-in ───────────────────────────────────────────────
+parentRouter.post("/admin/exam-checkin/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try { await examCheckIn(parseInt(req.params.id)); return res.json({ success: true }); }
+  catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
+});
+
+parentRouter.post("/admin/exam-undo-checkin/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try { await examUndoCheckIn(parseInt(req.params.id)); return res.json({ success: true }); }
+  catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
+});
+
+parentRouter.post("/admin/exam-mark-absent/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const absent = req.body.absent !== undefined ? req.body.absent : true;
+    await examMarkAbsent(parseInt(req.params.id), absent);
+    return res.json({ success: true });
+  } catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
+});
+
+// ── Admin CRUD: Exam Scoring Items ─────────────────────────────────────
+parentRouter.get("/admin/exam-scoring-items", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const belt = req.query.belt as string;
+    if (belt) return res.json(await getExamScoringItemsByBelt(belt));
+    return res.json(await getExamScoringItems());
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+// ── Admin: Exam Scores ─────────────────────────────────────────────────
+parentRouter.get("/admin/exam-scores", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const examId = req.query.examId ? parseInt(req.query.examId as string) : undefined;
+    const candidateId = req.query.candidateId ? parseInt(req.query.candidateId as string) : undefined;
+    if (candidateId) return res.json(await getExamScoresWithItemsByCandidate(candidateId));
+    if (examId) return res.json(await getExamScoresByExam(examId));
+    return res.status(400).json({ error: "需要 examId 或 candidateId" });
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.post("/admin/exam-scores", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { candidateId, scoringItemId, score, comment } = req.body;
+    if (!candidateId || !scoringItemId || score === undefined) return res.status(400).json({ success: false, error: "缺少必填欄位" });
+    await upsertExamScore({ candidateId, scoringItemId, score: String(score), comment: comment || null, scoredBy: req.userPhone || "admin" });
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "系統錯誤" });
+  }
+});
+
+// ── Admin: Exam Statistics & Results ───────────────────────────────────
+parentRouter.get("/admin/exam-statistics/:examId", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try { return res.json(await getExamStatistics(parseInt(req.params.examId))); }
+  catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.post("/admin/exam-calculate/:candidateId", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await calculateExamResult(parseInt(req.params.candidateId));
+    return res.json({ success: true, ...result });
+  } catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
+});
+
+parentRouter.post("/admin/exam-promote/:examId", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await promoteAllPassedCandidates(parseInt(req.params.examId));
+    return res.json({ success: true, ...result });
+  } catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
+});
+
+// ── Admin CRUD: Exam Schedules ─────────────────────────────────────────
+parentRouter.get("/admin/exam-schedules", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const examId = parseInt(req.query.examId as string);
+    if (!examId) return res.status(400).json({ error: "examId 為必填" });
+    return res.json(await getExamSchedulesByExam(examId));
+  } catch { return res.status(500).json({ error: "系統錯誤" }); }
+});
+
+parentRouter.post("/admin/exam-schedules", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await insertExamSchedule(req.body);
+    return res.json({ success: true, id: (result as any)?.insertId || (result as any)?.[0]?.insertId });
+  } catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
+});
+
+parentRouter.put("/admin/exam-schedules/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    await updateExamSchedule(parseInt(req.params.id), req.body);
+    return res.json({ success: true });
+  } catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
+});
+
+parentRouter.delete("/admin/exam-schedules/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    await deleteExamSchedule(parseInt(req.params.id));
+    return res.json({ success: true });
+  } catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
+});
+
+parentRouter.delete("/admin/exam-schedules/exam/:examId", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    await deleteAllExamSchedulesByExam(parseInt(req.params.examId));
+    return res.json({ success: true });
+  } catch (err: any) { return res.status(500).json({ success: false, error: err.message || "系統錯誤" }); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════
