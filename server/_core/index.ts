@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { storageGetBuffer } from "../storage";
 import { addSSEClient, getConnectedClientCount } from "../sse";
 import archiver from "archiver";
+import { parentRouter } from "../parentApi";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -140,6 +141,21 @@ async function startServer() {
   app.get('/api/exam/sse-status', (_req, res) => {
     res.json({ connectedClients: getConnectedClientCount() });
   });
+
+  // ── Parent App REST API (for mobile app) ─────────────────────────────
+  // CORS: allow requests without Origin header (mobile apps)
+  app.use('/api/v1/parent', (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '86400');
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+  app.use('/api/v1/parent', parentRouter);
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
