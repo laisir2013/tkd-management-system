@@ -1635,7 +1635,7 @@ parentRouter.post("/push-token", async (req: AuthenticatedRequest, res) => {
 });
 
 // ── 2. 發送推播通知 ─────────────────────────────────────────
-parentRouter.post("/send-notification", requireRole("admin", "coach"), async (req: AuthenticatedRequest, res) => {
+parentRouter.post("/send-notification", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
   try {
     const { title, body, targetType, targetValue } = req.body;
     const senderPhone = req.userPhone || req.parentPhone;
@@ -1811,7 +1811,7 @@ parentRouter.get("/notifications", async (req: AuthenticatedRequest, res) => {
 });
 
 // ── 4. 推送對象列表 ─────────────────────────────────────────
-parentRouter.get("/notification-targets", requireRole("admin", "coach"), async (req: AuthenticatedRequest, res) => {
+parentRouter.get("/notification-targets", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
   try {
     const role = req.userRole;
     const coachName = req.coachName;
