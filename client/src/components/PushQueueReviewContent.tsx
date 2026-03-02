@@ -1001,29 +1001,43 @@ export default function PushQueueReviewContent() {
                     </div>
                   )}
 
-                  {/* Selected students review panel */}
+                  {/* Selected students review panel — grouped by class */}
                   {showSelectedReview && selectedStudents.length > 0 && (
-                    <div className="border border-red-200 rounded-lg p-2 bg-red-50/50 max-h-32 overflow-y-auto">
-                      <div className="flex flex-wrap gap-1">
-                        {selectedStudents.map((s) => (
-                          <Badge
-                            key={`${s.type}-${s.id}`}
-                            variant="secondary"
-                            className="text-xs pl-2 pr-1 py-0.5 gap-1 bg-white border border-red-200"
-                          >
-                            {s.name}
-                            {s.type === 'elite' && (
-                              <span className="text-purple-600 text-[10px]">(精英)</span>
-                            )}
-                            <button
-                              className="ml-0.5 text-red-400 hover:text-red-600 rounded-full"
-                              onClick={() => removeStudent(s.id, s.type)}
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
+                    <div className="border border-red-200 rounded-lg p-2.5 bg-red-50/50 max-h-40 overflow-y-auto">
+                      {Object.entries(
+                        selectedStudents.reduce<Record<string, typeof selectedStudents>>((acc, s) => {
+                          const key = s.className || '未分類';
+                          if (!acc[key]) acc[key] = [];
+                          acc[key].push(s);
+                          return acc;
+                        }, {})
+                      ).map(([cls, studs]) => (
+                        <div key={cls} className="mb-2 last:mb-0">
+                          <div className="text-xs font-semibold text-red-600 mb-1">
+                            {cls}（{studs.length}）
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {studs.map((s) => (
+                              <Badge
+                                key={`${s.type}-${s.id}`}
+                                variant="secondary"
+                                className="text-xs pl-2 pr-1 py-0.5 gap-1 bg-white border border-red-200"
+                              >
+                                {s.name}
+                                {s.type === 'elite' && (
+                                  <span className="text-purple-600 text-[10px]">(精英)</span>
+                                )}
+                                <button
+                                  className="ml-0.5 text-red-400 hover:text-red-600 rounded-full"
+                                  onClick={() => removeStudent(s.id, s.type)}
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
 
