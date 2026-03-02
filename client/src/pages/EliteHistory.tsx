@@ -47,6 +47,7 @@ export default function EliteHistory() {
       utils.elite.getAllCycleInfo.invalidate();
       utils.elite.getAllBalances.invalidate();
     },
+    onSettled: () => setTogglingKey(null),
   });
   const cancelScheduleMutation = trpc.elite.cancelSchedule.useMutation({
     onSuccess: () => { utils.elite.getHistoryByYear.invalidate(); toast.success("已取消課堂"); },
@@ -123,19 +124,15 @@ export default function EliteHistory() {
   const [togglingKey, setTogglingKey] = useState<string | null>(null);
   function toggleAttendance(scheduleId: number, studentId: number) {
     const key = `${scheduleId}-${studentId}`;
-    if (togglingKey === key) return;
+    if (upsertAttendanceMutation.isPending) return;
     setTogglingKey(key);
     const current = attendanceMap.get(key);
     const next = !current ? "present" : current === "present" ? "excused" : null;
     if (next === null) {
-      upsertAttendanceMutation.mutate({ scheduleId, studentId, status: "absent" }, {
-        onSettled: () => setTogglingKey(null),
-      });
+      upsertAttendanceMutation.mutate({ scheduleId, studentId, status: "absent" });
       return;
     }
-    upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next }, {
-      onSettled: () => setTogglingKey(null),
-    });
+    upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
   }
 
   // 按班別計算統計

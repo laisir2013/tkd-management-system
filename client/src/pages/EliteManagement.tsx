@@ -536,6 +536,7 @@ function EliteAttendanceTab() {
       utils.elite.getAttendance.invalidate();
       utils.elite.getAllCycleInfo.invalidate();
     },
+    onSettled: () => setTogglingKey(null),
   });
 
   // 按 A/B 班過濾學生（訓練日期兩班共用，不按 scheduleTime 過濾）
@@ -586,13 +587,11 @@ function EliteAttendanceTab() {
   const [togglingKey, setTogglingKey] = useState<string | null>(null);
   function toggleAttendance(scheduleId: number, studentId: number) {
     const key = `${scheduleId}-${studentId}`;
-    if (togglingKey === key) return;
+    if (upsertAttendanceMutation.isPending) return;
     setTogglingKey(key);
     const current = attendanceMap[key];
     const next = !current ? "present" : current === "present" ? "absent" : current === "absent" ? "late" : "present";
-    upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next }, {
-      onSettled: () => setTogglingKey(null),
-    });
+    upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
   }
 
   const statusEmoji: Record<string, string> = { present: "✅", absent: "❌", late: "⏰", excused: "🗕" };
@@ -655,7 +654,7 @@ function EliteAttendanceTab() {
 
       {/* 點名表格 */}
       {classSchedules.length > 0 ? (
-        <div className="border rounded-lg overflow-x-auto" style={{ touchAction: 'pan-x pan-y' }}>
+        <div className="border rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>

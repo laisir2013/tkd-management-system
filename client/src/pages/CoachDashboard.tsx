@@ -438,6 +438,7 @@ function CoachElite({ coachName }: { coachName: string }) {
   const { data: eliteAttendance, refetch: refetchEliteAttendance } = trpc.elite.getAttendance.useQuery();
   const upsertEliteAttendance = trpc.elite.upsertAttendance.useMutation({
     onSuccess: () => refetchEliteAttendance(),
+    onSettled: () => setTogglingKey(null),
   });
 
   // Confirm elite payment
@@ -482,13 +483,11 @@ function CoachElite({ coachName }: { coachName: string }) {
   const [togglingKey, setTogglingKey] = useState<string | null>(null);
   const handleEliteToggle = (studentId: number, scheduleId: number) => {
     const key = `${studentId}-${scheduleId}`;
-    if (togglingKey === key) return; // prevent double-tap
+    if (upsertEliteAttendance.isPending) return;
     setTogglingKey(key);
     const current = eliteRecordsMap.get(key);
     const next = current === 'present' ? 'absent' : 'present';
-    upsertEliteAttendance.mutate({ studentId, scheduleId, status: next }, {
-      onSettled: () => setTogglingKey(null),
-    });
+    upsertEliteAttendance.mutate({ studentId, scheduleId, status: next });
   };
 
   const handleEliteMonthChange = (dir: "prev" | "next") => {
@@ -602,7 +601,7 @@ function CoachElite({ coachName }: { coachName: string }) {
               <Button variant="outline" size="sm" onClick={() => handleEliteMonthChange("next")}>▶</Button>
             </div>
             <Card>
-              <CardContent className="p-0 overflow-x-auto" style={{ touchAction: 'pan-x pan-y' }}>
+              <CardContent className="p-0 overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
