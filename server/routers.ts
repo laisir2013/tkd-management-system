@@ -178,7 +178,11 @@ import {
   getPendingPushQueueCount,
   batchApprovePushQueue,
   batchRejectPushQueue,
+  sendPushNotifications,
+  queuePushNotification,
+  getRawPool as getPushRawPool,
 } from "./pushHelper";
+import Expo from "expo-server-sdk";
 import { invokeLLM } from "./_core/llm";
 import { ocrReceipt } from "./_core/localOcr";
 import { stampReceipt } from "./_core/receiptStamp";
@@ -4917,6 +4921,176 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         return { count: await getPendingPushQueueCount() };
+      }),
+
+    // 取得班級列表（含學生人數）
+    classList: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const pool = await getPushRawPool();
+        if (!pool) return [];
+        const [rows] = await pool.execute(
+          `SELECT venue, scheduleDay, scheduleTime, coach, COUNT(*) as studentCount
+           FROM students WHERE status = 'active'
+           GROUP BY venue, scheduleDay, scheduleTime, coach
+           ORDER BY venue, scheduleDay, scheduleTime`
+        );
+        return rows;
+      }),
+
+    // 取得學生簡易列表
+    studentListSimple: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const pool = await getPushRawPool();
+        if (!pool) return { regular: [], elite: [] };
+        const [regular] = await pool.execute(
+          `SELECT id, name, phone, venue, scheduleDay, scheduleTime
+           FROM students WHERE status = 'active' ORDER BY name`
+        );
+        const [elite] = await pool.execute(
+          `SELECT id, name, parent_phone as phone, venue, schedule_day as scheduleDay, schedule_time as scheduleTime
+           FROM elite_students WHERE status = 'active' ORDER BY name`
+        );
+        return { regular, elite };
+      }),
+
+    // 管理員手動新增推播
+    createPush: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        body: z.string().min(1),
+        targetType: z.enum(['all', 'class', 'students']),
+        targetValue: z.any().optional(),
+        sendNow: z.boolean().default(false),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const pool = await getPushRawPool();
+        if (!pool) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB 不可用' });
+
+        const senderPhone = ctx.user.phone || 'admin';
+        let targetStudentIds: Array<{ id: number; type: string; name: string }> = [];
+        let resolvedPhones: string[] = [];
+        let targetDesc = '';
+
+        if (input.targetType === 'all') {
+          targetDesc = '全體用戶';
+        } else if (input.targetType === 'class') {
+          const classKeys = Array.isArray(input.targetValue) ? input.targetValue : [input.targetValue];
+          for (const key of classKeys) {
+            if (!key || typeof key !== 'string') continue;
+            const [venue, day, time] = key.split('|');
+            const [stuRows] = await pool.execute(
+              "SELECT id, name, phone FROM students WHERE venue=? AND scheduleDay=? AND scheduleTime=? AND status='active'",
+              [venue, day, time]
+            );
+            for (const s of stuRows as any[]) {
+              targetStudentIds.push({ id: s.id, type: 'regular', name: s.name });
+              if (s.phone) resolvedPhones.push(s.phone);
+            }
+          }
+          targetDesc = `${classKeys.length} 個班級（${targetStudentIds.length} 位學生）`;
+        } else if (input.targetType === 'students') {
+          if (!Array.isArray(input.targetValue) || input.targetValue.length === 0) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '請選擇至少一位學生' });
+          }
+          for (const sv of input.targetValue) {
+            if (sv.type === 'elite') {
+              const [rows] = await pool.execute("SELECT id, name, parent_phone as phone FROM elite_students WHERE id=?", [sv.id]);
+              const s = (rows as any[])[0];
+              if (s) {
+                targetStudentIds.push({ id: s.id, type: 'elite', name: s.name });
+                if (s.phone) resolvedPhones.push(s.phone);
+              }
+            } else {
+              const [rows] = await pool.execute("SELECT id, name, phone FROM students WHERE id=?", [sv.id]);
+              const s = (rows as any[])[0];
+              if (s) {
+                targetStudentIds.push({ id: s.id, type: 'regular', name: s.name });
+                if (s.phone) resolvedPhones.push(s.phone);
+              }
+            }
+          }
+          targetDesc = `${targetStudentIds.length} 位指定學生`;
+        }
+
+        if (input.sendNow) {
+          let tokens: string[] = [];
+          if (input.targetType === 'all') {
+            const [rows] = await pool.execute("SELECT token FROM push_tokens");
+            tokens = (rows as any[]).map(r => r.token).filter((t: string) => Expo.isExpoPushToken(t));
+          } else {
+            const uniquePhones = [...new Set(resolvedPhones)];
+            const allPhones = new Set(uniquePhones);
+            for (const stu of targetStudentIds) {
+              try {
+                const [contactRows] = await pool.execute(
+                  "SELECT phone FROM student_contacts WHERE student_id=? AND student_type=? AND receive_push=1",
+                  [stu.id, stu.type]
+                );
+                for (const c of contactRows as any[]) {
+                  if (c.phone) allPhones.add(c.phone);
+                }
+              } catch {}
+            }
+            const phoneArr = [...allPhones];
+            if (phoneArr.length > 0) {
+              const ph = phoneArr.map(() => '?').join(',');
+              const [tokenRows] = await pool.execute(`SELECT token FROM push_tokens WHERE phone IN (${ph})`, phoneArr);
+              tokens = (tokenRows as any[]).map(r => r.token).filter((t: string) => Expo.isExpoPushToken(t));
+            }
+          }
+
+          const sentCount = await sendPushNotifications(tokens, input.title.trim(), input.body.trim(), { type: 'notification' });
+
+          await pool.execute(
+            "INSERT INTO notifications (title, body, sender_phone, sender_role, target_type, target_value, sent_count) VALUES (?,?,?,?,?,?,?)",
+            [input.title.trim(), input.body.trim(), senderPhone, 'admin', input.targetType, JSON.stringify(input.targetValue), sentCount]
+          );
+
+          await pool.execute(
+            `INSERT INTO push_queue (title, body, target_type, target_student_ids, student_type, trigger_source, trigger_detail, status, reviewed_by, reviewed_at, sent_count)
+             VALUES (?, ?, ?, ?, 'both', 'admin_manual', ?, 'approved', ?, NOW(), ?)`,
+            [
+              input.title.trim(),
+              input.body.trim(),
+              input.targetType === 'all' ? 'all' : 'individual',
+              JSON.stringify(targetStudentIds),
+              JSON.stringify({ targetType: input.targetType, targetDesc, sendNow: true }),
+              senderPhone,
+              sentCount,
+            ]
+          );
+
+          return {
+            success: true,
+            sentCount,
+            message: sentCount > 0 ? `已立即推送給 ${sentCount} 人` : '沒有找到可推送的裝置',
+          };
+        } else {
+          const queueId = await queuePushNotification({
+            title: input.title.trim(),
+            body: input.body.trim(),
+            targetType: input.targetType === 'all' ? 'all' : 'individual',
+            targetStudentIds: targetStudentIds.length > 0 ? targetStudentIds : null,
+            studentType: 'both',
+            triggerSource: 'admin_manual',
+            triggerDetail: { targetType: input.targetType, targetDesc, sendNow: false },
+          });
+
+          return {
+            success: true,
+            queueId,
+            message: '已排入推播隊列等待審核',
+          };
+        }
       }),
   }),
 });

@@ -198,6 +198,8 @@ import {
   getRawPool as getPushRawPool,
   notifyAdminReviewNeeded,
   notifyParentReviewResult,
+  sendPushNotifications,
+  queuePushNotification,
   // Push Queue admin functions
   listPushQueue,
   getPushQueueById,
@@ -2224,6 +2226,203 @@ parentRouter.post("/admin/push-queue/batch-reject", requireRole("admin"), async 
   } catch (err: any) {
     console.error("[AppAPI] admin/push-queue batch-reject error:", err);
     return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  Admin: 新增推播 (手動建立推播，可立即發送或排入隊列)
+// ══════════════════════════════════════════════════════════════════════
+
+// GET /admin/class-list — 取得活躍班級列表（含學生人數）
+parentRouter.get("/admin/class-list", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ error: "DB 不可用" });
+    const [rows] = await pool.execute(
+      `SELECT venue, scheduleDay, scheduleTime, coach, COUNT(*) as studentCount
+       FROM students WHERE status = 'active'
+       GROUP BY venue, scheduleDay, scheduleTime, coach
+       ORDER BY venue, scheduleDay, scheduleTime`
+    );
+    return res.json(rows);
+  } catch (err: any) {
+    console.error("[AppAPI] admin/class-list error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// GET /admin/student-list-simple — 取得活躍學生簡易列表
+parentRouter.get("/admin/student-list-simple", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ error: "DB 不可用" });
+    const [regular] = await pool.execute(
+      `SELECT id, name, phone, venue, scheduleDay, scheduleTime, 'regular' as studentType
+       FROM students WHERE status = 'active' ORDER BY name`
+    );
+    const [elite] = await pool.execute(
+      `SELECT id, name, parent_phone as phone, venue, schedule_day as scheduleDay, schedule_time as scheduleTime, 'elite' as studentType
+       FROM elite_students WHERE status = 'active' ORDER BY name`
+    );
+    return res.json({ regular, elite });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/student-list-simple error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// POST /admin/push-create — 管理員手動新增推播（可選立即發送或排入隊列）
+parentRouter.post("/admin/push-create", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { title, body, targetType, targetValue, sendNow } = req.body;
+
+    // 基本驗證
+    if (!title?.trim() || !body?.trim()) {
+      return res.status(400).json({ error: "請填寫標題和內容" });
+    }
+    if (!["all", "class", "students"].includes(targetType)) {
+      return res.status(400).json({ error: "無效的推送對象類型，可選: all, class, students" });
+    }
+
+    const pool = await getRawPool();
+    if (!pool) return res.status(500).json({ error: "DB 不可用" });
+
+    const senderPhone = req.userPhone || "admin";
+    let targetStudentIds: Array<{ id: number; type: string; name: string }> = [];
+    let resolvedPhones: string[] = [];
+    let targetDesc = "";
+
+    if (targetType === "all") {
+      // 全體 — 取得所有 push_tokens
+      targetDesc = "全體用戶";
+    } else if (targetType === "class") {
+      // 班級 — targetValue = "venue|day|time" or ["venue|day|time", ...]
+      const classKeys = Array.isArray(targetValue) ? targetValue : [targetValue];
+      if (!classKeys.length || classKeys.some((k: string) => !k || k.split("|").length < 3)) {
+        return res.status(400).json({ error: "班級格式錯誤，應為 venue|day|time" });
+      }
+      // 找出這些班級的所有學生
+      for (const key of classKeys) {
+        const [venue, day, time] = key.split("|");
+        const [stuRows] = await pool.execute(
+          "SELECT id, name, phone FROM students WHERE venue=? AND scheduleDay=? AND scheduleTime=? AND status='active'",
+          [venue, day, time]
+        );
+        for (const s of stuRows as any[]) {
+          targetStudentIds.push({ id: s.id, type: "regular", name: s.name });
+          if (s.phone) resolvedPhones.push(s.phone);
+        }
+      }
+      targetDesc = `${classKeys.length} 個班級（${targetStudentIds.length} 位學生）`;
+    } else if (targetType === "students") {
+      // 指定學生 — targetValue = [{ id, type }] where type = 'regular' | 'elite'
+      if (!Array.isArray(targetValue) || targetValue.length === 0) {
+        return res.status(400).json({ error: "請選擇至少一位學生" });
+      }
+      for (const sv of targetValue) {
+        if (sv.type === "elite") {
+          const [rows] = await pool.execute("SELECT id, name, parent_phone as phone FROM elite_students WHERE id=?", [sv.id]);
+          const s = (rows as any[])[0];
+          if (s) {
+            targetStudentIds.push({ id: s.id, type: "elite", name: s.name });
+            if (s.phone) resolvedPhones.push(s.phone);
+          }
+        } else {
+          const [rows] = await pool.execute("SELECT id, name, phone FROM students WHERE id=?", [sv.id]);
+          const s = (rows as any[])[0];
+          if (s) {
+            targetStudentIds.push({ id: s.id, type: "regular", name: s.name });
+            if (s.phone) resolvedPhones.push(s.phone);
+          }
+        }
+      }
+      targetDesc = `${targetStudentIds.length} 位指定學生`;
+    }
+
+    if (sendNow) {
+      // === 立即發送模式 ===
+      let tokens: string[] = [];
+
+      if (targetType === "all") {
+        const [rows] = await pool.execute("SELECT token FROM push_tokens");
+        tokens = (rows as any[]).map(r => r.token).filter((t: string) => Expo.isExpoPushToken(t));
+      } else {
+        // 透過 phones 找 tokens
+        const uniquePhones = [...new Set(resolvedPhones)];
+        if (uniquePhones.length > 0) {
+          // 也加上 student_contacts 的 phones
+          const allPhones = new Set(uniquePhones);
+          for (const stu of targetStudentIds) {
+            const tableName = stu.type === "elite" ? "elite_students" : "students";
+            const phoneCol = stu.type === "elite" ? "parent_phone" : "phone";
+            try {
+              const [contactRows] = await pool.execute(
+                "SELECT phone FROM student_contacts WHERE student_id=? AND student_type=? AND receive_push=1",
+                [stu.id, stu.type]
+              );
+              for (const c of contactRows as any[]) {
+                if (c.phone) allPhones.add(c.phone);
+              }
+            } catch {}
+          }
+          const phoneArr = [...allPhones];
+          if (phoneArr.length > 0) {
+            const ph = phoneArr.map(() => "?").join(",");
+            const [tokenRows] = await pool.execute(`SELECT token FROM push_tokens WHERE phone IN (${ph})`, phoneArr);
+            tokens = (tokenRows as any[]).map(r => r.token).filter((t: string) => Expo.isExpoPushToken(t));
+          }
+        }
+      }
+
+      const sentCount = await sendPushNotifications(tokens, title.trim(), body.trim(), { type: "notification" });
+
+      // 記錄到 notifications
+      await pool.execute(
+        "INSERT INTO notifications (title, body, sender_phone, sender_role, target_type, target_value, sent_count) VALUES (?,?,?,?,?,?,?)",
+        [title.trim(), body.trim(), senderPhone, "admin", targetType, JSON.stringify(targetValue), sentCount]
+      );
+
+      // 也記錄到 push_queue（狀態已 approved）
+      await pool.execute(
+        `INSERT INTO push_queue (title, body, target_type, target_student_ids, student_type, trigger_source, trigger_detail, status, reviewed_by, reviewed_at, sent_count)
+         VALUES (?, ?, ?, ?, 'both', 'admin_manual', ?, 'approved', ?, NOW(), ?)`,
+        [
+          title.trim(),
+          body.trim(),
+          targetType === "all" ? "all" : "individual",
+          JSON.stringify(targetStudentIds),
+          JSON.stringify({ targetType, targetDesc, sendNow: true }),
+          senderPhone,
+          sentCount,
+        ]
+      );
+
+      return res.json({
+        success: true,
+        sentCount,
+        message: sentCount > 0 ? `已立即推送給 ${sentCount} 人` : "沒有找到可推送的裝置",
+      });
+    } else {
+      // === 排入隊列模式 ===
+      const queueId = await queuePushNotification({
+        title: title.trim(),
+        body: body.trim(),
+        targetType: targetType === "all" ? "all" : "individual",
+        targetStudentIds: targetStudentIds.length > 0 ? targetStudentIds : null,
+        studentType: "both",
+        triggerSource: "admin_manual",
+        triggerDetail: { targetType, targetDesc, sendNow: false },
+      });
+
+      return res.json({
+        success: true,
+        queueId,
+        message: "已排入推播隊列等待審核",
+      });
+    }
+  } catch (err: any) {
+    console.error("[AppAPI] admin/push-create error:", err);
+    return res.status(500).json({ error: "系統錯誤: " + err.message });
   }
 });
 

@@ -14,6 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Bell,
   CheckCircle2,
@@ -24,6 +27,8 @@ import {
   Send,
   AlertTriangle,
   Loader2,
+  Plus,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,7 +39,17 @@ const triggerSourceLabels: Record<string, string> = {
   elite_low_balance: "精英班續費提醒",
   exam_result: "考試結果",
   payment_overdue: "繳費逾期催繳",
+  admin_manual: "管理員手動",
 };
+
+const PUSH_TEMPLATES = [
+  { label: "自訂內容", title: "", body: "" },
+  { label: "繳費提醒", title: "繳費提醒", body: "您好，本月學費尚未繳納，請盡快完成繳費，謝謝！" },
+  { label: "課程變動", title: "課程變動通知", body: "您好，近期課程時間有所調整，詳情請查閱最新課表。" },
+  { label: "活動通知", title: "活動通知", body: "您好，我們即將舉辦新活動，歡迎報名參加！" },
+  { label: "考試通知", title: "考試通知", body: "您好，下一次段考即將進行，請做好準備。" },
+  { label: "一般通知", title: "道場公告", body: "" },
+];
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
@@ -76,6 +91,16 @@ export default function PushQueueReviewContent() {
   const [rejectIds, setRejectIds] = useState<number[]>([]);
   const [rejectReason, setRejectReason] = useState("");
 
+  // Create push state
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createTitle, setCreateTitle] = useState("");
+  const [createBody, setCreateBody] = useState("");
+  const [createTargetType, setCreateTargetType] = useState<"all" | "class" | "students">("all");
+  const [createSendNow, setCreateSendNow] = useState(false);
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<Array<{ id: number; type: string }>>([]);
+  const [studentSearch, setStudentSearch] = useState("");
+
   // ── Queries ──
   const {
     data: items,
@@ -96,6 +121,14 @@ export default function PushQueueReviewContent() {
       { id: detailId! },
       { enabled: !!detailId && showDetail }
     );
+
+  const { data: classList } = trpc.pushQueue.classList.useQuery(undefined, {
+    enabled: showCreateDialog,
+  });
+
+  const { data: studentListData } = trpc.pushQueue.studentListSimple.useQuery(undefined, {
+    enabled: showCreateDialog,
+  });
 
   // ── Mutations ──
   const approveMutation = trpc.pushQueue.approve.useMutation({
@@ -152,6 +185,19 @@ export default function PushQueueReviewContent() {
     },
   });
 
+  const createPushMutation = trpc.pushQueue.createPush.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message || '操作完成');
+      refetch();
+      refetchCount();
+      setShowCreateDialog(false);
+      resetCreateForm();
+    },
+    onError: (err) => {
+      toast.error(`建立失敗: ${err.message}`);
+    },
+  });
+
   // Reset selection when tab changes
   useEffect(() => {
     setSelectedIds(new Set());
@@ -204,6 +250,75 @@ export default function PushQueueReviewContent() {
     handleReject(ids);
   };
 
+  // Create push handlers
+  const resetCreateForm = () => {
+    setCreateTitle("");
+    setCreateBody("");
+    setCreateTargetType("all");
+    setCreateSendNow(false);
+    setSelectedClasses([]);
+    setSelectedStudents([]);
+    setStudentSearch("");
+  };
+
+  const applyTemplate = (tpl: typeof PUSH_TEMPLATES[0]) => {
+    setCreateTitle(tpl.title);
+    setCreateBody(tpl.body);
+  };
+
+  const toggleClassSelect = (key: string) => {
+    setSelectedClasses((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const toggleStudentSelect = (id: number, type: string) => {
+    setSelectedStudents((prev) => {
+      const exists = prev.find((s) => s.id === id && s.type === type);
+      if (exists) return prev.filter((s) => !(s.id === id && s.type === type));
+      return [...prev, { id, type }];
+    });
+  };
+
+  const filteredStudentsList = (() => {
+    if (!studentListData) return [];
+    const all = [
+      ...((studentListData.regular as any[]) || []).map((s: any) => ({ ...s, studentType: 'regular' })),
+      ...((studentListData.elite as any[]) || []).map((s: any) => ({ ...s, studentType: 'elite' })),
+    ];
+    if (!studentSearch.trim()) return all;
+    const q = studentSearch.toLowerCase();
+    return all.filter(
+      (s) => s.name?.toLowerCase().includes(q) || s.phone?.includes(q) || s.venue?.toLowerCase().includes(q)
+    );
+  })();
+
+  const handleCreatePush = () => {
+    if (!createTitle.trim() || !createBody.trim()) {
+      toast.error('請填寫標題和內容');
+      return;
+    }
+    if (createTargetType === 'class' && selectedClasses.length === 0) {
+      toast.error('請至少選擇一個班級');
+      return;
+    }
+    if (createTargetType === 'students' && selectedStudents.length === 0) {
+      toast.error('請至少選擇一位學生');
+      return;
+    }
+    let targetValue: any = null;
+    if (createTargetType === 'class') targetValue = selectedClasses;
+    if (createTargetType === 'students') targetValue = selectedStudents;
+
+    createPushMutation.mutate({
+      title: createTitle.trim(),
+      body: createBody.trim(),
+      targetType: createTargetType,
+      targetValue,
+      sendNow: createSendNow,
+    });
+  };
+
   const openDetail = (id: number) => {
     setDetailId(id);
     setShowDetail(true);
@@ -218,15 +333,24 @@ export default function PushQueueReviewContent() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bell className="w-5 h-5 text-indigo-600" />
-          推播審核
-          {pendingCount && pendingCount.count > 0 && (
-            <Badge variant="destructive" className="ml-2">
-              {pendingCount.count} 待審核
-            </Badge>
-          )}
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="w-5 h-5 text-indigo-600" />
+            推播審核
+            {pendingCount && pendingCount.count > 0 && (
+              <Badge variant="destructive" className="ml-2">
+                {pendingCount.count} 待審核
+              </Badge>
+            )}
+          </CardTitle>
+          <Button
+            onClick={() => { resetCreateForm(); setShowCreateDialog(true); }}
+            className="bg-indigo-600 hover:bg-indigo-700 gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            新增推播
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -674,6 +798,207 @@ export default function PushQueueReviewContent() {
                   <XCircle className="w-4 h-4 mr-1" />
                 )}
                 確定拒絕
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {/* Create Push Dialog */}
+        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Plus className="w-5 h-5 text-indigo-600" />
+                新增推播
+              </DialogTitle>
+              <DialogDescription>手動建立推播通知，可選擇立即發送或排入審核隊列</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {/* Template picker */}
+              <div>
+                <Label className="text-sm">快速範本</Label>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {PUSH_TEMPLATES.map((tpl, i) => (
+                    <Button
+                      key={i}
+                      variant={createTitle === tpl.title && createBody === tpl.body && i > 0 ? "default" : "outline"}
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => applyTemplate(tpl)}
+                    >
+                      {tpl.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Title */}
+              <div>
+                <Label className="text-sm">推播標題 *</Label>
+                <Input
+                  className="mt-1"
+                  placeholder="輸入推播標題"
+                  value={createTitle}
+                  onChange={(e) => setCreateTitle(e.target.value)}
+                />
+              </div>
+
+              {/* Body */}
+              <div>
+                <Label className="text-sm">推播內容 *</Label>
+                <Textarea
+                  className="mt-1"
+                  placeholder="輸入推播內容"
+                  value={createBody}
+                  onChange={(e) => setCreateBody(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              {/* Target type */}
+              <div>
+                <Label className="text-sm">推播對象</Label>
+                <div className="grid grid-cols-3 gap-2 mt-1.5">
+                  {(['all', 'class', 'students'] as const).map((t) => (
+                    <Button
+                      key={t}
+                      variant={createTargetType === t ? "default" : "outline"}
+                      size="sm"
+                      className={createTargetType === t ? "bg-indigo-600 hover:bg-indigo-700" : ""}
+                      onClick={() => setCreateTargetType(t)}
+                    >
+                      {t === 'all' ? '🌐 全體' : t === 'class' ? '📚 班級' : '👤 學生'}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Class selection */}
+              {createTargetType === 'class' && (
+                <div>
+                  <Label className="text-sm">選擇班級</Label>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5 max-h-40 overflow-y-auto">
+                    {(classList as any[] || []).map((c: any) => {
+                      const key = `${c.venue}|${c.scheduleDay}|${c.scheduleTime}`;
+                      const selected = selectedClasses.includes(key);
+                      return (
+                        <Button
+                          key={key}
+                          variant={selected ? "default" : "outline"}
+                          size="sm"
+                          className={`text-xs h-auto py-1 px-2 ${selected ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                          onClick={() => toggleClassSelect(key)}
+                        >
+                          {c.venue} {c.scheduleDay} {c.scheduleTime} ({c.studentCount}人)
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  {selectedClasses.length > 0 && (
+                    <p className="text-xs text-indigo-600 mt-1">已選 {selectedClasses.length} 個班級</p>
+                  )}
+                </div>
+              )}
+
+              {/* Student selection */}
+              {createTargetType === 'students' && (
+                <div>
+                  <Label className="text-sm">選擇學生</Label>
+                  <div className="relative mt-1.5">
+                    <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      className="pl-8"
+                      placeholder="搜尋學生姓名/電話/道場..."
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                    />
+                  </div>
+                  {selectedStudents.length > 0 && (
+                    <p className="text-xs text-indigo-600 mt-1">已選 {selectedStudents.length} 位學生</p>
+                  )}
+                  <div className="border rounded-md mt-1.5 max-h-48 overflow-y-auto">
+                    {filteredStudentsList.slice(0, 50).map((s: any) => {
+                      const isSelected = selectedStudents.some(
+                        (ss) => ss.id === s.id && ss.type === s.studentType
+                      );
+                      return (
+                        <div
+                          key={`${s.studentType}-${s.id}`}
+                          className={`flex items-center gap-2 px-3 py-2 border-b last:border-0 cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-indigo-50' : ''}`}
+                          onClick={() => toggleStudentSelect(s.id, s.studentType)}
+                        >
+                          <Checkbox checked={isSelected} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate">
+                              {s.name}
+                              {s.studentType === 'elite' && (
+                                <Badge variant="secondary" className="ml-1 text-xs px-1 py-0">精英</Badge>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground">{s.venue} · {s.phone}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filteredStudentsList.length > 50 && (
+                      <div className="text-xs text-center text-muted-foreground py-2">
+                        顯示前 50 筆，請使用搜尋篩選
+                      </div>
+                    )}
+                    {filteredStudentsList.length === 0 && (
+                      <div className="text-xs text-center text-muted-foreground py-4">
+                        找不到符合的學生
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Send mode */}
+              <div>
+                <Label className="text-sm">發送模式</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1.5">
+                  <Button
+                    variant={!createSendNow ? "default" : "outline"}
+                    size="sm"
+                    className={!createSendNow ? "bg-indigo-600 hover:bg-indigo-700" : ""}
+                    onClick={() => setCreateSendNow(false)}
+                  >
+                    📋 排入隊列
+                  </Button>
+                  <Button
+                    variant={createSendNow ? "default" : "outline"}
+                    size="sm"
+                    className={createSendNow ? "bg-red-600 hover:bg-red-700" : ""}
+                    onClick={() => setCreateSendNow(true)}
+                  >
+                    🚀 立即發送
+                  </Button>
+                </div>
+                {createSendNow && (
+                  <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>立即發送模式會直接推播給用戶，無需審核</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                取消
+              </Button>
+              <Button
+                className="bg-indigo-600 hover:bg-indigo-700"
+                onClick={handleCreatePush}
+                disabled={createPushMutation.isPending}
+              >
+                {createPushMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                ) : (
+                  <Send className="w-4 h-4 mr-1" />
+                )}
+                {createSendNow ? '立即發送' : '提交至審核隊列'}
               </Button>
             </DialogFooter>
           </DialogContent>
