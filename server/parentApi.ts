@@ -2261,14 +2261,15 @@ parentRouter.get("/admin/student-list-simple", requireRole("admin"), async (req:
        FROM students WHERE status = 'active' ORDER BY venue, scheduleDay, scheduleTime, name`
     );
     const [elite] = await pool.execute(
-      `SELECT id, name, parent_phone as phone, venue, schedule_day as scheduleDay, schedule_time as scheduleTime, coach, 'elite' as studentType
-       FROM elite_students WHERE status = 'active' ORDER BY venue, schedule_day, schedule_time, name`
+      `SELECT id, name, phone, coach, schedule_day as scheduleDay, schedule_time as scheduleTime, 'elite' as studentType
+       FROM elite_students WHERE status = 'active' ORDER BY schedule_day, schedule_time, name`
     );
     // 按班級分組
     const grouped: Record<string, { className: string; classKey: string; students: any[] }> = {};
     for (const s of [...(regular as any[]), ...(elite as any[])]) {
-      const classKey = `${s.venue}|${s.scheduleDay}|${s.scheduleTime}`;
-      const className = `${s.venue || "未知"} ${s.scheduleDay || ""} ${s.scheduleTime || ""}`.trim();
+      const venue = s.venue || (s.studentType === 'elite' ? '精英班' : '未知');
+      const classKey = `${venue}|${s.scheduleDay}|${s.scheduleTime}`;
+      const className = `${venue} ${s.scheduleDay || ""} ${s.scheduleTime || ""}`.trim();
       if (!grouped[classKey]) {
         grouped[classKey] = { className, classKey, students: [] };
       }
@@ -2341,7 +2342,7 @@ parentRouter.post("/admin/push-create", requireRole("admin"), async (req: Authen
       }
       for (const sv of targetValue) {
         if (sv.type === "elite") {
-          const [rows] = await pool.execute("SELECT id, name, parent_phone as phone FROM elite_students WHERE id=?", [sv.id]);
+          const [rows] = await pool.execute("SELECT id, name, phone FROM elite_students WHERE id=?", [sv.id]);
           const s = (rows as any[])[0];
           if (s) {
             targetStudentIds.push({ id: s.id, type: "elite", name: s.name });
@@ -2374,7 +2375,7 @@ parentRouter.post("/admin/push-create", requireRole("admin"), async (req: Authen
           const allPhones = new Set(uniquePhones);
           for (const stu of targetStudentIds) {
             const tableName = stu.type === "elite" ? "elite_students" : "students";
-            const phoneCol = stu.type === "elite" ? "parent_phone" : "phone";
+            const phoneCol = "phone";  // both tables use 'phone' column
             try {
               const [contactRows] = await pool.execute(
                 "SELECT phone FROM student_contacts WHERE student_id=? AND student_type=? AND receive_push=1",

@@ -4953,13 +4953,14 @@ export const appRouter = router({
            FROM students WHERE status = 'active' ORDER BY venue, scheduleDay, scheduleTime, name`
         );
         const [elite] = await pool.execute(
-          `SELECT id, name, parent_phone as phone, venue, schedule_day as scheduleDay, schedule_time as scheduleTime, coach, 'elite' as studentType
-           FROM elite_students WHERE status = 'active' ORDER BY venue, schedule_day, schedule_time, name`
+          `SELECT id, name, phone, coach, schedule_day as scheduleDay, schedule_time as scheduleTime, 'elite' as studentType
+           FROM elite_students WHERE status = 'active' ORDER BY schedule_day, schedule_time, name`
         );
         const grouped: Record<string, { className: string; classKey: string; students: any[] }> = {};
         for (const s of [...(regular as any[]), ...(elite as any[])]) {
-          const classKey = `${s.venue}|${s.scheduleDay}|${s.scheduleTime}`;
-          const className = `${s.venue || "未知"} ${s.scheduleDay || ""} ${s.scheduleTime || ""}`.trim();
+          const venue = s.venue || (s.studentType === 'elite' ? '精英班' : '未知');
+          const classKey = `${venue}|${s.scheduleDay}|${s.scheduleTime}`;
+          const className = `${venue} ${s.scheduleDay || ""} ${s.scheduleTime || ""}`.trim();
           if (!grouped[classKey]) {
             grouped[classKey] = { className, classKey, students: [] };
           }
@@ -5021,7 +5022,7 @@ export const appRouter = router({
           }
           for (const sv of input.targetValue) {
             if (sv.type === 'elite') {
-              const [rows] = await pool.execute("SELECT id, name, parent_phone as phone FROM elite_students WHERE id=?", [sv.id]);
+              const [rows] = await pool.execute("SELECT id, name, phone FROM elite_students WHERE id=?", [sv.id]);
               const s = (rows as any[])[0];
               if (s) {
                 targetStudentIds.push({ id: s.id, type: 'elite', name: s.name });
