@@ -4940,23 +4940,41 @@ export const appRouter = router({
         return rows;
       }),
 
-    // 取得學生簡易列表
+    // 取得學生按班級分組列表
     studentListSimple: protectedProcedure
       .query(async ({ ctx }) => {
         if (ctx.user.role !== 'admin') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const pool = await getPushRawPool();
-        if (!pool) return { regular: [], elite: [] };
+        if (!pool) return [];
         const [regular] = await pool.execute(
-          `SELECT id, name, phone, venue, scheduleDay, scheduleTime
-           FROM students WHERE status = 'active' ORDER BY name`
+          `SELECT id, name, phone, venue, scheduleDay, scheduleTime, coach, 'regular' as studentType
+           FROM students WHERE status = 'active' ORDER BY venue, scheduleDay, scheduleTime, name`
         );
         const [elite] = await pool.execute(
-          `SELECT id, name, parent_phone as phone, venue, schedule_day as scheduleDay, schedule_time as scheduleTime
-           FROM elite_students WHERE status = 'active' ORDER BY name`
+          `SELECT id, name, parent_phone as phone, venue, schedule_day as scheduleDay, schedule_time as scheduleTime, coach, 'elite' as studentType
+           FROM elite_students WHERE status = 'active' ORDER BY venue, schedule_day, schedule_time, name`
         );
-        return { regular, elite };
+        const grouped: Record<string, { className: string; classKey: string; students: any[] }> = {};
+        for (const s of [...(regular as any[]), ...(elite as any[])]) {
+          const classKey = `${s.venue}|${s.scheduleDay}|${s.scheduleTime}`;
+          const className = `${s.venue || "未知"} ${s.scheduleDay || ""} ${s.scheduleTime || ""}`.trim();
+          if (!grouped[classKey]) {
+            grouped[classKey] = { className, classKey, students: [] };
+          }
+          grouped[classKey].students.push({
+            id: s.id,
+            name: s.name,
+            phone: s.phone,
+            studentType: s.studentType,
+            coach: s.coach,
+          });
+        }
+        return Object.values(grouped).map((g) => ({
+          ...g,
+          studentCount: g.students.length,
+        }));
       }),
 
     // 管理員手動新增推播

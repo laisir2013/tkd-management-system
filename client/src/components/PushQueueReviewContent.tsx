@@ -29,6 +29,11 @@ import {
   Loader2,
   Plus,
   Search,
+  ChevronDown,
+  ChevronRight,
+  X,
+  UserCheck,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -98,8 +103,10 @@ export default function PushQueueReviewContent() {
   const [createTargetType, setCreateTargetType] = useState<"all" | "class" | "students">("all");
   const [createSendNow, setCreateSendNow] = useState(false);
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
-  const [selectedStudents, setSelectedStudents] = useState<Array<{ id: number; type: string }>>([]);
+  const [selectedStudents, setSelectedStudents] = useState<Array<{ id: number; type: string; name: string; className: string }>>([]);
   const [studentSearch, setStudentSearch] = useState("");
+  const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set());
+  const [showSelectedReview, setShowSelectedReview] = useState(false);
 
   // ── Queries ──
   const {
@@ -259,6 +266,8 @@ export default function PushQueueReviewContent() {
     setSelectedClasses([]);
     setSelectedStudents([]);
     setStudentSearch("");
+    setExpandedClasses(new Set());
+    setShowSelectedReview(false);
   };
 
   const applyTemplate = (tpl: typeof PUSH_TEMPLATES[0]) => {
@@ -272,26 +281,74 @@ export default function PushQueueReviewContent() {
     );
   };
 
-  const toggleStudentSelect = (id: number, type: string) => {
+  const toggleStudentSelect = (id: number, type: string, name: string, className: string) => {
     setSelectedStudents((prev) => {
       const exists = prev.find((s) => s.id === id && s.type === type);
       if (exists) return prev.filter((s) => !(s.id === id && s.type === type));
-      return [...prev, { id, type }];
+      return [...prev, { id, type, name, className }];
     });
   };
 
-  const filteredStudentsList = (() => {
-    if (!studentListData) return [];
-    const all = [
-      ...((studentListData.regular as any[]) || []).map((s: any) => ({ ...s, studentType: 'regular' })),
-      ...((studentListData.elite as any[]) || []).map((s: any) => ({ ...s, studentType: 'elite' })),
-    ];
-    if (!studentSearch.trim()) return all;
+  const isStudentSelected = (id: number, type: string) => {
+    return selectedStudents.some((s) => s.id === id && s.type === type);
+  };
+
+  const toggleClassExpand = (classKey: string) => {
+    setExpandedClasses((prev) => {
+      const next = new Set(prev);
+      if (next.has(classKey)) next.delete(classKey);
+      else next.add(classKey);
+      return next;
+    });
+  };
+
+  const selectAllInClass = (classKey: string, students: any[], className: string) => {
+    const allSelected = students.every((s: any) => isStudentSelected(s.id, s.studentType));
+    if (allSelected) {
+      // deselect all in this class
+      setSelectedStudents((prev) =>
+        prev.filter((sel) => !students.some((s: any) => s.id === sel.id && s.studentType === sel.type))
+      );
+    } else {
+      // select all in this class
+      setSelectedStudents((prev) => {
+        const next = [...prev];
+        for (const s of students) {
+          if (!next.some((sel) => sel.id === s.id && sel.type === s.studentType)) {
+            next.push({ id: s.id, type: s.studentType, name: s.name, className });
+          }
+        }
+        return next;
+      });
+    }
+  };
+
+  const removeStudent = (id: number, type: string) => {
+    setSelectedStudents((prev) => prev.filter((s) => !(s.id === id && s.type === type)));
+  };
+
+  const clearAllStudents = () => {
+    setSelectedStudents([]);
+  };
+
+  // Filter class groups by search query
+  const getFilteredGroups = () => {
+    if (!studentListData || !Array.isArray(studentListData)) return [];
+    const groups = studentListData as any[];
+    if (!studentSearch.trim()) return groups;
     const q = studentSearch.toLowerCase();
-    return all.filter(
-      (s) => s.name?.toLowerCase().includes(q) || s.phone?.includes(q) || s.venue?.toLowerCase().includes(q)
-    );
-  })();
+    return groups
+      .map((g: any) => ({
+        ...g,
+        students: g.students.filter(
+          (s: any) =>
+            s.name?.toLowerCase().includes(q) ||
+            s.phone?.includes(q) ||
+            g.className?.toLowerCase().includes(q)
+        ),
+      }))
+      .filter((g: any) => g.students.length > 0);
+  };
 
   const handleCreatePush = () => {
     if (!createTitle.trim() || !createBody.trim()) {
@@ -308,7 +365,7 @@ export default function PushQueueReviewContent() {
     }
     let targetValue: any = null;
     if (createTargetType === 'class') targetValue = selectedClasses;
-    if (createTargetType === 'students') targetValue = selectedStudents;
+    if (createTargetType === 'students') targetValue = selectedStudents.map((s) => ({ id: s.id, type: s.type }));
 
     createPushMutation.mutate({
       title: createTitle.trim(),
@@ -900,56 +957,180 @@ export default function PushQueueReviewContent() {
                 </div>
               )}
 
-              {/* Student selection */}
+              {/* Student selection — collapsible class groups */}
               {createTargetType === 'students' && (
-                <div>
+                <div className="space-y-2">
                   <Label className="text-sm">選擇學生</Label>
-                  <div className="relative mt-1.5">
+
+                  {/* Search bar */}
+                  <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
                     <Input
                       className="pl-8"
-                      placeholder="搜尋學生姓名/電話/道場..."
+                      placeholder="搜尋學生姓名 / 電話 / 道場..."
                       value={studentSearch}
                       onChange={(e) => setStudentSearch(e.target.value)}
                     />
                   </div>
+
+                  {/* Selected students summary bar */}
                   {selectedStudents.length > 0 && (
-                    <p className="text-xs text-indigo-600 mt-1">已選 {selectedStudents.length} 位學生</p>
+                    <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                      <UserCheck className="w-4 h-4 text-red-600 shrink-0" />
+                      <span className="text-sm font-medium text-red-700 flex-1">
+                        已選 {selectedStudents.length} 位學生
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-6 text-red-600 hover:text-red-800 hover:bg-red-100"
+                        onClick={() => setShowSelectedReview(!showSelectedReview)}
+                      >
+                        <Eye className="w-3 h-3 mr-1" />
+                        {showSelectedReview ? '收起' : '檢視'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-6 text-red-600 hover:text-red-800 hover:bg-red-100"
+                        onClick={clearAllStudents}
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        清除全部
+                      </Button>
+                    </div>
                   )}
-                  <div className="border rounded-md mt-1.5 max-h-48 overflow-y-auto">
-                    {filteredStudentsList.slice(0, 50).map((s: any) => {
-                      const isSelected = selectedStudents.some(
-                        (ss) => ss.id === s.id && ss.type === s.studentType
-                      );
-                      return (
-                        <div
-                          key={`${s.studentType}-${s.id}`}
-                          className={`flex items-center gap-2 px-3 py-2 border-b last:border-0 cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-indigo-50' : ''}`}
-                          onClick={() => toggleStudentSelect(s.id, s.studentType)}
-                        >
-                          <Checkbox checked={isSelected} />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium truncate">
-                              {s.name}
-                              {s.studentType === 'elite' && (
-                                <Badge variant="secondary" className="ml-1 text-xs px-1 py-0">精英</Badge>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground">{s.venue} · {s.phone}</div>
+
+                  {/* Selected students review panel */}
+                  {showSelectedReview && selectedStudents.length > 0 && (
+                    <div className="border border-red-200 rounded-lg p-2 bg-red-50/50 max-h-32 overflow-y-auto">
+                      <div className="flex flex-wrap gap-1">
+                        {selectedStudents.map((s) => (
+                          <Badge
+                            key={`${s.type}-${s.id}`}
+                            variant="secondary"
+                            className="text-xs pl-2 pr-1 py-0.5 gap-1 bg-white border border-red-200"
+                          >
+                            {s.name}
+                            {s.type === 'elite' && (
+                              <span className="text-purple-600 text-[10px]">(精英)</span>
+                            )}
+                            <button
+                              className="ml-0.5 text-red-400 hover:text-red-600 rounded-full"
+                              onClick={() => removeStudent(s.id, s.type)}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Collapsible class groups */}
+                  <div className="border rounded-lg max-h-64 overflow-y-auto">
+                    {(() => {
+                      const filteredGroups = getFilteredGroups();
+                      if (filteredGroups.length === 0) {
+                        return (
+                          <div className="text-center text-muted-foreground text-xs py-6">
+                            <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                            找不到符合的學生
                           </div>
-                        </div>
-                      );
-                    })}
-                    {filteredStudentsList.length > 50 && (
-                      <div className="text-xs text-center text-muted-foreground py-2">
-                        顯示前 50 筆，請使用搜尋篩選
-                      </div>
-                    )}
-                    {filteredStudentsList.length === 0 && (
-                      <div className="text-xs text-center text-muted-foreground py-4">
-                        找不到符合的學生
-                      </div>
-                    )}
+                        );
+                      }
+                      return filteredGroups.map((group: any) => {
+                        const isExpanded = expandedClasses.has(group.classKey);
+                        const allInClassSelected =
+                          group.students.length > 0 &&
+                          group.students.every((s: any) => isStudentSelected(s.id, s.studentType));
+                        const someInClassSelected =
+                          !allInClassSelected &&
+                          group.students.some((s: any) => isStudentSelected(s.id, s.studentType));
+                        const selectedInClass = group.students.filter((s: any) =>
+                          isStudentSelected(s.id, s.studentType)
+                        ).length;
+
+                        return (
+                          <div key={group.classKey} className="border-b last:border-b-0">
+                            {/* Class header row */}
+                            <div
+                              className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors ${
+                                allInClassSelected
+                                  ? 'bg-indigo-50'
+                                  : someInClassSelected
+                                    ? 'bg-indigo-50/40'
+                                    : ''
+                              }`}
+                              onClick={() => toggleClassExpand(group.classKey)}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium">{group.className}</span>
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  ({group.studentCount} 人{selectedInClass > 0 ? `，已選 ${selectedInClass}` : ''})
+                                </span>
+                              </div>
+                              <Button
+                                variant={allInClassSelected ? 'default' : 'outline'}
+                                size="sm"
+                                className={`text-xs h-6 px-2 shrink-0 ${
+                                  allInClassSelected ? 'bg-indigo-600 hover:bg-indigo-700' : ''
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  selectAllInClass(group.classKey, group.students, group.className);
+                                }}
+                              >
+                                {allInClassSelected ? '取消全選' : '全選'}
+                              </Button>
+                            </div>
+
+                            {/* Expanded student list */}
+                            {isExpanded && (
+                              <div className="bg-gray-50/50">
+                                {group.students.map((s: any) => {
+                                  const checked = isStudentSelected(s.id, s.studentType);
+                                  return (
+                                    <div
+                                      key={`${s.studentType}-${s.id}`}
+                                      className={`flex items-center gap-2 px-3 pl-9 py-1.5 cursor-pointer hover:bg-gray-100 transition-colors border-t border-gray-100 ${
+                                        checked ? 'bg-indigo-50/70' : ''
+                                      }`}
+                                      onClick={() =>
+                                        toggleStudentSelect(s.id, s.studentType, s.name, group.className)
+                                      }
+                                    >
+                                      <Checkbox checked={checked} className="shrink-0" />
+                                      <div className="flex-1 min-w-0">
+                                        <span className="text-sm truncate">
+                                          {s.name}
+                                          {s.studentType === 'elite' && (
+                                            <Badge
+                                              variant="secondary"
+                                              className="ml-1 text-[10px] px-1 py-0 bg-purple-100 text-purple-700"
+                                            >
+                                              精英
+                                            </Badge>
+                                          )}
+                                        </span>
+                                      </div>
+                                      <span className="text-xs text-muted-foreground shrink-0">
+                                        {s.phone}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               )}

@@ -2251,20 +2251,40 @@ parentRouter.get("/admin/class-list", requireRole("admin"), async (req: Authenti
   }
 });
 
-// GET /admin/student-list-simple — 取得活躍學生簡易列表
+// GET /admin/student-list-simple — 取得活躍學生按班級分組列表
 parentRouter.get("/admin/student-list-simple", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
   try {
     const pool = await getRawPool();
     if (!pool) return res.status(500).json({ error: "DB 不可用" });
     const [regular] = await pool.execute(
-      `SELECT id, name, phone, venue, scheduleDay, scheduleTime, 'regular' as studentType
-       FROM students WHERE status = 'active' ORDER BY name`
+      `SELECT id, name, phone, venue, scheduleDay, scheduleTime, coach, 'regular' as studentType
+       FROM students WHERE status = 'active' ORDER BY venue, scheduleDay, scheduleTime, name`
     );
     const [elite] = await pool.execute(
-      `SELECT id, name, parent_phone as phone, venue, schedule_day as scheduleDay, schedule_time as scheduleTime, 'elite' as studentType
-       FROM elite_students WHERE status = 'active' ORDER BY name`
+      `SELECT id, name, parent_phone as phone, venue, schedule_day as scheduleDay, schedule_time as scheduleTime, coach, 'elite' as studentType
+       FROM elite_students WHERE status = 'active' ORDER BY venue, schedule_day, schedule_time, name`
     );
-    return res.json({ regular, elite });
+    // 按班級分組
+    const grouped: Record<string, { className: string; classKey: string; students: any[] }> = {};
+    for (const s of [...(regular as any[]), ...(elite as any[])]) {
+      const classKey = `${s.venue}|${s.scheduleDay}|${s.scheduleTime}`;
+      const className = `${s.venue || "未知"} ${s.scheduleDay || ""} ${s.scheduleTime || ""}`.trim();
+      if (!grouped[classKey]) {
+        grouped[classKey] = { className, classKey, students: [] };
+      }
+      grouped[classKey].students.push({
+        id: s.id,
+        name: s.name,
+        phone: s.phone,
+        studentType: s.studentType,
+        coach: s.coach,
+      });
+    }
+    const result = Object.values(grouped).map((g) => ({
+      ...g,
+      studentCount: g.students.length,
+    }));
+    return res.json(result);
   } catch (err: any) {
     console.error("[AppAPI] admin/student-list-simple error:", err);
     return res.status(500).json({ error: "系統錯誤" });
