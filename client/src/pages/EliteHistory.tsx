@@ -350,12 +350,13 @@ export default function EliteHistory() {
                                   : status === 'excused' ? 'bg-red-100 text-red-700'
                                   : 'bg-yellow-50 text-yellow-600'
                                 }`}
-                                onClick={(e) => {
+                                onPointerDown={(e) => {
                                   e.stopPropagation();
+                                  e.preventDefault();
                                   toggleAttendance(schedule.id, student.id);
                                 }}
                               >
-                                <div className="w-full min-h-[40px] flex items-center justify-center">
+                                <div className="w-full min-h-[40px] flex items-center justify-center pointer-events-none">
                                   {status === 'present' ? '✅' : status === 'excused' ? '❌' : '·'}
                                 </div>
                               </td>

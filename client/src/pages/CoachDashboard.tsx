@@ -629,13 +629,14 @@ function CoachElite({ coachName }: { coachName: string }) {
                             <TableCell
                               key={s.id}
                               className="text-center p-0 cursor-pointer select-none"
-                              onClick={(e) => {
+                              onPointerDown={(e) => {
                                 e.stopPropagation();
+                                e.preventDefault();
                                 handleEliteToggle(student.id, s.id);
                               }}
                             >
                               <div
-                                className={`w-full min-h-[44px] flex items-center justify-center text-sm font-bold
+                                className={`w-full min-h-[44px] flex items-center justify-center text-sm font-bold pointer-events-none
                                   ${status === 'present' ? 'bg-green-100 text-green-700'
                                     : status === 'absent' ? 'bg-red-100 text-red-600'
                                     : 'bg-gray-50 text-gray-400'}`}
