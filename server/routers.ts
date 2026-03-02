@@ -2260,19 +2260,22 @@ export const appRouter = router({
         studentId: z.number(),
         attendanceDate: z.date(),
         status: z.enum(['present', 'absent', 'late', 'excused']),
-        courseId: z.number().optional(),
+        scheduleId: z.number().optional(),
+        courseId: z.number().optional(),  // legacy — 向下兼容，優先使用 scheduleId
         notes: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
-        if (!input.courseId) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'courseId is required' });
+        // 優先使用 scheduleId，如果沒有就嘗試 courseId（向後兼容）
+        const sid = input.scheduleId || input.courseId;
+        if (!sid) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'scheduleId is required' });
         }
         await upsertAttendanceRecord(
           input.studentId,
-          input.courseId,
+          sid,
           input.attendanceDate,
           input.status
         );

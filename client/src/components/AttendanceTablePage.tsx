@@ -107,7 +107,7 @@ export function AttendanceTablePage({
   };
 
   // 點擊切換出席狀態：未點名 → 出席 → 缺席 → 未點名
-  const handleToggleAttendance = async (studentId: number, date: Date, courseId: number) => {
+  const handleToggleAttendance = async (studentId: number, date: Date, scheduleId: number) => {
     const key = `${studentId}-${format(date, "yyyy-MM-dd")}`;
     const currentStatus = localAttendance.get(key) || null;
     let newStatus: "present" | "absent" | null;
@@ -138,7 +138,7 @@ export function AttendanceTablePage({
           studentId,
           attendanceDate: date,
           status: newStatus,
-          courseId,
+          scheduleId,
         });
       }
     } catch (error) {

@@ -186,7 +186,8 @@ export type InsertCourse = typeof courses.$inferInsert;
  */
 export const attendanceRecords = mysqlTable("attendance_records", {
   id: int("id").autoincrement().primaryKey(),
-  courseId: int("course_id").notNull().references(() => courses.id),
+  courseId: int("course_id"),  // legacy, nullable — no longer used as FK
+  scheduleId: int("schedule_id"),  // training_schedules.id — the actual schedule this record belongs to
   studentId: int("student_id").notNull().references(() => students.id),
   attendanceDate: timestamp("attendance_date").notNull(),
   status: mysqlEnum("status", ["present", "absent", "late", "excused"]).default("present").notNull(),

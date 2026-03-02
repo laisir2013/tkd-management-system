@@ -961,6 +961,7 @@ export async function generateMonthlyTrainingSchedules(year: number, month: numb
 export async function getAttendanceRecords(filters?: {
   studentId?: number;
   courseId?: number;
+  scheduleId?: number;
   venue?: string;
   scheduleDay?: string;
   scheduleTime?: string;
@@ -974,7 +975,10 @@ export async function getAttendanceRecords(filters?: {
   
   const conditions = [];
   if (filters?.studentId) conditions.push(eq(attendanceRecords.studentId, filters.studentId));
+  if (filters?.scheduleId) conditions.push(eq(attendanceRecords.scheduleId, filters.scheduleId));
   if (filters?.courseId) conditions.push(eq(attendanceRecords.courseId, filters.courseId));
+  if (filters?.startDate) conditions.push(gte(attendanceRecords.attendanceDate, filters.startDate));
+  if (filters?.endDate) conditions.push(lte(attendanceRecords.attendanceDate, filters.endDate));
   
   if (conditions.length > 0) {
     query = query.where(and(...conditions)) as any;
@@ -995,19 +999,19 @@ export async function updateAttendanceRecordStatus(id: number, status: 'present'
   return db.update(attendanceRecords).set({ status }).where(eq(attendanceRecords.id, id));
 }
 
-// 創建或更新出席記錄
-export async function upsertAttendanceRecord(studentId: number, courseId: number, attendanceDate: Date, status: 'present' | 'absent' | 'late' | 'excused') {
+// 創建或更新出席記錄 — 使用 scheduleId (training_schedules.id) + studentId 定位唯一記錄
+export async function upsertAttendanceRecord(studentId: number, scheduleId: number, attendanceDate: Date, status: 'present' | 'absent' | 'late' | 'excused') {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // 檢查是否已存在
+  // 用 scheduleId + studentId 做唯一定位
   const existing = await db
     .select()
     .from(attendanceRecords)
     .where(
       and(
-        eq(attendanceRecords.studentId, studentId),
-        eq(attendanceRecords.courseId, courseId)
+        eq(attendanceRecords.scheduleId, scheduleId),
+        eq(attendanceRecords.studentId, studentId)
       )
     )
     .limit(1);
@@ -1019,10 +1023,10 @@ export async function upsertAttendanceRecord(studentId: number, courseId: number
       .set({ status })
       .where(eq(attendanceRecords.id, existing[0].id));
   } else {
-    // 創建
+    // 創建 — courseId 設為 null（legacy 欄位不再使用）
     return db.insert(attendanceRecords).values({
+      scheduleId,
       studentId,
-      courseId,
       attendanceDate,
       status,
     });
