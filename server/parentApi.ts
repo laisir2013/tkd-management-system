@@ -2233,18 +2233,52 @@ parentRouter.post("/admin/push-queue/batch-reject", requireRole("admin"), async 
 //  Admin: 新增推播 (手動建立推播，可立即發送或排入隊列)
 // ══════════════════════════════════════════════════════════════════════
 
-// GET /admin/class-list — 取得活躍班級列表（含學生人數）
+// GET /admin/class-list — 取得活躍班級列表（含學生人數），同時包括恆常班和精英班
 parentRouter.get("/admin/class-list", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
   try {
     const pool = await getRawPool();
     if (!pool) return res.status(500).json({ error: "DB 不可用" });
-    const [rows] = await pool.execute(
+
+    // 恆常班
+    const [regularRows] = await pool.execute(
       `SELECT venue, scheduleDay, scheduleTime, coach, COUNT(*) as studentCount
        FROM students WHERE status = 'active'
        GROUP BY venue, scheduleDay, scheduleTime, coach
        ORDER BY venue, scheduleDay, scheduleTime`
     );
-    return res.json(rows);
+
+    // 精英班（無 venue 欄位，用 coach 分組）
+    const [eliteRows] = await pool.execute(
+      `SELECT coach, schedule_day as scheduleDay, schedule_time as scheduleTime, COUNT(*) as studentCount
+       FROM elite_students WHERE status = 'active'
+       GROUP BY coach, schedule_day, schedule_time
+       ORDER BY coach, schedule_day, schedule_time`
+    );
+
+    const result = [
+      ...(regularRows as any[]).map((c: any) => ({
+        classKey: `regular|${c.venue}|${c.scheduleDay}|${c.scheduleTime}`,
+        className: `${c.venue} ${c.scheduleDay} ${c.scheduleTime}`,
+        studentCount: c.studentCount,
+        type: 'regular',
+        venue: c.venue,
+        scheduleDay: c.scheduleDay,
+        scheduleTime: c.scheduleTime,
+        coach: c.coach,
+      })),
+      ...(eliteRows as any[]).map((c: any) => ({
+        classKey: `elite|${c.coach}|${c.scheduleDay}|${c.scheduleTime}`,
+        className: `精英班 - ${c.coach} ${c.scheduleDay} ${c.scheduleTime}`,
+        studentCount: c.studentCount,
+        type: 'elite',
+        venue: c.coach,
+        scheduleDay: c.scheduleDay,
+        scheduleTime: c.scheduleTime,
+        coach: c.coach,
+      })),
+    ];
+
+    return res.json(result);
   } catch (err: any) {
     console.error("[AppAPI] admin/class-list error:", err);
     return res.status(500).json({ error: "系統錯誤" });
@@ -2265,13 +2299,22 @@ parentRouter.get("/admin/student-list-simple", requireRole("admin"), async (req:
        FROM elite_students WHERE status = 'active' ORDER BY schedule_day, schedule_time, name`
     );
     // 按班級分組
-    const grouped: Record<string, { className: string; classKey: string; students: any[] }> = {};
+    const grouped: Record<string, { className: string; classKey: string; type: string; students: any[] }> = {};
     for (const s of [...(regular as any[]), ...(elite as any[])]) {
-      const venue = s.venue || (s.studentType === 'elite' ? '精英班' : '未知');
-      const classKey = `${venue}|${s.scheduleDay}|${s.scheduleTime}`;
-      const className = `${venue} ${s.scheduleDay || ""} ${s.scheduleTime || ""}`.trim();
+      let classKey: string;
+      let className: string;
+      let groupType: string;
+      if (s.studentType === 'elite') {
+        classKey = `elite|${s.coach}|${s.scheduleDay}|${s.scheduleTime}`;
+        className = `精英班 - ${s.coach || ''} ${s.scheduleDay || ''} ${s.scheduleTime || ''}`.trim();
+        groupType = 'elite';
+      } else {
+        classKey = `regular|${s.venue}|${s.scheduleDay}|${s.scheduleTime}`;
+        className = `${s.venue || '未知'} ${s.scheduleDay || ''} ${s.scheduleTime || ''}`.trim();
+        groupType = 'regular';
+      }
       if (!grouped[classKey]) {
-        grouped[classKey] = { className, classKey, students: [] };
+        grouped[classKey] = { className, classKey, type: groupType, students: [] };
       }
       grouped[classKey].students.push({
         id: s.id,
@@ -2317,21 +2360,33 @@ parentRouter.post("/admin/push-create", requireRole("admin"), async (req: Authen
       // 全體 — 取得所有 push_tokens
       targetDesc = "全體用戶";
     } else if (targetType === "class") {
-      // 班級 — targetValue = "venue|day|time" or ["venue|day|time", ...]
+      // 班級 — targetValue = "type|identifier|day|time" or ["type|identifier|day|time", ...]
+      // type=regular: "regular|venue|day|time"，type=elite: "elite|coach|day|time"
       const classKeys = Array.isArray(targetValue) ? targetValue : [targetValue];
-      if (!classKeys.length || classKeys.some((k: string) => !k || k.split("|").length < 3)) {
-        return res.status(400).json({ error: "班級格式錯誤，應為 venue|day|time" });
+      if (!classKeys.length || classKeys.some((k: string) => !k || k.split("|").length < 4)) {
+        return res.status(400).json({ error: "班級格式錯誤，應為 type|venue|day|time" });
       }
       // 找出這些班級的所有學生
       for (const key of classKeys) {
-        const [venue, day, time] = key.split("|");
-        const [stuRows] = await pool.execute(
-          "SELECT id, name, phone FROM students WHERE venue=? AND scheduleDay=? AND scheduleTime=? AND status='active'",
-          [venue, day, time]
-        );
-        for (const s of stuRows as any[]) {
-          targetStudentIds.push({ id: s.id, type: "regular", name: s.name });
-          if (s.phone) resolvedPhones.push(s.phone);
+        const [classType, identifier, day, time] = key.split("|");
+        if (classType === "elite") {
+          const [stuRows] = await pool.execute(
+            "SELECT id, name, phone FROM elite_students WHERE coach=? AND schedule_day=? AND schedule_time=? AND status='active'",
+            [identifier, day, time]
+          );
+          for (const s of stuRows as any[]) {
+            targetStudentIds.push({ id: s.id, type: "elite", name: s.name });
+            if (s.phone) resolvedPhones.push(s.phone);
+          }
+        } else {
+          const [stuRows] = await pool.execute(
+            "SELECT id, name, phone FROM students WHERE venue=? AND scheduleDay=? AND scheduleTime=? AND status='active'",
+            [identifier, day, time]
+          );
+          for (const s of stuRows as any[]) {
+            targetStudentIds.push({ id: s.id, type: "regular", name: s.name });
+            if (s.phone) resolvedPhones.push(s.phone);
+          }
         }
       }
       targetDesc = `${classKeys.length} 個班級（${targetStudentIds.length} 位學生）`;

@@ -930,23 +930,31 @@ export default function PushQueueReviewContent() {
                 </div>
               </div>
 
-              {/* Class selection */}
+              {/* Class selection — 恆常班 + 精英班 */}
               {createTargetType === 'class' && (
                 <div>
                   <Label className="text-sm">選擇班級</Label>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5 max-h-40 overflow-y-auto">
+                  <div className="flex flex-wrap gap-1.5 mt-1.5 max-h-52 overflow-y-auto">
                     {(classList as any[] || []).map((c: any) => {
-                      const key = `${c.venue}|${c.scheduleDay}|${c.scheduleTime}`;
+                      const key = c.classKey;
                       const selected = selectedClasses.includes(key);
+                      const isElite = c.type === 'elite';
                       return (
                         <Button
                           key={key}
                           variant={selected ? "default" : "outline"}
                           size="sm"
-                          className={`text-xs h-auto py-1 px-2 ${selected ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                          className={`text-xs h-auto py-1.5 px-2.5 gap-1.5 ${
+                            selected
+                              ? isElite
+                                ? 'bg-purple-600 hover:bg-purple-700'
+                                : 'bg-indigo-600 hover:bg-indigo-700'
+                              : ''
+                          }`}
                           onClick={() => toggleClassSelect(key)}
                         >
-                          {c.venue} {c.scheduleDay} {c.scheduleTime} ({c.studentCount}人)
+                          {isElite && <span className="text-[10px]">⭐</span>}
+                          {c.className} ({c.studentCount}人)
                         </Button>
                       );
                     })}

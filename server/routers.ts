@@ -4923,7 +4923,7 @@ export const appRouter = router({
         return { count: await getPendingPushQueueCount() };
       }),
 
-    // 取得班級列表（含學生人數）
+    // 取得班級列表（含學生人數）— 恆常班 + 精英班
     classList: protectedProcedure
       .query(async ({ ctx }) => {
         if (ctx.user.role !== 'admin') {
@@ -4931,13 +4931,43 @@ export const appRouter = router({
         }
         const pool = await getPushRawPool();
         if (!pool) return [];
-        const [rows] = await pool.execute(
+
+        const [regularRows] = await pool.execute(
           `SELECT venue, scheduleDay, scheduleTime, coach, COUNT(*) as studentCount
            FROM students WHERE status = 'active'
            GROUP BY venue, scheduleDay, scheduleTime, coach
            ORDER BY venue, scheduleDay, scheduleTime`
         );
-        return rows;
+
+        const [eliteRows] = await pool.execute(
+          `SELECT coach, schedule_day as scheduleDay, schedule_time as scheduleTime, COUNT(*) as studentCount
+           FROM elite_students WHERE status = 'active'
+           GROUP BY coach, schedule_day, schedule_time
+           ORDER BY coach, schedule_day, schedule_time`
+        );
+
+        return [
+          ...(regularRows as any[]).map((c: any) => ({
+            classKey: `regular|${c.venue}|${c.scheduleDay}|${c.scheduleTime}`,
+            className: `${c.venue} ${c.scheduleDay} ${c.scheduleTime}`,
+            studentCount: c.studentCount,
+            type: 'regular',
+            venue: c.venue,
+            scheduleDay: c.scheduleDay,
+            scheduleTime: c.scheduleTime,
+            coach: c.coach,
+          })),
+          ...(eliteRows as any[]).map((c: any) => ({
+            classKey: `elite|${c.coach}|${c.scheduleDay}|${c.scheduleTime}`,
+            className: `精英班 - ${c.coach} ${c.scheduleDay} ${c.scheduleTime}`,
+            studentCount: c.studentCount,
+            type: 'elite',
+            venue: c.coach,
+            scheduleDay: c.scheduleDay,
+            scheduleTime: c.scheduleTime,
+            coach: c.coach,
+          })),
+        ];
       }),
 
     // 取得學生按班級分組列表
@@ -4956,13 +4986,22 @@ export const appRouter = router({
           `SELECT id, name, phone, coach, schedule_day as scheduleDay, schedule_time as scheduleTime, 'elite' as studentType
            FROM elite_students WHERE status = 'active' ORDER BY schedule_day, schedule_time, name`
         );
-        const grouped: Record<string, { className: string; classKey: string; students: any[] }> = {};
+        const grouped: Record<string, { className: string; classKey: string; type: string; students: any[] }> = {};
         for (const s of [...(regular as any[]), ...(elite as any[])]) {
-          const venue = s.venue || (s.studentType === 'elite' ? '精英班' : '未知');
-          const classKey = `${venue}|${s.scheduleDay}|${s.scheduleTime}`;
-          const className = `${venue} ${s.scheduleDay || ""} ${s.scheduleTime || ""}`.trim();
+          let classKey: string;
+          let className: string;
+          let groupType: string;
+          if (s.studentType === 'elite') {
+            classKey = `elite|${s.coach}|${s.scheduleDay}|${s.scheduleTime}`;
+            className = `精英班 - ${s.coach || ''} ${s.scheduleDay || ''} ${s.scheduleTime || ''}`.trim();
+            groupType = 'elite';
+          } else {
+            classKey = `regular|${s.venue}|${s.scheduleDay}|${s.scheduleTime}`;
+            className = `${s.venue || '未知'} ${s.scheduleDay || ''} ${s.scheduleTime || ''}`.trim();
+            groupType = 'regular';
+          }
           if (!grouped[classKey]) {
-            grouped[classKey] = { className, classKey, students: [] };
+            grouped[classKey] = { className, classKey, type: groupType, students: [] };
           }
           grouped[classKey].students.push({
             id: s.id,
@@ -5002,17 +5041,31 @@ export const appRouter = router({
         if (input.targetType === 'all') {
           targetDesc = '全體用戶';
         } else if (input.targetType === 'class') {
+          // classKey 格式: "regular|venue|day|time" 或 "elite|coach|day|time"
           const classKeys = Array.isArray(input.targetValue) ? input.targetValue : [input.targetValue];
           for (const key of classKeys) {
             if (!key || typeof key !== 'string') continue;
-            const [venue, day, time] = key.split('|');
-            const [stuRows] = await pool.execute(
-              "SELECT id, name, phone FROM students WHERE venue=? AND scheduleDay=? AND scheduleTime=? AND status='active'",
-              [venue, day, time]
-            );
-            for (const s of stuRows as any[]) {
-              targetStudentIds.push({ id: s.id, type: 'regular', name: s.name });
-              if (s.phone) resolvedPhones.push(s.phone);
+            const parts = key.split('|');
+            if (parts.length < 4) continue;
+            const [classType, identifier, day, time] = parts;
+            if (classType === 'elite') {
+              const [stuRows] = await pool.execute(
+                "SELECT id, name, phone FROM elite_students WHERE coach=? AND schedule_day=? AND schedule_time=? AND status='active'",
+                [identifier, day, time]
+              );
+              for (const s of stuRows as any[]) {
+                targetStudentIds.push({ id: s.id, type: 'elite', name: s.name });
+                if (s.phone) resolvedPhones.push(s.phone);
+              }
+            } else {
+              const [stuRows] = await pool.execute(
+                "SELECT id, name, phone FROM students WHERE venue=? AND scheduleDay=? AND scheduleTime=? AND status='active'",
+                [identifier, day, time]
+              );
+              for (const s of stuRows as any[]) {
+                targetStudentIds.push({ id: s.id, type: 'regular', name: s.name });
+                if (s.phone) resolvedPhones.push(s.phone);
+              }
             }
           }
           targetDesc = `${classKeys.length} 個班級（${targetStudentIds.length} 位學生）`;
