@@ -120,15 +120,22 @@ export default function EliteHistory() {
     return sDate >= joinDate;
   };
 
+  const [togglingKey, setTogglingKey] = useState<string | null>(null);
   function toggleAttendance(scheduleId: number, studentId: number) {
     const key = `${scheduleId}-${studentId}`;
+    if (togglingKey === key) return;
+    setTogglingKey(key);
     const current = attendanceMap.get(key);
     const next = !current ? "present" : current === "present" ? "excused" : null;
     if (next === null) {
-      upsertAttendanceMutation.mutate({ scheduleId, studentId, status: "absent" });
+      upsertAttendanceMutation.mutate({ scheduleId, studentId, status: "absent" }, {
+        onSettled: () => setTogglingKey(null),
+      });
       return;
     }
-    upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
+    upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next }, {
+      onSettled: () => setTogglingKey(null),
+    });
   }
 
   // 按班別計算統計
@@ -247,7 +254,7 @@ export default function EliteHistory() {
         ) : (
           <Card className="rounded-t-none">
             <CardContent className="p-0">
-              <div className="overflow-auto max-h-[65vh]">
+              <div className="overflow-auto max-h-[65vh]" style={{ touchAction: 'pan-x pan-y' }}>
                 <table className="w-full text-xs border-collapse">
                   <thead className="sticky top-0 z-30">
                     <tr className="bg-slate-700 text-white">
@@ -348,17 +355,20 @@ export default function EliteHistory() {
                             return (
                               <td
                                 key={schedule.id}
-                                className={`px-1 py-1.5 text-center cursor-pointer transition-colors border-r border-b ${
-                                  status === 'present' ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                  : status === 'excused' ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                  : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100'
-                                }`}
+                                className={`px-0 py-0 text-center cursor-pointer select-none transition-colors border-r border-b ${
+                                  status === 'present' ? 'bg-green-100 text-green-700'
+                                  : status === 'excused' ? 'bg-red-100 text-red-700'
+                                  : 'bg-yellow-50 text-yellow-600'
+                                } ${togglingKey === key ? 'opacity-50' : ''}`}
+                                style={{ touchAction: 'manipulation' }}
                                 title={`${student.name} - ${formatFullDate(schedule.trainingDate)}: ${
                                   status === 'present' ? '出席' : status === 'excused' ? '請假' : '未記錄'
                                 }（點擊切換）`}
-                                onClick={() => toggleAttendance(schedule.id, student.id)}
+                                onClick={() => togglingKey !== key && toggleAttendance(schedule.id, student.id)}
                               >
-                                {status === 'present' ? '✅' : status === 'excused' ? '❌' : '·'}
+                                <div className="w-full min-h-[40px] flex items-center justify-center">
+                                  {status === 'present' ? '✅' : status === 'excused' ? '❌' : '·'}
+                                </div>
                               </td>
                             );
                           })}

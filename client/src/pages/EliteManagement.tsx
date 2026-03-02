@@ -583,11 +583,16 @@ function EliteAttendanceTab() {
     }
   }
 
+  const [togglingKey, setTogglingKey] = useState<string | null>(null);
   function toggleAttendance(scheduleId: number, studentId: number) {
     const key = `${scheduleId}-${studentId}`;
+    if (togglingKey === key) return;
+    setTogglingKey(key);
     const current = attendanceMap[key];
     const next = !current ? "present" : current === "present" ? "absent" : current === "absent" ? "late" : "present";
-    upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
+    upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next }, {
+      onSettled: () => setTogglingKey(null),
+    });
   }
 
   const statusEmoji: Record<string, string> = { present: "✅", absent: "❌", late: "⏰", excused: "🗕" };
@@ -650,7 +655,7 @@ function EliteAttendanceTab() {
 
       {/* 點名表格 */}
       {classSchedules.length > 0 ? (
-        <div className="border rounded-lg overflow-x-auto">
+        <div className="border rounded-lg overflow-x-auto" style={{ touchAction: 'pan-x pan-y' }}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -706,9 +711,25 @@ function EliteAttendanceTab() {
                       const key = `${s.id}-${student.id}`;
                       const status = attendanceMap[key];
                       return (
-                        <TableCell key={s.id} className={`text-center ${isCancelled ? "bg-red-50/50" : "cursor-pointer hover:bg-gray-50"}`}
-                          onClick={() => !isCancelled && toggleAttendance(s.id, student.id)}>
-                          {isCancelled ? <span className="text-gray-300">—</span> : (status ? statusEmoji[status] : <span className="text-gray-300">·</span>)}
+                        <TableCell
+                          key={s.id}
+                          className={`text-center p-0 select-none ${isCancelled ? 'bg-red-50/50' : 'cursor-pointer active:scale-95'}`}
+                          style={{ touchAction: 'manipulation' }}
+                          onClick={() => !isCancelled && togglingKey !== key && toggleAttendance(s.id, student.id)}
+                        >
+                          {isCancelled ? (
+                            <span className="text-gray-300">—</span>
+                          ) : (
+                            <div className={`w-full min-h-[44px] flex items-center justify-center text-base transition-colors
+                              ${togglingKey === key ? 'opacity-50' : ''}
+                              ${status === 'present' ? 'bg-green-50 hover:bg-green-100'
+                                : status === 'absent' ? 'bg-red-50 hover:bg-red-100'
+                                : status === 'late' ? 'bg-yellow-50 hover:bg-yellow-100'
+                                : 'hover:bg-gray-50'}`}
+                            >
+                              {status ? statusEmoji[status] : <span className="text-gray-300 text-lg">·</span>}
+                            </div>
+                          )}
                         </TableCell>
                       );
                     })}

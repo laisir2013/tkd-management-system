@@ -479,11 +479,16 @@ function CoachElite({ coachName }: { coachName: string }) {
     return m;
   }, [eliteAttendance]);
 
+  const [togglingKey, setTogglingKey] = useState<string | null>(null);
   const handleEliteToggle = (studentId: number, scheduleId: number) => {
     const key = `${studentId}-${scheduleId}`;
+    if (togglingKey === key) return; // prevent double-tap
+    setTogglingKey(key);
     const current = eliteRecordsMap.get(key);
     const next = current === 'present' ? 'absent' : 'present';
-    upsertEliteAttendance.mutate({ studentId, scheduleId, status: next });
+    upsertEliteAttendance.mutate({ studentId, scheduleId, status: next }, {
+      onSettled: () => setTogglingKey(null),
+    });
   };
 
   const handleEliteMonthChange = (dir: "prev" | "next") => {
@@ -597,7 +602,7 @@ function CoachElite({ coachName }: { coachName: string }) {
               <Button variant="outline" size="sm" onClick={() => handleEliteMonthChange("next")}>▶</Button>
             </div>
             <Card>
-              <CardContent className="p-0 overflow-x-auto">
+              <CardContent className="p-0 overflow-x-auto" style={{ touchAction: 'pan-x pan-y' }}>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -617,18 +622,28 @@ function CoachElite({ coachName }: { coachName: string }) {
                           const key = `${student.id}-${s.id}`;
                           const status = eliteRecordsMap.get(key);
                           const isCancelled = s.status === 'cancelled';
+                          const isToggling = togglingKey === key;
                           return (
-                            <TableCell key={s.id} className="text-center p-1">
+                            <TableCell
+                              key={s.id}
+                              className={`text-center p-0 select-none ${
+                                isCancelled ? '' : 'cursor-pointer active:scale-95'
+                              }`}
+                              style={{ touchAction: 'manipulation' }}
+                              onClick={() => !isCancelled && !isToggling && handleEliteToggle(student.id, s.id)}
+                            >
                               {isCancelled ? (
                                 <span className="text-red-300 text-xs">停</span>
                               ) : (
-                                <button
-                                  onClick={() => handleEliteToggle(student.id, s.id)}
-                                  className={`w-8 h-8 rounded-full text-xs font-bold transition-colors
-                                    ${status === 'present' ? 'bg-green-500 text-white' : status === 'absent' ? 'bg-red-400 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                                <div
+                                  className={`w-full min-h-[44px] flex items-center justify-center text-sm font-bold transition-colors
+                                    ${isToggling ? 'opacity-50' : ''}
+                                    ${status === 'present' ? 'bg-green-100 text-green-700'
+                                      : status === 'absent' ? 'bg-red-100 text-red-600'
+                                      : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
                                 >
-                                  {status === 'present' ? '✓' : status === 'absent' ? '✗' : '·'}
-                                </button>
+                                  {status === 'present' ? '✅' : status === 'absent' ? '❌' : '·'}
+                                </div>
                               )}
                             </TableCell>
                           );
