@@ -438,7 +438,7 @@ function CoachElite({ coachName }: { coachName: string }) {
   const { data: eliteAttendance, refetch: refetchEliteAttendance } = trpc.elite.getAttendance.useQuery();
   const upsertEliteAttendance = trpc.elite.upsertAttendance.useMutation({
     onSuccess: () => refetchEliteAttendance(),
-    onSettled: () => setTogglingKey(null),
+    onError: (err: any) => toast.error(`點名更新失敗: ${err.message}`),
   });
 
   // Confirm elite payment
@@ -480,11 +480,8 @@ function CoachElite({ coachName }: { coachName: string }) {
     return m;
   }, [eliteAttendance]);
 
-  const [togglingKey, setTogglingKey] = useState<string | null>(null);
   const handleEliteToggle = (studentId: number, scheduleId: number) => {
     const key = `${studentId}-${scheduleId}`;
-    if (upsertEliteAttendance.isPending) return;
-    setTogglingKey(key);
     const current = eliteRecordsMap.get(key);
     const next = current === 'present' ? 'absent' : 'present';
     upsertEliteAttendance.mutate({ studentId, scheduleId, status: next });
@@ -621,29 +618,30 @@ function CoachElite({ coachName }: { coachName: string }) {
                           const key = `${student.id}-${s.id}`;
                           const status = eliteRecordsMap.get(key);
                           const isCancelled = s.status === 'cancelled';
-                          const isToggling = togglingKey === key;
+                          if (isCancelled) {
+                            return (
+                              <TableCell key={s.id} className="text-center">
+                                <span className="text-red-300 text-xs">停</span>
+                              </TableCell>
+                            );
+                          }
                           return (
                             <TableCell
                               key={s.id}
-                              className={`text-center p-0 select-none ${
-                                isCancelled ? '' : 'cursor-pointer active:scale-95'
-                              }`}
-                              style={{ touchAction: 'manipulation' }}
-                              onClick={() => !isCancelled && !isToggling && handleEliteToggle(student.id, s.id)}
+                              className="text-center p-0 cursor-pointer select-none"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEliteToggle(student.id, s.id);
+                              }}
                             >
-                              {isCancelled ? (
-                                <span className="text-red-300 text-xs">停</span>
-                              ) : (
-                                <div
-                                  className={`w-full min-h-[44px] flex items-center justify-center text-sm font-bold transition-colors
-                                    ${isToggling ? 'opacity-50' : ''}
-                                    ${status === 'present' ? 'bg-green-100 text-green-700'
-                                      : status === 'absent' ? 'bg-red-100 text-red-600'
-                                      : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
-                                >
-                                  {status === 'present' ? '✅' : status === 'absent' ? '❌' : '·'}
-                                </div>
-                              )}
+                              <div
+                                className={`w-full min-h-[44px] flex items-center justify-center text-sm font-bold
+                                  ${status === 'present' ? 'bg-green-100 text-green-700'
+                                    : status === 'absent' ? 'bg-red-100 text-red-600'
+                                    : 'bg-gray-50 text-gray-400'}`}
+                              >
+                                {status === 'present' ? '✅' : status === 'absent' ? '❌' : '·'}
+                              </div>
                             </TableCell>
                           );
                         })}

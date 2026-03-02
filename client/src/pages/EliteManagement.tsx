@@ -536,7 +536,9 @@ function EliteAttendanceTab() {
       utils.elite.getAttendance.invalidate();
       utils.elite.getAllCycleInfo.invalidate();
     },
-    onSettled: () => setTogglingKey(null),
+    onError: (err: any) => {
+      toast.error(`點名更新失敗: ${err.message}`);
+    },
   });
 
   // 按 A/B 班過濾學生（訓練日期兩班共用，不按 scheduleTime 過濾）
@@ -584,11 +586,8 @@ function EliteAttendanceTab() {
     }
   }
 
-  const [togglingKey, setTogglingKey] = useState<string | null>(null);
   function toggleAttendance(scheduleId: number, studentId: number) {
     const key = `${scheduleId}-${studentId}`;
-    if (upsertAttendanceMutation.isPending) return;
-    setTogglingKey(key);
     const current = attendanceMap[key];
     const next = !current ? "present" : current === "present" ? "absent" : current === "absent" ? "late" : "present";
     upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
@@ -709,26 +708,30 @@ function EliteAttendanceTab() {
                       const isCancelled = s.status === "cancelled";
                       const key = `${s.id}-${student.id}`;
                       const status = attendanceMap[key];
+                      if (isCancelled) {
+                        return (
+                          <TableCell key={s.id} className="text-center bg-red-50/50">
+                            <span className="text-gray-300">—</span>
+                          </TableCell>
+                        );
+                      }
                       return (
                         <TableCell
                           key={s.id}
-                          className={`text-center p-0 select-none ${isCancelled ? 'bg-red-50/50' : 'cursor-pointer active:scale-95'}`}
-                          style={{ touchAction: 'manipulation' }}
-                          onClick={() => !isCancelled && togglingKey !== key && toggleAttendance(s.id, student.id)}
+                          className="text-center p-0 cursor-pointer select-none"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleAttendance(s.id, student.id);
+                          }}
                         >
-                          {isCancelled ? (
-                            <span className="text-gray-300">—</span>
-                          ) : (
-                            <div className={`w-full min-h-[44px] flex items-center justify-center text-base transition-colors
-                              ${togglingKey === key ? 'opacity-50' : ''}
-                              ${status === 'present' ? 'bg-green-50 hover:bg-green-100'
-                                : status === 'absent' ? 'bg-red-50 hover:bg-red-100'
-                                : status === 'late' ? 'bg-yellow-50 hover:bg-yellow-100'
-                                : 'hover:bg-gray-50'}`}
-                            >
-                              {status ? statusEmoji[status] : <span className="text-gray-300 text-lg">·</span>}
-                            </div>
-                          )}
+                          <div className={`w-full min-h-[44px] flex items-center justify-center text-base
+                            ${status === 'present' ? 'bg-green-100'
+                              : status === 'absent' ? 'bg-red-100'
+                              : status === 'late' ? 'bg-yellow-100'
+                              : 'bg-white'}`}
+                          >
+                            {status ? statusEmoji[status] : <span className="text-gray-300 text-lg">·</span>}
+                          </div>
                         </TableCell>
                       );
                     })}

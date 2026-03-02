@@ -47,7 +47,7 @@ export default function EliteHistory() {
       utils.elite.getAllCycleInfo.invalidate();
       utils.elite.getAllBalances.invalidate();
     },
-    onSettled: () => setTogglingKey(null),
+    onError: (err: any) => { toast.error(`點名更新失敗：${err.message}`); },
   });
   const cancelScheduleMutation = trpc.elite.cancelSchedule.useMutation({
     onSuccess: () => { utils.elite.getHistoryByYear.invalidate(); toast.success("已取消課堂"); },
@@ -121,17 +121,10 @@ export default function EliteHistory() {
     return sDate >= joinDate;
   };
 
-  const [togglingKey, setTogglingKey] = useState<string | null>(null);
   function toggleAttendance(scheduleId: number, studentId: number) {
     const key = `${scheduleId}-${studentId}`;
-    if (upsertAttendanceMutation.isPending) return;
-    setTogglingKey(key);
     const current = attendanceMap.get(key);
-    const next = !current ? "present" : current === "present" ? "excused" : null;
-    if (next === null) {
-      upsertAttendanceMutation.mutate({ scheduleId, studentId, status: "absent" });
-      return;
-    }
+    const next = !current ? "present" : current === "present" ? "excused" : "absent";
     upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
   }
 
@@ -352,16 +345,15 @@ export default function EliteHistory() {
                             return (
                               <td
                                 key={schedule.id}
-                                className={`px-0 py-0 text-center cursor-pointer select-none transition-colors border-r border-b ${
+                                className={`px-0 py-0 text-center cursor-pointer select-none border-r border-b ${
                                   status === 'present' ? 'bg-green-100 text-green-700'
                                   : status === 'excused' ? 'bg-red-100 text-red-700'
                                   : 'bg-yellow-50 text-yellow-600'
-                                } ${togglingKey === key ? 'opacity-50' : ''}`}
-                                style={{ touchAction: 'manipulation' }}
-                                title={`${student.name} - ${formatFullDate(schedule.trainingDate)}: ${
-                                  status === 'present' ? '出席' : status === 'excused' ? '請假' : '未記錄'
-                                }（點擊切換）`}
-                                onClick={() => togglingKey !== key && toggleAttendance(schedule.id, student.id)}
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleAttendance(schedule.id, student.id);
+                                }}
                               >
                                 <div className="w-full min-h-[40px] flex items-center justify-center">
                                   {status === 'present' ? '✅' : status === 'excused' ? '❌' : '·'}
