@@ -3,18 +3,18 @@
  * 
  * Scheduled tasks that run on a timer, e.g. overdue payment reminders.
  * Uses node-cron for scheduling. All notifications go through pushHelper
- * which respects the push_settings enable/disable flags.
+ * which now queues them into push_queue for admin review.
  */
 import cron from "node-cron";
-import { getRawPool, isPushEnabled, notifyPaymentOverdue } from "./pushHelper";
+import { getRawPool, isPushEnabled, queuePaymentOverdue } from "./pushHelper";
 
 /**
- * Check for overdue payments and send reminders.
+ * Check for overdue payments and queue reminders.
  * 
  * Logic:
  * - Find active students whose latest payment status is "pending" (unconfirmed)
  *   AND the paymentDate is older than 30 days.
- * - Avoid spamming: only re-notify if the last overdue notification for
+ * - Avoid spamming: only re-queue if the last overdue notification for
  *   that student was sent more than 7 days ago.
  */
 export async function checkOverduePayments(): Promise<void> {
@@ -62,7 +62,7 @@ export async function checkOverduePayments(): Promise<void> {
     // 3. For each overdue payment, check last notification time
     for (const row of rows) {
       try {
-        // Check if we already notified this student within last 7 days
+        // Check if we already notified/queued this student within last 7 days
         const [recent] = await pool.execute(`
           SELECT id FROM notifications 
           WHERE target_type = 'individual' 
@@ -77,14 +77,29 @@ export async function checkOverduePayments(): Promise<void> {
           continue;
         }
 
-        // 4. Send notification (now uses studentId, resolves phones via student_contacts)
-        await notifyPaymentOverdue(
+        // Also check if there's a pending queue item for this student
+        const [pendingQueue] = await pool.execute(`
+          SELECT id FROM push_queue 
+          WHERE trigger_source = 'payment_overdue' 
+            AND status = 'pending'
+            AND body LIKE ?
+            AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+          LIMIT 1
+        `, [`%${row.studentName}%`]) as any;
+
+        if (pendingQueue && pendingQueue.length > 0) {
+          console.log(`[CronJob] Already queued ${row.studentName} within 7 days, skipping`);
+          continue;
+        }
+
+        // 4. Queue notification (now goes to push_queue for admin review)
+        await queuePaymentOverdue(
           row.studentId,
           row.studentName,
           "system", // sender is system/cron
         );
 
-        console.log(`[CronJob] Sent overdue notification for ${row.studentName} (studentId: ${row.studentId})`);
+        console.log(`[CronJob] Queued overdue notification for ${row.studentName} (studentId: ${row.studentId})`);
       } catch (innerErr) {
         console.error(`[CronJob] Error processing student ${row.studentId}:`, innerErr);
       }

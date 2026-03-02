@@ -198,6 +198,14 @@ import {
   getRawPool as getPushRawPool,
   notifyAdminReviewNeeded,
   notifyParentReviewResult,
+  // Push Queue admin functions
+  listPushQueue,
+  getPushQueueById,
+  approvePushQueue,
+  rejectPushQueue,
+  getPendingPushQueueCount,
+  batchApprovePushQueue,
+  batchRejectPushQueue,
 } from "./pushHelper";
 
 // ── Multer ───────────────────────────────────────────────────────────────
@@ -2162,6 +2170,104 @@ parentRouter.put("/admin/push-settings/:key", requireRole("admin"), async (req: 
   } catch (err: any) {
     console.error("[AppAPI] admin/push-settings PUT error:", err);
     res.status(500).json({ error: "更新推播設定失敗" });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  Admin Push Queue API (推播審核佇列)
+// ════════════════════════════════════════════════════════════════════════
+
+// GET /admin/push-queue — 取得推播佇列列表
+parentRouter.get("/admin/push-queue", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const status = req.query.status as string || undefined;
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+    const items = await listPushQueue(status, limit, offset);
+    return res.json(items);
+  } catch (err: any) {
+    console.error("[AppAPI] admin/push-queue error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// GET /admin/push-queue/count — 取得待審核數量
+parentRouter.get("/admin/push-queue/count", requireRole("admin"), async (_req: AuthenticatedRequest, res) => {
+  try {
+    const count = await getPendingPushQueueCount();
+    return res.json({ count });
+  } catch (err: any) {
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// GET /admin/push-queue/:id — 取得單筆推播佇列詳情
+parentRouter.get("/admin/push-queue/:id", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const item = await getPushQueueById(id);
+    if (!item) return res.status(404).json({ error: "找不到此推播佇列項目" });
+    return res.json(item);
+  } catch (err: any) {
+    console.error("[AppAPI] admin/push-queue/:id error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// POST /admin/push-queue/:id/approve — 批准並發送推播
+parentRouter.post("/admin/push-queue/:id/approve", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const reviewedBy = req.userPhone || "admin";
+    const result = await approvePushQueue(id, reviewedBy);
+    if (!result.success) return res.status(400).json({ error: "批准失敗（可能已處理）" });
+    return res.json({ success: true, sentCount: result.sentCount });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/push-queue approve error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// POST /admin/push-queue/:id/reject — 拒絕推播
+parentRouter.post("/admin/push-queue/:id/reject", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { reason } = req.body || {};
+    const reviewedBy = req.userPhone || "admin";
+    const ok = await rejectPushQueue(id, reviewedBy, reason);
+    if (!ok) return res.status(400).json({ error: "拒絕失敗（可能已處理）" });
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/push-queue reject error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// POST /admin/push-queue/batch-approve — 批量批准
+parentRouter.post("/admin/push-queue/batch-approve", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids 不能為空" });
+    const reviewedBy = req.userPhone || "admin";
+    const result = await batchApprovePushQueue(ids, reviewedBy);
+    return res.json({ success: true, approved: result.approved, totalSent: result.totalSent });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/push-queue batch-approve error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
+  }
+});
+
+// POST /admin/push-queue/batch-reject — 批量拒絕
+parentRouter.post("/admin/push-queue/batch-reject", requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { ids, reason } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids 不能為空" });
+    const reviewedBy = req.userPhone || "admin";
+    const rejected = await batchRejectPushQueue(ids, reviewedBy, reason);
+    return res.json({ success: true, rejected });
+  } catch (err: any) {
+    console.error("[AppAPI] admin/push-queue batch-reject error:", err);
+    return res.status(500).json({ error: "系統錯誤" });
   }
 });
 

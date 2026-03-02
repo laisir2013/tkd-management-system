@@ -170,6 +170,15 @@ import * as schema from "../drizzle/schema";
 import { eq, gte, lte, and, desc, sql, asc } from "drizzle-orm";
 import { verifyPassword, hashPassword } from "./password";
 import { TRPCError } from "@trpc/server";
+import {
+  listPushQueue,
+  getPushQueueById,
+  approvePushQueue,
+  rejectPushQueue,
+  getPendingPushQueueCount,
+  batchApprovePushQueue,
+  batchRejectPushQueue,
+} from "./pushHelper";
 import { invokeLLM } from "./_core/llm";
 import { ocrReceipt } from "./_core/localOcr";
 import { stampReceipt } from "./_core/receiptStamp";
@@ -4801,6 +4810,110 @@ export const appRouter = router({
         }
         const items = await getReceiptReviews('pending_review');
         return { count: items.length };
+      }),
+  }),
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  推播審核佇列 — Push Queue Router
+  // ════════════════════════════════════════════════════════════════════════
+  pushQueue: router({
+    // 取得推播佇列列表
+    list: protectedProcedure
+      .input(z.object({
+        status: z.enum(['pending', 'approved', 'rejected']).optional(),
+        limit: z.number().min(1).max(200).default(50),
+        offset: z.number().min(0).default(0),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return await listPushQueue(input.status, input.limit, input.offset);
+      }),
+
+    // 取得單筆推播佇列詳情
+    detail: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const item = await getPushQueueById(input.id);
+        if (!item) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '找不到此推播佇列項目' });
+        }
+        return item;
+      }),
+
+    // 批准並發送推播
+    approve: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const reviewedBy = ctx.user.openId || ctx.user.phone || 'admin';
+        const result = await approvePushQueue(input.id, reviewedBy);
+        if (!result.success) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '批准失敗（可能已處理）' });
+        }
+        return { success: true, sentCount: result.sentCount };
+      }),
+
+    // 拒絕推播
+    reject: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        reason: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const reviewedBy = ctx.user.openId || ctx.user.phone || 'admin';
+        const ok = await rejectPushQueue(input.id, reviewedBy, input.reason);
+        if (!ok) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '拒絕失敗（可能已處理）' });
+        }
+        return { success: true };
+      }),
+
+    // 批量批准
+    batchApprove: protectedProcedure
+      .input(z.object({
+        ids: z.array(z.number()).min(1),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const reviewedBy = ctx.user.openId || ctx.user.phone || 'admin';
+        const result = await batchApprovePushQueue(input.ids, reviewedBy);
+        return { success: true, approved: result.approved, totalSent: result.totalSent };
+      }),
+
+    // 批量拒絕
+    batchReject: protectedProcedure
+      .input(z.object({
+        ids: z.array(z.number()).min(1),
+        reason: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const reviewedBy = ctx.user.openId || ctx.user.phone || 'admin';
+        const rejected = await batchRejectPushQueue(input.ids, reviewedBy, input.reason);
+        return { success: true, rejected };
+      }),
+
+    // 統計待審核數量
+    pendingCount: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return { count: await getPendingPushQueueCount() };
       }),
   }),
 });
