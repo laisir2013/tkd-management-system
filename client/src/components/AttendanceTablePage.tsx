@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
@@ -48,16 +48,95 @@ export function AttendanceTablePage({
   onBack,
   onScheduleStatusChanged,
 }: AttendanceTablePageProps) {
-  const [localAttendance, setLocalAttendance] = useState<Map<string, "present" | "absent" | null>>(
-    new Map(
-      attendanceRecords.map((record) => [
-        `${record.studentId}-${format(new Date(record.attendanceDate), "yyyy-MM-dd")}`,
-        record.status === "present" ? "present" : "absent",
-      ])
-    )
-  );
+  // Server data as a stable map
+  const serverAttendance = useMemo(() => {
+    const map = new Map<string, "present" | "absent">();
+    attendanceRecords.forEach((record) => {
+      const key = `${record.studentId}-${format(new Date(record.attendanceDate), "yyyy-MM-dd")}`;
+      map.set(key, record.status === "present" ? "present" : "absent");
+    });
+    return map;
+  }, [attendanceRecords]);
 
-  const upsertAttendanceMutation = trpc.attendance.upsertAttendance.useMutation();
+  // Optimistic overlay: only stores user clicks that haven't been confirmed by server yet
+  const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, "present" | "absent" | null>>(new Map());
+
+  // Track in-flight mutations to avoid premature clearing
+  const inflightCount = useRef(0);
+  const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // When server data refreshes, clear optimistic overlay
+  useEffect(() => {
+    setOptimisticUpdates(new Map());
+  }, [serverAttendance]);
+
+  // Merged attendance: optimistic overrides server
+  const localAttendance = useMemo(() => {
+    const merged = new Map<string, "present" | "absent" | null>(serverAttendance);
+    optimisticUpdates.forEach((status, key) => {
+      if (status === null) {
+        merged.delete(key);
+      } else {
+        merged.set(key, status);
+      }
+    });
+    return merged;
+  }, [serverAttendance, optimisticUpdates]);
+
+  // Schedule a delayed refetch after all mutations complete
+  const scheduleRefetch = useCallback(() => {
+    if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
+    invalidateTimerRef.current = setTimeout(() => {
+      if (inflightCount.current > 0) {
+        scheduleRefetch();
+        return;
+      }
+      // Trigger parent to refetch attendance data
+      onScheduleStatusChanged?.();
+    }, 800);
+  }, [onScheduleStatusChanged]);
+
+  const upsertAttendanceMutation = trpc.attendance.upsertAttendance.useMutation({
+    onMutate: () => {
+      inflightCount.current++;
+    },
+    onSuccess: () => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      scheduleRefetch();
+    },
+    onError: (_err, variables) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      // Revert optimistic entry
+      const key = `${variables.studentId}-${format(new Date(variables.attendanceDate), "yyyy-MM-dd")}`;
+      setOptimisticUpdates(prev => {
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
+      toast.error("更新出席狀態失敗");
+      scheduleRefetch();
+    },
+  });
+  const deleteAttendanceMutation = trpc.attendance.deleteAttendance.useMutation({
+    onMutate: () => {
+      inflightCount.current++;
+    },
+    onSuccess: () => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      scheduleRefetch();
+    },
+    onError: (_err, variables) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      const key = `${variables.studentId}-${format(new Date(), "yyyy-MM-dd")}`;
+      setOptimisticUpdates(prev => {
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
+      toast.error("取消點名失敗");
+      scheduleRefetch();
+    },
+  });
   const cancelScheduleMutation = trpc.attendance.cancelTrainingSchedule.useMutation({
     onSuccess: () => {
       toast.success("已取消該堂課");
@@ -107,12 +186,12 @@ export function AttendanceTablePage({
   };
 
   // 點擊切換出席狀態：未點名 → 出席 → 缺席 → 未點名
-  const handleToggleAttendance = async (studentId: number, date: Date, scheduleId: number) => {
+  const handleToggleAttendance = (studentId: number, date: Date, scheduleId: number) => {
     const key = `${studentId}-${format(date, "yyyy-MM-dd")}`;
-    const currentStatus = localAttendance.get(key) || null;
+    const currentStatus = localAttendance.get(key) ?? null;
     let newStatus: "present" | "absent" | null;
     
-    if (currentStatus === null) {
+    if (currentStatus === null || currentStatus === undefined) {
       newStatus = "present";
       vibrate(30);
     } else if (currentStatus === "present") {
@@ -123,32 +202,24 @@ export function AttendanceTablePage({
       vibrate(15);
     }
 
-    // 樂觀更新 UI
-    setLocalAttendance((prev) => {
-      const newMap = new Map(prev);
-      newMap.set(key, newStatus);
-      return newMap;
+    // Optimistic update: immediately update UI
+    setOptimisticUpdates(prev => {
+      const next = new Map(prev);
+      next.set(key, newStatus);
+      return next;
     });
 
-    try {
-      if (newStatus === null) {
-        // 目前先不呼叫 API，只更新本地狀態
-      } else {
-        await upsertAttendanceMutation.mutateAsync({
-          studentId,
-          attendanceDate: date,
-          status: newStatus,
-          scheduleId,
-        });
-      }
-    } catch (error) {
-      // 回滾
-      setLocalAttendance((prev) => {
-        const newMap = new Map(prev);
-        newMap.set(key, currentStatus);
-        return newMap;
+    // Call API
+    if (newStatus === null) {
+      // Delete the attendance record from DB
+      deleteAttendanceMutation.mutate({ studentId, scheduleId });
+    } else {
+      upsertAttendanceMutation.mutate({
+        studentId,
+        attendanceDate: date,
+        status: newStatus,
+        scheduleId,
       });
-      toast.error("更新出席狀態失敗");
     }
   };
 

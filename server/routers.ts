@@ -48,6 +48,7 @@ import {
   insertAttendanceRecord,
   updateAttendanceRecordStatus,
   upsertAttendanceRecord,
+  deleteAttendanceRecord,
   bulkInsertAttendanceRecords,
   getStudentAttendanceStats,
   getStudentsByClass,
@@ -2309,6 +2310,19 @@ export const appRouter = router({
           input.attendanceDate,
           input.status
         );
+        return { success: true };
+      }),
+
+    deleteAttendance: protectedProcedure
+      .input(z.object({
+        studentId: z.number(),
+        scheduleId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await deleteAttendanceRecord(input.studentId, input.scheduleId);
         return { success: true };
       }),
 

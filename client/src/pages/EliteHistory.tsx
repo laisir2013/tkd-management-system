@@ -43,49 +43,51 @@ export default function EliteHistory() {
   // Optimistic update: local overlay for instant UI feedback
   const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, string>>(new Map());
 
-  // Debounced invalidation: batch multiple rapid clicks into one refetch
+  // Track in-flight mutations to avoid premature clearing
+  const inflightCount = useRef(0);
   const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSuccessKeys = useRef<Set<string>>(new Set());
 
-  const debouncedInvalidate = useCallback(() => {
+  const scheduleInvalidate = useCallback(() => {
     if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
-    invalidateTimerRef.current = setTimeout(async () => {
-      // Refetch server data — optimistic entries stay until data arrives
-      await Promise.all([
+    invalidateTimerRef.current = setTimeout(() => {
+      // Only refetch when ALL mutations have completed
+      if (inflightCount.current > 0) {
+        // Still have in-flight mutations, re-schedule
+        scheduleInvalidate();
+        return;
+      }
+      // Refetch server data, then clear ALL optimistic entries
+      Promise.all([
         utils.elite.getHistoryByYear.invalidate(),
         utils.elite.getAllCycleInfo.invalidate(),
         utils.elite.getAllBalances.invalidate(),
-      ]);
-      // After refetch completes, clear ALL successful optimistic entries
-      const keysToRemove = new Set(pendingSuccessKeys.current);
-      pendingSuccessKeys.current.clear();
-      setOptimisticUpdates(prev => {
-        const next = new Map(prev);
-        keysToRemove.forEach(k => next.delete(k));
-        return next;
+      ]).then(() => {
+        // Server data is now fresh — clear optimistic overlay completely
+        setOptimisticUpdates(new Map());
       });
-    }, 1500); // Wait 1.5s after last click before refetching
+    }, 800);
   }, [utils]);
 
   // mutations with optimistic update
   const upsertAttendanceMutation = trpc.elite.upsertAttendance.useMutation({
-    onSuccess: (_data, variables) => {
-      // Mark this key as "confirmed by server" but keep showing optimistic value
-      // until the debounced refetch completes
-      const key = `${variables.scheduleId}-${variables.studentId}`;
-      pendingSuccessKeys.current.add(key);
-      debouncedInvalidate();
+    onMutate: () => {
+      inflightCount.current++;
+    },
+    onSuccess: (_data, _variables) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      scheduleInvalidate();
     },
     onError: (err: any, variables) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
       // Revert optimistic entry immediately on error
       const key = `${variables.scheduleId}-${variables.studentId}`;
-      pendingSuccessKeys.current.delete(key);
       setOptimisticUpdates(prev => {
         const next = new Map(prev);
         next.delete(key);
         return next;
       });
       toast.error(`點名更新失敗：${err.message}`);
+      scheduleInvalidate();
     },
   });
   const cancelScheduleMutation = trpc.elite.cancelSchedule.useMutation({
@@ -141,11 +143,7 @@ export default function EliteHistory() {
   const attendanceMap = useMemo(() => {
     const merged = new Map(serverAttendanceMap);
     optimisticUpdates.forEach((status, key) => {
-      if (status === 'absent') {
-        merged.delete(key); // 'absent' = no record
-      } else {
-        merged.set(key, status);
-      }
+      merged.set(key, status);
     });
     return merged;
   }, [serverAttendanceMap, optimisticUpdates]);
@@ -176,7 +174,15 @@ export default function EliteHistory() {
   const toggleAttendance = useCallback((scheduleId: number, studentId: number) => {
     const key = `${scheduleId}-${studentId}`;
     const current = attendanceMap.get(key);
-    const next = !current ? "present" : current === "present" ? "excused" : "absent";
+    // Cycle: no record / absent → present → excused → absent (shows as dot/cleared)
+    let next: string;
+    if (!current || current === 'absent') {
+      next = 'present';
+    } else if (current === 'present') {
+      next = 'excused';
+    } else {
+      next = 'absent';
+    }
     // Optimistic update: immediately update UI
     setOptimisticUpdates(prev => {
       const updated = new Map(prev);

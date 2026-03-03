@@ -79,7 +79,7 @@ export function AttendanceManagementContent({ coachName }: { coachName?: string 
   }, [selectedYear, selectedMonth]);
 
   // 查詢選擇月份的出席記錄 - 直接傳 year 和 month 數字
-  const { data: attendanceRecords } = trpc.attendance.getAttendanceRecords.useQuery(
+  const attendanceRecordsQuery = trpc.attendance.getAttendanceRecords.useQuery(
     {
       year: selectedYear,
       month: selectedMonth,
@@ -88,6 +88,7 @@ export function AttendanceManagementContent({ coachName }: { coachName?: string 
       enabled: viewMode === "attendanceTable" && !!selectedClass,
     }
   );
+  const attendanceRecords = attendanceRecordsQuery.data;
 
   // 處理班別選擇
   const handleSelectClass = (venue: string, day: string, time: string) => {
@@ -192,9 +193,10 @@ export function AttendanceManagementContent({ coachName }: { coachName?: string 
     }));
   }, [attendanceRecords]);
 
-  // 取消/恢復課堂後重新查詢
+  // 取消/恢復課堂或點名更新後重新查詢
   const handleScheduleStatusChanged = () => {
     trainingSchedulesQuery.refetch();
+    attendanceRecordsQuery.refetch();
   };
 
   // 渲染當前視圖

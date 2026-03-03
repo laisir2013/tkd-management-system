@@ -440,40 +440,41 @@ function CoachElite({ coachName }: { coachName: string }) {
   // Optimistic update state for instant UI feedback
   const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, string>>(new Map());
 
-  // Debounced invalidation: batch multiple rapid clicks into one refetch
+  // Track in-flight mutations to avoid premature clearing
+  const inflightCount = useRef(0);
   const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSuccessKeys = useRef<Set<string>>(new Set());
 
-  const debouncedRefetch = useCallback(() => {
+  const scheduleRefetch = useCallback(() => {
     if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
-    invalidateTimerRef.current = setTimeout(async () => {
-      await refetchEliteAttendance();
-      // After refetch, clear confirmed optimistic entries
-      const keysToRemove = new Set(pendingSuccessKeys.current);
-      pendingSuccessKeys.current.clear();
-      setOptimisticUpdates(prev => {
-        const next = new Map(prev);
-        keysToRemove.forEach(k => next.delete(k));
-        return next;
+    invalidateTimerRef.current = setTimeout(() => {
+      if (inflightCount.current > 0) {
+        scheduleRefetch();
+        return;
+      }
+      refetchEliteAttendance().then(() => {
+        setOptimisticUpdates(new Map());
       });
-    }, 1500);
+    }, 800);
   }, [refetchEliteAttendance]);
 
   const upsertEliteAttendance = trpc.elite.upsertAttendance.useMutation({
-    onSuccess: (_data, variables) => {
-      const key = `${variables.studentId}-${variables.scheduleId}`;
-      pendingSuccessKeys.current.add(key);
-      debouncedRefetch();
+    onMutate: () => {
+      inflightCount.current++;
+    },
+    onSuccess: (_data, _variables) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      scheduleRefetch();
     },
     onError: (err: any, variables) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
       const key = `${variables.studentId}-${variables.scheduleId}`;
-      pendingSuccessKeys.current.delete(key);
       setOptimisticUpdates(prev => {
         const next = new Map(prev);
         next.delete(key);
         return next;
       });
       toast.error(`點名更新失敗: ${err.message}`);
+      scheduleRefetch();
     },
   });
 
@@ -520,11 +521,7 @@ function CoachElite({ coachName }: { coachName: string }) {
   const eliteRecordsMap = useMemo(() => {
     const merged = new Map(serverEliteRecordsMap);
     optimisticUpdates.forEach((status, key) => {
-      if (status === 'absent') {
-        merged.delete(key);
-      } else {
-        merged.set(key, status);
-      }
+      merged.set(key, status);
     });
     return merged;
   }, [serverEliteRecordsMap, optimisticUpdates]);

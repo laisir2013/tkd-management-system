@@ -534,42 +534,44 @@ function EliteAttendanceTab() {
   // Optimistic update state
   const [optimisticUpdates, setOptimisticUpdates] = useState<Record<string, string>>({});
 
-  // Debounced invalidation
+  // Track in-flight mutations to avoid premature clearing
+  const inflightCount = useRef(0);
   const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSuccessKeys = useRef<Set<string>>(new Set());
 
-  const debouncedInvalidate = useCallback(() => {
+  const scheduleInvalidate = useCallback(() => {
     if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
-    invalidateTimerRef.current = setTimeout(async () => {
-      await Promise.all([
+    invalidateTimerRef.current = setTimeout(() => {
+      if (inflightCount.current > 0) {
+        scheduleInvalidate();
+        return;
+      }
+      Promise.all([
         utils.elite.getAttendance.invalidate(),
         utils.elite.getAllCycleInfo.invalidate(),
-      ]);
-      const keysToRemove = new Set(pendingSuccessKeys.current);
-      pendingSuccessKeys.current.clear();
-      setOptimisticUpdates(prev => {
-        const next = { ...prev };
-        keysToRemove.forEach(k => delete next[k]);
-        return next;
+      ]).then(() => {
+        setOptimisticUpdates({});
       });
-    }, 1500);
+    }, 800);
   }, [utils]);
 
   const upsertAttendanceMutation = trpc.elite.upsertAttendance.useMutation({
-    onSuccess: (_data, variables) => {
-      const key = `${variables.scheduleId}-${variables.studentId}`;
-      pendingSuccessKeys.current.add(key);
-      debouncedInvalidate();
+    onMutate: () => {
+      inflightCount.current++;
+    },
+    onSuccess: (_data, _variables) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      scheduleInvalidate();
     },
     onError: (err: any, variables) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
       const key = `${variables.scheduleId}-${variables.studentId}`;
-      pendingSuccessKeys.current.delete(key);
       setOptimisticUpdates(prev => {
         const next = { ...prev };
         delete next[key];
         return next;
       });
       toast.error(`點名更新失敗: ${err.message}`);
+      scheduleInvalidate();
     },
   });
 

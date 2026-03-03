@@ -1033,6 +1033,21 @@ export async function upsertAttendanceRecord(studentId: number, scheduleId: numb
   }
 }
 
+// 刪除出席記錄 — 用 scheduleId + studentId 定位
+export async function deleteAttendanceRecord(studentId: number, scheduleId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db
+    .delete(attendanceRecords)
+    .where(
+      and(
+        eq(attendanceRecords.scheduleId, scheduleId),
+        eq(attendanceRecords.studentId, studentId)
+      )
+    );
+}
+
 // 批量創建出席記錄
 export async function bulkInsertAttendanceRecords(records: InsertAttendanceRecord[]) {
   const db = await getDb();
