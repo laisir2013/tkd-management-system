@@ -28,6 +28,10 @@ export default function AdminLogin() {
       const result = await loginMutation.mutateAsync({ phone: phone.trim(), password: password.trim() });
       
       if (result?.success) {
+        // Store session token in localStorage as fallback for proxy environments
+        if ((result as any).sessionToken) {
+          localStorage.setItem("session_token", (result as any).sessionToken);
+        }
         setLocation('/admin');
       } else {
         setError(result?.error || "登入失敗,請確認電話號碼和密碼是否正確");

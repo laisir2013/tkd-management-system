@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -534,19 +534,36 @@ function EliteAttendanceTab() {
   // Optimistic update state
   const [optimisticUpdates, setOptimisticUpdates] = useState<Record<string, string>>({});
 
+  // Debounced invalidation
+  const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSuccessKeys = useRef<Set<string>>(new Set());
+
+  const debouncedInvalidate = useCallback(() => {
+    if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
+    invalidateTimerRef.current = setTimeout(async () => {
+      await Promise.all([
+        utils.elite.getAttendance.invalidate(),
+        utils.elite.getAllCycleInfo.invalidate(),
+      ]);
+      const keysToRemove = new Set(pendingSuccessKeys.current);
+      pendingSuccessKeys.current.clear();
+      setOptimisticUpdates(prev => {
+        const next = { ...prev };
+        keysToRemove.forEach(k => delete next[k]);
+        return next;
+      });
+    }, 1500);
+  }, [utils]);
+
   const upsertAttendanceMutation = trpc.elite.upsertAttendance.useMutation({
     onSuccess: (_data, variables) => {
       const key = `${variables.scheduleId}-${variables.studentId}`;
-      setOptimisticUpdates(prev => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-      utils.elite.getAttendance.invalidate();
-      utils.elite.getAllCycleInfo.invalidate();
+      pendingSuccessKeys.current.add(key);
+      debouncedInvalidate();
     },
     onError: (err: any, variables) => {
       const key = `${variables.scheduleId}-${variables.studentId}`;
+      pendingSuccessKeys.current.delete(key);
       setOptimisticUpdates(prev => {
         const next = { ...prev };
         delete next[key];

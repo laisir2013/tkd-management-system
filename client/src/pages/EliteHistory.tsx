@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,24 +43,46 @@ export default function EliteHistory() {
   // Optimistic update: local overlay for instant UI feedback
   const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, string>>(new Map());
 
+  // Debounced invalidation: batch multiple rapid clicks into one refetch
+  const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSuccessKeys = useRef<Set<string>>(new Set());
+
+  const debouncedInvalidate = useCallback(() => {
+    if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
+    invalidateTimerRef.current = setTimeout(async () => {
+      // Refetch server data — optimistic entries stay until data arrives
+      await Promise.all([
+        utils.elite.getHistoryByYear.invalidate(),
+        utils.elite.getAllCycleInfo.invalidate(),
+        utils.elite.getAllBalances.invalidate(),
+      ]);
+      // After refetch completes, clear ALL successful optimistic entries
+      const keysToRemove = new Set(pendingSuccessKeys.current);
+      pendingSuccessKeys.current.clear();
+      setOptimisticUpdates(prev => {
+        const next = new Map(prev);
+        keysToRemove.forEach(k => next.delete(k));
+        return next;
+      });
+    }, 1500); // Wait 1.5s after last click before refetching
+  }, [utils]);
+
   // mutations with optimistic update
   const upsertAttendanceMutation = trpc.elite.upsertAttendance.useMutation({
     onSuccess: (_data, variables) => {
-      // Clear optimistic entry — server data will take over on next invalidate
-      setOptimisticUpdates(prev => {
-        const next = new Map(prev);
-        next.delete(`${variables.scheduleId}-${variables.studentId}`);
-        return next;
-      });
-      utils.elite.getHistoryByYear.invalidate();
-      utils.elite.getAllCycleInfo.invalidate();
-      utils.elite.getAllBalances.invalidate();
+      // Mark this key as "confirmed by server" but keep showing optimistic value
+      // until the debounced refetch completes
+      const key = `${variables.scheduleId}-${variables.studentId}`;
+      pendingSuccessKeys.current.add(key);
+      debouncedInvalidate();
     },
     onError: (err: any, variables) => {
-      // Revert optimistic entry
+      // Revert optimistic entry immediately on error
+      const key = `${variables.scheduleId}-${variables.studentId}`;
+      pendingSuccessKeys.current.delete(key);
       setOptimisticUpdates(prev => {
         const next = new Map(prev);
-        next.delete(`${variables.scheduleId}-${variables.studentId}`);
+        next.delete(key);
         return next;
       });
       toast.error(`點名更新失敗：${err.message}`);

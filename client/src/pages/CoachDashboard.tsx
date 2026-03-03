@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -440,19 +440,37 @@ function CoachElite({ coachName }: { coachName: string }) {
   // Optimistic update state for instant UI feedback
   const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, string>>(new Map());
 
-  const upsertEliteAttendance = trpc.elite.upsertAttendance.useMutation({
-    onSuccess: (_data, variables) => {
+  // Debounced invalidation: batch multiple rapid clicks into one refetch
+  const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSuccessKeys = useRef<Set<string>>(new Set());
+
+  const debouncedRefetch = useCallback(() => {
+    if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
+    invalidateTimerRef.current = setTimeout(async () => {
+      await refetchEliteAttendance();
+      // After refetch, clear confirmed optimistic entries
+      const keysToRemove = new Set(pendingSuccessKeys.current);
+      pendingSuccessKeys.current.clear();
       setOptimisticUpdates(prev => {
         const next = new Map(prev);
-        next.delete(`${variables.studentId}-${variables.scheduleId}`);
+        keysToRemove.forEach(k => next.delete(k));
         return next;
       });
-      refetchEliteAttendance();
+    }, 1500);
+  }, [refetchEliteAttendance]);
+
+  const upsertEliteAttendance = trpc.elite.upsertAttendance.useMutation({
+    onSuccess: (_data, variables) => {
+      const key = `${variables.studentId}-${variables.scheduleId}`;
+      pendingSuccessKeys.current.add(key);
+      debouncedRefetch();
     },
     onError: (err: any, variables) => {
+      const key = `${variables.studentId}-${variables.scheduleId}`;
+      pendingSuccessKeys.current.delete(key);
       setOptimisticUpdates(prev => {
         const next = new Map(prev);
-        next.delete(`${variables.studentId}-${variables.scheduleId}`);
+        next.delete(key);
         return next;
       });
       toast.error(`點名更新失敗: ${err.message}`);

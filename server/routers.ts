@@ -306,7 +306,7 @@ export const appRouter = router({
     // 管理員登入 - 只檢查 role='admin' 的 users
     loginAdmin: publicProcedure
       .input(z.object({ phone: z.string(), password: z.string() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) return { success: false, error: "系統錯誤" };
         
@@ -326,9 +326,17 @@ export const appRouter = router({
         // @ts-ignore
         if (!user.password) {
           if (input.password === input.phone) {
+            // 建立 session cookie
+            const sessionToken = await sdk.createSessionToken(`phone:${user.phone}`, {
+              // @ts-ignore
+              name: user.coachName || user.phone,
+            });
+            const cookieOptions = getSessionCookieOptions(ctx.req);
+            ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
             return {
               success: true,
               user,
+              sessionToken,
               needPasswordChange: true,
             };
           }
@@ -339,9 +347,17 @@ export const appRouter = router({
         // @ts-ignore
         const isValid = await verifyPassword(input.password, user.password);
         if (isValid) {
+          // 建立 session cookie
+          const sessionToken = await sdk.createSessionToken(`phone:${user.phone}`, {
+            // @ts-ignore
+            name: user.coachName || user.phone,
+          });
+          const cookieOptions = getSessionCookieOptions(ctx.req);
+          ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
           return {
             success: true,
             user,
+            sessionToken,
           };
         }
         return { success: false, error: "密碼錯誤" };
