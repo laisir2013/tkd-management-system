@@ -244,7 +244,7 @@ export default function EliteHistory() {
         ) : (
           <Card className="rounded-t-none">
             <CardContent className="p-0">
-              <div className="overflow-auto max-h-[65vh]" style={{ touchAction: 'pan-x pan-y' }}>
+              <div className="overflow-auto max-h-[65vh]">
                 <table className="w-full text-xs border-collapse">
                   <thead className="sticky top-0 z-30">
                     <tr className="bg-slate-700 text-white">
@@ -351,6 +351,10 @@ export default function EliteHistory() {
                                   : 'bg-yellow-50 text-yellow-600'
                                 }`}
                                 style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                                onTouchEnd={(e) => {
+                                  e.preventDefault();
+                                  toggleAttendance(schedule.id, student.id);
+                                }}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   toggleAttendance(schedule.id, student.id);

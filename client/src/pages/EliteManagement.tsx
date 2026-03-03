@@ -720,6 +720,10 @@ function EliteAttendanceTab() {
                           key={s.id}
                           className="text-center p-0 cursor-pointer select-none"
                           style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                          onTouchEnd={(e) => {
+                            e.preventDefault();
+                            toggleAttendance(s.id, student.id);
+                          }}
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleAttendance(s.id, student.id);
