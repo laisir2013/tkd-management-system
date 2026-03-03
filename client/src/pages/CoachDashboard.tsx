@@ -665,19 +665,14 @@ function CoachElite({ coachName }: { coachName: string }) {
                           return (
                             <TableCell
                               key={s.id}
-                              className="text-center p-0"
+                              className={`text-center cursor-pointer transition-colors ${
+                                status === 'present' ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                  : status === 'absent' ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                                  : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                              }`}
+                              onClick={() => handleEliteToggle(student.id, s.id)}
                             >
-                              <button
-                                type="button"
-                                className={`w-full min-h-[44px] flex items-center justify-center text-sm font-bold cursor-pointer select-none border-none outline-none
-                                  ${status === 'present' ? 'bg-green-100 text-green-700'
-                                    : status === 'absent' ? 'bg-red-100 text-red-600'
-                                    : 'bg-gray-50 text-gray-400'}`}
-                                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
-                                onClick={() => handleEliteToggle(student.id, s.id)}
-                              >
-                                {status === 'present' ? '✅' : status === 'absent' ? '❌' : '·'}
-                              </button>
+                              {status === 'present' ? '✅' : status === 'absent' ? '❌' : '·'}
                             </TableCell>
                           );
                         })}

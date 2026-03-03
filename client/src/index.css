@@ -186,15 +186,3 @@
     }
   }
 }
-
-/* Fix mobile touch responsiveness - eliminate 300ms tap delay */
-td,
-button {
-  touch-action: manipulation;
-}
-
-/* Prevent text selection on attendance cells when tapping */
-.select-none {
-  -webkit-user-select: none;
-  user-select: none;
-}

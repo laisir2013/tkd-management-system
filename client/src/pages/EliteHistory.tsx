@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -382,20 +382,17 @@ export default function EliteHistory() {
                             return (
                               <td
                                 key={schedule.id}
-                                className={`px-0 py-0 text-center border-r border-b ${
-                                  status === 'present' ? 'bg-green-100 text-green-700'
-                                  : status === 'excused' ? 'bg-red-100 text-red-700'
-                                  : 'bg-yellow-50 text-yellow-600'
+                                className={`px-1 py-1.5 text-center cursor-pointer transition-colors border-r border-b ${
+                                  status === 'present' ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                  : status === 'excused' ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                  : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100'
                                 }`}
+                                title={`${student.name} - ${formatFullDate(schedule.trainingDate)}: ${
+                                  status === 'present' ? '出席' : status === 'excused' ? '請假' : '未記錄'
+                                }（點擊切換）`}
+                                onClick={() => toggleAttendance(schedule.id, student.id)}
                               >
-                                <button
-                                  type="button"
-                                  className="w-full min-h-[40px] flex items-center justify-center cursor-pointer select-none bg-transparent border-none outline-none"
-                                  style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
-                                  onClick={() => toggleAttendance(schedule.id, student.id)}
-                                >
-                                  {status === 'present' ? '✅' : status === 'excused' ? '❌' : '·'}
-                                </button>
+                                {status === 'present' ? '✅' : status === 'excused' ? '❌' : '·'}
                               </td>
                             );
                           })}

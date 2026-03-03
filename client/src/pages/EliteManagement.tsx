@@ -740,20 +740,14 @@ function EliteAttendanceTab() {
                       return (
                         <TableCell
                           key={s.id}
-                          className="text-center p-0"
+                          className={`text-center cursor-pointer transition-colors ${
+                            status === 'present' ? 'bg-green-100 hover:bg-green-200'
+                              : status === 'absent' ? 'bg-red-100 hover:bg-red-200'
+                              : status === 'late' ? 'bg-yellow-100 hover:bg-yellow-200'
+                              : 'hover:bg-gray-100'}`}
+                          onClick={() => toggleAttendance(s.id, student.id)}
                         >
-                          <button
-                            type="button"
-                            className={`w-full min-h-[44px] flex items-center justify-center text-base cursor-pointer select-none border-none outline-none
-                              ${status === 'present' ? 'bg-green-100'
-                                : status === 'absent' ? 'bg-red-100'
-                                : status === 'late' ? 'bg-yellow-100'
-                                : 'bg-white'}`}
-                            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
-                            onClick={() => toggleAttendance(s.id, student.id)}
-                          >
-                            {status ? statusEmoji[status] : <span className="text-gray-300 text-lg">·</span>}
-                          </button>
+                          {status ? statusEmoji[status] : <span className="text-gray-300 text-lg">·</span>}
                         </TableCell>
                       );
                     })}
