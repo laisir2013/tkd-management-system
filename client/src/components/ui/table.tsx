@@ -7,7 +7,6 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     <div
       data-slot="table-container"
       className="relative w-full overflow-x-auto"
-      style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
     >
       <table
         data-slot="table"
@@ -77,7 +76,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   );
 }
 
-function TableCell({ className, style, ...props }: React.ComponentProps<"td">) {
+function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
       data-slot="table-cell"
@@ -85,7 +84,6 @@ function TableCell({ className, style, ...props }: React.ComponentProps<"td">) {
         "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
-      style={{ touchAction: 'manipulation', ...style }}
       {...props}
     />
   );

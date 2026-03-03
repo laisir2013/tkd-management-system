@@ -187,14 +187,8 @@
   }
 }
 
-/* Fix mobile touch responsiveness for table cells and buttons */
-td[data-slot="table-cell"],
-td {
-  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
-  touch-action: manipulation;
-  -webkit-touch-callout: none;
-}
-
+/* Fix mobile touch responsiveness - eliminate 300ms tap delay */
+td,
 button {
   touch-action: manipulation;
 }

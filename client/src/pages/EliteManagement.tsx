@@ -719,13 +719,13 @@ function EliteAttendanceTab() {
                         <TableCell
                           key={s.id}
                           className="text-center p-0 cursor-pointer select-none"
-                          onPointerDown={(e) => {
+                          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                          onClick={(e) => {
                             e.stopPropagation();
-                            e.preventDefault();
                             toggleAttendance(s.id, student.id);
                           }}
                         >
-                          <div className={`w-full min-h-[44px] flex items-center justify-center text-base pointer-events-none
+                          <div className={`w-full min-h-[44px] flex items-center justify-center text-base
                             ${status === 'present' ? 'bg-green-100'
                               : status === 'absent' ? 'bg-red-100'
                               : status === 'late' ? 'bg-yellow-100'
