@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,14 +40,31 @@ export default function EliteHistory() {
     return map;
   }, [balances]);
 
-  // mutations
+  // Optimistic update: local overlay for instant UI feedback
+  const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, string>>(new Map());
+
+  // mutations with optimistic update
   const upsertAttendanceMutation = trpc.elite.upsertAttendance.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // Clear optimistic entry — server data will take over on next invalidate
+      setOptimisticUpdates(prev => {
+        const next = new Map(prev);
+        next.delete(`${variables.scheduleId}-${variables.studentId}`);
+        return next;
+      });
       utils.elite.getHistoryByYear.invalidate();
       utils.elite.getAllCycleInfo.invalidate();
       utils.elite.getAllBalances.invalidate();
     },
-    onError: (err: any) => { toast.error(`點名更新失敗：${err.message}`); },
+    onError: (err: any, variables) => {
+      // Revert optimistic entry
+      setOptimisticUpdates(prev => {
+        const next = new Map(prev);
+        next.delete(`${variables.scheduleId}-${variables.studentId}`);
+        return next;
+      });
+      toast.error(`點名更新失敗：${err.message}`);
+    },
   });
   const cancelScheduleMutation = trpc.elite.cancelSchedule.useMutation({
     onSuccess: () => { utils.elite.getHistoryByYear.invalidate(); toast.success("已取消課堂"); },
@@ -88,8 +105,8 @@ export default function EliteHistory() {
   const monthSchedulesA = useMemo(() => getMonthSchedules(), [allSchedules, selectedMonth]);
   const monthSchedulesB = useMemo(() => getMonthSchedules(), [allSchedules, selectedMonth]);
 
-  // attendance map
-  const attendanceMap = useMemo(() => {
+  // attendance map (server data)
+  const serverAttendanceMap = useMemo(() => {
     if (!historyData?.attendance) return new Map<string, string>();
     const map = new Map<string, string>();
     historyData.attendance.forEach((a: any) => {
@@ -97,6 +114,19 @@ export default function EliteHistory() {
     });
     return map;
   }, [historyData?.attendance]);
+
+  // Merged attendance map: optimistic updates override server data
+  const attendanceMap = useMemo(() => {
+    const merged = new Map(serverAttendanceMap);
+    optimisticUpdates.forEach((status, key) => {
+      if (status === 'absent') {
+        merged.delete(key); // 'absent' = no record
+      } else {
+        merged.set(key, status);
+      }
+    });
+    return merged;
+  }, [serverAttendanceMap, optimisticUpdates]);
 
   // active students split by class
   const allActiveStudents = useMemo(() => {
@@ -121,14 +151,19 @@ export default function EliteHistory() {
     return sDate >= joinDate;
   };
 
-  function toggleAttendance(scheduleId: number, studentId: number) {
-    console.log('[EliteHistory] toggleAttendance called', { scheduleId, studentId });
+  const toggleAttendance = useCallback((scheduleId: number, studentId: number) => {
     const key = `${scheduleId}-${studentId}`;
     const current = attendanceMap.get(key);
     const next = !current ? "present" : current === "present" ? "excused" : "absent";
-    console.log('[EliteHistory] toggling', { key, current, next });
+    // Optimistic update: immediately update UI
+    setOptimisticUpdates(prev => {
+      const updated = new Map(prev);
+      updated.set(key, next);
+      return updated;
+    });
+    // Fire API in background
     upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
-  }
+  }, [attendanceMap, upsertAttendanceMutation]);
 
   // 按班別計算統計
   const getMonthStats = (students: any[], monthSchedules: any[]) => {
@@ -347,17 +382,20 @@ export default function EliteHistory() {
                             return (
                               <td
                                 key={schedule.id}
-                                className={`px-0 py-0 text-center cursor-pointer select-none border-r border-b ${
+                                className={`px-0 py-0 text-center border-r border-b ${
                                   status === 'present' ? 'bg-green-100 text-green-700'
                                   : status === 'excused' ? 'bg-red-100 text-red-700'
                                   : 'bg-yellow-50 text-yellow-600'
                                 }`}
-                                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
-                                onClick={() => toggleAttendance(schedule.id, student.id)}
                               >
-                                <div className="w-full min-h-[40px] flex items-center justify-center">
+                                <button
+                                  type="button"
+                                  className="w-full min-h-[40px] flex items-center justify-center cursor-pointer select-none bg-transparent border-none outline-none"
+                                  style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
+                                  onClick={() => toggleAttendance(schedule.id, student.id)}
+                                >
                                   {status === 'present' ? '✅' : status === 'excused' ? '❌' : '·'}
-                                </div>
+                                </button>
                               </td>
                             );
                           })}

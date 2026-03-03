@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -436,9 +436,27 @@ function CoachElite({ coachName }: { coachName: string }) {
   // Elite attendance data
   const { data: eliteSchedules } = trpc.elite.getSchedules.useQuery({ year: selectedYear, month: selectedMonth });
   const { data: eliteAttendance, refetch: refetchEliteAttendance } = trpc.elite.getAttendance.useQuery();
+
+  // Optimistic update state for instant UI feedback
+  const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, string>>(new Map());
+
   const upsertEliteAttendance = trpc.elite.upsertAttendance.useMutation({
-    onSuccess: () => refetchEliteAttendance(),
-    onError: (err: any) => toast.error(`點名更新失敗: ${err.message}`),
+    onSuccess: (_data, variables) => {
+      setOptimisticUpdates(prev => {
+        const next = new Map(prev);
+        next.delete(`${variables.studentId}-${variables.scheduleId}`);
+        return next;
+      });
+      refetchEliteAttendance();
+    },
+    onError: (err: any, variables) => {
+      setOptimisticUpdates(prev => {
+        const next = new Map(prev);
+        next.delete(`${variables.studentId}-${variables.scheduleId}`);
+        return next;
+      });
+      toast.error(`點名更新失敗: ${err.message}`);
+    },
   });
 
   // Confirm elite payment
@@ -471,8 +489,8 @@ function CoachElite({ coachName }: { coachName: string }) {
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [eliteSchedules]);
 
-  // Elite attendance records map
-  const eliteRecordsMap = useMemo(() => {
+  // Elite attendance records map (server data)
+  const serverEliteRecordsMap = useMemo(() => {
     const m = new Map<string, string>();
     ((eliteAttendance || []) as any[]).forEach(r => {
       m.set(`${r.studentId}-${r.scheduleId}`, r.status);
@@ -480,12 +498,31 @@ function CoachElite({ coachName }: { coachName: string }) {
     return m;
   }, [eliteAttendance]);
 
-  const handleEliteToggle = (studentId: number, scheduleId: number) => {
+  // Merged map: optimistic updates override server data
+  const eliteRecordsMap = useMemo(() => {
+    const merged = new Map(serverEliteRecordsMap);
+    optimisticUpdates.forEach((status, key) => {
+      if (status === 'absent') {
+        merged.delete(key);
+      } else {
+        merged.set(key, status);
+      }
+    });
+    return merged;
+  }, [serverEliteRecordsMap, optimisticUpdates]);
+
+  const handleEliteToggle = useCallback((studentId: number, scheduleId: number) => {
     const key = `${studentId}-${scheduleId}`;
     const current = eliteRecordsMap.get(key);
     const next = current === 'present' ? 'absent' : 'present';
+    // Optimistic update: immediately update UI
+    setOptimisticUpdates(prev => {
+      const updated = new Map(prev);
+      updated.set(key, next);
+      return updated;
+    });
     upsertEliteAttendance.mutate({ studentId, scheduleId, status: next });
-  };
+  }, [eliteRecordsMap, upsertEliteAttendance]);
 
   const handleEliteMonthChange = (dir: "prev" | "next") => {
     if (dir === "prev") {
@@ -628,18 +665,19 @@ function CoachElite({ coachName }: { coachName: string }) {
                           return (
                             <TableCell
                               key={s.id}
-                              className="text-center p-0 cursor-pointer select-none"
-                              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
-                              onClick={() => handleEliteToggle(student.id, s.id)}
+                              className="text-center p-0"
                             >
-                              <div
-                                className={`w-full min-h-[44px] flex items-center justify-center text-sm font-bold
+                              <button
+                                type="button"
+                                className={`w-full min-h-[44px] flex items-center justify-center text-sm font-bold cursor-pointer select-none border-none outline-none
                                   ${status === 'present' ? 'bg-green-100 text-green-700'
                                     : status === 'absent' ? 'bg-red-100 text-red-600'
                                     : 'bg-gray-50 text-gray-400'}`}
+                                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
+                                onClick={() => handleEliteToggle(student.id, s.id)}
                               >
                                 {status === 'present' ? '✅' : status === 'absent' ? '❌' : '·'}
-                              </div>
+                              </button>
                             </TableCell>
                           );
                         })}

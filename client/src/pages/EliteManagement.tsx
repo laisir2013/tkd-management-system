@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -531,12 +531,27 @@ function EliteAttendanceTab() {
   const activateScheduleMutation = trpc.elite.activateSchedule.useMutation({
     onSuccess: () => { utils.elite.getSchedules.invalidate(); toast.success("已恢復課堂"); },
   });
+  // Optimistic update state
+  const [optimisticUpdates, setOptimisticUpdates] = useState<Record<string, string>>({});
+
   const upsertAttendanceMutation = trpc.elite.upsertAttendance.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      const key = `${variables.scheduleId}-${variables.studentId}`;
+      setOptimisticUpdates(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
       utils.elite.getAttendance.invalidate();
       utils.elite.getAllCycleInfo.invalidate();
     },
-    onError: (err: any) => {
+    onError: (err: any, variables) => {
+      const key = `${variables.scheduleId}-${variables.studentId}`;
+      setOptimisticUpdates(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
       toast.error(`點名更新失敗: ${err.message}`);
     },
   });
@@ -552,14 +567,19 @@ function EliteAttendanceTab() {
   const activeSchedules = classSchedules.filter((s: any) => s.status === 'active');
   const cancelledCount = classSchedules.filter((s: any) => s.status === 'cancelled').length;
 
-  // 建立出席記錄 map
-  const attendanceMap = useMemo(() => {
+  // 建立出席記錄 map (server data)
+  const serverAttendanceMap = useMemo(() => {
     const map: Record<string, string> = {};
     allAttendance.forEach((a: any) => {
       map[`${a.scheduleId}-${a.studentId}`] = a.status;
     });
     return map;
   }, [allAttendance]);
+
+  // Merged: optimistic overrides server
+  const attendanceMap = useMemo(() => {
+    return { ...serverAttendanceMap, ...optimisticUpdates };
+  }, [serverAttendanceMap, optimisticUpdates]);
 
   // 建立循環資訊 map
   const cycleMap = useMemo(() => {
@@ -590,6 +610,8 @@ function EliteAttendanceTab() {
     const key = `${scheduleId}-${studentId}`;
     const current = attendanceMap[key];
     const next = !current ? "present" : current === "present" ? "absent" : current === "absent" ? "late" : "present";
+    // Optimistic update: immediately update UI
+    setOptimisticUpdates(prev => ({ ...prev, [key]: next }));
     upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
   }
 
@@ -718,18 +740,20 @@ function EliteAttendanceTab() {
                       return (
                         <TableCell
                           key={s.id}
-                          className="text-center p-0 cursor-pointer select-none"
-                          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
-                          onClick={() => toggleAttendance(s.id, student.id)}
+                          className="text-center p-0"
                         >
-                          <div className={`w-full min-h-[44px] flex items-center justify-center text-base
-                            ${status === 'present' ? 'bg-green-100'
-                              : status === 'absent' ? 'bg-red-100'
-                              : status === 'late' ? 'bg-yellow-100'
-                              : 'bg-white'}`}
+                          <button
+                            type="button"
+                            className={`w-full min-h-[44px] flex items-center justify-center text-base cursor-pointer select-none border-none outline-none
+                              ${status === 'present' ? 'bg-green-100'
+                                : status === 'absent' ? 'bg-red-100'
+                                : status === 'late' ? 'bg-yellow-100'
+                                : 'bg-white'}`}
+                            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
+                            onClick={() => toggleAttendance(s.id, student.id)}
                           >
                             {status ? statusEmoji[status] : <span className="text-gray-300 text-lg">·</span>}
-                          </div>
+                          </button>
                         </TableCell>
                       );
                     })}
