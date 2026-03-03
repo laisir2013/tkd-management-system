@@ -43,9 +43,9 @@ export default function History() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12">
       <div className="container max-w-4xl">
-        <Button onClick={() => setLocation("/")} variant="outline" className="mb-6">
+        <Button onClick={() => setLocation(phone ? `/payment?phone=${encodeURIComponent(phone)}&tab=regular-payment` : "/")} variant="outline" className="mb-6">
           <ArrowLeft className="w-4 h-4 mr-2" />
-          返回首頁
+          {phone ? "返回繳費" : "返回首頁"}
         </Button>
 
         <Card className="shadow-xl">

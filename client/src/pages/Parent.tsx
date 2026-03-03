@@ -14,10 +14,7 @@ export default function Parent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const loginMutation = trpc.auth.loginParent.useQuery(
-    { phone: phone.trim(), password: password.trim() },
-    { enabled: false }
-  );
+  const loginMutation = trpc.auth.loginParent.useMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,13 +26,13 @@ export default function Parent() {
     setIsLoading(true);
     setError("");
     try {
-      const result = await loginMutation.refetch();
+      const result = await loginMutation.mutateAsync({ phone: phone.trim(), password: password.trim() });
       
-      if (result.data?.success) {
+      if (result?.success) {
         // 登入成功,導向家長頁面
         setLocation(`/payment?phone=${encodeURIComponent(phone)}&tab=overview`);
       } else {
-        setError(result.data?.error || "登入失敗,請確認電話號碼和密碼是否正確");
+        setError(result?.error || "登入失敗,請確認電話號碼和密碼是否正確");
       }
     } catch (error) {
       console.error("登入失敗:", error);
@@ -111,6 +108,11 @@ export default function Parent() {
                 {isLoading ? "登入中..." : "登入"}
               </Button>
             </form>
+            
+            <div className="mt-6 text-center text-sm text-gray-500">
+              <p>首次登入請使用電話號碼作為密碼</p>
+              <p className="mt-1">登入後建議修改密碼</p>
+            </div>
           </CardContent>
         </Card>
 

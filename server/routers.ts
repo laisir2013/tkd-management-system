@@ -238,7 +238,7 @@ export const appRouter = router({
           if (input.password === input.phone) {
             return {
               success: true,
-              students: regularStudents,
+              students: regularStudents.map(({ password, ...rest }) => rest),
               hasElite: eliteStudentList.length > 0,
               needPasswordChange: true,
             };
@@ -251,7 +251,7 @@ export const appRouter = router({
         if (isValid) {
           return {
             success: true,
-            students: regularStudents,
+            students: regularStudents.map(({ password, ...rest }) => rest),
             hasElite: eliteStudentList.length > 0,
           };
         }
@@ -529,7 +529,9 @@ export const appRouter = router({
     getByPhone: publicProcedure
       .input(z.object({ phone: z.string() }))
       .query(async ({ input }) => {
-        return getStudentsByPhone(input.phone);
+        const result = await getStudentsByPhone(input.phone);
+        // Strip password hash from response
+        return result.map(({ password, ...rest }) => rest);
       }),
 
     getParentAttendance: publicProcedure
