@@ -52,7 +52,7 @@ export default function ParentAttendance() {
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
             <p className="mb-4">請先登入家長系統</p>
-            <Button onClick={() => setLocation("/parent")}>返回登入</Button>
+            <Button onClick={() => setLocation("/parent-login")}>返回登入</Button>
           </CardContent>
         </Card>
       </div>

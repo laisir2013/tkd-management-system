@@ -282,9 +282,10 @@ export const appRouter = router({
         // @ts-ignore
         if (!user.password) {
           if (input.password === input.phone) {
+            const { password: _cp1, ...safeCoach1 } = user as any;
             return {
               success: true,
-              user,
+              user: safeCoach1,
               needPasswordChange: true,
             };
           }
@@ -295,9 +296,10 @@ export const appRouter = router({
         // @ts-ignore
         const isValid = await verifyPassword(input.password, user.password);
         if (isValid) {
+          const { password: _cp2, ...safeCoach2 } = user as any;
           return {
             success: true,
-            user,
+            user: safeCoach2,
           };
         }
         return { success: false, error: "密碼錯誤" };
@@ -333,9 +335,10 @@ export const appRouter = router({
             });
             const cookieOptions = getSessionCookieOptions(ctx.req);
             ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
+            const { password: _p1, ...safeUser1 } = user as any;
             return {
               success: true,
-              user,
+              user: safeUser1,
               sessionToken,
               needPasswordChange: true,
             };
@@ -354,9 +357,10 @@ export const appRouter = router({
           });
           const cookieOptions = getSessionCookieOptions(ctx.req);
           ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
+          const { password: _p2, ...safeUser2 } = user as any;
           return {
             success: true,
-            user,
+            user: safeUser2,
             sessionToken,
           };
         }
@@ -400,11 +404,13 @@ export const appRouter = router({
             const cookieOptions = getSessionCookieOptions(ctx.req);
             ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
             
+            // Strip password from response
+            const { password: _userPw, ...safeUser } = user as any;
             return {
               success: true,
               // @ts-ignore
               role: user.role,
-              user,
+              user: safeUser,
               // @ts-ignore
               needPasswordChange: !user.password,
               sessionToken, // 回傳 token 讓前端可以存到 localStorage 作為備用
@@ -440,10 +446,12 @@ export const appRouter = router({
             const cookieOptions = getSessionCookieOptions(ctx.req);
             ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
             
+            // Strip password from response
+            const { password: _pw, ...safeStudent } = student;
             return {
               success: true,
               role: 'parent',
-              student,
+              student: safeStudent,
               // @ts-ignore
               needPasswordChange: !student.password,
               sessionToken, // 回傳 token 讓前端可以存到 localStorage 作為備用
