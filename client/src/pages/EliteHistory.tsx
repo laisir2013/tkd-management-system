@@ -122,9 +122,11 @@ export default function EliteHistory() {
   };
 
   function toggleAttendance(scheduleId: number, studentId: number) {
+    console.log('[EliteHistory] toggleAttendance called', { scheduleId, studentId });
     const key = `${scheduleId}-${studentId}`;
     const current = attendanceMap.get(key);
     const next = !current ? "present" : current === "present" ? "excused" : "absent";
+    console.log('[EliteHistory] toggling', { key, current, next });
     upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
   }
 
@@ -350,15 +352,8 @@ export default function EliteHistory() {
                                   : status === 'excused' ? 'bg-red-100 text-red-700'
                                   : 'bg-yellow-50 text-yellow-600'
                                 }`}
-                                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                                onTouchEnd={(e) => {
-                                  e.preventDefault();
-                                  toggleAttendance(schedule.id, student.id);
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleAttendance(schedule.id, student.id);
-                                }}
+                                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
+                                onClick={() => toggleAttendance(schedule.id, student.id)}
                               >
                                 <div className="w-full min-h-[40px] flex items-center justify-center">
                                   {status === 'present' ? '✅' : status === 'excused' ? '❌' : '·'}

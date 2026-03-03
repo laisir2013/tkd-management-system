@@ -629,15 +629,8 @@ function CoachElite({ coachName }: { coachName: string }) {
                             <TableCell
                               key={s.id}
                               className="text-center p-0 cursor-pointer select-none"
-                              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                              onTouchEnd={(e) => {
-                                e.preventDefault();
-                                handleEliteToggle(student.id, s.id);
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEliteToggle(student.id, s.id);
-                              }}
+                              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
+                              onClick={() => handleEliteToggle(student.id, s.id)}
                             >
                               <div
                                 className={`w-full min-h-[44px] flex items-center justify-center text-sm font-bold

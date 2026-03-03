@@ -719,15 +719,8 @@ function EliteAttendanceTab() {
                         <TableCell
                           key={s.id}
                           className="text-center p-0 cursor-pointer select-none"
-                          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                          onTouchEnd={(e) => {
-                            e.preventDefault();
-                            toggleAttendance(s.id, student.id);
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleAttendance(s.id, student.id);
-                          }}
+                          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
+                          onClick={() => toggleAttendance(s.id, student.id)}
                         >
                           <div className={`w-full min-h-[44px] flex items-center justify-center text-base
                             ${status === 'present' ? 'bg-green-100'
