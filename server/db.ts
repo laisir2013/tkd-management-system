@@ -1,7 +1,7 @@
 import { eq, and, inArray, gte, lte, sql, or, desc, asc, isNull, between } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules } from "../drizzle/schema";
+import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 // 安全解析 customMonths JSON：防止 double-parse 和無效格式
@@ -18,6 +18,7 @@ function safeParseCustomMonths(value: any): string[] | null {
 }
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _rawPool: mysql.Pool | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -40,6 +41,19 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+// Raw mysql2 pool for direct SQL queries (used by receipt review, duplicate detection, etc.)
+export async function getRawPool() {
+  if (!_rawPool && process.env.DATABASE_URL) {
+    _rawPool = mysql.createPool({
+      uri: process.env.DATABASE_URL,
+      charset: 'utf8mb4',
+      waitForConnections: true,
+      connectionLimit: 5,
+    });
+  }
+  return _rawPool;
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
@@ -2638,8 +2652,8 @@ export async function bulkDeleteExamCandidates(ids: number[]) {
 export async function getSystemConfig(key: string): Promise<string | null> {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(schema.systemConfig)
-    .where(eq(schema.systemConfig.configKey, key))
+  const rows = await db.select().from(systemConfig)
+    .where(eq(systemConfig.configKey, key))
     .limit(1);
   return rows.length > 0 ? rows[0].configValue : null;
 }
@@ -2648,16 +2662,16 @@ export async function setSystemConfig(key: string, value: string, description?: 
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const existing = await db.select().from(schema.systemConfig)
-    .where(eq(schema.systemConfig.configKey, key))
+  const existing = await db.select().from(systemConfig)
+    .where(eq(systemConfig.configKey, key))
     .limit(1);
   
   if (existing.length > 0) {
-    await db.update(schema.systemConfig)
+    await db.update(systemConfig)
       .set({ configValue: value, ...(description ? { description } : {}) })
-      .where(eq(schema.systemConfig.configKey, key));
+      .where(eq(systemConfig.configKey, key));
   } else {
-    await db.insert(schema.systemConfig).values({
+    await db.insert(systemConfig).values({
       configKey: key,
       configValue: value,
       description: description || null,
@@ -2669,10 +2683,10 @@ export async function getAllSystemConfigs(): Promise<Array<{ configKey: string; 
   const db = await getDb();
   if (!db) return [];
   return db.select({
-    configKey: schema.systemConfig.configKey,
-    configValue: schema.systemConfig.configValue,
-    description: schema.systemConfig.description,
-  }).from(schema.systemConfig);
+    configKey: systemConfig.configKey,
+    configValue: systemConfig.configValue,
+    description: systemConfig.description,
+  }).from(systemConfig);
 }
 
 /**
