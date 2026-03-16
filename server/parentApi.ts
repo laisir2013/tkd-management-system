@@ -469,8 +469,15 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
     let sUrl = rUrl, sKey = rKey;
     try { const cm = customMonths ? JSON.parse(customMonths) : undefined; const sb = await stampReceipt(buf, mime, { studentName: student.name, amount: exAmt || amount, paymentPeriod, customMonths: cm, dojoName: student.venue || undefined }); const sk = `receipts/stamped-${numId}-${Date.now()}.${ext}`; const sr = await storagePut(sk, sb, mime); sUrl = sr.url; sKey = sk; } catch {}
 
-    const pAmt = parseFloat(exAmt), eAmt = parseFloat(student.feePerQuarter);
-    const amtOk = pAmt === eAmt;
+    const pAmt = parseFloat(exAmt), feeQ = parseFloat(student.feePerQuarter);
+    const monthlyFee = Math.round((feeQ / 3) * 100) / 100;
+    let amtOk = false;
+    if (paymentPeriod === 'CUSTOM') {
+      // CUSTOM: 允許月費的 1~12 倍
+      if (monthlyFee > 0) { const mc = Math.round(pAmt / monthlyFee); amtOk = mc >= 1 && mc <= 12 && Math.abs(pAmt - monthlyFee * mc) < 1; }
+    } else {
+      amtOk = Math.abs(pAmt - feeQ) < 1;
+    }
     let rcpOk = false, rcpNote = "";
     try { const v = await getSystemConfig("receipt_validation_enabled"); if (v === "true") { const acc = await getAcceptedPayeeAccounts(); if (!acc.length) rcpOk = true; else { for (const a of acc) { if ((exRAcc && a.account && (exRAcc.includes(a.account) || a.account.includes(exRAcc))) || (exRName && a.name && (exRName.toUpperCase().includes(a.name.toUpperCase()) || a.name.toUpperCase().includes(exRName.toUpperCase())))) { rcpOk = true; break; } } if (!rcpOk) rcpNote = `收款人不匹配`; } } else rcpOk = true; } catch { rcpOk = true; }
 

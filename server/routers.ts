@@ -1322,10 +1322,25 @@ export const appRouter = router({
           // 失敗時使用原始收據，不影響繳費流程
         }
         
-        // 驗證 OCR 識別的金額是否與學費完全相等
+        // 驗證 OCR 識別的金額是否與學費相符
+        // 標準季度模式：直接比較季費
+        // CUSTOM 模式：金額必須是月費的正整數倍（家長可能繳 1~12 個月）
         const parsedAmount = parseFloat(extractedAmount);
-        const expectedAmount = parseFloat(student.feePerQuarter);
-        const isAmountValid = parsedAmount === expectedAmount;
+        const feePerQuarter = parseFloat(student.feePerQuarter);
+        const monthlyFee = Math.round((feePerQuarter / 3) * 100) / 100;
+        let isAmountValid = false;
+        let expectedAmount = feePerQuarter;
+        if (input.paymentPeriod === 'CUSTOM') {
+          // CUSTOM: 允許月費的 1~12 倍
+          if (monthlyFee > 0) {
+            const monthCount = Math.round(parsedAmount / monthlyFee);
+            isAmountValid = monthCount >= 1 && monthCount <= 12 && Math.abs(parsedAmount - monthlyFee * monthCount) < 1;
+            expectedAmount = monthlyFee * monthCount;
+          }
+        } else {
+          // Q1~Q4: 必須等於季費
+          isAmountValid = Math.abs(parsedAmount - feePerQuarter) < 1;
+        }
         
         // 驗證收款人是否為道場的帳號（防止家長轉帳給自己）
         let isRecipientValid = false;
