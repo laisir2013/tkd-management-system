@@ -2040,6 +2040,67 @@ export async function syncElitePaymentToAccounting(params: {
 }
 
 /**
+ * 批量同步遺漏的繳費記錄到會計系統
+ * 找出所有 status='confirmed' 但沒有對應 accounting_record 的 paymentRecords，
+ * 逐一執行 syncPaymentToAccounting
+ */
+export async function syncOrphanedPayments(): Promise<{ synced: number; errors: number; details: string[] }> {
+  const db = await getDb();
+  if (!db) return { synced: 0, errors: 0, details: ['Database not available'] };
+
+  // 找出已確認但未同步到會計的繳費記錄
+  const orphaned = await db.select({
+    id: paymentRecords.id,
+    studentId: paymentRecords.studentId,
+    amount: paymentRecords.amount,
+    paymentDate: paymentRecords.paymentDate,
+    receiptTransferDate: paymentRecords.receiptTransferDate,
+    receiptUrl: paymentRecords.receiptUrl,
+    receiptKey: paymentRecords.receiptKey,
+  })
+    .from(paymentRecords)
+    .leftJoin(accountingRecords, eq(accountingRecords.paymentRecordId, paymentRecords.id))
+    .where(and(
+      eq(paymentRecords.status, 'confirmed'),
+      isNull(accountingRecords.id)
+    ));
+
+  let synced = 0;
+  let errors = 0;
+  const details: string[] = [];
+
+  for (const payment of orphaned) {
+    try {
+      const student = await getStudentById(payment.studentId);
+      if (!student) {
+        details.push(`Payment ${payment.id}: student ${payment.studentId} not found, skipped`);
+        errors++;
+        continue;
+      }
+      await syncPaymentToAccounting({
+        paymentRecordId: payment.id,
+        transactionDate: payment.receiptTransferDate || payment.paymentDate,
+        amount: String(payment.amount),
+        bank: null,
+        studentName: student.name,
+        coachName: student.coach,
+        dojoName: student.venue || null,
+        category: 'tuition',
+        receiptUrl: payment.receiptUrl,
+        receiptKey: payment.receiptKey,
+      });
+      details.push(`Payment ${payment.id}: ${student.name} $${payment.amount} → synced`);
+      synced++;
+    } catch (e: any) {
+      details.push(`Payment ${payment.id}: sync failed - ${e.message}`);
+      errors++;
+    }
+  }
+
+  return { synced, errors, details };
+}
+
+/**
  * 取得會計摘要統計
  */
 export async function getAccountingSummary(year: number, month?: number) {

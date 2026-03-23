@@ -154,6 +154,7 @@ import {
   findMatchingRule,
   createJournalEntryFromRecord,
   syncAllPendingRecords,
+  syncOrphanedPayments,
   createManualJournalEntry,
   postJournalEntry,
   unpostJournalEntry,
@@ -3710,6 +3711,16 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         return syncAllPendingRecords();
+      }),
+
+    // 批量同步遺漏的繳費記錄 → accounting_records → journal entries
+    // 修補已確認但未入帳的繳費（例如 system_auto 批准、歷史遺漏等）
+    syncOrphanedPayments: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return syncOrphanedPayments();
       }),
 
     // ===== 報表 (Reports) =====
