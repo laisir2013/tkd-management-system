@@ -190,6 +190,108 @@ import { stampReceipt } from "./_core/receiptStamp";
 import { storagePut } from "./storage";
 import { sdk } from "./_core/sdk";
 
+/**
+ * 解析繳費記錄，返回已繳季度的 Set（格式："YYYY-QN"）
+ * 支援 Q1-Q4 標準季度 和 CUSTOM 自訂月份
+ * 只應傳入 status='confirmed' 的記錄
+ */
+function resolvePaidQuarters(payments: any[]): Set<string> {
+  const paidQuarters = new Set<string>();
+
+  // 月份 → 季度的映射
+  const monthToQuarter = (m: number) => {
+    if (m >= 1 && m <= 3) return 1;
+    if (m >= 4 && m <= 6) return 2;
+    if (m >= 7 && m <= 9) return 3;
+    if (m >= 10 && m <= 12) return 4;
+    return 0;
+  };
+
+  for (const payment of payments) {
+    const paymentDate = new Date(payment.paymentDate);
+    const year = paymentDate.getFullYear();
+
+    if (payment.paymentPeriod === 'Q1') {
+      paidQuarters.add(`${year}-Q1`);
+    } else if (payment.paymentPeriod === 'Q2') {
+      paidQuarters.add(`${year}-Q2`);
+    } else if (payment.paymentPeriod === 'Q3') {
+      paidQuarters.add(`${year}-Q3`);
+    } else if (payment.paymentPeriod === 'Q4') {
+      paidQuarters.add(`${year}-Q4`);
+    } else if (payment.paymentPeriod === 'CUSTOM' && payment.customMonths) {
+      // 解析 CUSTOM 自訂月份，支援格式如：
+      // ["2025年12月，2026年1-3月"] 或 ["2025年12月", "2026年1月", "2026年2月", "2026年3月"]
+      try {
+        let monthsArray: string[] = [];
+        if (typeof payment.customMonths === 'string') {
+          monthsArray = JSON.parse(payment.customMonths);
+        } else if (Array.isArray(payment.customMonths)) {
+          monthsArray = payment.customMonths;
+        }
+
+        // 展開所有月份
+        const resolvedMonths: { year: number; month: number }[] = [];
+
+        for (const entry of monthsArray) {
+          // 先用中文逗號和英文逗號分割多個月份
+          const parts = entry.split(/[,，、;；]+/).map((s: string) => s.trim()).filter(Boolean);
+          for (const part of parts) {
+            // 嘗試匹配 "2026年1-3月" (範圍格式)
+            const rangeMatch = part.match(/(\d{4})年(\d{1,2})-(\d{1,2})月/);
+            if (rangeMatch) {
+              const y = parseInt(rangeMatch[1]);
+              const start = parseInt(rangeMatch[2]);
+              const end = parseInt(rangeMatch[3]);
+              for (let m = start; m <= end; m++) {
+                resolvedMonths.push({ year: y, month: m });
+              }
+              continue;
+            }
+            // 匹配 "2025年12月" (單月格式)
+            const singleMatch = part.match(/(\d{4})年(\d{1,2})月/);
+            if (singleMatch) {
+              resolvedMonths.push({ year: parseInt(singleMatch[1]), month: parseInt(singleMatch[2]) });
+              continue;
+            }
+            // 匹配不帶年份的 "1月" "12月" 等 → 使用 paymentDate 的年份
+            const monthOnly = part.match(/^(\d{1,2})月$/);
+            if (monthOnly) {
+              resolvedMonths.push({ year, month: parseInt(monthOnly[1]) });
+            }
+          }
+        }
+
+        // 將月份映射到季度
+        for (const { year: y, month: m } of resolvedMonths) {
+          const q = monthToQuarter(m);
+          if (q > 0) {
+            paidQuarters.add(`${y}-Q${q}`);
+          }
+        }
+
+        // 如果解析失敗且沒有找到任何月份，回退到使用 paymentDate 的季度
+        if (resolvedMonths.length === 0) {
+          const fallbackMonth = paymentDate.getMonth() + 1;
+          const q = monthToQuarter(fallbackMonth);
+          if (q > 0) {
+            paidQuarters.add(`${year}-Q${q}`);
+          }
+        }
+      } catch (e) {
+        // JSON 解析失敗時，使用 paymentDate 的季度作為回退
+        const fallbackMonth = paymentDate.getMonth() + 1;
+        const q = monthToQuarter(fallbackMonth);
+        if (q > 0) {
+          paidQuarters.add(`${year}-Q${q}`);
+        }
+      }
+    }
+  }
+
+  return paidQuarters;
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -575,7 +677,6 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         
-        // 獲取學生的所有繳費記錄
         const db = await getDb();
         if (!db) {
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
@@ -583,27 +684,13 @@ export const appRouter = router({
         
         const payments = await db.select()
           .from(schema.paymentRecords)
-          .where(eq(schema.paymentRecords.studentId, input.studentId));
+          .where(and(
+            eq(schema.paymentRecords.studentId, input.studentId),
+            eq(schema.paymentRecords.status, 'confirmed')
+          ));
         
-        // 獲取已繳費的季度
-        const paidQuarters = new Set<string>();
-        payments.forEach((payment: any) => {
-          const paymentDate = new Date(payment.paymentDate);
-          const year = paymentDate.getFullYear();
-          
-          // 根據 paymentPeriod 判斷季度
-          if (payment.paymentPeriod === 'Q1') {
-            paidQuarters.add(`${year}-Q1`);
-          } else if (payment.paymentPeriod === 'Q2') {
-            paidQuarters.add(`${year}-Q2`);
-          } else if (payment.paymentPeriod === 'Q3') {
-            paidQuarters.add(`${year}-Q3`);
-          } else if (payment.paymentPeriod === 'Q4') {
-            paidQuarters.add(`${year}-Q4`);
-          }
-        });
+        const paidQuarters = resolvePaidQuarters(payments);
         
-        // 獲取當前年份和季度
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
@@ -612,7 +699,6 @@ export const appRouter = router({
         else if (currentMonth >= 7 && currentMonth <= 9) currentQuarter = 3;
         else if (currentMonth >= 10 && currentMonth <= 12) currentQuarter = 4;
         
-        // 從當前季度開始查找未繳費的季度
         for (let q = currentQuarter; q <= 4; q++) {
           const quarterKey = `${currentYear}-Q${q}`;
           if (!paidQuarters.has(quarterKey)) {
@@ -624,7 +710,6 @@ export const appRouter = router({
           }
         }
         
-        // 如果當前年份全部已繳,返回下一年的第一季
         return {
           year: currentYear + 1,
           quarter: 1,
@@ -644,9 +729,10 @@ export const appRouter = router({
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
         }
         
-        // 一次查詢所有繳費記錄
+        // 只查詢已確認的繳費記錄
         const allPayments = await db.select()
-          .from(schema.paymentRecords);
+          .from(schema.paymentRecords)
+          .where(eq(schema.paymentRecords.status, 'confirmed'));
         
         // 按學生分組
         const paymentsByStudent = new Map<number, typeof allPayments>();
@@ -656,7 +742,6 @@ export const appRouter = router({
           paymentsByStudent.set(payment.studentId, list);
         });
         
-        // 獲取當前年份和季度
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
@@ -665,23 +750,13 @@ export const appRouter = router({
         else if (currentMonth >= 7 && currentMonth <= 9) currentQuarter = 3;
         else if (currentMonth >= 10 && currentMonth <= 12) currentQuarter = 4;
         
-        // 獲取所有學生
         const allStudents = await db.select({ id: schema.students.id }).from(schema.students);
         
-        // 為每個學生計算下一個未繳季度
         const result: Record<number, { year: number; quarter: number; quarterName: string } | null> = {};
         
         for (const student of allStudents) {
           const payments = paymentsByStudent.get(student.id) || [];
-          const paidQuarters = new Set<string>();
-          payments.forEach((payment: any) => {
-            const paymentDate = new Date(payment.paymentDate);
-            const year = paymentDate.getFullYear();
-            if (payment.paymentPeriod === 'Q1') paidQuarters.add(`${year}-Q1`);
-            else if (payment.paymentPeriod === 'Q2') paidQuarters.add(`${year}-Q2`);
-            else if (payment.paymentPeriod === 'Q3') paidQuarters.add(`${year}-Q3`);
-            else if (payment.paymentPeriod === 'Q4') paidQuarters.add(`${year}-Q4`);
-          });
+          const paidQuarters = resolvePaidQuarters(payments);
           
           let found = false;
           for (let q = currentQuarter; q <= 4; q++) {

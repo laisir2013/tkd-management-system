@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { AttendanceManagementContent } from "@/components/AttendanceManagementContent";
 import { MonthlyPaymentRecords } from "@/components/MonthlyPaymentRecords";
 import CoachStatsWithElite from "@/components/CoachStatsWithElite";
+import { StudentWhatsAppButton } from "@/components/StudentWhatsAppButton";
 
 export default function CoachDashboard() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -138,6 +139,7 @@ export default function CoachDashboard() {
    ====================================================================== */
 function CoachStudentList({ coachName }: { coachName: string }) {
   const { data: allStudents, isLoading } = trpc.students.getAll.useQuery();
+  const { data: allNextUnpaidQuarters } = trpc.students.getAllNextUnpaidQuarters.useQuery();
   const [venueFilter, setVenueFilter] = useState("all");
 
   const myStudents = useMemo(() => {
@@ -176,7 +178,15 @@ function CoachStudentList({ coachName }: { coachName: string }) {
               <Users className="w-5 h-5" />
               恆常班學生名單
             </CardTitle>
-            <CardDescription>共 {myStudents.length} 位活躍學生</CardDescription>
+            <CardDescription>
+              共 {myStudents.length} 位活躍學生
+              {allNextUnpaidQuarters && (() => {
+                const unpaidCount = myStudents.filter((s: any) => allNextUnpaidQuarters[s.id]).length;
+                return unpaidCount > 0 ? (
+                  <span className="ml-2 text-red-600 font-medium">（{unpaidCount} 位待繳費）</span>
+                ) : null;
+              })()}
+            </CardDescription>
           </div>
           <Select value={venueFilter} onValueChange={setVenueFilter}>
             <SelectTrigger className="w-full sm:w-44 bg-white">
@@ -194,6 +204,7 @@ function CoachStudentList({ coachName }: { coachName: string }) {
       <CardContent className="space-y-4 p-3 sm:p-6">
         {grouped.map(([key, students]) => {
           const [venue, day, time] = key.split('|');
+          const unpaidInGroup = allNextUnpaidQuarters ? students.filter((s: any) => allNextUnpaidQuarters[s.id]).length : 0;
           return (
             <div key={key} className="border rounded-lg overflow-hidden">
               <div className="px-3 py-2 bg-gradient-to-r from-green-50 to-teal-50 flex items-center justify-between">
@@ -202,7 +213,12 @@ function CoachStudentList({ coachName }: { coachName: string }) {
                   {day && <span className="text-green-600 ml-2">{day}</span>}
                   {time && <span className="text-gray-500 ml-2 text-xs">{time}</span>}
                 </div>
-                <span className="text-xs text-green-700 font-medium">{students.length} 人</span>
+                <div className="flex items-center gap-2">
+                  {unpaidInGroup > 0 && (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">{unpaidInGroup} 人未繳</span>
+                  )}
+                  <span className="text-xs text-green-700 font-medium">{students.length} 人</span>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <Table>
@@ -213,11 +229,12 @@ function CoachStudentList({ coachName }: { coachName: string }) {
                       <TableHead className="hidden sm:table-cell">電話</TableHead>
                       <TableHead>級數</TableHead>
                       <TableHead className="text-right">學費/季</TableHead>
+                      <TableHead className="text-center">通知繳費</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {students.map((s: any, i: number) => (
-                      <TableRow key={s.id}>
+                      <TableRow key={s.id} className={allNextUnpaidQuarters?.[s.id] ? 'bg-red-50/50' : ''}>
                         <TableCell className="text-gray-400 text-xs">{i + 1}</TableCell>
                         <TableCell className="font-medium text-sm">
                           {s.name}
@@ -230,6 +247,15 @@ function CoachStudentList({ coachName }: { coachName: string }) {
                           ) : <span className="text-gray-300">-</span>}
                         </TableCell>
                         <TableCell className="text-right font-mono text-sm">${s.feePerQuarter}</TableCell>
+                        <TableCell className="text-center">
+                          <StudentWhatsAppButton
+                            studentId={s.id}
+                            studentName={s.name}
+                            studentPhone={s.phone}
+                            feeAmount={s.feePerQuarter}
+                            nextUnpaidQuarter={allNextUnpaidQuarters?.[s.id] ?? undefined}
+                          />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
