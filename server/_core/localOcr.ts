@@ -181,11 +181,14 @@ function extractRecipient(text: string): { name: string | null; account: string 
   // 按行分割，找出「收款人/賬戶」這行及其後續行
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
-  // 優先提取 ZA Bank 格式的「收款方識別代碼」/ Payee proxy ID（這是 FPS 識別碼）
+  // 優先提取 FPS 識別碼（各種格式）
   // 必須在一般帳號搜索之前執行，避免誤取付款方帳號
   const proxyPatterns = [
     /收款方識別代碼\s+(\d{5,})/,
+    /快速支付系統識別碼\s*[:：]?\s*(\d{5,})/,
     /Payee\s*proxy\s*ID\s+(\d{5,})/i,
+    /FPS\s*(?:ID|識別碼|編號)\s*[:：]?\s*(\d{5,})/i,
+    /轉數快\s*(?:ID|識別碼|編號)\s*[:：]?\s*(\d{5,})/,
   ];
   for (const pattern of proxyPatterns) {
     const match = text.match(pattern);
@@ -198,8 +201,8 @@ function extractRecipient(text: string): { name: string | null; account: string 
   let recipientLineIdx = -1;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // 精確匹配「收款人/賬戶」或「收款人」或「收款戶口」作為行開頭（排除「發送給收款人」等）
-    if (/^收款人[/\/]?[賬帳]?[戶户]?\s/.test(line) || /^收款人[/\/]/.test(line) || /^收款戶口\s/.test(line)) {
+    // 精確匹配「收款人/賬戶」或「收款人」或「收款戶口」或「受款人」作為行開頭
+    if (/^[收受]款人[/\/]?[賬帳]?[戶户]?\s/.test(line) || /^[收受]款人[/\/]/.test(line) || /^收款戶口\s/.test(line)) {
       recipientLineIdx = i;
       break;
     }
@@ -218,7 +221,7 @@ function extractRecipient(text: string): { name: string | null; account: string 
   if (recipientLineIdx >= 0) {
     // 從「收款人/賬戶」行提取名稱（行內名稱部分）
     const recipientLine = lines[recipientLineIdx];
-    const nameMatch = recipientLine.match(/(?:收款人[/\/]?[賬帳]?[戶户]?|收款戶口|收款方名稱|Payee|Recipient|Beneficiary)\s+(.+)/i);
+    const nameMatch = recipientLine.match(/(?:[收受]款人[/\/]?[賬帳]?[戶户]?|收款戶口|收款方名稱|Payee|Recipient|Beneficiary)\s+(.+)/i);
     if (nameMatch) {
       let extracted = nameMatch[1].trim();
       // 如果下一行是名稱續行（全英文大寫，如 "LIMITED"）
