@@ -78,6 +78,7 @@ export default function Admin() {
   const [coachFilter, setCoachFilter] = useState<string>("all");
   const [trainingDayFilter, setTrainingDayFilter] = useState<string>("all");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [quarterFilter, setQuarterFilter] = useState<string>("all");
   const [studentSearchQuery, setStudentSearchQuery] = useState<string>("");
   const [showPendingOnly, setShowPendingOnly] = useState<boolean>(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -463,7 +464,29 @@ export default function Admin() {
       }
     }
     
-    return venueMatch && coachMatch && trainingDayMatch && paymentMatch;
+    // 學費期數篩選
+    let quarterMatch = true;
+    if (quarterFilter !== "all") {
+      const unpaid = allNextUnpaidQuarters?.[s.id];
+      if (quarterFilter === "paid_all") {
+        // 已全部繳清（下一期是明年以後）
+        const now = new Date();
+        quarterMatch = !!unpaid && unpaid.year > now.getFullYear();
+      } else {
+        // 格式: "2026-Q1" → 該期是下一筆未繳的（即該期未繳）
+        const [fYear, fQ] = quarterFilter.split('-Q');
+        const filterYear = parseInt(fYear);
+        const filterQuarter = parseInt(fQ);
+        // 學生的下一未繳期 <= 所選期數 → 表示該期未繳
+        if (unpaid) {
+          quarterMatch = unpaid.year < filterYear || (unpaid.year === filterYear && unpaid.quarter <= filterQuarter);
+        } else {
+          quarterMatch = true; // 無資料，顯示
+        }
+      }
+    }
+
+    return venueMatch && coachMatch && trainingDayMatch && paymentMatch && quarterMatch;
   })?.filter(s => {
     if (!studentSearchQuery.trim()) return true;
     const q = studentSearchQuery.trim().toLowerCase();
@@ -597,6 +620,34 @@ export default function Admin() {
                         <SelectItem value="paid">已繳費</SelectItem>
                         <SelectItem value="unpaid">未繳費</SelectItem>
                         <SelectItem value="partial">部分繳費</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={quarterFilter} onValueChange={setQuarterFilter}>
+                      <SelectTrigger className="w-full sm:w-44">
+                        <SelectValue placeholder="學費期數" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部期數</SelectItem>
+                        {(() => {
+                          const now = new Date();
+                          const year = now.getFullYear();
+                          const options = [];
+                          const qNames = ['1-3月', '4-6月', '7-9月', '10-12月'];
+                          // 當年 4 季 + 明年 4 季
+                          for (let y = year; y <= year + 1; y++) {
+                            for (let q = 1; q <= 4; q++) {
+                              options.push(
+                                <SelectItem key={`${y}-Q${q}`} value={`${y}-Q${q}`}>
+                                  {y}年{qNames[q-1]} 未繳
+                                </SelectItem>
+                              );
+                            }
+                          }
+                          options.push(
+                            <SelectItem key="paid_all" value="paid_all">已全部繳清</SelectItem>
+                          );
+                          return options;
+                        })()}
                       </SelectContent>
                     </Select>
                     <div className="relative w-full sm:w-48">
