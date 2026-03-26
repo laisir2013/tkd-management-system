@@ -60,6 +60,8 @@ function extractAmount(text: string): string | null {
 
   // 匹配常見的金額模式
   const patterns = [
+    // 交易金額 - HKD 1,440.00 (ZA Bank 格式，帶負號表示扣款)
+    /交易金額\s*[-−]?\s*HKD\s*([\d,]+\.\d{2})/i,
     // 港元1800.00 / 港元 1,800.00
     /港元\s*([\d,]+\.?\d*)/,
     // 港幣 1,800.00
@@ -102,6 +104,7 @@ function extractBank(text: string): string | null {
     [/STANDARD CHARTERED|渣打/i, "渣打銀行"],
     [/DBS|星展/i, "星展銀行"],
     [/CITIBANK|花旗/i, "花旗銀行"],
+    [/ZA\s*Bank/i, "ZA Bank"],
     [/PayMe/i, "PayMe"],
     [/FPS|轉數快|快速支付/i, "FPS轉數快"],
     [/WeChat Pay|微信支付/i, "微信支付"],
@@ -178,11 +181,30 @@ function extractRecipient(text: string): { name: string | null; account: string 
   // 按行分割，找出「收款人/賬戶」這行及其後續行
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
+  // 優先提取 ZA Bank 格式的「收款方識別代碼」/ Payee proxy ID（這是 FPS 識別碼）
+  // 必須在一般帳號搜索之前執行，避免誤取付款方帳號
+  const proxyPatterns = [
+    /收款方識別代碼\s+(\d{5,})/,
+    /Payee\s*proxy\s*ID\s+(\d{5,})/i,
+  ];
+  for (const pattern of proxyPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      account = match[1];
+      break;
+    }
+  }
+
   let recipientLineIdx = -1;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     // 精確匹配「收款人/賬戶」或「收款人」或「收款戶口」作為行開頭（排除「發送給收款人」等）
     if (/^收款人[/\/]?[賬帳]?[戶户]?\s/.test(line) || /^收款人[/\/]/.test(line) || /^收款戶口\s/.test(line)) {
+      recipientLineIdx = i;
+      break;
+    }
+    // ZA Bank 格式：「收款方名稱」
+    if (/^收款方名稱\s/.test(line)) {
       recipientLineIdx = i;
       break;
     }
@@ -196,7 +218,7 @@ function extractRecipient(text: string): { name: string | null; account: string 
   if (recipientLineIdx >= 0) {
     // 從「收款人/賬戶」行提取名稱（行內名稱部分）
     const recipientLine = lines[recipientLineIdx];
-    const nameMatch = recipientLine.match(/(?:收款人[/\/]?[賬帳]?[戶户]?|收款戶口|Payee|Recipient|Beneficiary)\s+(.+)/i);
+    const nameMatch = recipientLine.match(/(?:收款人[/\/]?[賬帳]?[戶户]?|收款戶口|收款方名稱|Payee|Recipient|Beneficiary)\s+(.+)/i);
     if (nameMatch) {
       let extracted = nameMatch[1].trim();
       // 如果下一行是名稱續行（全英文大寫，如 "LIMITED"）
@@ -210,18 +232,25 @@ function extractRecipient(text: string): { name: string | null; account: string 
     }
 
     // 從收款人行之後找帳號（純數字6~20位）
-    for (let i = recipientLineIdx + 1; i < Math.min(recipientLineIdx + 5, lines.length); i++) {
-      const line = lines[i];
-      const acctMatch = line.match(/^(\d{6,20})\s*$/);
-      if (acctMatch) {
-        account = acctMatch[1];
-        break;
-      }
-      // 也匹配行內的帳號
-      const inlineMatch = line.match(/\b(\d{6,20})\b/);
-      if (inlineMatch && !/^\d{4}[\/\-]/.test(line)) { // 排除日期
-        account = inlineMatch[1];
-        break;
+    // 跳過付款方/支賬相關行，避免誤取付款人帳號
+    if (!account) {
+      for (let i = recipientLineIdx + 1; i < Math.min(recipientLineIdx + 5, lines.length); i++) {
+        const line = lines[i];
+        // 跳過付款方/支賬/交易金額/服務收費等非收款人行
+        if (/^(?:付款方|支賬|交易金額|服務收費|轉賬交易|備註)/.test(line)) {
+          break; // 已經離開收款人區域
+        }
+        const acctMatch = line.match(/^(\d{6,20})\s*$/);
+        if (acctMatch) {
+          account = acctMatch[1];
+          break;
+        }
+        // 也匹配行內的帳號
+        const inlineMatch = line.match(/\b(\d{6,20})\b/);
+        if (inlineMatch && !/^\d{4}[\/\-]/.test(line)) { // 排除日期
+          account = inlineMatch[1];
+          break;
+        }
       }
     }
   }
@@ -235,9 +264,11 @@ function extractRecipient(text: string): { name: string | null; account: string 
     }
   }
 
-  // FPS ID / 轉數快識別碼提取
+  // FPS ID / 轉數快識別碼（備用，如果上面沒找到）
   if (!account) {
     const fpsPatterns = [
+      /收款方識別代碼\s+(\d{5,})/,
+      /Payee\s*proxy\s*ID\s+(\d{5,})/i,
       /FPS\s*(?:ID|識別碼|編號)\s*[:：]?\s*(\d{5,})/i,
       /轉數快\s*(?:ID|識別碼|編號)\s*[:：]?\s*(\d{5,})/,
     ];
@@ -266,6 +297,8 @@ function extractStatus(text: string): string | null {
     /款項已成功/,
     /即時轉賬/,
     /即時轉帳/,
+    /轉數快轉賬/,
+    /FPS transfer/i,
   ];
   const pendingPatterns = [/處理中/, /pending/i, /processing/i];
   const failPatterns = [/失敗/, /failed/i, /rejected/i, /拒絕/];
@@ -286,6 +319,28 @@ function extractStatus(text: string): string | null {
  * 從 OCR 文字中解析日期
  */
 function extractDate(text: string): string | null {
+  // 英文月份映射
+  const monthMap: Record<string, string> = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+  };
+
+  // 嘗試英文日期格式 "20 Mar 2026" 或 "Mar 20, 2026"
+  const engDateMatch1 = text.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i);
+  if (engDateMatch1) {
+    const day = engDateMatch1[1].padStart(2, '0');
+    const month = monthMap[engDateMatch1[2].toLowerCase().substring(0, 3)];
+    const year = engDateMatch1[3];
+    if (month) return `${year}-${month}-${day}`;
+  }
+  const engDateMatch2 = text.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),?\s+(\d{4})/i);
+  if (engDateMatch2) {
+    const month = monthMap[engDateMatch2[1].toLowerCase().substring(0, 3)];
+    const day = engDateMatch2[2].padStart(2, '0');
+    const year = engDateMatch2[3];
+    if (month) return `${year}-${month}-${day}`;
+  }
+
   const patterns = [
     // 2026/02/26 or 2026-02-26
     /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,
