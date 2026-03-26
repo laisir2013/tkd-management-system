@@ -1450,7 +1450,11 @@ export const appRouter = router({
                 
                 if (accountMatch || nameMatch) {
                   isRecipientValid = true;
-                  console.log(`[Receipt] 收款人驗證通過: 帳號=${cleanedExtractedAccount}, 名稱=${cleanedExtractedName}, 匹配=${accepted.name}`);
+                  // 使用收款方的銀行名稱（而非付款方的銀行）
+                  if ((accepted as any).bankName) {
+                    extractedBank = (accepted as any).bankName;
+                  }
+                  console.log(`[Receipt] 收款人驗證通過: 帳號=${cleanedExtractedAccount}, 名稱=${cleanedExtractedName}, 匹配=${accepted.name}, 收款銀行=${extractedBank}`);
                   break;
                 }
               }
