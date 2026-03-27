@@ -34,7 +34,6 @@ export function WhatsAppReminderButton({
     setLocalLastReminded(now);
 
     // 開啟 WhatsApp
-    const systemUrl = window.location.origin;
     const quarterMap: Record<number, string> = {
       1: "1-3月",
       2: "1-3月",
@@ -50,7 +49,7 @@ export function WhatsAppReminderButton({
       12: "10-12月",
     };
     const quarterName = quarterMap[month] || `${month}月`;
-    const message = `🥋 ${studentName} 家長您好！\n\n📌 *${year}年${quarterName}學費通知*\n應繳學費：*$${amount}*\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\n📱 *上傳收據步驟*\n\n1️⃣ 完成轉帳並截圖\n2️⃣ 登入系統：${systemUrl}\n3️⃣ 使用您的電話號碼登入\n   · 帳號：${studentPhone}\n   · 密碼：${studentPhone}\n   (登入後可自行修改密碼)\n4️⃣ 上傳收據截圖\n5️⃣ 完成！可隨時查閱繳費記錄\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
+    const message = `🥋 *${studentName}* 家長您好！\n\n📌 *${year}年 ${quarterName} 學費通知*\n應繳學費：*$${amount}*\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
     const whatsappUrl = `https://api.whatsapp.com/send?phone=852${studentPhone}&text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, "_blank");
   };
