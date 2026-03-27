@@ -17,6 +17,65 @@ function safeParseCustomMonths(value: any): string[] | null {
   return null;
 }
 
+/**
+ * 從 customMonths 值提取月份數字列表（通用函數）
+ * 處理所有可能的格式：
+ *   ["1月","2月","3月","4月","5月","6月"]  — 標準陣列
+ *   ["1月，2月，3月，4月，5月，6月"]       — 全形逗號分隔的單字串
+ *   ["2025年12月，2026年1-3月"]           — 跨年/範圍格式
+ * 
+ * @param customMonths - raw customMonths 欄位值（string | string[] | null）
+ * @param targetYear - 目標年份（用於跨年格式過濾）
+ * @returns 月份數字陣列（1-12）
+ */
+export function extractMonthNumbers(customMonths: any, targetYear?: number): number[] {
+  const arr = safeParseCustomMonths(customMonths);
+  if (!arr || !Array.isArray(arr)) return [];
+  
+  const monthNums: number[] = [];
+  
+  // 展平：把所有元素用全形/半形逗號拆開
+  const parts: string[] = [];
+  arr.forEach((item: string) => {
+    item.split(/[，,]/).forEach(p => parts.push(p.trim()));
+  });
+  
+  parts.forEach(part => {
+    if (!part) return;
+    
+    // 格式：「2025年12月」或「2026年1-3月」
+    const yearMatch = part.match(/(\d{4})年(\d{1,2})(?:\s*[-~]\s*(\d{1,2}))?月/);
+    if (yearMatch) {
+      const partYear = parseInt(yearMatch[1]);
+      if (!targetYear || partYear === targetYear) {
+        const startM = parseInt(yearMatch[2]);
+        const endM = yearMatch[3] ? parseInt(yearMatch[3]) : startM;
+        for (let m = startM; m <= endM; m++) {
+          if (m >= 1 && m <= 12) monthNums.push(m);
+        }
+      }
+      return;
+    }
+    
+    // 格式：「1月」「2月」「1-3月」等（不帶年份）
+    const simpleMatch = part.match(/(\d{1,2})(?:\s*[-~]\s*(\d{1,2}))?月/);
+    if (simpleMatch) {
+      const startM = parseInt(simpleMatch[1]);
+      const endM = simpleMatch[2] ? parseInt(simpleMatch[2]) : startM;
+      for (let m = startM; m <= endM; m++) {
+        if (m >= 1 && m <= 12) monthNums.push(m);
+      }
+      return;
+    }
+    
+    // 最後嘗試：純數字
+    const num = parseInt(part.replace(/[^0-9]/g, ''));
+    if (num >= 1 && num <= 12) monthNums.push(num);
+  });
+  
+  return [...new Set(monthNums)]; // 去重
+}
+
 let _db: ReturnType<typeof drizzle> | null = null;
 let _rawPool: mysql.Pool | null = null;
 
@@ -265,19 +324,8 @@ export async function deletePaymentForMonth(studentId: number, year: number, mon
   
   for (const rec of customRecords) {
     if (!rec.customMonths) continue;
-    const customMonthsData = safeParseCustomMonths(rec.customMonths);
-    if (!Array.isArray(customMonthsData)) continue;
-    
-    const matchesMonth = customMonthsData.some((cm: string) => {
-      let monthNum: number | null = null;
-      if (cm.includes('-')) {
-        const parts = cm.split('-');
-        if (parseInt(parts[0]) === year) monthNum = parseInt(parts[1]);
-      } else {
-        monthNum = parseInt(cm.replace(/[^0-9]/g, ''));
-      }
-      return monthNum === month;
-    });
+    const monthNums = extractMonthNumbers(rec.customMonths, year);
+    const matchesMonth = monthNums.includes(month);
     
     if (matchesMonth) {
       await db.delete(paymentRecords).where(eq(paymentRecords.id, rec.id));
@@ -487,24 +535,10 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
           });
         } else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
           // 自選月份繳費
-          const customMonthsData = safeParseCustomMonths(p.customMonths);
-          if (Array.isArray(customMonthsData)) {
-            customMonthsData.forEach((cm: string) => {
-              // 格式: "2026-01" or "1月" etc
-              let monthNum: number | null = null;
-              if (cm.includes('-')) {
-                const parts = cm.split('-');
-                if (parseInt(parts[0]) === targetYear) {
-                  monthNum = parseInt(parts[1]);
-                }
-              } else {
-                monthNum = parseInt(cm.replace(/[^0-9]/g, ''));
-              }
-              if (monthNum && monthNum >= 1 && monthNum <= 12) {
-                paidMonths.set(monthNum, { paymentDate, confirmedBy, receiptUrl, paymentType: 'monthly', isPending, amount, paymentRecordId });
-              }
-            });
-          }
+          const months = extractMonthNumbers(p.customMonths, targetYear);
+          months.forEach((monthNum: number) => {
+            paidMonths.set(monthNum, { paymentDate, confirmedBy, receiptUrl, paymentType: 'monthly', isPending, amount, paymentRecordId });
+          });
         }
       });
       
@@ -767,19 +801,8 @@ export async function getQuarterlyFeeStatistics(year: number, quarter: 'Q1' | 'Q
     }
     // 自選月份
     else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
-      const cms = safeParseCustomMonths(p.customMonths);
-      if (Array.isArray(cms)) {
-        cms.forEach((cm: string) => {
-          let mn: number | null = null;
-          if (cm.includes('-')) {
-            const parts = cm.split('-');
-            if (parseInt(parts[0]) === year) mn = parseInt(parts[1]);
-          } else {
-            mn = parseInt(cm.replace(/[^0-9]/g, ''));
-          }
-          if (mn && mn >= 1 && mn <= 12) paid.add(mn);
-        });
-      }
+      const months = extractMonthNumbers(p.customMonths, year);
+      months.forEach(m => paid.add(m));
     }
   });
   
@@ -1492,52 +1515,6 @@ export async function getCoachStatsWithElite(year?: number, quarter?: number) {
   const quarterMonths: Record<number, number[]> = { 1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12] };
   
   /**
-   * 從 customMonths 解析出覆蓋的月份數字列表
-   * 支援格式：
-   *   ["1月","2月","3月","4月","5月","6月"]
-   *   ["1月，2月，3月，4月，5月，6月"]  (全形逗號分隔的單字串)
-   *   ["2025年12月，2026年1-3月"]  (跨年格式)
-   */
-  function parseCustomMonthNumbers(customMonths: any, targetYear: number): number[] {
-    if (!customMonths) return [];
-    let arr: string[];
-    try {
-      arr = typeof customMonths === 'string' ? JSON.parse(customMonths) : customMonths;
-    } catch { return []; }
-    if (!Array.isArray(arr)) return [];
-    
-    const monthNums: number[] = [];
-    // 展平：先把所有元素用全形/半形逗號拆開
-    const parts: string[] = [];
-    arr.forEach(item => {
-      // 拆分全形逗號和半形逗號
-      item.split(/[，,]/).forEach(p => parts.push(p.trim()));
-    });
-    
-    parts.forEach(part => {
-      // 格式：「2025年12月」或「2026年1-3月」
-      const yearMatch = part.match(/(\d{4})年(\d{1,2})(?:\s*[-~]\s*(\d{1,2}))?月/);
-      if (yearMatch) {
-        const partYear = parseInt(yearMatch[1]);
-        if (partYear === targetYear) {
-          const startM = parseInt(yearMatch[2]);
-          const endM = yearMatch[3] ? parseInt(yearMatch[3]) : startM;
-          for (let m = startM; m <= endM; m++) monthNums.push(m);
-        }
-        return;
-      }
-      // 格式：「1月」「2月」等（不帶年份，預設當年）
-      const simpleMatch = part.match(/(\d{1,2})(?:\s*[-~]\s*(\d{1,2}))?月/);
-      if (simpleMatch) {
-        const startM = parseInt(simpleMatch[1]);
-        const endM = simpleMatch[2] ? parseInt(simpleMatch[2]) : startM;
-        for (let m = startM; m <= endM; m++) monthNums.push(m);
-      }
-    });
-    return monthNums;
-  }
-  
-  /**
    * 計算某筆付款在指定季度中應佔的金額
    * - Q1/Q2/Q3/Q4 標準付款：按 paymentDate 歸季，全額計入
    * - CUSTOM 付款：按 customMonths 覆蓋的月份比例分攤到各季
@@ -1550,7 +1527,7 @@ export async function getCoachStatsWithElite(year?: number, quarter?: number) {
     
     if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
       // CUSTOM 付款：根據 customMonths 覆蓋月份按比例分攤
-      const coveredMonths = parseCustomMonthNumbers(p.customMonths, targetYear);
+      const coveredMonths = extractMonthNumbers(p.customMonths, targetYear);
       if (coveredMonths.length === 0) return 0;
       const monthsInThisQuarter = coveredMonths.filter(m => months.includes(m)).length;
       if (monthsInThisQuarter === 0) return 0;
@@ -1697,37 +1674,7 @@ export async function getMonthlyFinanceReport(year: number) {
     if (amount <= 0) return 0;
     
     if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
-      // 複用 parseCustomMonthNumbers（在 getCoachStatsWithElite 中定義）
-      let arr: string[];
-      try {
-        arr = typeof p.customMonths === 'string' ? JSON.parse(p.customMonths) : p.customMonths;
-      } catch { return 0; }
-      if (!Array.isArray(arr)) return 0;
-      
-      const monthNums: number[] = [];
-      const parts: string[] = [];
-      arr.forEach((item: string) => {
-        item.split(/[，,]/).forEach(pp => parts.push(pp.trim()));
-      });
-      parts.forEach(part => {
-        const yearMatch = part.match(/(\d{4})年(\d{1,2})(?:\s*[-~]\s*(\d{1,2}))?月/);
-        if (yearMatch) {
-          const partYear = parseInt(yearMatch[1]);
-          if (partYear === targetYear) {
-            const startM = parseInt(yearMatch[2]);
-            const endM = yearMatch[3] ? parseInt(yearMatch[3]) : startM;
-            for (let m = startM; m <= endM; m++) monthNums.push(m);
-          }
-          return;
-        }
-        const simpleMatch = part.match(/(\d{1,2})(?:\s*[-~]\s*(\d{1,2}))?月/);
-        if (simpleMatch) {
-          const startM = parseInt(simpleMatch[1]);
-          const endM = simpleMatch[2] ? parseInt(simpleMatch[2]) : startM;
-          for (let m = startM; m <= endM; m++) monthNums.push(m);
-        }
-      });
-      
+      const monthNums = extractMonthNumbers(p.customMonths, targetYear);
       if (monthNums.length === 0) return 0;
       if (!monthNums.includes(targetMonth)) return 0;
       return amount / monthNums.length;

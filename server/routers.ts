@@ -166,6 +166,8 @@ import {
   getReceiptReviews,
   getReceiptCompare,
   reviewReceipt,
+  // CUSTOM 月份解析
+  extractMonthNumbers,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -2097,19 +2099,8 @@ export const appRouter = router({
           }
           // 自選月份
           else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
-            const cms = (() => { const v = p.customMonths; if (!v) return null; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p2 = JSON.parse(v); return Array.isArray(p2) ? p2 : null; } catch { return null; } } return null; })();
-            if (Array.isArray(cms)) {
-              cms.forEach((cm: string) => {
-                let mn: number | null = null;
-                if (cm.includes('-')) {
-                  const parts = cm.split('-');
-                  if (parseInt(parts[0]) === year) mn = parseInt(parts[1]);
-                } else {
-                  mn = parseInt(cm.replace(/[^0-9]/g, ''));
-                }
-                if (mn && mn >= 1 && mn <= 12) paid.add(mn);
-              });
-            }
+            const months = extractMonthNumbers(p.customMonths, year);
+            months.forEach(m => paid.add(m));
           }
         });
         
