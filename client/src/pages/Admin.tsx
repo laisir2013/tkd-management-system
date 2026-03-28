@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Loader2, FileSpreadsheet, Users, Receipt, Filter, ChevronDown, ChevronRight, KeyRound, MoreHorizontal, Search } from "lucide-react";
+import { Upload, Loader2, FileSpreadsheet, Users, Receipt, Filter, ChevronDown, ChevronRight, KeyRound, MoreHorizontal, Search, Pencil } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
@@ -746,31 +746,40 @@ export default function Admin() {
                               />
                             </TableCell>
                             <TableCell className="text-center">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="sm">
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => {
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                                  onClick={() => {
                                     setEditingStudent(student);
                                     setShowEditDialog(true);
-                                  }}>
-                                    編輯資料
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setResetPasswordStudent(student);
-                                      setShowResetPasswordDialog(true);
-                                    }}
-                                    className="text-orange-600"
-                                  >
-                                    <KeyRound className="w-4 h-4 mr-1" />
-                                    重置密碼
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                                  }}
+                                  title="編輯學生資料"
+                                >
+                                  <Pencil className="w-3.5 h-3.5 mr-1" />
+                                  編輯
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setResetPasswordStudent(student);
+                                        setShowResetPasswordDialog(true);
+                                      }}
+                                      className="text-orange-600"
+                                    >
+                                      <KeyRound className="w-4 h-4 mr-1" />
+                                      重置密碼
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );

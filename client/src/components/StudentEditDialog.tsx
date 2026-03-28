@@ -6,6 +6,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { Save, Loader2 } from "lucide-react";
+
+// 跆拳道色帶順序
+const BELT_ORDER = [
+  '白帶', '黃帶', '黃綠帶', '綠帶', '綠藍帶',
+  '藍帶', '藍紅帶', '紅帶', '紅黑帶',
+  '黑帶', '黑帶1段', '黑帶2段', '黑帶3段', '黑帶4段',
+];
+
+// 教練名單
+const COACH_LIST = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
 
 interface StudentEditDialogProps {
   open: boolean;
@@ -25,6 +36,7 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
     feePerQuarter: "",
     beltLevel: "",
     birthDate: "",
+    coach: "",
   });
 
   // 查詢所有道場資料
@@ -47,8 +59,21 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
 
   const updateMutation = trpc.students.update.useMutation({
     onSuccess: async () => {
-      toast.success("學生資料已更新");
-      await utils.students.getAll.invalidate();
+      toast.success("學生資料已更新，全系統已同步");
+
+      // 全面刷新所有相關緩存，確保全系統同步
+      await Promise.all([
+        utils.students.getAll.invalidate(),
+        utils.students.getAllNextUnpaidQuarters.invalidate(),
+        utils.payments.getAllWithStudents.invalidate(),
+        utils.payments.getQuarterlyStatuses.invalidate(),
+        utils.payments.getMonthlyStatuses.invalidate(),
+        utils.users.getQuarterlyStats.invalidate(),
+        utils.users.getUnpaidStudentsForQuarter.invalidate(),
+        utils.coachStats.getAll.invalidate(),
+        utils.coachStats.getMonthlyFinance.invalidate(),
+      ]);
+
       onSuccess();
       onOpenChange(false);
     },
@@ -68,12 +93,17 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
         feePerQuarter: student.feePerQuarter || "",
         beltLevel: student.beltLevel || "",
         birthDate: student.birthDate ? new Date(student.birthDate).toISOString().split('T')[0] : "",
+        coach: student.coach || "",
       });
     }
   }, [student]);
 
   const handleSubmit = () => {
     if (!student) return;
+    if (!formData.name.trim()) {
+      toast.error("請輸入學生姓名");
+      return;
+    }
 
     updateMutation.mutate({
       id: student.id,
@@ -86,13 +116,16 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>編輯學生資料</DialogTitle>
+          <DialogTitle className="text-lg">
+            編輯學生資料 — {student?.name}
+          </DialogTitle>
           <DialogDescription>
-            修改學生的基本資料和班別資訊
+            修改後將即時同步至全系統（繳費記錄、教練統計、財務報表等）
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
+          {/* 姓名 + 電話 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">姓名 *</Label>
@@ -102,7 +135,6 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="phone">電話 *</Label>
               <Input
@@ -113,6 +145,7 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
             </div>
           </div>
 
+          {/* 出生日期 + 色帶 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="birthDate">出生日期</Label>
@@ -123,18 +156,45 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
                 onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
               />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="beltLevel">級數</Label>
-              <Input
-                id="beltLevel"
-                value={formData.beltLevel}
-                onChange={(e) => setFormData({ ...formData, beltLevel: e.target.value })}
-                placeholder="例如: 白帶、黃帶"
-              />
+              <Label htmlFor="beltLevel">色帶級數</Label>
+              <Select
+                value={formData.beltLevel || "_none"}
+                onValueChange={(value) => setFormData({ ...formData, beltLevel: value === "_none" ? "" : value })}
+              >
+                <SelectTrigger id="beltLevel">
+                  <SelectValue placeholder="選擇色帶" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">未設定</SelectItem>
+                  {BELT_ORDER.map((belt) => (
+                    <SelectItem key={belt} value={belt}>{belt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
+          {/* 教練 */}
+          <div className="space-y-2">
+            <Label htmlFor="coach">負責教練</Label>
+            <Select
+              value={formData.coach || "_none"}
+              onValueChange={(value) => setFormData({ ...formData, coach: value === "_none" ? "" : value })}
+            >
+              <SelectTrigger id="coach">
+                <SelectValue placeholder="選擇教練" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none">未指定</SelectItem>
+                {COACH_LIST.map((coach) => (
+                  <SelectItem key={coach} value={coach}>{coach}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 道場 */}
           <div className="space-y-2">
             <Label htmlFor="venue">道場 *</Label>
             <Select
@@ -152,6 +212,7 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
             </Select>
           </div>
 
+          {/* 上課日 + 上課時間 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="scheduleDay">上課日</Label>
@@ -170,7 +231,6 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="scheduleTime">上課時間</Label>
               <Select
@@ -190,13 +250,14 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
             </div>
           </div>
 
+          {/* 每季學費 */}
           <div className="space-y-2">
             <Label htmlFor="feePerQuarter">每季學費 *</Label>
             <Input
               id="feePerQuarter"
               value={formData.feePerQuarter}
               onChange={(e) => setFormData({ ...formData, feePerQuarter: e.target.value })}
-              placeholder="例如: 2400"
+              placeholder="例如: 1800"
             />
           </div>
         </div>
@@ -205,8 +266,18 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button onClick={handleSubmit} disabled={updateMutation.isPending}>
-            {updateMutation.isPending ? "更新中..." : "儲存"}
+          <Button onClick={handleSubmit} disabled={updateMutation.isPending} className="bg-blue-600 hover:bg-blue-700">
+            {updateMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                更新中...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-1" />
+                儲存變更
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
