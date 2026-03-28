@@ -79,6 +79,7 @@ export default function Admin() {
   const [trainingDayFilter, setTrainingDayFilter] = useState<string>("all");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [quarterFilter, setQuarterFilter] = useState<string>("all");
+  const [beltLevelFilter, setBeltLevelFilter] = useState<string>("all");
   const [studentSearchQuery, setStudentSearchQuery] = useState<string>("");
   const [showPendingOnly, setShowPendingOnly] = useState<boolean>(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -486,7 +487,10 @@ export default function Admin() {
       }
     }
 
-    return venueMatch && coachMatch && trainingDayMatch && paymentMatch && quarterMatch;
+    // 色帶篩選
+    const beltMatch = beltLevelFilter === "all" || s.beltLevel === beltLevelFilter;
+
+    return venueMatch && coachMatch && trainingDayMatch && paymentMatch && quarterMatch && beltMatch;
   })?.filter(s => {
     if (!studentSearchQuery.trim()) return true;
     const q = studentSearchQuery.trim().toLowerCase();
@@ -620,6 +624,27 @@ export default function Admin() {
                         <SelectItem value="paid">已繳費</SelectItem>
                         <SelectItem value="unpaid">未繳費</SelectItem>
                         <SelectItem value="partial">部分繳費</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={beltLevelFilter} onValueChange={setBeltLevelFilter}>
+                      <SelectTrigger className="w-full sm:w-36">
+                        <SelectValue placeholder="色帶級別" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部色帶</SelectItem>
+                        {(() => {
+                          // 跆拳道色帶順序
+                          const beltOrder = ['白帶','黃帶','黃綠帶','綠帶','綠藍帶','藍帶','藍紅帶','紅帶','紅黑帶','黑帶','黑帶1段','黑帶2段','黑帶3段','黑帶4段'];
+                          const existingBelts = Array.from(new Set(students?.map(s => s.beltLevel).filter(Boolean) || []));
+                          const sorted = existingBelts.sort((a, b) => {
+                            const ia = beltOrder.indexOf(a as string);
+                            const ib = beltOrder.indexOf(b as string);
+                            return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+                          });
+                          return sorted.map(belt => (
+                            <SelectItem key={belt as string} value={belt as string}>{belt}</SelectItem>
+                          ));
+                        })()}
                       </SelectContent>
                     </Select>
                     <Select value={quarterFilter} onValueChange={setQuarterFilter}>
