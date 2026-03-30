@@ -545,6 +545,7 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const createPayment = trpc.payments.create.useMutation();
+  const createMergedPayment = trpc.payments.createMergedPayment.useMutation();
 
   // 判斷某位學生的某季度是否已繳費（confirmed 狀態即視為已付）
   const isPeriodPaid = (studentId: number, checkPeriod: PaymentPeriod) => {
@@ -637,27 +638,27 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
       let lastPendingReason = '';
       let hasNeedsReview = false;
       let lastReviewReason = '';
-      for (const studentId of selectedStudentIds) {
-        const result = await createPayment.mutateAsync({
-          studentId,
-          paymentPeriod: period,
-          customMonths: period === "CUSTOM" ? customMonths.split(",").map(m => m.trim()) : undefined,
-          amount: "0",
-          receiptBase64: base64,
-          receiptMimeType: receiptFile.type,
-        });
-        if (result.extractedAmount) setExtractedAmount(result.extractedAmount);
-        if (result.extractedBank) setExtractedBank(result.extractedBank);
-        if (result.extractedStatus) setExtractedStatus(result.extractedStatus);
-        if (result.extractedDateTime) setExtractedDateTime(result.extractedDateTime);
-        if (result.needsReview) {
-          hasNeedsReview = true;
-          lastReviewReason = result.reviewReason || '';
-        }
-        if (result.status === 'pending' && !result.needsReview) {
-          hasPendingRecipient = true;
-          lastPendingReason = result.pendingReason || '';
-        }
+
+      // 使用合併繳費 API（一張收據對應多個學生）
+      const result = await createMergedPayment.mutateAsync({
+        studentIds: selectedStudentIds,
+        paymentPeriod: period,
+        customMonths: period === "CUSTOM" ? customMonths.split(",").map(m => m.trim()) : undefined,
+        amount: "0",
+        receiptBase64: base64,
+        receiptMimeType: receiptFile.type,
+      });
+      if (result.extractedAmount) setExtractedAmount(result.extractedAmount);
+      if (result.extractedBank) setExtractedBank(result.extractedBank);
+      if (result.extractedStatus) setExtractedStatus(result.extractedStatus);
+      if (result.extractedDateTime) setExtractedDateTime(result.extractedDateTime);
+      if (result.needsReview) {
+        hasNeedsReview = true;
+        lastReviewReason = result.reviewReason || '';
+      }
+      if (result.status === 'pending' && !result.needsReview) {
+        hasPendingRecipient = true;
+        lastPendingReason = result.pendingReason || '';
       }
       if (hasNeedsReview) {
         // 疑似重複收據 → 需審查
