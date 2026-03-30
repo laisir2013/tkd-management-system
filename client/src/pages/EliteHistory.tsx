@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X } from "lucide-react";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
 import { EliteAttendanceWhatsAppButton } from "@/components/EliteAttendanceWhatsAppButton";
 
@@ -199,32 +199,27 @@ export default function EliteHistory() {
     toast.success('已撤回');
   }, [undoStack, upsertAttendanceMutation]);
 
+  // ---- Popup menu for choosing attendance status ----
+  const [popupCell, setPopupCell] = useState<{ scheduleId: number; studentId: number; studentName: string; dateStr: string; rect: { top: number; left: number; width: number } } | null>(null);
+
   // ---- Long-press detection for protecting existing records ----
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
 
-  const doToggle = useCallback((scheduleId: number, studentId: number, studentName: string, dateStr: string) => {
+  const setStatus = useCallback((scheduleId: number, studentId: number, studentName: string, dateStr: string, newStatus: string) => {
     const key = `${scheduleId}-${studentId}`;
     const current = attendanceMap.get(key);
-    let next: string;
-    if (!current || current === 'absent') {
-      next = 'present';
-    } else if (current === 'present') {
-      next = 'excused';
-    } else {
-      next = 'absent';
-    }
     // Save undo info
     setUndoStack(prev => [...prev.slice(-9), { scheduleId, studentId, prevStatus: current, studentName, date: dateStr }]);
     // Optimistic update
     setOptimisticUpdates(prev => {
       const updated = new Map(prev);
-      updated.set(key, next);
+      updated.set(key, newStatus);
       return updated;
     });
-    upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
-    const statusLabel = next === 'present' ? '出席' : next === 'excused' ? '請假' : '未記錄';
+    upsertAttendanceMutation.mutate({ scheduleId, studentId, status: newStatus });
+    const statusLabel = newStatus === 'present' ? '出席' : newStatus === 'excused' ? '請假' : '未記錄';
     toast(`${studentName} ${dateStr}: ${statusLabel}`, {
       action: { label: '撤回', onClick: () => {
         const restoreStatus = current || 'absent';
@@ -238,19 +233,24 @@ export default function EliteHistory() {
       }},
       duration: 5000,
     });
+    setPopupCell(null);
   }, [attendanceMap, upsertAttendanceMutation]);
 
-  const handleCellClick = useCallback((scheduleId: number, studentId: number, studentName: string, dateStr: string) => {
+  const handleCellClick = useCallback((e: React.MouseEvent | React.TouchEvent, scheduleId: number, studentId: number, studentName: string, dateStr: string) => {
     const key = `${scheduleId}-${studentId}`;
     const current = attendanceMap.get(key);
-    // If no record or absent: single click OK (fast roll-call)
+    // If no record or absent: show popup to choose present or excused
     if (!current || current === 'absent') {
-      doToggle(scheduleId, studentId, studentName, dateStr);
+      const target = (e.target as HTMLElement).closest('td');
+      if (target) {
+        const rect = target.getBoundingClientRect();
+        setPopupCell({ scheduleId, studentId, studentName, dateStr, rect: { top: rect.bottom, left: rect.left, width: rect.width } });
+      }
     } else {
       // Already has a record (present/excused): show warning toast instead
       toast.warning(`⚠️ ${studentName} 已標記為${current === 'present' ? '出席' : '請假'}，長按可修改`, { duration: 2000 });
     }
-  }, [attendanceMap, doToggle]);
+  }, [attendanceMap]);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent | React.MouseEvent, scheduleId: number, studentId: number, studentName: string, dateStr: string) => {
     const key = `${scheduleId}-${studentId}`;
@@ -263,11 +263,15 @@ export default function EliteHistory() {
     }
     longPressTimerRef.current = setTimeout(() => {
       longPressTriggered.current = true;
-      // Vibrate on mobile if supported
       if (navigator.vibrate) navigator.vibrate(50);
-      doToggle(scheduleId, studentId, studentName, dateStr);
+      // Long-press on existing record: show popup to change
+      const target = (e.target as HTMLElement).closest('td');
+      if (target) {
+        const rect = target.getBoundingClientRect();
+        setPopupCell({ scheduleId, studentId, studentName, dateStr, rect: { top: rect.bottom, left: rect.left, width: rect.width } });
+      }
     }, 500);
-  }, [attendanceMap, doToggle]);
+  }, [attendanceMap]);
 
   const handleLongPressEnd = useCallback(() => {
     if (longPressTimerRef.current) {
@@ -277,7 +281,6 @@ export default function EliteHistory() {
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    // Cancel long press if finger moves too far
     if (touchStartPos.current && longPressTimerRef.current) {
       const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
       const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
@@ -287,6 +290,14 @@ export default function EliteHistory() {
       }
     }
   }, []);
+
+  // Close popup when clicking outside
+  useEffect(() => {
+    if (!popupCell) return;
+    const handleClickOutside = () => setPopupCell(null);
+    const timer = setTimeout(() => document.addEventListener('click', handleClickOutside), 10);
+    return () => { clearTimeout(timer); document.removeEventListener('click', handleClickOutside); };
+  }, [popupCell]);
 
   // 按班別計算統計
   const getMonthStats = (students: any[], monthSchedules: any[]) => {
@@ -511,9 +522,9 @@ export default function EliteHistory() {
                                   : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100 cursor-pointer'
                                 }`}
                                 title={`${student.name} - ${formatFullDate(schedule.trainingDate)}: ${
-                                  status === 'present' ? '出席（長按修改）' : status === 'excused' ? '請假（長按修改）' : '未記錄（點擊設定）'
+                                  status === 'present' ? '出席（長按修改）' : status === 'excused' ? '請假（長按修改）' : '未記錄（點擊選擇）'
                                 }`}
-                                onClick={() => handleCellClick(schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
+                                onClick={(e) => handleCellClick(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
                                 onMouseDown={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
                                 onMouseUp={handleLongPressEnd}
                                 onMouseLeave={handleLongPressEnd}
@@ -730,6 +741,56 @@ export default function EliteHistory() {
         </div>
       )}
 
+      {/* 點名狀態選單 popup */}
+      {popupCell && (
+        <div
+          className="fixed inset-0 z-[60]"
+          onClick={() => setPopupCell(null)}
+          onTouchEnd={() => setPopupCell(null)}
+        >
+          <div
+            className="absolute bg-white rounded-lg shadow-xl border border-gray-200 p-1 flex gap-1"
+            style={{
+              top: Math.min(popupCell.rect.top + 2, window.innerHeight - 60),
+              left: Math.max(4, Math.min(popupCell.rect.left - 20, window.innerWidth - 160)),
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
+            <button
+              className="flex items-center gap-1 px-3 py-2 rounded-md hover:bg-green-100 text-sm font-medium transition-colors"
+              onClick={() => setStatus(popupCell.scheduleId, popupCell.studentId, popupCell.studentName, popupCell.dateStr, 'present')}
+            >
+              ✅ 出席
+            </button>
+            <button
+              className="flex items-center gap-1 px-3 py-2 rounded-md hover:bg-red-100 text-sm font-medium transition-colors"
+              onClick={() => setStatus(popupCell.scheduleId, popupCell.studentId, popupCell.studentName, popupCell.dateStr, 'excused')}
+            >
+              ❌ 請假
+            </button>
+            {(() => {
+              const key = `${popupCell.scheduleId}-${popupCell.studentId}`;
+              const current = attendanceMap.get(key);
+              return current && current !== 'absent' ? (
+                <button
+                  className="flex items-center gap-1 px-3 py-2 rounded-md hover:bg-gray-100 text-sm font-medium text-gray-500 transition-colors"
+                  onClick={() => setStatus(popupCell.scheduleId, popupCell.studentId, popupCell.studentName, popupCell.dateStr, 'absent')}
+                >
+                  · 清除
+                </button>
+              ) : null;
+            })()}
+            <button
+              className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-gray-100 text-gray-400 self-center"
+              onClick={() => setPopupCell(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 圖例 */}
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
@@ -742,7 +803,7 @@ export default function EliteHistory() {
         </div>
         <div className="flex items-center gap-1">
           <div className="w-4 h-4 bg-yellow-50 border rounded flex items-center justify-center text-yellow-600">·</div>
-          <span>未記錄（點擊設定）</span>
+          <span>未記錄（點擊選擇出席/請假）</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-4 h-4 bg-gray-900 border rounded"></div>
@@ -753,7 +814,7 @@ export default function EliteHistory() {
           <span>已取消</span>
         </div>
         <div className="flex items-center gap-1 ml-2 text-orange-600 font-medium">
-          <span>💡 已記錄的狀態需<strong>長按 0.5 秒</strong>才能修改，防止誤觸</span>
+          <span>💡 已記錄需<strong>長按</strong>才能修改</span>
         </div>
       </div>
       <div className="flex gap-4 text-xs flex-wrap">
