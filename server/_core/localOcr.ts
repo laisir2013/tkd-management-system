@@ -216,12 +216,17 @@ function extractRecipient(text: string): { name: string | null; account: string 
       recipientLineIdx = i;
       break;
     }
+    // 恒生銀行英文格式："To" + 空格 + 收款人名稱
+    if (/^To\s{2,}/i.test(line)) {
+      recipientLineIdx = i;
+      break;
+    }
   }
 
   if (recipientLineIdx >= 0) {
     // 從「收款人/賬戶」行提取名稱（行內名稱部分）
     const recipientLine = lines[recipientLineIdx];
-    const nameMatch = recipientLine.match(/(?:[收受]款人[/\/]?[賬帳]?[戶户]?|收款戶口|收款方名稱|Payee|Recipient|Beneficiary)\s+(.+)/i);
+    const nameMatch = recipientLine.match(/(?:[收受]款人[/\/]?[賬帳]?[戶户]?|收款戶口|收款方名稱|Payee|Recipient|Beneficiary|^To)\s{1,}(.+)/i);
     if (nameMatch) {
       let extracted = nameMatch[1].trim();
       // 如果下一行是名稱續行（全英文大寫，如 "LIMITED"）
