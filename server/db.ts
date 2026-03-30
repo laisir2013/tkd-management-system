@@ -3321,24 +3321,27 @@ export async function checkDuplicateReceipt(params: {
       }
     }
 
-    // 2. 同金額 + 同日期 跨學生（±2小時，可能同一張收據重複用）
-    if (params.receiptTransferDate) {
+    // 2. 跨學生重複檢測：同金額 + 同日期 + 同收據圖片key（防止同一張收據用於不同學生）
+    // 注意：僅比對收據圖片key相同的情況，避免不同學生同日繳同金額被誤判
+    if (params.receiptTransferDate && params.receiptKey) {
       const [rows2] = await pool.execute(
         `SELECT id, ${studentIdCol} as sid, amount
          FROM ${table}
          WHERE ABS(CAST(amount AS DECIMAL(10,2)) - ?) < 0.01
            AND ${dateCol} IS NOT NULL
-           AND ABS(TIMESTAMPDIFF(HOUR, ${dateCol}, ?)) <= 2
+           AND ABS(TIMESTAMPDIFF(HOUR, ${dateCol}, ?)) <= 24
+           AND receiptKey = ?
+           AND ${studentIdCol} != ?
            AND review_status != 'rejected'
          ORDER BY id DESC LIMIT 1`,
-        [parsedAmount, params.receiptTransferDate]
+        [parsedAmount, params.receiptTransferDate, params.receiptKey, params.studentId]
       ) as any;
       if (rows2?.length > 0) {
         return {
           isDuplicate: true,
-          matchType: 'same_transaction_ref',
+          matchType: 'same_receipt_diff_student',
           matchPaymentId: rows2[0].id,
-          reason: `同金額($${parsedAmount})、極相近轉帳時間（可能為同一筆交易）`
+          reason: `同一張收據圖片已用於其他學生的繳費記錄`
         };
       }
     }
