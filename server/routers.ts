@@ -1565,6 +1565,14 @@ export const appRouter = router({
         let reviewMatchType: string | null = null;
         let reviewMatchPaymentId: number | null = null;
         
+        // 金額不符或收款人不匹配 → 也需要人工審查
+        if (recordStatus === 'pending' && pendingReason) {
+          needsReview = true;
+          reviewReason = pendingReason;
+          reviewMatchType = 'validation_failed';
+          console.log(`[ReceiptReview] 驗證失敗需審查: ${pendingReason}`);
+        }
+        
         const dupCheck = await checkDuplicateReceipt({
           studentId: input.studentId,
           amount: extractedAmount,
@@ -1577,7 +1585,10 @@ export const appRouter = router({
           needsReview = true;
           reviewMatchType = dupCheck.matchType;
           reviewMatchPaymentId = dupCheck.matchPaymentId;
-          reviewReason = dupCheck.reason || '疑似重複收據';
+          // 如果已有驗證失敗原因，合併
+          reviewReason = reviewReason 
+            ? `${reviewReason}; ${dupCheck.reason || '疑似重複收據'}`
+            : (dupCheck.reason || '疑似重複收據');
           console.log(`[ReceiptReview] 偵測到疑似重複: ${reviewReason}, matchId=${reviewMatchPaymentId}`);
         }
         
@@ -4971,25 +4982,48 @@ export const appRouter = router({
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '審查處理失敗' });
         }
 
-        // 批准後同步到會計（恆常班）
-        if (input.decision === 'approved' && input.paymentType === 'regular') {
+        // 批准後同步到會計（恆常班 + 精英班）
+        if (input.decision === 'approved') {
           try {
-            const payment = await getPaymentRecordById(input.paymentId);
-            if (payment) {
-              const student = await getStudentById(payment.studentId);
-              if (student) {
-                await syncPaymentToAccounting({
-                  paymentRecordId: input.paymentId,
-                  transactionDate: payment.receiptTransferDate || payment.paymentDate,
-                  amount: String(payment.amount),
-                  bank: null,
-                  studentName: student.name,
-                  coachName: student.coach,
-                  dojoName: student.venue || null,
-                  category: 'tuition',
-                  receiptUrl: payment.receiptUrl,
-                  receiptKey: payment.receiptKey,
-                });
+            if (input.paymentType === 'regular') {
+              const payment = await getPaymentRecordById(input.paymentId);
+              if (payment) {
+                const student = await getStudentById(payment.studentId);
+                if (student) {
+                  await syncPaymentToAccounting({
+                    paymentRecordId: input.paymentId,
+                    transactionDate: payment.receiptTransferDate || payment.paymentDate,
+                    amount: String(payment.amount),
+                    bank: null,
+                    studentName: student.name,
+                    coachName: student.coach,
+                    dojoName: student.venue || null,
+                    category: 'tuition',
+                    receiptUrl: payment.receiptUrl,
+                    receiptKey: payment.receiptKey,
+                  });
+                }
+              }
+            } else if (input.paymentType === 'elite') {
+              // 精英班審查批准後也要同步會計
+              const { getRawPool, getEliteStudentById } = await import("./db");
+              const pool = await getRawPool();
+              if (pool) {
+                const [rows] = await pool.execute("SELECT * FROM elite_payments WHERE id = ?", [input.paymentId]) as any;
+                if (rows.length > 0) {
+                  const ep = rows[0];
+                  const eliteStudent = await getEliteStudentById(ep.student_id);
+                  if (eliteStudent) {
+                    await syncElitePaymentToAccounting({
+                      elitePaymentRecordId: input.paymentId,
+                      transactionDate: ep.payment_date || new Date(),
+                      amount: String(ep.amount),
+                      studentName: eliteStudent.name,
+                      coachName: eliteStudent.coach,
+                      dojoName: '精英班',
+                    });
+                  }
+                }
               }
             }
           } catch (e) {

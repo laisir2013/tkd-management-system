@@ -485,22 +485,31 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
     const st = amtOk && rcpOk ? "confirmed" : "pending";
     const cm2 = customMonths ? JSON.parse(customMonths) : null;
 
-    // ── 重複收據檢測 ──
+    // ── 驗證失敗 + 重複收據檢測 → 統一進入審查流程 ──
     let needsReview = false;
     let reviewReason = '';
     let reviewMatchType: string | null = null;
     let reviewMatchPaymentId: number | null = null;
+    // 金額不符或收款人不匹配 → 需要人工審查
+    if (st === 'pending' && reason) {
+      needsReview = true;
+      reviewReason = reason;
+      reviewMatchType = 'validation_failed';
+      console.log(`[ReceiptReview] 驗證失敗需審查: ${reason}`);
+    }
     const dupCheck = await checkDuplicateReceipt({ studentId: numId, amount: exAmt, receiptTransferDate: rDate, receiptKey: sKey, paymentType: 'regular' });
     if (dupCheck.isDuplicate) {
       needsReview = true;
       reviewMatchType = dupCheck.matchType;
       reviewMatchPaymentId = dupCheck.matchPaymentId;
-      reviewReason = dupCheck.reason || '疑似重複收據';
+      reviewReason = reviewReason
+        ? `${reviewReason}; ${dupCheck.reason || '疑似重複收據'}`
+        : (dupCheck.reason || '疑似重複收據');
       console.log(`[ReceiptReview] 偵測到疑似重複: ${reviewReason}`);
     }
 
     const pid = await insertPaymentRecord({ studentId: numId, paymentPeriod, customMonths: cm2, amount: exAmt, classCount: classCount ? parseInt(classCount) : null, receiptUrl: sUrl, receiptKey: sKey, receiptTransferDate: rDate, paymentDate: new Date(), status: needsReview ? 'pending' : st, confirmedBy: "parent_upload", reviewStatus: needsReview ? 'pending_review' : 'normal', reviewReason: needsReview ? reviewReason : (reason || null), reviewMatchType, reviewMatchPaymentId });
-    if (st === "confirmed" && !needsReview) { try { await syncPaymentToAccounting({ paymentRecordId: pid, transactionDate: rDate || new Date(), amount: exAmt, bank: exBank, studentName: student.name, coachName: student.coach, dojoName: student.venue || null, category: "tuition", receiptUrl: sUrl, receiptKey: sKey }); } catch {} }
+    if (st === "confirmed" && !needsReview) { try { await syncPaymentToAccounting({ paymentRecordId: pid, transactionDate: rDate || new Date(), amount: exAmt, bank: exBank, studentName: student.name, coachName: student.coach, dojoName: student.venue || null, category: "tuition", receiptUrl: sUrl, receiptKey: sKey }); } catch (syncErr) { console.error("[AppAPI] 上傳後自動同步會計失敗:", syncErr); } }
 
     // 通知管理員審查
     if (needsReview) {
@@ -1015,11 +1024,12 @@ parentRouter.put("/admin/elite-payments/:id/confirm", requireRole("admin"), asyn
         const student = await getEliteStudentById(p.student_id || p.studentId);
         if (student) {
           await syncElitePaymentToAccounting({
-            elitePaymentId: paymentId,
+            elitePaymentRecordId: paymentId,
+            transactionDate: p.payment_date || p.paymentDate || new Date(),
+            amount: String(p.amount),
             studentName: student.name,
-            amount: p.amount,
-            classCount: p.class_count || p.classCount,
-            paymentDate: p.payment_date || p.paymentDate,
+            coachName: student.coach,
+            dojoName: '精英班',
           });
           // ✅ 自動推播：精英班繳費確認通知家長
           try {
@@ -1654,25 +1664,47 @@ parentRouter.post("/admin/receipt-review/:paymentId", requireRole("admin"), asyn
     if (!result) return res.status(500).json({ error: "審查處理失敗" });
 
     // 批准後同步到會計
-    if (decision === 'approved' && (!paymentType || paymentType === 'regular')) {
+    if (decision === 'approved') {
       try {
-        const { getPaymentRecordById, syncPaymentToAccounting } = await import("./db");
-        const payment = await getPaymentRecordById(paymentId);
-        if (payment) {
-          const student = await getStudentById(payment.studentId);
-          if (student) {
-            await syncPaymentToAccounting({
-              paymentRecordId: paymentId,
-              transactionDate: payment.receiptTransferDate || payment.paymentDate,
-              amount: String(payment.amount),
-              bank: null,
-              studentName: student.name,
-              coachName: student.coach,
-              dojoName: student.venue || null,
-              category: 'tuition',
-              receiptUrl: payment.receiptUrl,
-              receiptKey: payment.receiptKey,
-            });
+        if (!paymentType || paymentType === 'regular') {
+          const { getPaymentRecordById, syncPaymentToAccounting } = await import("./db");
+          const payment = await getPaymentRecordById(paymentId);
+          if (payment) {
+            const student = await getStudentById(payment.studentId);
+            if (student) {
+              await syncPaymentToAccounting({
+                paymentRecordId: paymentId,
+                transactionDate: payment.receiptTransferDate || payment.paymentDate,
+                amount: String(payment.amount),
+                bank: null,
+                studentName: student.name,
+                coachName: student.coach,
+                dojoName: student.venue || null,
+                category: 'tuition',
+                receiptUrl: payment.receiptUrl,
+                receiptKey: payment.receiptKey,
+              });
+            }
+          }
+        } else if (paymentType === 'elite') {
+          // 精英班審查批准後也要同步會計
+          const pool2 = await getRawPool();
+          if (pool2) {
+            const [rows2] = await pool2.execute("SELECT * FROM elite_payments WHERE id = ?", [paymentId]) as any;
+            if (rows2.length > 0) {
+              const ep = rows2[0];
+              const eliteStudent = await getEliteStudentById(ep.student_id);
+              if (eliteStudent) {
+                await syncElitePaymentToAccounting({
+                  elitePaymentRecordId: paymentId,
+                  transactionDate: ep.payment_date || new Date(),
+                  amount: String(ep.amount),
+                  studentName: eliteStudent.name,
+                  coachName: eliteStudent.coach,
+                  dojoName: '精英班',
+                });
+              }
+            }
           }
         }
       } catch (e) {
