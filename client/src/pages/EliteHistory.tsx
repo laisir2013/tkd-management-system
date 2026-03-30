@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -171,10 +171,42 @@ export default function EliteHistory() {
     return sDate >= joinDate;
   };
 
-  const toggleAttendance = useCallback((scheduleId: number, studentId: number) => {
+  // ---- Undo stack for accidental changes ----
+  const [undoStack, setUndoStack] = useState<Array<{ scheduleId: number; studentId: number; prevStatus: string | undefined; studentName: string; date: string }>>([]);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-clear undo stack after 8 seconds of inactivity
+  useEffect(() => {
+    if (undoStack.length > 0) {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = setTimeout(() => setUndoStack([]), 8000);
+    }
+    return () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); };
+  }, [undoStack]);
+
+  const undoLast = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const last = undoStack[undoStack.length - 1];
+    const key = `${last.scheduleId}-${last.studentId}`;
+    const restoreStatus = last.prevStatus || 'absent';
+    setOptimisticUpdates(prev => {
+      const updated = new Map(prev);
+      updated.set(key, restoreStatus);
+      return updated;
+    });
+    upsertAttendanceMutation.mutate({ scheduleId: last.scheduleId, studentId: last.studentId, status: restoreStatus });
+    setUndoStack(prev => prev.slice(0, -1));
+    toast.success('已撤回');
+  }, [undoStack, upsertAttendanceMutation]);
+
+  // ---- Long-press detection for protecting existing records ----
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+
+  const doToggle = useCallback((scheduleId: number, studentId: number, studentName: string, dateStr: string) => {
     const key = `${scheduleId}-${studentId}`;
     const current = attendanceMap.get(key);
-    // Cycle: no record / absent → present → excused → absent (shows as dot/cleared)
     let next: string;
     if (!current || current === 'absent') {
       next = 'present';
@@ -183,15 +215,78 @@ export default function EliteHistory() {
     } else {
       next = 'absent';
     }
-    // Optimistic update: immediately update UI
+    // Save undo info
+    setUndoStack(prev => [...prev.slice(-9), { scheduleId, studentId, prevStatus: current, studentName, date: dateStr }]);
+    // Optimistic update
     setOptimisticUpdates(prev => {
       const updated = new Map(prev);
       updated.set(key, next);
       return updated;
     });
-    // Fire API in background
     upsertAttendanceMutation.mutate({ scheduleId, studentId, status: next });
+    const statusLabel = next === 'present' ? '出席' : next === 'excused' ? '請假' : '未記錄';
+    toast(`${studentName} ${dateStr}: ${statusLabel}`, {
+      action: { label: '撤回', onClick: () => {
+        const restoreStatus = current || 'absent';
+        setOptimisticUpdates(prev2 => {
+          const up = new Map(prev2);
+          up.set(key, restoreStatus);
+          return up;
+        });
+        upsertAttendanceMutation.mutate({ scheduleId, studentId, status: restoreStatus });
+        setUndoStack(prev2 => prev2.filter(u => !(u.scheduleId === scheduleId && u.studentId === studentId)));
+      }},
+      duration: 5000,
+    });
   }, [attendanceMap, upsertAttendanceMutation]);
+
+  const handleCellClick = useCallback((scheduleId: number, studentId: number, studentName: string, dateStr: string) => {
+    const key = `${scheduleId}-${studentId}`;
+    const current = attendanceMap.get(key);
+    // If no record or absent: single click OK (fast roll-call)
+    if (!current || current === 'absent') {
+      doToggle(scheduleId, studentId, studentName, dateStr);
+    } else {
+      // Already has a record (present/excused): show warning toast instead
+      toast.warning(`⚠️ ${studentName} 已標記為${current === 'present' ? '出席' : '請假'}，長按可修改`, { duration: 2000 });
+    }
+  }, [attendanceMap, doToggle]);
+
+  const handleLongPressStart = useCallback((e: React.TouchEvent | React.MouseEvent, scheduleId: number, studentId: number, studentName: string, dateStr: string) => {
+    const key = `${scheduleId}-${studentId}`;
+    const current = attendanceMap.get(key);
+    // Only need long-press protection for existing records
+    if (!current || current === 'absent') return;
+    longPressTriggered.current = false;
+    if ('touches' in e) {
+      touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      // Vibrate on mobile if supported
+      if (navigator.vibrate) navigator.vibrate(50);
+      doToggle(scheduleId, studentId, studentName, dateStr);
+    }, 500);
+  }, [attendanceMap, doToggle]);
+
+  const handleLongPressEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    // Cancel long press if finger moves too far
+    if (touchStartPos.current && longPressTimerRef.current) {
+      const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
+      const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
+      if (dx > 10 || dy > 10) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    }
+  }, []);
 
   // 按班別計算統計
   const getMonthStats = (students: any[], monthSchedules: any[]) => {
@@ -410,15 +505,22 @@ export default function EliteHistory() {
                             return (
                               <td
                                 key={schedule.id}
-                                className={`px-1 py-1.5 text-center cursor-pointer transition-colors border-r border-b ${
-                                  status === 'present' ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                  : status === 'excused' ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                  : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100'
+                                className={`px-1 py-1.5 text-center transition-colors border-r border-b select-none ${
+                                  status === 'present' ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer'
+                                  : status === 'excused' ? 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer'
+                                  : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100 cursor-pointer'
                                 }`}
                                 title={`${student.name} - ${formatFullDate(schedule.trainingDate)}: ${
-                                  status === 'present' ? '出席' : status === 'excused' ? '請假' : '未記錄'
-                                }（點擊切換）`}
-                                onClick={() => toggleAttendance(schedule.id, student.id)}
+                                  status === 'present' ? '出席（長按修改）' : status === 'excused' ? '請假（長按修改）' : '未記錄（點擊設定）'
+                                }`}
+                                onClick={() => handleCellClick(schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
+                                onMouseDown={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
+                                onMouseUp={handleLongPressEnd}
+                                onMouseLeave={handleLongPressEnd}
+                                onTouchStart={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
+                                onTouchEnd={(e) => { handleLongPressEnd(); if (longPressTriggered.current) e.preventDefault(); }}
+                                onTouchMove={handleTouchMove}
+                                onContextMenu={(e) => e.preventDefault()}
                               >
                                 {status === 'present' ? '✅' : status === 'excused' ? '❌' : '·'}
                               </td>
@@ -613,6 +715,21 @@ export default function EliteHistory() {
         </>
       )}
 
+      {/* 撤回按鈕 - 浮動顯示 */}
+      {undoStack.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <Button
+            variant="outline"
+            size="sm"
+            className="shadow-lg bg-white border-orange-300 text-orange-700 hover:bg-orange-50 gap-1.5"
+            onClick={undoLast}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            撤回上一步 ({undoStack.length})
+          </Button>
+        </div>
+      )}
+
       {/* 圖例 */}
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
@@ -625,7 +742,7 @@ export default function EliteHistory() {
         </div>
         <div className="flex items-center gap-1">
           <div className="w-4 h-4 bg-yellow-50 border rounded flex items-center justify-center text-yellow-600">·</div>
-          <span>未記錄（點擊切換）</span>
+          <span>未記錄（點擊設定）</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-4 h-4 bg-gray-900 border rounded"></div>
@@ -634,6 +751,9 @@ export default function EliteHistory() {
         <div className="flex items-center gap-1">
           <div className="w-4 h-4 bg-gray-200 border rounded flex items-center justify-center text-gray-400">—</div>
           <span>已取消</span>
+        </div>
+        <div className="flex items-center gap-1 ml-2 text-orange-600 font-medium">
+          <span>💡 已記錄的狀態需<strong>長按 0.5 秒</strong>才能修改，防止誤觸</span>
         </div>
       </div>
       <div className="flex gap-4 text-xs flex-wrap">
