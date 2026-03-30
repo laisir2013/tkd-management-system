@@ -672,6 +672,76 @@ export const appRouter = router({
         }
         return getAllStudents();
       }),
+
+    // 新增單個學生
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1, "請輸入學生姓名"),
+        phone: z.string().min(1, "請輸入電話號碼"),
+        venue: z.string().min(1, "請選擇道場"),
+        scheduleDay: z.string().optional(),
+        scheduleTime: z.string().optional(),
+        feePerQuarter: z.string().default("0"),
+        beltLevel: z.string().optional(),
+        birthDate: z.string().nullable().optional(),
+        coach: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以新增學生' });
+        }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+        const result = await db.insert(schema.students).values({
+          name: input.name,
+          phone: input.phone,
+          venue: input.venue,
+          scheduleDay: input.scheduleDay || null,
+          scheduleTime: input.scheduleTime || null,
+          feePerQuarter: input.feePerQuarter as any,
+          beltLevel: input.beltLevel || null,
+          birthDate: input.birthDate ? (input.birthDate as any) : null,
+          coach: input.coach || '賴政堡教練',
+          status: 'active',
+        });
+
+        return { success: true, id: result[0].insertId };
+      }),
+
+    // 停用學生（標記為 inactive，保留歷史資料）
+    deactivate: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以停用學生' });
+        }
+        const student = await getStudentById(input.id);
+        if (!student) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '找不到該學生' });
+        }
+        await updateStudent(input.id, { status: 'inactive' } as any);
+        return { success: true, message: `已停用學生 ${student.name}` };
+      }),
+
+    // 重新啟用學生
+    reactivate: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以重新啟用學生' });
+        }
+        const student = await getStudentById(input.id);
+        if (!student) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '找不到該學生' });
+        }
+        await updateStudent(input.id, { status: 'active' } as any);
+        return { success: true, message: `已重新啟用學生 ${student.name}` };
+      }),
     
     getNextUnpaidQuarter: protectedProcedure
       .input(z.object({ studentId: z.number() }))

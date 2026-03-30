@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Loader2, FileSpreadsheet, Users, Receipt, Filter, ChevronDown, ChevronRight, KeyRound, MoreHorizontal, Search, Pencil } from "lucide-react";
+import { Upload, Loader2, FileSpreadsheet, Users, Receipt, Filter, ChevronDown, ChevronRight, KeyRound, MoreHorizontal, Search, Pencil, UserPlus, UserMinus, UserCheck } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import CoachStatisticsContent from "@/components/CoachStatisticsContent";
 import { StudentWhatsAppButton } from "@/components/StudentWhatsAppButton";
 import { AttendanceManagementContent } from "@/components/AttendanceManagementContent";
 import { StudentEditDialog } from "@/components/StudentEditDialog";
+import { StudentAddDialog } from "@/components/StudentAddDialog";
 import { QuarterlyPaymentRecords } from "@/components/QuarterlyPaymentRecords";
 import { MonthlyPaymentRecords } from "@/components/MonthlyPaymentRecords";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
@@ -87,6 +88,10 @@ export default function Admin() {
   const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
   const [resetPasswordStudent, setResetPasswordStudent] = useState<any>(null);
   const [showAdminChangePassword, setShowAdminChangePassword] = useState(false);
+  const [showAddStudentDialog, setShowAddStudentDialog] = useState(false);
+  const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [deactivatingStudent, setDeactivatingStudent] = useState<any>(null);
+  const [showInactiveStudents, setShowInactiveStudents] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [expandedStudents, setExpandedStudents] = useState<Set<number>>(new Set());
 
@@ -125,6 +130,28 @@ export default function Admin() {
     },
     onError: (err) => {
       toast.error(`重置密碼失敗: ${err.message}`);
+    },
+  });
+
+  const deactivateMutation = trpc.students.deactivate.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setShowDeactivateDialog(false);
+      setDeactivatingStudent(null);
+      refetchStudents();
+    },
+    onError: (err) => {
+      toast.error(`停用失敗: ${err.message}`);
+    },
+  });
+
+  const reactivateMutation = trpc.students.reactivate.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      refetchStudents();
+    },
+    onError: (err) => {
+      toast.error(`重新啟用失敗: ${err.message}`);
     },
   });
 
@@ -426,6 +453,9 @@ export default function Admin() {
     // 排除精英班學生
     if (s.venue === '精英班道場') return false;
     
+    // 預設隱藏已停用的學生，除非開啟「顯示已退學」
+    if (!showInactiveStudents && s.status === 'inactive') return false;
+    
     const venueMatch = venueFilter === "all" || s.venue === venueFilter;
     const coachMatch = coachFilter === "all" || s.coach === coachFilter;
     
@@ -567,14 +597,47 @@ export default function Admin() {
             <Card>
               <CardHeader>
                 <div className="space-y-4">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Users className="w-5 h-5" />
-                      學生名單
-                    </CardTitle>
-                    <CardDescription>
-                      總共 {filteredStudents?.length || 0} 位學生
-                    </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="w-5 h-5" />
+                        學生名單
+                      </CardTitle>
+                      <CardDescription>
+                        總共 {filteredStudents?.length || 0} 位學生
+                        {showInactiveStudents && (
+                          <span className="text-orange-600 ml-1">（含已退學）</span>
+                        )}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowInactiveStudents(!showInactiveStudents)}
+                        className={showInactiveStudents ? "text-orange-600 border-orange-300 bg-orange-50" : ""}
+                      >
+                        {showInactiveStudents ? (
+                          <>
+                            <UserCheck className="w-4 h-4 mr-1" />
+                            隱藏已退學
+                          </>
+                        ) : (
+                          <>
+                            <UserMinus className="w-4 h-4 mr-1" />
+                            顯示已退學
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => setShowAddStudentDialog(true)}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <UserPlus className="w-4 h-4 mr-1" />
+                        新增學生
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <Filter className="w-4 h-4 text-gray-500 flex-shrink-0" />
@@ -707,11 +770,19 @@ export default function Admin() {
                     <TableBody>
                       {filteredStudents?.map((student, index) => {
                         const venueColor = VENUE_COLORS[student.venue] || "";
+                        const isInactive = student.status === 'inactive';
                         
                          return (
-                           <TableRow key={student.id} className={venueColor}>
+                           <TableRow key={student.id} className={`${venueColor} ${isInactive ? 'opacity-50 bg-gray-100' : ''}`}>
                              <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
-                             <TableCell className="font-medium">{student.name}</TableCell>
+                             <TableCell className="font-medium">
+                               {student.name}
+                               {isInactive && (
+                                 <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">
+                                   已退學
+                                 </span>
+                               )}
+                             </TableCell>
                             <TableCell>{student.phone}</TableCell>
                             <TableCell>{student.venue}</TableCell>
                             <TableCell>
@@ -723,6 +794,7 @@ export default function Admin() {
                                 onValueChange={(val) => {
                                   updateCoachMutation.mutate({ id: student.id, coach: val });
                                 }}
+                                disabled={isInactive}
                               >
                                 <SelectTrigger className="h-8 w-[130px] text-xs">
                                   <SelectValue placeholder="選擇教練" />
@@ -737,29 +809,33 @@ export default function Admin() {
                             <TableCell>{student.beltLevel}</TableCell>
                             <TableCell className="text-right">${student.feePerQuarter}</TableCell>
                             <TableCell className="text-center">
-                              <StudentWhatsAppButton
-                                studentId={student.id}
-                                studentName={student.name}
-                                studentPhone={student.phone}
-                                feeAmount={student.feePerQuarter}
-                                nextUnpaidQuarter={allNextUnpaidQuarters?.[student.id] ?? undefined}
-                              />
+                              {!isInactive && (
+                                <StudentWhatsAppButton
+                                  studentId={student.id}
+                                  studentName={student.name}
+                                  studentPhone={student.phone}
+                                  feeAmount={student.feePerQuarter}
+                                  nextUnpaidQuarter={allNextUnpaidQuarters?.[student.id] ?? undefined}
+                                />
+                              )}
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center gap-1">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                                  onClick={() => {
-                                    setEditingStudent(student);
-                                    setShowEditDialog(true);
-                                  }}
-                                  title="編輯學生資料"
-                                >
-                                  <Pencil className="w-3.5 h-3.5 mr-1" />
-                                  編輯
-                                </Button>
+                                {!isInactive && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                                    onClick={() => {
+                                      setEditingStudent(student);
+                                      setShowEditDialog(true);
+                                    }}
+                                    title="編輯學生資料"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 mr-1" />
+                                    編輯
+                                  </Button>
+                                )}
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -777,6 +853,30 @@ export default function Admin() {
                                       <KeyRound className="w-4 h-4 mr-1" />
                                       重置密碼
                                     </DropdownMenuItem>
+                                    {isInactive ? (
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          if (confirm(`確定要重新啟用學生「${student.name}」嗎？`)) {
+                                            reactivateMutation.mutate({ id: student.id });
+                                          }
+                                        }}
+                                        className="text-green-600"
+                                      >
+                                        <UserCheck className="w-4 h-4 mr-1" />
+                                        重新啟用
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setDeactivatingStudent(student);
+                                          setShowDeactivateDialog(true);
+                                        }}
+                                        className="text-red-600"
+                                      >
+                                        <UserMinus className="w-4 h-4 mr-1" />
+                                        停用 (退學)
+                                      </DropdownMenuItem>
+                                    )}
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
@@ -1075,6 +1175,49 @@ export default function Admin() {
         student={editingStudent}
         onSuccess={refetchStudents}
       />
+
+      {/* 新增學生對話框 */}
+      <StudentAddDialog
+        open={showAddStudentDialog}
+        onOpenChange={setShowAddStudentDialog}
+        onSuccess={refetchStudents}
+      />
+
+      {/* 停用學生確認對話框 */}
+      <AlertDialog open={showDeactivateDialog} onOpenChange={setShowDeactivateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600">確認停用學生</AlertDialogTitle>
+            <AlertDialogDescription>
+              確定要將學生 <strong>{deactivatingStudent?.name}</strong> 設為「已退學」嗎？
+              <br /><br />
+              <span className="text-gray-600">
+                停用後該學生將不會出現在日常名單中，但歷史資料（繳費記錄、出席記錄等）會保留。
+                <br />
+                如需恢復，可點擊「顯示已退學」→「重新啟用」。
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeactivatingStudent(null); }}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deactivatingStudent) {
+                  deactivateMutation.mutate({ id: deactivatingStudent.id });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deactivateMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              ) : (
+                <UserMinus className="w-4 h-4 mr-1" />
+              )}
+              確認停用
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* 重置密碼確認對話框 */}
       <AlertDialog open={showResetPasswordDialog} onOpenChange={setShowResetPasswordDialog}>
