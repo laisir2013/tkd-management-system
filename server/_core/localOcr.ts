@@ -265,10 +265,29 @@ function extractRecipient(text: string): { name: string | null; account: string 
 
   // 備選：如果沒找到，嘗試寬鬆模式
   if (!name) {
-    // 「轉至」/ 「轉賬至」模式
+    // 「轉賬 ... 給 XXX」模式 (如: 您已轉賬 港幣2,880.00元 給 CHONG MO COMPANY)
+    const geiMatch = text.match(/給\s+([A-Z][A-Z\s.,&]+)/m);
+    if (geiMatch) {
+      let extracted = geiMatch[1].trim();
+      // 檢查下一行是否是名稱續行（如 "NY LIMITED"）
+      const geiIdx = text.indexOf(geiMatch[0]);
+      const afterGei = text.substring(geiIdx + geiMatch[0].length);
+      const nextLineMatch = afterGei.match(/^\s*\n\s*([A-Z][A-Z\s.,&]+)/m);
+      if (nextLineMatch) {
+        extracted += ' ' + nextLineMatch[1].trim();
+      }
+      name = extracted.replace(/\s+/g, ' ').trim();
+    }
+  }
+  if (!name) {
+    // 「轉至」/ 「轉賬至」模式 — 排除通用名詞如「收款人」
     const altMatch = text.match(/轉(?:至|賬至|帳至)\s*[:：]?\s*([A-Za-z\u4e00-\u9fff][A-Za-z\u4e00-\u9fff\s.,&]+)/m);
     if (altMatch) {
-      name = altMatch[1].split('\n')[0].trim();
+      const candidate = altMatch[1].split('\n')[0].trim();
+      // 排除通用名詞
+      if (!/^[收受]款人|^付款人|^帳[戶户]/.test(candidate)) {
+        name = candidate;
+      }
     }
   }
 
@@ -285,6 +304,19 @@ function extractRecipient(text: string): { name: string | null; account: string 
       if (match) {
         account = match[1];
         break;
+      }
+    }
+  }
+
+  // 備用帳號提取：如果找到了收款人名稱但沒有帳號，搜索名稱附近的獨立數字行
+  if (!account && name) {
+    const nameIdx = text.indexOf(name.split(' ')[0]); // 用名稱第一個詞定位
+    if (nameIdx >= 0) {
+      const afterName = text.substring(nameIdx);
+      // 在名稱後 200 字符內找獨立的 6-20 位數字
+      const nearbyAccount = afterName.substring(0, 200).match(/\n\s*(\d{6,20})\s*(?:\n|$)/);
+      if (nearbyAccount) {
+        account = nearbyAccount[1];
       }
     }
   }

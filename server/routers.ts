@@ -1378,7 +1378,8 @@ export const appRouter = router({
         }
         
         // 方案2：如果本地 OCR 未識別到金額或收款人，嘗試 LLM（需要 API Key）
-        const needsLLM = (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) || !extractedRecipientName || !extractedRecipientAccount;
+        const isGenericName = (n: string | null) => !n || /^[收受]款人$|^付款人$|^帳[戶户]$/.test(n);
+        const needsLLM = (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) || isGenericName(extractedRecipientName) || !extractedRecipientAccount;
         if (needsLLM) {
           try {
             console.log("[OCR] 本地未識別到金額，嘗試 LLM...");
@@ -1717,7 +1718,8 @@ export const appRouter = router({
         }
 
         // LLM 備用（金額或收款人未識別時嘗試）
-        const needsMergedLLM = (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) || !extractedRecipientName || !extractedRecipientAccount;
+        const isGenericNameM = (n: string | null) => !n || /^[收受]款人$|^付款人$|^帳[戶户]$/.test(n);
+        const needsMergedLLM = (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) || isGenericNameM(extractedRecipientName) || !extractedRecipientAccount;
         if (needsMergedLLM) {
           try {
             console.log("[MergedPayment][OCR] 嘗試 LLM...");
