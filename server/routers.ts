@@ -1377,8 +1377,9 @@ export const appRouter = router({
           console.warn("[OCR] 本地 Tesseract 識別失敗:", localErr instanceof Error ? localErr.message : String(localErr));
         }
         
-        // 方案2：如果本地 OCR 未識別到金額，嘗試 LLM（需要 API Key）
-        if (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) {
+        // 方案2：如果本地 OCR 未識別到金額或收款人，嘗試 LLM（需要 API Key）
+        const needsLLM = (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) || !extractedRecipientName || !extractedRecipientAccount;
+        if (needsLLM) {
           try {
             console.log("[OCR] 本地未識別到金額，嘗試 LLM...");
             const ocrResponse = await invokeLLM({
@@ -1715,8 +1716,9 @@ export const appRouter = router({
           console.warn("[MergedPayment][OCR] Tesseract 失敗:", localErr instanceof Error ? localErr.message : String(localErr));
         }
 
-        // LLM 備用
-        if (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) {
+        // LLM 備用（金額或收款人未識別時嘗試）
+        const needsMergedLLM = (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) || !extractedRecipientName || !extractedRecipientAccount;
+        if (needsMergedLLM) {
           try {
             console.log("[MergedPayment][OCR] 嘗試 LLM...");
             const ocrResponse = await invokeLLM({
