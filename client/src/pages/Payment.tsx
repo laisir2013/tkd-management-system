@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { formatDayMonthYear, formatDayMonthWeekday } from "@/lib/dateFormat";
@@ -531,28 +531,9 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>(
     students.length === 1 ? [students[0].id] : []
   );
-  // 自動選擇最早未繳的季度（若都已繳則選當季）
+  // 自動選擇當前季度
   const currentQ = `Q${Math.ceil(currentMonth / 3)}` as PaymentPeriod;
-  const getDefaultPeriod = (): PaymentPeriod => {
-    if (!existingPayments || students.length === 0) return currentQ;
-    const quarters: PaymentPeriod[] = ['Q1', 'Q2', 'Q3', 'Q4'];
-    for (const q of quarters) {
-      const allPaid = students.every(s =>
-        existingPayments.some(p => p.studentId === s.id && p.paymentPeriod === q && p.status === 'confirmed')
-      );
-      if (!allPaid) return q;
-    }
-    return currentQ;
-  };
   const [period, setPeriod] = useState<PaymentPeriod>(currentQ);
-  const [periodAutoSet, setPeriodAutoSet] = useState(false);
-  // 當繳費資料載入後，自動選擇最早未繳的季度
-  useEffect(() => {
-    if (!periodAutoSet && existingPayments && students.length > 0) {
-      setPeriod(getDefaultPeriod());
-      setPeriodAutoSet(true);
-    }
-  }, [existingPayments, students]);
   const [customMonths, setCustomMonths] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>("");
