@@ -58,10 +58,22 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Serve hashed assets (JS/CSS) with long cache, everything else short cache
+  app.use(express.static(distPath, {
+    setHeaders: (res, filePath) => {
+      // Vite hashed assets can be cached forever
+      if (filePath.match(/\.(js|css)$/) && filePath.includes('-')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    }
+  }));
 
-  // fall through to index.html if the file doesn't exist
+  // fall through to index.html if the file doesn't exist (SPA fallback)
   app.use("*", (_req, res) => {
+    // Prevent browser from caching the SPA shell
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
