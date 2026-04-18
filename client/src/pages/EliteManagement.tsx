@@ -17,7 +17,7 @@ import { getLoginUrl } from "@/const";
 import { addMonths, subMonths } from "date-fns";
 import { formatDayMonthYear } from "@/lib/dateFormat";
 import { zhTW } from "date-fns/locale";
-import { Users, Calendar, DollarSign, ChevronLeft, ChevronRight, Plus, MoreHorizontal, ArrowLeft, Loader2, Ban, RotateCcw, ArrowRightLeft, Phone, RefreshCw, Pencil, Check, X } from "lucide-react";
+import { Users, Calendar, DollarSign, ChevronLeft, ChevronRight, Plus, MoreHorizontal, ArrowLeft, Loader2, Ban, RotateCcw, ArrowRightLeft, Phone, RefreshCw, Pencil, Check, X, Trash2 } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
@@ -833,9 +833,23 @@ function EliteFinanceTab() {
   const { data: allPayments = [] } = trpc.elite.getPayments.useQuery({});
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ studentId: 0, classCount: "10", amount: "", notes: "" });
+  const [deletePaymentTarget, setDeletePaymentTarget] = useState<any>(null);
+  const [deletePassword, setDeletePassword] = useState("");
   const sendRemindersMutation = trpc.students.sendElitePaymentReminders.useMutation({
     onSuccess: (data) => {
       toast.success(data.message);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deletePaymentMutation = trpc.elite.deletePayment.useMutation({
+    onSuccess: () => {
+      utils.elite.getPayments.invalidate();
+      utils.elite.getAllBalances.invalidate();
+      utils.elite.getAllCycleInfo.invalidate();
+      setDeletePaymentTarget(null);
+      setDeletePassword("");
+      toast.success("繳費記錄已刪除");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -1013,6 +1027,7 @@ function EliteFinanceTab() {
                   <TableHead className="text-right">金額</TableHead>
                   <TableHead>來源</TableHead>
                   <TableHead>備註</TableHead>
+                  <TableHead className="w-[60px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1028,11 +1043,21 @@ function EliteFinanceTab() {
                         <Badge variant="outline">{p.confirmedBy === "parent_upload" ? "家長上傳" : "管理員批准"}</Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{p.notes || "-"}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => setDeletePaymentTarget({ id: p.id, studentName: student?.name || `#${p.studentId}`, amount: p.amount, classCount: p.classCount })}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {allPayments.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">暫無繳費記錄</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">暫無繳費記錄</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -1085,6 +1110,49 @@ function EliteFinanceTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 刪除繳費確認對話框 */}
+      <AlertDialog open={!!deletePaymentTarget} onOpenChange={(open) => { if (!open) { setDeletePaymentTarget(null); setDeletePassword(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除繳費記錄</AlertDialogTitle>
+            <AlertDialogDescription>
+              確定要刪除 <strong>{deletePaymentTarget?.studentName}</strong> 的繳費記錄嗎？
+              <br />金額：<strong>${Number(deletePaymentTarget?.amount || 0).toLocaleString()}</strong>，堂數：<strong>{deletePaymentTarget?.classCount}</strong> 堂
+              <br />關聯的會計記錄和日記帳分錄也會一併刪除。此操作無法恢復。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-6 pb-2">
+            <Label>管理員密碼 *</Label>
+            <Input
+              type="password"
+              placeholder="輸入管理員密碼確認"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && deletePassword && deletePaymentTarget) {
+                  deletePaymentMutation.mutate({ paymentId: deletePaymentTarget.id, adminPassword: deletePassword });
+                }
+              }}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeletePaymentTarget(null); setDeletePassword(""); }}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!deletePassword || deletePaymentMutation.isPending}
+              onClick={() => {
+                if (deletePaymentTarget && deletePassword) {
+                  deletePaymentMutation.mutate({ paymentId: deletePaymentTarget.id, adminPassword: deletePassword });
+                }
+              }}
+            >
+              {deletePaymentMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              確認刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

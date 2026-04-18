@@ -79,6 +79,7 @@ import {
   upsertEliteAttendanceRecord,
   getElitePaymentRecords,
   insertElitePaymentRecord,
+  deleteElitePaymentRecord,
   getEliteStudentBalance,
   getParentAttendanceRecords,
   getEliteCycleInfo,
@@ -93,6 +94,7 @@ import {
   syncPaymentToAccounting,
   syncElitePaymentToAccounting,
   getAccountingRecordByPaymentId,
+  getAccountingRecordByElitePaymentId,
   getAccountingSummary,
   // 活動管理函數
   getAllEvents,
@@ -3137,6 +3139,37 @@ export const appRouter = router({
         }
 
         return { id };
+      }),
+
+    // 刪除繳費記錄（管理員需密碼確認）
+    deletePayment: protectedProcedure
+      .input(z.object({
+        paymentId: z.number(),
+        adminPassword: z.string().min(1, '請輸入管理員密碼'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以刪除繳費記錄' });
+        }
+        // 驗證管理員密碼
+        // @ts-ignore
+        const userPassword = ctx.user.password;
+        if (!userPassword) throw new TRPCError({ code: 'BAD_REQUEST', message: '管理員帳號尚未設定密碼' });
+        const isPasswordValid = await verifyPassword(input.adminPassword, userPassword);
+        if (!isPasswordValid) throw new TRPCError({ code: 'UNAUTHORIZED', message: '密碼錯誤' });
+
+        // 刪除關聯的會計記錄和日記帳
+        const acctRecord = await getAccountingRecordByElitePaymentId(input.paymentId);
+        if (acctRecord) {
+          if (acctRecord.journalEntryId) {
+            await deleteJournalEntry(acctRecord.journalEntryId);
+          }
+          await deleteAccountingRecord(acctRecord.id);
+        }
+
+        // 刪除繳費記錄
+        await deleteElitePaymentRecord(input.paymentId);
+        return { success: true };
       }),
 
     // 學生堂數餘額

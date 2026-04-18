@@ -1443,6 +1443,12 @@ export async function getElitePaymentRecords(studentId?: number): Promise<EliteP
   return db.select().from(elitePaymentRecords).orderBy(desc(elitePaymentRecords.paymentDate));
 }
 
+export async function deleteElitePaymentRecord(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(elitePaymentRecords).where(eq(elitePaymentRecords.id, id));
+}
+
 export async function insertElitePaymentRecord(data: InsertElitePaymentRecord): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
