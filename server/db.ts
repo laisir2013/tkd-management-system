@@ -1829,7 +1829,7 @@ export async function getEliteCycleInfo(studentId: number) {
       if (rec.trainingDate && rec.trainingDate >= cycleStartDateObj) {
         const d = rec.trainingDate;
         cycleDetails.push({
-          date: `${d.getUTCDate()}/${d.getUTCMonth() + 1}`,
+          date: `${d.getUTCDate()}/${d.getUTCMonth() + 1}/${d.getUTCFullYear()}`,
           status: rec.status as string,
         });
       }
