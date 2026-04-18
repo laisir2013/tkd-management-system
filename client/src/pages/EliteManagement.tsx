@@ -802,6 +802,7 @@ function EliteAttendanceTab() {
                         totalAttended={cycle?.totalAttended || 0}
                         lastAttendedDate={cycle?.lastAttendedDate}
                         amountDue={needReminder ? 2400 : 0}
+                        cycleDetails={cycle?.cycleDetails || []}
                       />
                     </TableCell>
                   </TableRow>

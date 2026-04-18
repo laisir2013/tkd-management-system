@@ -1813,7 +1813,29 @@ export async function getEliteCycleInfo(studentId: number) {
   const lastAttendedDate = attendedCount > 0
     ? attendedRecords[attendedCount - 1].trainingDate?.toISOString() || null
     : null;
+
+  // 當期循環的詳細出席記錄（含日期和狀態）
+  // cycleStartIndex = 在 attendedRecords 中的起始位置（只含 present/late）
+  const cycleStartIndex = completedCycles * 12;
+  // 找到當期第一堂的日期，用它從 attendanceWithDates（含 absent）中篩選
+  const cycleStartDateObj = cycleStartIndex < attendedRecords.length
+    ? attendedRecords[cycleStartIndex].trainingDate
+    : null;
   
+  const cycleDetails: Array<{ date: string; status: string }> = [];
+  if (cycleStartDateObj) {
+    // 取得從 cycleStartDate 起至今所有有出席記錄的日期（含 absent）
+    for (const rec of attendanceWithDates) {
+      if (rec.trainingDate && rec.trainingDate >= cycleStartDateObj) {
+        const d = rec.trainingDate;
+        cycleDetails.push({
+          date: `${d.getUTCDate()}/${d.getUTCMonth() + 1}`,
+          status: rec.status as string,
+        });
+      }
+    }
+  }
+
   return {
     studentId,
     studentName: student.name,
@@ -1824,6 +1846,7 @@ export async function getEliteCycleInfo(studentId: number) {
     needPaymentReminder,
     cycleStartDate,
     lastAttendedDate,
+    cycleDetails,
     feePerCycle: 2400, // 每 12 堂 $2,400
   };
 }
