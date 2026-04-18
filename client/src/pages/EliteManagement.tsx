@@ -21,6 +21,7 @@ import { Users, Calendar, DollarSign, ChevronLeft, ChevronRight, Plus, MoreHoriz
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
+import { EliteAttendanceWhatsAppButton } from "@/components/EliteAttendanceWhatsAppButton";
 import { useLocation } from "wouter";
 import EliteHistory from "@/pages/EliteHistory";
 
@@ -724,6 +725,7 @@ function EliteAttendanceTab() {
                 })}
                 <TableHead className="text-center min-w-[70px]">循環堂數</TableHead>
                 <TableHead className="text-center min-w-[60px]">出席率</TableHead>
+                <TableHead className="text-center min-w-[50px]">通知</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -791,11 +793,22 @@ function EliteAttendanceTab() {
                     <TableCell className="text-center">
                       <Badge variant={rate >= 80 ? "default" : rate >= 50 ? "secondary" : "destructive"}>{rate}%</Badge>
                     </TableCell>
+                    <TableCell className="text-center">
+                      <EliteAttendanceWhatsAppButton
+                        studentId={student.id}
+                        studentName={student.name}
+                        studentPhone={cycle?.phone || student.phone || ''}
+                        cycleNumber={cycleNum}
+                        totalAttended={cycle?.totalAttended || 0}
+                        lastAttendedDate={cycle?.lastAttendedDate}
+                        amountDue={needReminder ? 2400 : 0}
+                      />
+                    </TableCell>
                   </TableRow>
                 );
               })}
               {classStudents.length === 0 && (
-                <TableRow><TableCell colSpan={classSchedules.length + 3} className="text-center py-8 text-muted-foreground">此班暫無學生</TableCell></TableRow>
+                <TableRow><TableCell colSpan={classSchedules.length + 4} className="text-center py-8 text-muted-foreground">此班暫無學生</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
