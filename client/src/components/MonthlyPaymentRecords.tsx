@@ -225,6 +225,39 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     });
   };
 
+  // WhatsApp 通知家長已收到學費
+  const handlePaidWhatsApp = (studentId: number, studentName: string, month: number, paymentType: string) => {
+    const student = filteredStatuses.find((s: any) => s.studentId === studentId);
+    if (!student) return;
+    if (!student.phone || student.phone.trim() === '') {
+      alert(`無法發送 WhatsApp：${studentName} 沒有電話號碼記錄。`);
+      return;
+    }
+
+    // 計算繳費涵蓋月份
+    let paidMonths: string;
+    if (paymentType === 'quarterly') {
+      const { months } = getQuarterForMonth(month);
+      paidMonths = `${selectedYear}年${months[0]}-${months[2]}月`;
+    } else {
+      paidMonths = `${selectedYear}年${month}月`;
+    }
+
+    const fee = Number(student.feePerQuarter || 0);
+    const amount = paymentType === 'quarterly' ? fee : Math.round(fee / 3);
+
+    const message = `🥋 ${studentName} 家長您好！
+
+📌 *【學費確認通知】*
+
+我們已收到 *${studentName}* ${paidMonths} 的學費 *$${amount.toLocaleString()}*，感謝您的繳費！
+
+如有任何疑問，歡迎隨時聯絡我們 🙏`;
+
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=852${student.phone}&text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, "_blank");
+  };
+
   const getMonthStatusCell = (
     monthData: { status: string; paymentDate?: string | null; confirmedBy?: string | null; receiptUrl?: string | null; paymentType?: string | null; paymentRecordId?: number | null; amount?: string | null },
     month: number,
@@ -259,21 +292,31 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               <Image className="w-2.5 h-2.5" />
             </button>
           )}
-          {/* 撤銷繳費按鈕（僅管理員可見） */}
+          {/* WhatsApp 通知已收學費 + 撤銷繳費（僅管理員可見） */}
           {!readOnly && (
-            <button
-              onClick={() => setRevertDialog({
-                studentId,
-                studentName,
-                month,
-                paymentType: monthData.paymentType || 'monthly',
-              })}
-              className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors mx-auto border border-orange-300"
-              title="撤銷繳費（轉為未繳）"
-            >
-              <Undo2 className="w-2.5 h-2.5" />
-              轉未繳
-            </button>
+            <div className="flex flex-col items-center gap-0.5">
+              <button
+                onClick={() => handlePaidWhatsApp(studentId, studentName, month, monthData.paymentType || 'monthly')}
+                className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                title="WhatsApp 通知家長已收到學費"
+              >
+                <WhatsAppIcon className="w-2.5 h-2.5" />
+                已收
+              </button>
+              <button
+                onClick={() => setRevertDialog({
+                  studentId,
+                  studentName,
+                  month,
+                  paymentType: monthData.paymentType || 'monthly',
+                })}
+                className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors border border-orange-300"
+                title="撤銷繳費（轉為未繳）"
+              >
+                <Undo2 className="w-2.5 h-2.5" />
+                轉未繳
+              </button>
+            </div>
           )}
         </div>
       );
