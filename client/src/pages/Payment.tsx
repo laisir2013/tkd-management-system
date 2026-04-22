@@ -537,6 +537,7 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   const [customMonths, setCustomMonths] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>("");
+  const [receiptBase64, setReceiptBase64] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [extractedAmount, setExtractedAmount] = useState<string>("");
   const [extractedBank, setExtractedBank] = useState<string>("");
@@ -606,7 +607,18 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
     if (file) {
       setReceiptFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => setReceiptPreview(reader.result as string);
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        setReceiptPreview(dataUrl);
+        // 立即提取 base64，避免之後重新讀取 File 物件時在手機瀏覽器上失敗
+        const base64Part = dataUrl.split(",")[1];
+        if (base64Part) setReceiptBase64(base64Part);
+      };
+      reader.onerror = () => {
+        toast.error("讀取檔案失敗，請重新選擇收據照片");
+        setReceiptFile(null);
+        setReceiptPreview("");
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -614,25 +626,13 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   const handleSubmit = async () => {
     if (selectedStudentIds.length === 0) { toast.error("請選擇至少一位學生"); return; }
     if (isCurrentSelectionPaid()) { toast.error("所選學生已繳交此期間的學費,請勿重複繳費"); return; }
-    if (!receiptFile) { toast.error("請上傳收據照片"); return; }
+    if (!receiptFile || !receiptBase64) { toast.error("請上傳收據照片"); return; }
     if (period === "CUSTOM" && !customMonths.trim()) { toast.error("請輸入自選月份"); return; }
 
     setIsSubmitting(true);
     try {
-      // Convert file to base64 using Promise wrapper
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          try {
-            const result = (reader.result as string).split(",")[1];
-            resolve(result);
-          } catch (err) {
-            reject(err);
-          }
-        };
-        reader.onerror = () => reject(new Error("讀取檔案失敗"));
-        reader.readAsDataURL(receiptFile);
-      });
+      // 直接使用上傳時已緩存的 base64，避免手機瀏覽器 File 物件過期導致讀取失敗
+      const base64 = receiptBase64;
 
       let hasPendingRecipient = false;
       let lastPendingReason = '';
@@ -959,7 +959,7 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
       {/* 提交 */}
       <Button
         onClick={handleSubmit}
-        disabled={isSubmitting || selectedStudentIds.length === 0 || !receiptFile || isCurrentSelectionPaid()}
+        disabled={isSubmitting || selectedStudentIds.length === 0 || !receiptFile || !receiptBase64 || isCurrentSelectionPaid()}
         className="w-full h-12 text-lg"
         size="lg"
       >
