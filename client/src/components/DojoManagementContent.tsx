@@ -58,11 +58,22 @@ export default function DojoManagement() {
     return coaches.sort();
   }, [dojos]);
 
-  // Student count per dojo
+  // Student count per dojo (by dojo_id)
+  const studentCountByIdMap = useMemo(() => {
+    const map = new Map<number, number>();
+    (allStudents || []).forEach(s => {
+      if (s.dojoId && s.status === 'active') {
+        map.set(s.dojoId, (map.get(s.dojoId) || 0) + 1);
+      }
+    });
+    return map;
+  }, [allStudents]);
+
+  // Student count per dojo name (fallback for students without dojo_id)
   const studentCountMap = useMemo(() => {
     const map = new Map<string, number>();
     (allStudents || []).forEach(s => {
-      if (s.venue && s.status === 'active') {
+      if (s.venue && s.status === 'active' && !s.dojoId) {
         map.set(s.venue, (map.get(s.venue) || 0) + 1);
       }
     });
@@ -76,10 +87,16 @@ export default function DojoManagement() {
     return dojos.filter(d => d.coachName === coachFilter);
   }, [dojos, coachFilter]);
 
+  // Get student count for a dojo
+  const getDojoStudentCount = (dojo: any) => {
+    return (studentCountByIdMap.get(dojo.id) || 0) + (studentCountMap.get(dojo.name) || 0);
+  };
+
   // Summary stats
   const totalStudents = useMemo(() => {
-    return filteredDojos.reduce((sum, d) => sum + (studentCountMap.get(d.name) || 0), 0);
-  }, [filteredDojos, studentCountMap]);
+    // Count unique active students across filtered dojos
+    return filteredDojos.reduce((sum, d) => sum + getDojoStudentCount(d), 0);
+  }, [filteredDojos, studentCountByIdMap, studentCountMap]);
 
   const handleOpenDialog = (dojo?: any) => {
     if (dojo) {
@@ -199,6 +216,8 @@ export default function DojoManagement() {
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>道場名稱</TableHead>
+                <TableHead>上課日</TableHead>
+                <TableHead>上課時間</TableHead>
                 <TableHead>教練</TableHead>
                 <TableHead className="text-center">學生數</TableHead>
                 <TableHead>狀態</TableHead>
@@ -208,12 +227,14 @@ export default function DojoManagement() {
             <TableBody>
               {filteredDojos.map((dojo, index) => {
                 const color = getCoachColor(dojo.coachName || '');
-                const count = studentCountMap.get(dojo.name) || 0;
+                const count = getDojoStudentCount(dojo);
                 
                 return (
                 <TableRow key={dojo.id} className={color.bg}>
                   <TableCell className="font-medium text-center">{index + 1}</TableCell>
                   <TableCell className="font-medium">{dojo.name}</TableCell>
+                  <TableCell className="text-sm">{dojo.scheduleDay || <span className="text-gray-400">-</span>}</TableCell>
+                  <TableCell className="text-sm">{dojo.scheduleTime || <span className="text-gray-400">-</span>}</TableCell>
                   <TableCell>
                     {dojo.coachName ? (
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${color.badge}`}>
@@ -300,18 +321,30 @@ export default function DojoManagement() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="scheduleDay">星期</Label>
-                  <Input
-                    id="scheduleDay"
-                    value={formData.scheduleDay}
-                    onChange={(e) =>
-                      setFormData({ ...formData, scheduleDay: e.target.value })
+                  <Label htmlFor="scheduleDay">上課日</Label>
+                  <Select
+                    value={formData.scheduleDay || "none"}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, scheduleDay: value === "none" ? "" : value })
                     }
-                    placeholder="例如：星期一"
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="選擇星期" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">未設定</SelectItem>
+                      <SelectItem value="星期一">星期一</SelectItem>
+                      <SelectItem value="星期二">星期二</SelectItem>
+                      <SelectItem value="星期三">星期三</SelectItem>
+                      <SelectItem value="星期四">星期四</SelectItem>
+                      <SelectItem value="星期五">星期五</SelectItem>
+                      <SelectItem value="星期六">星期六</SelectItem>
+                      <SelectItem value="星期日">星期日</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="scheduleTime">時段</Label>
+                  <Label htmlFor="scheduleTime">上課時間</Label>
                   <Input
                     id="scheduleTime"
                     value={formData.scheduleTime}
