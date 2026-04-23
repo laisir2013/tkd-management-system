@@ -1,12 +1,16 @@
 /**
  * 本地 OCR 模組 - 使用 Tesseract OCR 識別收據
  * 不需要外部 API Key，完全離線運行
+ * 包含 ImageMagick 圖片預處理以提高識別率
  */
-import { execFile } from "child_process";
-import { writeFile, unlink } from "fs/promises";
+import { execFile, exec } from "child_process";
+import { writeFile, unlink, access } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { randomBytes } from "crypto";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 interface OcrResult {
   amount: string | null;
@@ -20,6 +24,48 @@ interface OcrResult {
 }
 
 /**
+ * 使用 ImageMagick 預處理圖片以提高 OCR 識別率
+ * - 轉灰階
+ * - 增強對比度
+ * - 放大至合適大小（Tesseract 在 300 DPI 左右最佳）
+ * - 去噪 / 銳化
+ */
+async function preprocessImage(inputPath: string): Promise<string> {
+  const outputPath = inputPath.replace(/\.\w+$/, '_preprocessed.png');
+  try {
+    // 1. Resize to ensure minimum width for OCR (Tesseract works best at ~300 DPI)
+    // 2. Convert to grayscale
+    // 3. Enhance contrast
+    // 4. Sharpen
+    // 5. Apply threshold to get clean black/white text
+    await execAsync(
+      `convert "${inputPath}" -resize "2000x>" -colorspace Gray -contrast-stretch 3%x3% -sharpen 0x1 -unsharp 0x1+1+0 "${outputPath}"`,
+      { timeout: 15000 }
+    );
+    return outputPath;
+  } catch (e) {
+    console.warn("[Local OCR] ImageMagick preprocessing failed, using original:", e instanceof Error ? e.message : String(e));
+    return inputPath; // Fallback to original
+  }
+}
+
+/**
+ * 使用高對比度二值化預處理（針對淺色背景上的深色文字）
+ */
+async function preprocessImageHighContrast(inputPath: string): Promise<string> {
+  const outputPath = inputPath.replace(/\.\w+$/, '_hc.png');
+  try {
+    await execAsync(
+      `convert "${inputPath}" -resize "2400x>" -colorspace Gray -brightness-contrast 10x40 -threshold 65% -negate -threshold 50% -negate "${outputPath}"`,
+      { timeout: 15000 }
+    );
+    return outputPath;
+  } catch (e) {
+    return inputPath;
+  }
+}
+
+/**
  * 使用 Tesseract OCR 從圖片提取文字
  * @param psm - Page Segmentation Mode:
  *   3 = Fully automatic (default Tesseract)
@@ -30,7 +76,10 @@ function runTesseract(imagePath: string, psm: string = "4"): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       "tesseract",
-      [imagePath, "stdout", "-l", "chi_tra+eng", "--psm", psm],
+      [imagePath, "stdout", "-l", "chi_tra+eng", "--psm", psm,
+       // Tesseract config for better receipt recognition
+       "--oem", "3",  // LSTM + Legacy engine
+      ],
       { timeout: 30000, maxBuffer: 1024 * 1024 },
       (error, stdout, stderr) => {
         if (error) {
@@ -66,8 +115,8 @@ function extractAmount(text: string): string | null {
     /港元\s*([\d,]+\.?\d*)/,
     // 港幣 1,800.00
     /港幣\s*([\d,]+\.?\d*)/,
-    // HKD 1800.00 / 1,800.00 HKD
-    /([\d,]+\.?\d*)\s*HKD/i,
+    // HKD 1800.00 / 1,800.00 HKD (HSBC format: "5,400.00 HKD")
+    /([\d,]+\.\d{2})\s*HKD/i,
     /HKD\s*([\d,]+\.?\d*)/i,
     // HK$ 1800.00
     /HK\$\s*([\d,]+\.?\d*)/i,
@@ -75,8 +124,11 @@ function extractAmount(text: string): string | null {
     /轉賬金額\s*[:：]?\s*(?:港元|港幣)?\s*([\d,]+\.?\d*)/,
     // $ 1,800.00 (generic dollar) - only match with decimal to avoid false positives
     /\$\s*([\d,]+\.\d{2})/,
-    // Amount: 1800.00
+    // Amount: 1800.00 / Amount  5,400.00 HKD (HSBC English format)
+    /[Aa]mount\s+(?:HK\$|HKD|港元|港幣)?\s*([\d,]+\.\d{2})/,
     /[Aa]mount\s*[:：]?\s*(?:HK\$|HKD|港元|港幣)?\s*([\d,]+\.?\d*)/,
+    // "Total" / "Total amount" patterns
+    /[Tt]otal\s*(?:[Aa]mount)?\s*[:：]?\s*(?:HK\$|HKD)?\s*([\d,]+\.\d{2})/,
   ];
 
   for (const pattern of patterns) {
@@ -187,8 +239,12 @@ function extractRecipient(text: string): { name: string | null; account: string 
     /收款方識別代碼\s+(\d{5,})/,
     /快速支付系統識別碼\s*[:：]?\s*(\d{5,})/,
     /Payee\s*proxy\s*ID\s+(\d{5,})/i,
-    /FPS\s*(?:ID|識別碼|編號)\s*[:：]?\s*(\d{5,})/i,
+    /FPS\s*(?:ID|識別碼|編號)\s*[:：.。]?\s*(\d{5,})/i,
     /轉數快\s*(?:ID|識別碼|編號)\s*[:：]?\s*(\d{5,})/,
+    // HSBC format: "FPS ID: 164577132" or "FPS ID. 164577132"
+    /FPS\s+ID\s*[:：.。]?\s*(\d{5,})/i,
+    // Loose pattern: just "164577132" near "FPS"
+    /FPS[^\d]{0,20}(\d{6,12})/i,
   ];
   for (const pattern of proxyPatterns) {
     const match = text.match(pattern);
@@ -216,8 +272,13 @@ function extractRecipient(text: string): { name: string | null; account: string 
       recipientLineIdx = i;
       break;
     }
-    // 恒生銀行英文格式："To" + 空格 + 收款人名稱
+    // 恒生/HSBC 英文格式："To" + 空格 + 收款人名稱
     if (/^To\s{2,}/i.test(line)) {
+      recipientLineIdx = i;
+      break;
+    }
+    // HSBC format: "To" on its own line or "To   CHONG MO..."
+    if (/^To\s+[A-Z]/i.test(line) && !/^To\s+(account|bank)/i.test(line)) {
       recipientLineIdx = i;
       break;
     }
@@ -226,16 +287,21 @@ function extractRecipient(text: string): { name: string | null; account: string 
   if (recipientLineIdx >= 0) {
     // 從「收款人/賬戶」行提取名稱（行內名稱部分）
     const recipientLine = lines[recipientLineIdx];
-    const nameMatch = recipientLine.match(/(?:[收受]款人[/\/]?[賬帳]?[戶户]?|收款戶口|收款方名稱|Payee|Recipient|Beneficiary|^To)\s{1,}(.+)/i);
+    const nameMatch = recipientLine.match(/(?:[收受]款人[/\/]?[賬帳]?[戶户]?|收款戶口|收款方名稱|Payee|Recipient|Beneficiary|^To)\s+(.+)/i);
     if (nameMatch) {
       let extracted = nameMatch[1].trim();
-      // 如果下一行是名稱續行（全英文大寫，如 "LIMITED"）
-      if (recipientLineIdx + 1 < lines.length) {
-        const nextLine = lines[recipientLineIdx + 1];
-        if (/^[A-Z][A-Z\s.,&]+$/.test(nextLine) && !/^\d/.test(nextLine)) {
+      // 如果下一行是名稱續行（全英文大寫，如 "LIMITED" 或 "COMPANY LIMITED(CHONG MO)"）
+      for (let ni = recipientLineIdx + 1; ni < Math.min(recipientLineIdx + 3, lines.length); ni++) {
+        const nextLine = lines[ni];
+        // Continuation of company name (uppercase + possible parentheses)
+        if (/^[A-Z][A-Z\s.,&()]+$/.test(nextLine) && !/^\d/.test(nextLine)) {
           extracted += ' ' + nextLine.trim();
         }
+        // FPS ID line means we've left the name area
+        else if (/FPS|^\d{6,}$|^Default/.test(nextLine)) break;
+        else break;
       }
+      // Clean up: remove trailing parenthetical aliases like "(CHONG MO)"
       name = extracted.replace(/\s+/g, ' ').trim();
     }
 
@@ -339,6 +405,9 @@ function extractStatus(text: string): string | null {
     /即時轉帳/,
     /轉數快轉賬/,
     /FPS transfer/i,
+    /Thank you/i,
+    /gone through/i,
+    /transfer.*success/i,
   ];
   const pendingPatterns = [/處理中/, /pending/i, /processing/i];
   const failPatterns = [/失敗/, /failed/i, /rejected/i, /拒絕/];
@@ -441,7 +510,58 @@ function extractTime(text: string): string | null {
 }
 
 /**
+ * 合併多次 OCR 結果 — 各欄位取第一個非空值
+ */
+function mergeResults(base: OcrResult, ...others: Partial<OcrResult>[]): OcrResult {
+  const merged = { ...base };
+  for (const o of others) {
+    if (!merged.amount && o.amount) merged.amount = o.amount;
+    if (!merged.bank && o.bank) merged.bank = o.bank;
+    if (!merged.status && o.status) merged.status = o.status;
+    if (!merged.date && o.date) merged.date = o.date;
+    if (!merged.time && o.time) merged.time = o.time;
+    if (!merged.recipientName && o.recipientName) merged.recipientName = o.recipientName;
+    if (!merged.recipientAccount && o.recipientAccount) merged.recipientAccount = o.recipientAccount;
+    // Accumulate raw text for better parsing
+    if (o.rawText && o.rawText !== merged.rawText) {
+      merged.rawText += '\n---\n' + o.rawText;
+    }
+  }
+  return merged;
+}
+
+/**
+ * 從一段 OCR 文字中提取所有可用欄位
+ */
+function parseAll(rawText: string): OcrResult {
+  const recipient = extractRecipient(rawText);
+  return {
+    amount: extractAmount(rawText),
+    bank: extractBank(rawText),
+    status: extractStatus(rawText),
+    date: extractDate(rawText),
+    time: extractTime(rawText),
+    recipientName: recipient.name,
+    recipientAccount: recipient.account,
+    rawText,
+  };
+}
+
+/**
+ * 安全刪除臨時文件
+ */
+async function safeUnlink(path: string) {
+  try { await unlink(path); } catch { /* ignore */ }
+}
+
+/**
  * 主函數：從 base64 圖片進行 OCR 識別收據
+ * 使用多重策略提高識別率：
+ * 1. 原圖 + PSM 4（單欄表格）
+ * 2. 預處理圖（灰階+增強對比）+ PSM 4
+ * 3. 高對比二值化圖 + PSM 6（單區塊）
+ * 4. 原圖 + PSM 3（全自動）
+ * 各欄位取第一個非空值
  */
 export async function ocrReceipt(
   base64Data: string,
@@ -449,72 +569,81 @@ export async function ocrReceipt(
 ): Promise<OcrResult> {
   // 寫入臨時文件
   const ext = mimeType.includes("png") ? "png" : "jpg";
-  const tmpPath = join(
-    tmpdir(),
-    `ocr_${randomBytes(8).toString("hex")}.${ext}`
-  );
+  const id = randomBytes(8).toString("hex");
+  const tmpPath = join(tmpdir(), `ocr_${id}.${ext}`);
+  const tempFiles: string[] = [tmpPath];
 
   try {
     const buffer = Buffer.from(base64Data, "base64");
     await writeFile(tmpPath, buffer);
 
-    // 執行 Tesseract OCR - 使用 PSM 4 (single column) 優先，對銀行收據表格布局最好
-    let rawText = await runTesseract(tmpPath, "4");
-    console.log("[Local OCR] Raw text (PSM 4):", rawText.substring(0, 300));
+    // ── Pass 1: 原圖 PSM 4 ──
+    let rawText1 = "";
+    try {
+      rawText1 = await runTesseract(tmpPath, "4");
+      console.log("[Local OCR] Pass1 (original PSM4):", rawText1.substring(0, 300));
+    } catch (e) {
+      console.warn("[Local OCR] Pass1 failed:", e instanceof Error ? e.message : String(e));
+    }
+    const result1 = parseAll(rawText1);
 
-    // 解析結果
-    const recipient = extractRecipient(rawText);
-    const result: OcrResult = {
-      amount: extractAmount(rawText),
-      bank: extractBank(rawText),
-      status: extractStatus(rawText),
-      date: extractDate(rawText),
-      time: extractTime(rawText),
-      recipientName: recipient.name,
-      recipientAccount: recipient.account,
-      rawText,
-    };
+    // ── Pass 2: ImageMagick 預處理 + PSM 4 ──
+    let result2: OcrResult = { amount: null, bank: null, status: null, date: null, time: null, recipientName: null, recipientAccount: null, rawText: "" };
+    try {
+      const preprocessedPath = await preprocessImage(tmpPath);
+      if (preprocessedPath !== tmpPath) tempFiles.push(preprocessedPath);
+      const rawText2 = await runTesseract(preprocessedPath, "4");
+      console.log("[Local OCR] Pass2 (preprocessed PSM4):", rawText2.substring(0, 300));
+      result2 = parseAll(rawText2);
+    } catch (e) {
+      console.warn("[Local OCR] Pass2 failed:", e instanceof Error ? e.message : String(e));
+    }
 
-    // 如果 PSM 4 沒識別到金額，用 PSM 6 再試一次
-    if (!result.amount) {
+    // ── Pass 3: 高對比二值化 + PSM 6 ──
+    let result3: OcrResult = { amount: null, bank: null, status: null, date: null, time: null, recipientName: null, recipientAccount: null, rawText: "" };
+    // Only run Pass 3 if still missing key fields
+    if (!result1.amount && !result2.amount || !result1.recipientName && !result2.recipientName) {
       try {
-        const rawText6 = await runTesseract(tmpPath, "6");
-        console.log("[Local OCR] Retrying with PSM 6:", rawText6.substring(0, 200));
-        const amount6 = extractAmount(rawText6);
-        if (amount6) {
-          result.amount = amount6;
-          console.log("[Local OCR] PSM 6 found amount:", amount6);
-        }
-        // 補充其他缺失的欄位
-        if (!result.bank) result.bank = extractBank(rawText6);
-        if (!result.recipientName || !result.recipientAccount) {
-          const r6 = extractRecipient(rawText6);
-          if (!result.recipientName && r6.name) result.recipientName = r6.name;
-          if (!result.recipientAccount && r6.account) result.recipientAccount = r6.account;
-        }
-        if (!result.date) result.date = extractDate(rawText6);
+        const hcPath = await preprocessImageHighContrast(tmpPath);
+        if (hcPath !== tmpPath) tempFiles.push(hcPath);
+        const rawText3 = await runTesseract(hcPath, "6");
+        console.log("[Local OCR] Pass3 (high-contrast PSM6):", rawText3.substring(0, 200));
+        result3 = parseAll(rawText3);
       } catch (e) {
-        console.warn("[Local OCR] PSM 6 retry failed:", e instanceof Error ? e.message : String(e));
+        console.warn("[Local OCR] Pass3 failed:", e instanceof Error ? e.message : String(e));
       }
     }
 
-    console.log("[Local OCR] Parsed result:", {
-      amount: result.amount,
-      bank: result.bank,
-      status: result.status,
-      date: result.date,
-      time: result.time,
-      recipientName: result.recipientName,
-      recipientAccount: result.recipientAccount,
+    // ── Pass 4: 原圖 PSM 3（全自動）作為備用 ──
+    let result4: OcrResult = { amount: null, bank: null, status: null, date: null, time: null, recipientName: null, recipientAccount: null, rawText: "" };
+    if (!result1.amount && !result2.amount && !result3.amount) {
+      try {
+        const rawText4 = await runTesseract(tmpPath, "3");
+        console.log("[Local OCR] Pass4 (original PSM3):", rawText4.substring(0, 200));
+        result4 = parseAll(rawText4);
+      } catch (e) {
+        console.warn("[Local OCR] Pass4 failed:", e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    // ── 合併所有結果 ──
+    const finalResult = mergeResults(result1, result2, result3, result4);
+
+    console.log("[Local OCR] Final merged result:", {
+      amount: finalResult.amount,
+      bank: finalResult.bank,
+      status: finalResult.status,
+      date: finalResult.date,
+      time: finalResult.time,
+      recipientName: finalResult.recipientName,
+      recipientAccount: finalResult.recipientAccount,
     });
 
-    return result;
+    return finalResult;
   } finally {
-    // 清理臨時文件
-    try {
-      await unlink(tmpPath);
-    } catch {
-      // ignore
+    // 清理所有臨時文件
+    for (const f of tempFiles) {
+      await safeUnlink(f);
     }
   }
 }

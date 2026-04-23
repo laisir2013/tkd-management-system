@@ -1383,8 +1383,12 @@ export const appRouter = router({
         const isGenericName = (n: string | null) => !n || /^[收受]款人$|^付款人$|^帳[戶户]$/.test(n);
         const needsLLM = (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) || isGenericName(extractedRecipientName) || !extractedRecipientAccount;
         if (needsLLM) {
+          console.log("[OCR] 需要 LLM 補充識別 —", 
+            !extractedAmount ? "金額未識別" : "",
+            isGenericName(extractedRecipientName) ? "收款人未識別" : "",
+            !extractedRecipientAccount ? "帳號未識別" : ""
+          );
           try {
-            console.log("[OCR] 本地未識別到金額，嘗試 LLM...");
             const ocrResponse = await invokeLLM({
               messages: [
                 {
@@ -1723,8 +1727,12 @@ export const appRouter = router({
         const isGenericNameM = (n: string | null) => !n || /^[收受]款人$|^付款人$|^帳[戶户]$/.test(n);
         const needsMergedLLM = (!extractedAmount || extractedAmount === "0" || extractedAmount === input.amount) || isGenericNameM(extractedRecipientName) || !extractedRecipientAccount;
         if (needsMergedLLM) {
+          console.log("[MergedPayment][OCR] 需要 LLM 補充 —", 
+            !extractedAmount || extractedAmount === "0" ? "金額未識別" : "",
+            isGenericNameM(extractedRecipientName) ? "收款人未識別" : "",
+            !extractedRecipientAccount ? "帳號未識別" : ""
+          );
           try {
-            console.log("[MergedPayment][OCR] 嘗試 LLM...");
             const ocrResponse = await invokeLLM({
               messages: [
                 {
