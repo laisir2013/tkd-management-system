@@ -1657,10 +1657,9 @@ export const appRouter = router({
               if (paymentRecord.receiptKey) {
                 const db = await getDb();
                 if (db) {
-                  // 找同學生、同收據的所有記錄
+                  // 找同收據的所有記錄（跨學生，合併收據場景）
                   const siblingRecords = await db.select().from(schema.paymentRecords)
                     .where(and(
-                      eq(schema.paymentRecords.studentId, paymentRecord.studentId),
                       eq(schema.paymentRecords.receiptKey, paymentRecord.receiptKey)
                     ));
 
@@ -1879,6 +1878,51 @@ export const appRouter = router({
         const isPasswordValid = await verifyPassword(input.adminPassword, userPassword);
         if (!isPasswordValid) {
           throw new TRPCError({ code: 'UNAUTHORIZED', message: '密碼錯誤，無法撤銷繳費' });
+        }
+
+        // ── 撤銷前：先刪除對應的會計記錄和日記帳 ──
+        // 找出即將被刪除的繳費記錄，清理其會計數據
+        try {
+          const dbInst = await getDb();
+          if (dbInst) {
+            // 找出哪個季度
+            let rQuarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+            if (input.month <= 3) rQuarter = 'Q1';
+            else if (input.month <= 6) rQuarter = 'Q2';
+            else if (input.month <= 9) rQuarter = 'Q3';
+            else rQuarter = 'Q4';
+
+            // 找出即將被刪除的所有記錄（MONTHLY、季度、CUSTOM）
+            const candidateRecords = await dbInst.select().from(schema.paymentRecords)
+              .where(and(
+                eq(schema.paymentRecords.studentId, input.studentId),
+                eq(schema.paymentRecords.year, input.year),
+              ));
+
+            for (const rec of candidateRecords) {
+              let shouldClean = false;
+              if (rec.paymentPeriod === 'MONTHLY' && rec.paymentMonth === input.month) {
+                shouldClean = true;
+              } else if (rec.paymentPeriod === rQuarter) {
+                shouldClean = true;
+              } else if (rec.paymentPeriod === 'CUSTOM' && rec.customMonths) {
+                const monthNums = extractMonthNumbers(rec.customMonths, input.year);
+                if (monthNums.includes(input.month)) shouldClean = true;
+              }
+              if (shouldClean) {
+                const acctRecord = await getAccountingRecordByPaymentId(rec.id);
+                if (acctRecord) {
+                  if (acctRecord.journalEntryId) {
+                    await deleteJournalEntry(acctRecord.journalEntryId);
+                  }
+                  await deleteAccountingRecord(acctRecord.id);
+                  console.log(`[RevertPayment] 已刪除會計記錄: paymentId=${rec.id}, accountingId=${acctRecord.id}`);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error("[RevertPayment] 清理會計記錄失敗:", e);
         }
 
         await deletePaymentForMonth(input.studentId, input.year, input.month);
@@ -4888,18 +4932,71 @@ export const appRouter = router({
               if (payment) {
                 const student = await getStudentById(payment.studentId);
                 if (student) {
-                  await syncPaymentToAccounting({
-                    paymentRecordId: input.paymentId,
-                    transactionDate: payment.receiptTransferDate || payment.paymentDate,
-                    amount: String(payment.amount),
-                    bank: null,
-                    studentName: student.name,
-                    coachName: student.coach,
-                    dojoName: student.venue || null,
-                    category: 'tuition',
-                    receiptUrl: payment.receiptUrl,
-                    receiptKey: payment.receiptKey,
-                  });
+                  // ── 合併收據拆分記錄處理 ──
+                  // 同一張收據可能拆分給多個學生：
+                  //   1. 自動批准所有拆分記錄（status + review_status）
+                  //   2. 只入帳一次（用總金額）
+                  let shouldSync = true;
+                  let syncAmount = String(payment.amount);
+
+                  if (payment.receiptKey) {
+                    const dbInst = await getDb();
+                    if (dbInst) {
+                      // 用 receiptKey 找同一張收據的所有記錄（跨學生）
+                      const siblingRecords = await dbInst.select().from(schema.paymentRecords)
+                        .where(and(
+                          eq(schema.paymentRecords.receiptKey, payment.receiptKey)
+                        ));
+
+                      if (siblingRecords.length > 1) {
+                        // ── 自動批准所有拆分記錄 ──
+                        for (const sibling of siblingRecords) {
+                          if (sibling.id !== input.paymentId) {
+                            // 同步批准兄弟記錄的 status 和 review_status
+                            await reviewReceipt({
+                              paymentId: sibling.id,
+                              paymentType: 'regular',
+                              decision: 'approved',
+                              reviewedBy: reviewerName,
+                              confirmedBy: confirmedByRole,
+                            });
+                            console.log(`[ReceiptReview] 自動批准拆分記錄: paymentId=${sibling.id}, studentId=${sibling.studentId}`);
+                          }
+                        }
+
+                        // 檢查是否已有兄弟記錄入了會計帳
+                        for (const sibling of siblingRecords) {
+                          if (sibling.id !== input.paymentId) {
+                            const existingAccounting = await getAccountingRecordByPaymentId(sibling.id);
+                            if (existingAccounting) {
+                              shouldSync = false;
+                              break;
+                            }
+                          }
+                        }
+                        if (shouldSync) {
+                          // 用所有拆分記錄的金額總和（= 實際轉帳金額）
+                          const totalAmount = siblingRecords.reduce((sum, r) => sum + parseFloat(r.amount), 0);
+                          syncAmount = totalAmount.toFixed(2);
+                        }
+                      }
+                    }
+                  }
+
+                  if (shouldSync) {
+                    await syncPaymentToAccounting({
+                      paymentRecordId: input.paymentId,
+                      transactionDate: payment.receiptTransferDate || payment.paymentDate,
+                      amount: syncAmount,
+                      bank: null,
+                      studentName: student.name,
+                      coachName: student.coach,
+                      dojoName: student.venue || null,
+                      category: 'tuition',
+                      receiptUrl: payment.receiptUrl,
+                      receiptKey: payment.receiptKey,
+                    });
+                  }
                 }
               }
             } else if (input.paymentType === 'elite') {
