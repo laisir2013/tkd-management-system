@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { AlertTriangle, CheckCircle2, XCircle, Eye, Clock, ImageIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle, Eye, Clock, ImageIcon, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 const matchTypeLabels: Record<string, string> = {
@@ -13,6 +13,8 @@ const matchTypeLabels: Record<string, string> = {
   same_transaction_ref: "疑似同一筆交易",
   exact_image: "相同收據圖片",
   similar_image: "相似收據圖片",
+  parent_upload: "家長上傳",
+  validation_failed: "驗證失敗",
 };
 
 const statusColors: Record<string, string> = {
@@ -142,13 +144,20 @@ export default function ReceiptReviewContent() {
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                          <div>金額: <span className="font-medium text-foreground">${item.amount}</span> | 期間: {item.paymentPeriod} | {item.venue}</div>
+                          <div>金額: <span className="font-medium text-foreground">${item.amount}</span> | 期間: {item.paymentPeriod} | {item.venue}{item.coach ? ` · ${item.coach}` : ''}</div>
                           <div>上傳: {formatDateTime(item.createdAt)} | 轉帳: {formatDate(item.receiptTransferDate)}</div>
                           {item.review_reason && (
                             <div className="text-yellow-700 font-medium">原因: {item.review_reason}</div>
                           )}
                           {item.reviewed_by && (
-                            <div>審查人: {item.reviewed_by} | {formatDateTime(item.reviewed_at)}</div>
+                            <div className="flex items-center gap-1">
+                              <UserCheck className="w-3 h-3 text-green-600" />
+                              <span className="font-medium text-green-700">
+                                {item.confirmedBy === 'coach_approved' ? '教練核准' : '管理員核准'}
+                              </span>
+                              <span>: {item.reviewed_by}</span>
+                              <span className="text-gray-400 ml-1">{formatDateTime(item.reviewed_at)}</span>
+                            </div>
                           )}
                         </div>
                       </div>

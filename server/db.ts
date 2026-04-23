@@ -3385,22 +3385,29 @@ export async function checkDuplicateReceipt(params: {
 /**
  * 取得待審查收據列表
  */
-export async function getReceiptReviews(status: string = 'pending_review'): Promise<any[]> {
+export async function getReceiptReviews(status: string = 'pending_review', coachName?: string | null): Promise<any[]> {
   const pool = await getRawPool();
   if (!pool) return [];
 
   try {
+    // 教練只能看到自己道場學生的收據
+    const coachFilter = coachName ? ' AND s.coach = ?' : '';
+    const regularParams = coachName ? [status, coachName] : [status];
+
     const [regularRows] = await pool.execute(
       `SELECT p.id, p.studentId, s.name as studentName, p.amount, p.paymentPeriod, p.paymentDate,
               p.receiptUrl, p.receiptTransferDate, p.review_status, p.review_reason, p.review_match_type,
-              p.review_match_payment_id, p.reviewed_by, p.reviewed_at, p.createdAt,
-              'regular' as paymentType, s.venue
+              p.review_match_payment_id, p.reviewed_by, p.reviewed_at, p.createdAt, p.confirmedBy,
+              'regular' as paymentType, s.venue, s.coach
        FROM paymentRecords p
        LEFT JOIN students s ON p.studentId = s.id
-       WHERE p.review_status = ?
+       WHERE p.review_status = ?${coachFilter}
        ORDER BY p.createdAt DESC`,
-      [status]
+      regularParams
     ) as any;
+
+    const eliteCoachFilter = coachName ? ' AND s.coach = ?' : '';
+    const eliteParams = coachName ? [status, coachName] : [status];
 
     const [eliteRows] = await pool.execute(
       `SELECT p.id, p.student_id as studentId, s.name as studentName, p.amount,
@@ -3408,12 +3415,13 @@ export async function getReceiptReviews(status: string = 'pending_review'): Prom
               p.receipt_url as receiptUrl, p.payment_date as receiptTransferDate,
               p.review_status, p.review_reason, p.review_match_type,
               p.review_match_payment_id, p.reviewed_by, p.reviewed_at, p.created_at as createdAt,
-              'elite' as paymentType, '' as venue
+              p.confirmed_by as confirmedBy,
+              'elite' as paymentType, '' as venue, s.coach
        FROM elite_payments p
        LEFT JOIN elite_students s ON p.student_id = s.id
-       WHERE p.review_status = ?
+       WHERE p.review_status = ?${eliteCoachFilter}
        ORDER BY p.created_at DESC`,
-      [status]
+      eliteParams
     ) as any;
 
     return [...(regularRows || []), ...(eliteRows || [])].sort(
@@ -3484,24 +3492,44 @@ export async function reviewReceipt(params: {
   paymentType: 'regular' | 'elite';
   decision: 'approved' | 'rejected';
   reviewedBy: string;
+  confirmedBy?: string; // 'admin_approved' | 'coach_approved'
 }): Promise<boolean> {
   const pool = await getRawPool();
   if (!pool) return false;
 
   try {
     const table = params.paymentType === 'elite' ? 'elite_payments' : 'paymentRecords';
-    await pool.execute(
-      `UPDATE ${table}
-       SET review_status = ?, reviewed_by = ?, reviewed_at = NOW(),
-           status = ?
-       WHERE id = ?`,
-      [
-        params.decision,
-        params.reviewedBy,
-        params.decision === 'approved' ? 'confirmed' : 'pending',
-        params.paymentId
-      ]
-    );
+    const confirmedByCol = params.paymentType === 'elite' ? 'confirmed_by' : 'confirmedBy';
+    
+    // 批准時同時更新 confirmedBy，以記錄是管理員還是教練核准
+    if (params.decision === 'approved' && params.confirmedBy) {
+      await pool.execute(
+        `UPDATE ${table}
+         SET review_status = ?, reviewed_by = ?, reviewed_at = NOW(),
+             status = ?, ${confirmedByCol} = ?
+         WHERE id = ?`,
+        [
+          params.decision,
+          params.reviewedBy,
+          'confirmed',
+          params.confirmedBy,
+          params.paymentId
+        ]
+      );
+    } else {
+      await pool.execute(
+        `UPDATE ${table}
+         SET review_status = ?, reviewed_by = ?, reviewed_at = NOW(),
+             status = ?
+         WHERE id = ?`,
+        [
+          params.decision,
+          params.reviewedBy,
+          params.decision === 'approved' ? 'confirmed' : 'pending',
+          params.paymentId
+        ]
+      );
+    }
     return true;
   } catch (err) {
     console.error("[ReceiptReview] reviewReceipt error:", err);

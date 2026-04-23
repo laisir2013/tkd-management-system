@@ -17,6 +17,7 @@ import { AttendanceManagementContent } from "@/components/AttendanceManagementCo
 import { MonthlyPaymentRecords } from "@/components/MonthlyPaymentRecords";
 import CoachStatsWithElite from "@/components/CoachStatsWithElite";
 import { StudentWhatsAppButton } from "@/components/StudentWhatsAppButton";
+import ReceiptReviewContent from "@/components/ReceiptReviewContent";
 
 export default function CoachDashboard() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -74,10 +75,11 @@ export default function CoachDashboard() {
         {/* Main Tabs — mirrors Admin layout */}
         <Tabs defaultValue="regular" className="space-y-4">
           {/* Top-level navigation tabs */}
-          <TabsList className="grid grid-cols-3 h-auto gap-1.5 sm:gap-2 p-2 w-full bg-muted/50 rounded-lg">
-            <TabsTrigger value="regular" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-green-300 bg-green-50 text-green-700 rounded-md data-[state=active]:border-green-500 data-[state=active]:bg-green-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📋 恆常班管理</TabsTrigger>
+          <TabsList className="grid grid-cols-4 h-auto gap-1.5 sm:gap-2 p-2 w-full bg-muted/50 rounded-lg">
+            <TabsTrigger value="regular" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-green-300 bg-green-50 text-green-700 rounded-md data-[state=active]:border-green-500 data-[state=active]:bg-green-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📋 恆常班</TabsTrigger>
+            <TabsTrigger value="receipt-review" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-orange-300 bg-orange-50 text-orange-700 rounded-md data-[state=active]:border-orange-500 data-[state=active]:bg-orange-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold relative">📋 收據核對<CoachPendingBadge /></TabsTrigger>
             <TabsTrigger value="elite" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-amber-400 bg-amber-50 text-amber-700 rounded-md data-[state=active]:border-amber-500 data-[state=active]:bg-amber-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">🥋 精英班</TabsTrigger>
-            <TabsTrigger value="coach-stats" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-md data-[state=active]:border-blue-500 data-[state=active]:bg-blue-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📊 統計總覽</TabsTrigger>
+            <TabsTrigger value="coach-stats" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-md data-[state=active]:border-blue-500 data-[state=active]:bg-blue-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📊 統計</TabsTrigger>
           </TabsList>
 
           {/* ========= 恆常班管理 (sub-tabs mirror Admin) ========= */}
@@ -112,6 +114,11 @@ export default function CoachDashboard() {
             </Tabs>
           </TabsContent>
 
+          {/* ========= 收據核對 ========= */}
+          <TabsContent value="receipt-review">
+            <ReceiptReviewContent />
+          </TabsContent>
+
           {/* ========= 精英班 ========= */}
           <TabsContent value="elite">
             <CoachElite coachName={coachName} />
@@ -131,6 +138,22 @@ export default function CoachDashboard() {
         />
       </div>
     </div>
+  );
+}
+
+/* ======================================================================
+   PENDING BADGE — show count of receipts needing review
+   ====================================================================== */
+function CoachPendingBadge() {
+  const { data: pendingCount } = trpc.receiptReview.pendingCount.useQuery(undefined, {
+    refetchInterval: 30000,
+  });
+  const count = pendingCount?.count ?? 0;
+  if (count === 0) return null;
+  return (
+    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full px-1">
+      {count}
+    </span>
   );
 }
 
