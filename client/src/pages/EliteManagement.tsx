@@ -39,9 +39,23 @@ function EliteStudentsTab() {
   const [editingPhoneId, setEditingPhoneId] = useState<number | null>(null);
   const [editingPhoneValue, setEditingPhoneValue] = useState("");
 
+  // Add mode: 'select' = pick from regular class, 'new' = create brand new
+  const [addMode, setAddMode] = useState<'select' | 'new'>('select');
+  const [selectedRegularId, setSelectedRegularId] = useState<number | null>(null);
+  const [regularSearch, setRegularSearch] = useState("");
+
   // Form state
   const [formData, setFormData] = useState({
     name: "", phone: "", beltLevel: "", coach: "", scheduleDay: "", scheduleTime: "", feePerClass: "200", notes: "",
+  });
+
+  // 取得可加入精英班的恆常班學生
+  const { data: regularStudents = [], isLoading: regularLoading } = trpc.elite.getRegularStudentsForElite.useQuery(
+    undefined, { enabled: showAddDialog && addMode === 'select' }
+  );
+  const createFromRegularMutation = trpc.elite.createFromRegular.useMutation({
+    onSuccess: (data) => { utils.elite.getStudents.invalidate(); setShowAddDialog(false); resetForm(); setSelectedRegularId(null); setRegularSearch(""); toast.success(`${data.name} 已從恆常班加入精英班`); },
+    onError: (e) => toast.error(e.message),
   });
 
   const createMutation = trpc.elite.createStudent.useMutation({
@@ -296,7 +310,7 @@ function EliteStudentsTab() {
             {syncPhonesMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
             從恆常班匹配電話
           </Button>
-          <Button onClick={() => { resetForm(); setShowAddDialog(true); }}><Plus className="h-4 w-4 mr-1" />新增學生</Button>
+          <Button onClick={() => { resetForm(); setAddMode('select'); setSelectedRegularId(null); setRegularSearch(""); setShowAddDialog(true); }}><Plus className="h-4 w-4 mr-1" />新增學生</Button>
         </div>
       </div>
 
@@ -325,65 +339,210 @@ function EliteStudentsTab() {
       {renderClassTable(classBStudents, 'B', '精英班 B 班', '4:30-6:30pm')}
 
       {/* 新增/編輯對話框 */}
-      <Dialog open={showAddDialog || !!editingStudent} onOpenChange={(open) => { if (!open) { setShowAddDialog(false); setEditingStudent(null); } }}>
-        <DialogContent>
+      <Dialog open={showAddDialog || !!editingStudent} onOpenChange={(open) => { if (!open) { setShowAddDialog(false); setEditingStudent(null); setSelectedRegularId(null); setRegularSearch(""); } }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingStudent ? "編輯學生" : "新增精英班學生"}</DialogTitle>
-            <DialogDescription>{editingStudent ? "修改學生資料" : "填寫學生基本資料"}</DialogDescription>
+            <DialogDescription>{editingStudent ? "修改學生資料" : "從恆常班選取現有學生，或新增全新學生"}</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>姓名 *</Label><Input value={formData.name} onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))} /></div>
-              <div><Label>電話 *</Label><Input value={formData.phone} onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} /></div>
+
+          {/* 新增模式切換（編輯時不顯示） */}
+          {!editingStudent && (
+            <div className="flex rounded-lg border p-1 gap-1 bg-muted/50">
+              <button
+                className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${addMode === 'select' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => { setAddMode('select'); setSelectedRegularId(null); setRegularSearch(""); }}
+              >
+                <Users className="h-4 w-4 inline mr-1.5 -mt-0.5" />從恆常班選取
+              </button>
+              <button
+                className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${addMode === 'new' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => { setAddMode('new'); setSelectedRegularId(null); }}
+              >
+                <Plus className="h-4 w-4 inline mr-1.5 -mt-0.5" />新增全新學生
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>帶級</Label><Input value={formData.beltLevel} onChange={(e) => setFormData(p => ({ ...p, beltLevel: e.target.value }))} placeholder="例如: 黑帶一段" /></div>
+          )}
+
+          {/* ── 模式 A：從恆常班選取 ── */}
+          {!editingStudent && addMode === 'select' && (
+            <div className="space-y-3">
               <div>
-                <Label>負責教練</Label>
-                <Select value={formData.coach} onValueChange={(v) => setFormData(p => ({ ...p, coach: v }))}>
-                  <SelectTrigger><SelectValue placeholder="選擇教練" /></SelectTrigger>
-                  <SelectContent>
-                    {["賴政堡教練","鄺富華教練","林學曉教練","何翰錕教練","許悠教練"].map(c => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>搜尋恆常班學生</Label>
+                <Input
+                  placeholder="輸入姓名或電話搜尋..."
+                  value={regularSearch}
+                  onChange={(e) => setRegularSearch(e.target.value)}
+                  className="mt-1"
+                />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>每堂費用 ($)</Label><Input value={formData.feePerClass} onChange={(e) => setFormData(p => ({ ...p, feePerClass: e.target.value }))} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>訓練日</Label>
-                <Select value={formData.scheduleDay} onValueChange={(v) => setFormData(p => ({ ...p, scheduleDay: v }))}>
-                  <SelectTrigger><SelectValue placeholder="選擇訓練日" /></SelectTrigger>
-                  <SelectContent>
-                    {["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].map(d => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="max-h-48 overflow-y-auto border rounded-lg">
+                {regularLoading ? (
+                  <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                ) : (() => {
+                  const filtered = regularStudents.filter(s =>
+                    s.name.toLowerCase().includes(regularSearch.toLowerCase()) ||
+                    s.phone.includes(regularSearch)
+                  );
+                  return filtered.length === 0 ? (
+                    <p className="text-center text-sm text-muted-foreground py-4">
+                      {regularSearch ? "找不到符合的學生" : "沒有可加入的恆常班學生"}
+                    </p>
+                  ) : (
+                    filtered.map(s => (
+                      <div
+                        key={s.id}
+                        className={`flex items-center justify-between px-3 py-2.5 cursor-pointer border-b last:border-b-0 transition-colors ${selectedRegularId === s.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-muted/50'}`}
+                        onClick={() => {
+                          setSelectedRegularId(s.id);
+                          setFormData(p => ({
+                            ...p,
+                            coach: s.coach || p.coach,
+                            scheduleDay: '',
+                            scheduleTime: '',
+                            feePerClass: '200',
+                            notes: '',
+                          }));
+                        }}
+                      >
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">{s.name}</div>
+                          <div className="text-xs text-muted-foreground">{s.venue} · {s.phone}</div>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                          {s.beltLevel && <Badge variant="outline" className="text-xs">{s.beltLevel}</Badge>}
+                          {selectedRegularId === s.id && <Check className="h-4 w-4 text-blue-600" />}
+                        </div>
+                      </div>
+                    ))
+                  );
+                })()}
               </div>
-              <div><Label>訓練時間</Label><Input value={formData.scheduleTime} onChange={(e) => setFormData(p => ({ ...p, scheduleTime: e.target.value }))} placeholder="例如: 2:00-4:00pm" /></div>
+              {selectedRegularId && (
+                <div className="border rounded-lg p-3 bg-blue-50/50 space-y-3">
+                  <p className="text-sm font-medium text-blue-800">
+                    已選：{regularStudents.find(s => s.id === selectedRegularId)?.name}
+                    <span className="text-muted-foreground font-normal ml-2">— 設定精英班資料：</span>
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">負責教練</Label>
+                      <Select value={formData.coach} onValueChange={(v) => setFormData(p => ({ ...p, coach: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="選擇教練" /></SelectTrigger>
+                        <SelectContent>
+                          {COACH_OPTIONS.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">每堂費用 ($)</Label>
+                      <Input className="h-9" value={formData.feePerClass} onChange={(e) => setFormData(p => ({ ...p, feePerClass: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">訓練日</Label>
+                      <Select value={formData.scheduleDay} onValueChange={(v) => setFormData(p => ({ ...p, scheduleDay: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="選擇訓練日" /></SelectTrigger>
+                        <SelectContent>
+                          {["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].map(d => (
+                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">訓練時間</Label>
+                      <Input className="h-9" value={formData.scheduleTime} onChange={(e) => setFormData(p => ({ ...p, scheduleTime: e.target.value }))} placeholder="例如: 12:00-2:00pm" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">備註</Label>
+                    <Input className="h-9" value={formData.notes} onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="選填" />
+                  </div>
+                </div>
+              )}
             </div>
-            <div><Label>備註</Label><Input value={formData.notes} onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))} /></div>
-          </div>
+          )}
+
+          {/* ── 模式 B：新增全新學生 / 編輯模式 ── */}
+          {(editingStudent || addMode === 'new') && (
+            <div className="grid gap-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>姓名 *</Label><Input value={formData.name} onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))} /></div>
+                <div><Label>電話 *</Label><Input value={formData.phone} onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>帶級</Label><Input value={formData.beltLevel} onChange={(e) => setFormData(p => ({ ...p, beltLevel: e.target.value }))} placeholder="例如: 黑帶一段" /></div>
+                <div>
+                  <Label>負責教練</Label>
+                  <Select value={formData.coach} onValueChange={(v) => setFormData(p => ({ ...p, coach: v }))}>
+                    <SelectTrigger><SelectValue placeholder="選擇教練" /></SelectTrigger>
+                    <SelectContent>
+                      {COACH_OPTIONS.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>每堂費用 ($)</Label><Input value={formData.feePerClass} onChange={(e) => setFormData(p => ({ ...p, feePerClass: e.target.value }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>訓練日</Label>
+                  <Select value={formData.scheduleDay} onValueChange={(v) => setFormData(p => ({ ...p, scheduleDay: v }))}>
+                    <SelectTrigger><SelectValue placeholder="選擇訓練日" /></SelectTrigger>
+                    <SelectContent>
+                      {["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].map(d => (
+                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>訓練時間</Label><Input value={formData.scheduleTime} onChange={(e) => setFormData(p => ({ ...p, scheduleTime: e.target.value }))} placeholder="例如: 12:00-2:00pm" /></div>
+              </div>
+              <div><Label>備註</Label><Input value={formData.notes} onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))} /></div>
+            </div>
+          )}
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowAddDialog(false); setEditingStudent(null); }}>取消</Button>
-            <Button
-              disabled={!formData.name || !formData.phone || createMutation.isPending || updateMutation.isPending}
-              onClick={() => {
-                if (editingStudent) {
-                  updateMutation.mutate({ id: editingStudent.id, ...formData });
-                } else {
-                  createMutation.mutate(formData);
-                }
-              }}
-            >
-              {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              {editingStudent ? "更新" : "新增"}
-            </Button>
+            <Button variant="outline" onClick={() => { setShowAddDialog(false); setEditingStudent(null); setSelectedRegularId(null); setRegularSearch(""); }}>取消</Button>
+            {/* 從恆常班選取模式 */}
+            {!editingStudent && addMode === 'select' && (
+              <Button
+                disabled={!selectedRegularId || createFromRegularMutation.isPending}
+                onClick={() => {
+                  if (!selectedRegularId) return;
+                  createFromRegularMutation.mutate({
+                    regularStudentId: selectedRegularId,
+                    coach: formData.coach || undefined,
+                    scheduleDay: formData.scheduleDay || undefined,
+                    scheduleTime: formData.scheduleTime || undefined,
+                    feePerClass: formData.feePerClass || '200',
+                    notes: formData.notes || undefined,
+                  });
+                }}
+              >
+                {createFromRegularMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                加入精英班
+              </Button>
+            )}
+            {/* 新增全新學生 / 編輯模式 */}
+            {(editingStudent || addMode === 'new') && (
+              <Button
+                disabled={!formData.name || !formData.phone || createMutation.isPending || updateMutation.isPending}
+                onClick={() => {
+                  if (editingStudent) {
+                    updateMutation.mutate({ id: editingStudent.id, ...formData });
+                  } else {
+                    createMutation.mutate(formData);
+                  }
+                }}
+              >
+                {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                {editingStudent ? "更新" : "新增"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

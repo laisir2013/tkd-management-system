@@ -2539,6 +2539,63 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return getEliteStudentsByPhone(input.phone);
       }),
+    // 取得可加入精英班的恆常班學生（排除已在精英班的）
+    getRegularStudentsForElite: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const allRegular = await getAllStudents();
+        const allElite = await getAllEliteStudents();
+        // 用姓名+電話組合來判斷是否已在精英班（因為是不同表，沒有外鍵關聯）
+        const eliteSet = new Set(allElite.map(e => `${e.name}||${e.phone}`));
+        return allRegular
+          .filter(s => s.status === 'active' && !eliteSet.has(`${s.name}||${s.phone}`))
+          .map(s => ({
+            id: s.id,
+            name: s.name,
+            phone: s.phone,
+            beltLevel: s.beltLevel || '',
+            coach: s.coach || '',
+            venue: s.venue || '',
+            scheduleDay: s.scheduleDay || '',
+            scheduleTime: s.scheduleTime || '',
+          }));
+      }),
+
+    // 從恆常班學生建立精英班記錄
+    createFromRegular: protectedProcedure
+      .input(z.object({
+        regularStudentId: z.number(),
+        coach: z.string().optional(),
+        scheduleDay: z.string().optional(),
+        scheduleTime: z.string().optional(),
+        feePerClass: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const regular = await getStudentById(input.regularStudentId);
+        if (!regular) throw new TRPCError({ code: 'NOT_FOUND', message: '恆常班學生不存在' });
+        
+        // 檢查是否已存在
+        const existing = await getAllEliteStudents();
+        const dup = existing.find(e => e.name === regular.name && e.phone === regular.phone);
+        if (dup) throw new TRPCError({ code: 'CONFLICT', message: `${regular.name} 已在精英班中` });
+
+        const password = await hashPassword(regular.phone);
+        const id = await insertEliteStudent({
+          name: regular.name,
+          phone: regular.phone,
+          beltLevel: regular.beltLevel || '',
+          coach: input.coach || regular.coach || '',
+          scheduleDay: input.scheduleDay || '',
+          scheduleTime: input.scheduleTime || '',
+          feePerClass: input.feePerClass || '200',
+          notes: input.notes || `從恆常班加入（${regular.venue || ''})`,
+          password,
+        });
+        return { id, name: regular.name };
+      }),
+
     createStudent: protectedProcedure
       .input(z.object({
         name: z.string().min(1),
