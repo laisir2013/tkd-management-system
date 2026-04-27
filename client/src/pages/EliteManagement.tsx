@@ -885,21 +885,30 @@ function EliteAttendanceTab() {
                     </TableHead>
                   );
                 })}
-                <TableHead className="text-center min-w-[70px]">循環堂數</TableHead>
-                <TableHead className="text-center min-w-[60px]">出席率</TableHead>
                 <TableHead className="text-center min-w-[50px]">通知</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {classStudents.map((student: any) => {
-                const presentCount = activeSchedules.filter((s: any) => {
-                  const status = attendanceMap[`${s.id}-${student.id}`];
-                  return status === "present" || status === "late";
-                }).length;
-                const rate = activeSchedules.length > 0 ? Math.round((presentCount / activeSchedules.length) * 100) : 0;
                 const cycle = cycleMap[student.id];
                 const cycleNum = cycle?.cycleNumber || 0;
                 const needReminder = cycle?.needPaymentReminder || false;
+
+                // 計算每個日期格子的累計堂數：按日期順序，出席/遲到 +1
+                let runningCount = 0;
+                const cellNumbers: Record<number, number> = {};
+                // 按日期排序的活躍課堂（排除已取消的）
+                const sortedSchedules = [...classSchedules].sort((a: any, b: any) => 
+                  new Date(a.trainingDate).getTime() - new Date(b.trainingDate).getTime()
+                );
+                for (const s of sortedSchedules) {
+                  if (s.status === 'cancelled') continue;
+                  const status = attendanceMap[`${s.id}-${student.id}`];
+                  if (status === 'present' || status === 'late') {
+                    runningCount++;
+                    cellNumbers[s.id] = runningCount;
+                  }
+                }
 
                 return (
                   <TableRow key={student.id} className={needReminder ? "bg-orange-50/60" : ""}>
@@ -920,6 +929,7 @@ function EliteAttendanceTab() {
                           </TableCell>
                         );
                       }
+                      const num = cellNumbers[s.id];
                       return (
                         <TableCell
                           key={s.id}
@@ -930,31 +940,18 @@ function EliteAttendanceTab() {
                               : 'hover:bg-gray-100'}`}
                           onClick={() => toggleAttendance(s.id, student.id)}
                         >
-                          {status ? statusEmoji[status] : <span className="text-gray-300 text-lg">·</span>}
+                          {num ? (
+                            <span className={`font-bold text-sm ${
+                              num >= 10 ? 'text-orange-600' : num >= 7 ? 'text-yellow-700' : 'text-green-700'
+                            }`}>{num}</span>
+                          ) : status === 'absent' ? (
+                            <span className="text-red-400 text-sm">✗</span>
+                          ) : (
+                            <span className="text-gray-300 text-lg">·</span>
+                          )}
                         </TableCell>
                       );
                     })}
-                    <TableCell className="text-center">
-                      {cycleNum > 0 ? (
-                        <Badge
-                          variant={needReminder ? "destructive" : "outline"}
-                          className={`font-bold ${
-                            cycleNum >= 10
-                              ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
-                              : cycleNum >= 7
-                              ? "bg-yellow-100 text-yellow-800 border-yellow-400"
-                              : ""
-                          }`}
-                        >
-                          {cycleNum}/12
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400 text-sm">0/12</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={rate >= 80 ? "default" : rate >= 50 ? "secondary" : "destructive"}>{rate}%</Badge>
-                    </TableCell>
                     <TableCell className="text-center">
                       <EliteAttendanceWhatsAppButton
                         studentId={student.id}
@@ -971,7 +968,7 @@ function EliteAttendanceTab() {
                 );
               })}
               {classStudents.length === 0 && (
-                <TableRow><TableCell colSpan={classSchedules.length + 4} className="text-center py-8 text-muted-foreground">此班暫無學生</TableCell></TableRow>
+                <TableRow><TableCell colSpan={classSchedules.length + 2} className="text-center py-8 text-muted-foreground">此班暫無學生</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -986,15 +983,17 @@ function EliteAttendanceTab() {
 
       {/* 圖例 */}
       <div className="flex gap-4 text-sm text-muted-foreground flex-wrap">
-        <span>✅ 出席</span><span>❌ 缺席</span><span>⏰ 遲到</span><span>· 未記錄（點擊切換）</span>
+        <span><span className="font-bold text-green-700">1,2,3...</span> 累計出席堂數</span>
+        <span><span className="text-red-400">✗</span> 缺席</span>
+        <span className="text-gray-400">· 未記錄（點擊切換）</span>
         <span className="text-red-500 font-bold">【取消】</span><span className="text-sm"> 取消課堂</span>
         <span className="text-green-600 font-bold">【恢復】</span><span className="text-sm"> 恢復課堂</span>
       </div>
       <div className="flex gap-4 text-sm flex-wrap">
-        <span className="text-muted-foreground">堂數循環：</span>
-        <span><Badge variant="outline" className="text-xs">1-6/12</Badge> 正常</span>
-        <span><Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-800 border-yellow-400">7-9/12</Badge> 接近完成</span>
-        <span><Badge variant="outline" className="text-xs bg-orange-500 text-white border-orange-500">10-12/12</Badge> 請通知家長繳下期費用 $2,400</span>
+        <span className="text-muted-foreground">堂數顏色：</span>
+        <span><span className="font-bold text-green-700">1-6</span> 正常</span>
+        <span><span className="font-bold text-yellow-700">7-9</span> 接近完成</span>
+        <span><span className="font-bold text-orange-600">10-12</span> 請通知家長繳下期費用 $2,400</span>
         <span>💰 需繳費</span>
       </div>
     </div>

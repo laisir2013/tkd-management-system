@@ -427,7 +427,7 @@ export default function EliteHistory() {
                       >
                         {selectedYear}年{selectedMonth}月
                       </th>
-                      <th colSpan={6} className="px-2 py-1.5 text-center text-[10px] font-medium border-b border-slate-600 text-slate-300">統計</th>
+                      <th colSpan={4} className="px-2 py-1.5 text-center text-[10px] font-medium border-b border-slate-600 text-slate-300">統計</th>
                     </tr>
                     <tr className="bg-muted border-b">
                       <th className="sticky left-0 z-40 bg-muted px-1 py-2 text-center font-medium w-[32px] min-w-[32px] border-r border-b">#</th>
@@ -464,8 +464,6 @@ export default function EliteHistory() {
                           </th>
                         );
                       })}
-                      <th className="px-2 py-2 text-center font-medium min-w-[42px] bg-blue-100 border-r border-b">出席</th>
-                      <th className="px-2 py-2 text-center font-medium min-w-[42px] bg-red-100 border-r border-b">請假</th>
                       <th className="px-2 py-2 text-center font-medium min-w-[50px] bg-purple-100 border-r border-b">循環</th>
                       <th className="px-2 py-2 text-center font-medium min-w-[38px] bg-green-100 border-r border-b" title="WhatsApp 通知">通知</th>
                       <th className="px-2 py-2 text-center font-medium min-w-[60px] bg-indigo-100 border-r border-b">今期開始</th>
@@ -474,12 +472,27 @@ export default function EliteHistory() {
                   </thead>
                   <tbody>
                     {sortedStudents.map((student: any, index: number) => {
-                      const stat = stats.studentStats.get(student.id) || { present: 0, excused: 0, total: 0 };
                       const cycle = cycleMap[student.id];
                       const cycleNum = cycle?.cycleNumber || 0;
                       const bal = balanceMap[student.id];
                       const amountDue = bal?.amountDue || 0;
                       const coachColor = getCoachColor(student.coach || '');
+
+                      // 計算每個日期格子的累計堂數：按日期順序，出席 +1
+                      let runningCount = 0;
+                      const cellNumbers: Record<number, number> = {};
+                      const sortedMonthSchedules = [...monthSchedules].sort((a: any, b: any) =>
+                        new Date(a.trainingDate).getTime() - new Date(b.trainingDate).getTime()
+                      );
+                      for (const s of sortedMonthSchedules) {
+                        if (s.status === 'cancelled') continue;
+                        if (!isStudentJoined(student, s.trainingDate)) continue;
+                        const status = attendanceMap.get(`${s.id}-${student.id}`);
+                        if (status === 'present') {
+                          runningCount++;
+                          cellNumbers[s.id] = runningCount;
+                        }
+                      }
 
                       return (
                         <tr key={student.id} className={`${amountDue > 0 ? 'bg-orange-50/40' : 'hover:bg-muted/30'} border-l-[3px] ${coachColor.border}`}>
@@ -522,7 +535,7 @@ export default function EliteHistory() {
                                   : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100 cursor-pointer'
                                 }`}
                                 title={`${student.name} - ${formatFullDate(schedule.trainingDate)}: ${
-                                  status === 'present' ? '出席（長按修改）' : status === 'excused' ? '請假（長按修改）' : '未記錄（點擊選擇）'
+                                  status === 'present' ? `第${cellNumbers[schedule.id] || '?'}堂（長按修改）` : status === 'excused' ? '請假（長按修改）' : '未記錄（點擊選擇）'
                                 }`}
                                 onClick={(e) => handleCellClick(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
                                 onMouseDown={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
@@ -533,12 +546,18 @@ export default function EliteHistory() {
                                 onTouchMove={handleTouchMove}
                                 onContextMenu={(e) => e.preventDefault()}
                               >
-                                {status === 'present' ? '✅' : status === 'excused' ? '❌' : '·'}
+                                {cellNumbers[schedule.id] ? (
+                                <span className={`font-bold text-sm ${
+                                  cellNumbers[schedule.id] >= 10 ? 'text-orange-600' : cellNumbers[schedule.id] >= 7 ? 'text-yellow-700' : 'text-green-700'
+                                }`}>{cellNumbers[schedule.id]}</span>
+                              ) : status === 'excused' ? (
+                                <span className="text-red-400 text-sm">✗</span>
+                              ) : (
+                                <span className="text-gray-300 text-lg">·</span>
+                              )}
                               </td>
                             );
                           })}
-                          <td className="px-2 py-1.5 text-center font-medium bg-blue-50 text-blue-700 border-r border-b">{stat.present}</td>
-                          <td className="px-2 py-1.5 text-center font-medium bg-red-50 text-red-700 border-r border-b">{stat.excused}</td>
                           <td className="px-2 py-1.5 text-center bg-purple-50 border-r border-b">
                             {cycleNum > 0 ? (
                               <Badge variant="outline" className={`font-bold text-[10px] ${
@@ -794,11 +813,11 @@ export default function EliteHistory() {
       {/* 圖例 */}
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-green-100 border rounded flex items-center justify-center">✅</div>
-          <span>出席</span>
+          <div className="w-4 h-4 bg-green-100 border rounded flex items-center justify-center font-bold text-green-700 text-[10px]">1</div>
+          <span>累計出席堂數</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-red-100 border rounded flex items-center justify-center">❌</div>
+          <div className="w-4 h-4 bg-red-100 border rounded flex items-center justify-center text-red-400 text-[10px]">✗</div>
           <span>請假</span>
         </div>
         <div className="flex items-center gap-1">
@@ -816,6 +835,12 @@ export default function EliteHistory() {
         <div className="flex items-center gap-1 ml-2 text-orange-600 font-medium">
           <span>💡 已記錄需<strong>長按</strong>才能修改</span>
         </div>
+      </div>
+      <div className="flex gap-4 text-xs flex-wrap">
+        <span className="text-muted-foreground">堂數顏色：</span>
+        <span><span className="font-bold text-green-700">1-6</span> 正常</span>
+        <span><span className="font-bold text-yellow-700">7-9</span> 接近完成</span>
+        <span><span className="font-bold text-orange-600">10-12</span> 請通知家長繳下期費用 $2,400</span>
       </div>
       <div className="flex gap-4 text-xs flex-wrap">
         <span className="text-muted-foreground">循環：</span>
