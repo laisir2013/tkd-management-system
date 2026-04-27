@@ -439,22 +439,22 @@ function EliteStudentsTab() {
                       <Input className="h-9" value={formData.feePerClass} onChange={(e) => setFormData(p => ({ ...p, feePerClass: e.target.value }))} />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs">訓練日</Label>
-                      <Select value={formData.scheduleDay} onValueChange={(v) => setFormData(p => ({ ...p, scheduleDay: v }))}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="選擇訓練日" /></SelectTrigger>
-                        <SelectContent>
-                          {["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].map(d => (
-                            <SelectItem key={d} value={d}>{d}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">訓練時間</Label>
-                      <Input className="h-9" value={formData.scheduleTime} onChange={(e) => setFormData(p => ({ ...p, scheduleTime: e.target.value }))} placeholder="例如: 12:00-2:00pm" />
-                    </div>
+                  <div>
+                    <Label className="text-xs">班別</Label>
+                    <Select
+                      value={formData.scheduleTime === '12:00-2:00pm' ? 'A' : formData.scheduleTime === '4:30-6:30pm' ? 'B' : ''}
+                      onValueChange={(v) => setFormData(p => ({
+                        ...p,
+                        scheduleDay: '星期日',
+                        scheduleTime: v === 'A' ? '12:00-2:00pm' : '4:30-6:30pm',
+                      }))}
+                    >
+                      <SelectTrigger className="h-9"><SelectValue placeholder="選擇班別" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="A">A 班（星期日 12:00-2:00pm）</SelectItem>
+                        <SelectItem value="B">B 班（星期日 4:30-6:30pm）</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label className="text-xs">備註</Label>
@@ -486,20 +486,23 @@ function EliteStudentsTab() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><Label>每堂費用 ($)</Label><Input value={formData.feePerClass} onChange={(e) => setFormData(p => ({ ...p, feePerClass: e.target.value }))} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>訓練日</Label>
-                  <Select value={formData.scheduleDay} onValueChange={(v) => setFormData(p => ({ ...p, scheduleDay: v }))}>
-                    <SelectTrigger><SelectValue placeholder="選擇訓練日" /></SelectTrigger>
+                  <Label>班別</Label>
+                  <Select
+                    value={formData.scheduleTime === '12:00-2:00pm' ? 'A' : formData.scheduleTime === '4:30-6:30pm' ? 'B' : ''}
+                    onValueChange={(v) => setFormData(p => ({
+                      ...p,
+                      scheduleDay: '星期日',
+                      scheduleTime: v === 'A' ? '12:00-2:00pm' : '4:30-6:30pm',
+                    }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="選擇班別" /></SelectTrigger>
                     <SelectContent>
-                      {["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].map(d => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                      ))}
+                      <SelectItem value="A">A 班（星期日 12:00-2:00pm）</SelectItem>
+                      <SelectItem value="B">B 班（星期日 4:30-6:30pm）</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>訓練時間</Label><Input value={formData.scheduleTime} onChange={(e) => setFormData(p => ({ ...p, scheduleTime: e.target.value }))} placeholder="例如: 12:00-2:00pm" /></div>
               </div>
               <div><Label>備註</Label><Input value={formData.notes} onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))} /></div>
             </div>
