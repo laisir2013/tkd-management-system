@@ -2733,6 +2733,24 @@ export const appRouter = router({
         return { id };
       }),
 
+    // 批量點名
+    batchUpsertAttendance: protectedProcedure
+      .input(z.object({
+        entries: z.array(z.object({
+          scheduleId: z.number(),
+          studentId: z.number(),
+          status: z.string(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const results: number[] = [];
+        for (const entry of input.entries) {
+          const id = await upsertEliteAttendanceRecord(entry);
+          results.push(id);
+        }
+        return { count: results.length };
+      }),
+
     // 繳費記錄
     getPayments: protectedProcedure
       .input(z.object({ studentId: z.number().optional() }).optional())
@@ -2747,14 +2765,35 @@ export const appRouter = router({
         paymentDate: z.date(),
         confirmedBy: z.enum(['parent_upload', 'admin_approved']).optional(),
         notes: z.string().optional(),
+        // 收據上傳（可選）
+        receiptBase64: z.string().optional(),
+        receiptMimeType: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        // 只有管理員可以確認精英班繳費
-        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以確認繳費' });
+        // 管理員或教練皆可確認精英班繳費
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員或教練可以確認繳費' });
+
+        // 處理收據上傳
+        let receiptUrl: string | null = null;
+        let receiptKey: string | null = null;
+        if (input.receiptBase64 && input.receiptMimeType) {
+          const receiptBuffer = Buffer.from(input.receiptBase64, 'base64');
+          const fileExt = input.receiptMimeType.split('/')[1] || 'jpg';
+          const rKey = `receipts/elite-${input.studentId}-${Date.now()}.${fileExt}`;
+          const result = await storagePut(rKey, receiptBuffer, input.receiptMimeType);
+          receiptUrl = result.url;
+          receiptKey = rKey;
+        }
+
         const id = await insertElitePaymentRecord({
           ...input,
           amount: input.amount,
           confirmedBy: input.confirmedBy || 'admin_approved',
+          receiptUrl,
+          receiptKey,
+          // 管理員/教練上傳 = 直接通過，不需審批
+          status: 'confirmed',
+          reviewStatus: 'normal',
         });
 
         // 自動同步精英班付款到會計記錄 → 日記帳

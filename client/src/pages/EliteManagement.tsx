@@ -1008,6 +1008,7 @@ function EliteFinanceTab() {
   const { data: allPayments = [] } = trpc.elite.getPayments.useQuery({});
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ studentId: 0, classCount: "10", amount: "", notes: "" });
+  const [receiptFile, setReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
   const [deletePaymentTarget, setDeletePaymentTarget] = useState<any>(null);
   const [deletePassword, setDeletePassword] = useState("");
   const sendRemindersMutation = trpc.students.sendElitePaymentReminders.useMutation({
@@ -1241,11 +1242,11 @@ function EliteFinanceTab() {
       </Card>
 
       {/* 新增繳費對話框 */}
-      <Dialog open={showAddPayment} onOpenChange={setShowAddPayment}>
+      <Dialog open={showAddPayment} onOpenChange={(open) => { setShowAddPayment(open); if (!open) setReceiptFile(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>新增繳費記錄</DialogTitle>
-            <DialogDescription>記錄精英班學生的繳費</DialogDescription>
+            <DialogDescription>記錄精英班學生的繳費，可上傳收據直接確認</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div>
@@ -1264,9 +1265,47 @@ function EliteFinanceTab() {
               <div><Label>金額 ($)</Label><Input value={paymentForm.amount} onChange={(e) => setPaymentForm(p => ({ ...p, amount: e.target.value }))} /></div>
             </div>
             <div><Label>備註</Label><Input value={paymentForm.notes} onChange={(e) => setPaymentForm(p => ({ ...p, notes: e.target.value }))} /></div>
+            {/* 收據上傳 */}
+            <div>
+              <Label>上傳收據（可選）</Label>
+              <div className="mt-1">
+                {receiptFile ? (
+                  <div className="flex items-center gap-2 p-2 border rounded-lg bg-green-50">
+                    <Check className="h-4 w-4 text-green-600" />
+                    <span className="text-sm text-green-700 flex-1 truncate">{receiptFile.name}</span>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setReceiptFile(null)}>
+                      <X className="h-3 w-3 text-red-500" />
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                    <Plus className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">點擊選擇收據圖片</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 10 * 1024 * 1024) { toast.error("檔案不能超過 10MB"); return; }
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const result = reader.result as string;
+                          const base64 = result.split(',')[1];
+                          setReceiptFile({ base64, mimeType: file.type, name: file.name });
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">管理員/教練上傳收據直接確認，無需額外審批</p>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddPayment(false)}>取消</Button>
+            <Button variant="outline" onClick={() => { setShowAddPayment(false); setReceiptFile(null); }}>取消</Button>
             <Button
               disabled={!paymentForm.studentId || !paymentForm.classCount || createPaymentMutation.isPending}
               onClick={() => {
@@ -1277,6 +1316,8 @@ function EliteFinanceTab() {
                   paymentDate: new Date(),
                   confirmedBy: "admin_approved",
                   notes: paymentForm.notes || undefined,
+                  receiptBase64: receiptFile?.base64,
+                  receiptMimeType: receiptFile?.mimeType,
                 });
               }}
             >

@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X, CheckSquare, Square, Users } from "lucide-react";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
 import { EliteAttendanceWhatsAppButton } from "@/components/EliteAttendanceWhatsAppButton";
 
@@ -32,6 +32,70 @@ export default function EliteHistory() {
   const { data: historyData, isLoading: historyLoading } = trpc.elite.getHistoryByYear.useQuery({ year: selectedYear });
   const { data: cycleInfoList = [] } = trpc.elite.getAllCycleInfo.useQuery();
   const { data: balances = [] } = trpc.elite.getAllBalances.useQuery();
+
+  // ── 批量點名模式 ──
+  const [batchMode, setBatchMode] = useState(false);
+  // selectedCells: Set of "scheduleId-studentId" keys
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
+
+  const batchMutation = trpc.elite.batchUpsertAttendance.useMutation({
+    onSuccess: (data) => {
+      toast.success(`已批量更新 ${data.count} 條記錄`);
+      setSelectedCells(new Set());
+      setBatchMode(false);
+      Promise.all([
+        utils.elite.getHistoryByYear.invalidate(),
+        utils.elite.getAllCycleInfo.invalidate(),
+        utils.elite.getAllBalances.invalidate(),
+      ]);
+    },
+    onError: (err: any) => toast.error(`批量更新失敗：${err.message}`),
+  });
+
+  const toggleCellSelection = useCallback((scheduleId: number, studentId: number) => {
+    const key = `${scheduleId}-${studentId}`;
+    setSelectedCells(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const selectAllForSchedule = useCallback((scheduleId: number, studentIds: number[]) => {
+    setSelectedCells(prev => {
+      const next = new Set(prev);
+      const allSelected = studentIds.every(sid => next.has(`${scheduleId}-${sid}`));
+      studentIds.forEach(sid => {
+        const key = `${scheduleId}-${sid}`;
+        if (allSelected) next.delete(key);
+        else next.add(key);
+      });
+      return next;
+    });
+  }, []);
+
+  const selectAllForStudent = useCallback((studentId: number, scheduleIds: number[]) => {
+    setSelectedCells(prev => {
+      const next = new Set(prev);
+      const allSelected = scheduleIds.every(sid => next.has(`${sid}-${studentId}`));
+      scheduleIds.forEach(sid => {
+        const key = `${sid}-${studentId}`;
+        if (allSelected) next.delete(key);
+        else next.add(key);
+      });
+      return next;
+    });
+  }, []);
+
+  const applyBatchStatus = useCallback((status: string) => {
+    if (selectedCells.size === 0) { toast.warning("請先選擇要點名的格子"); return; }
+    const entries = Array.from(selectedCells).map(key => {
+      const [scheduleId, studentId] = key.split('-').map(Number);
+      return { scheduleId, studentId, status };
+    });
+    batchMutation.mutate({ entries });
+  }, [selectedCells, batchMutation]);
 
   // balance map
   const balanceMap = useMemo(() => {
@@ -443,7 +507,19 @@ export default function EliteHistory() {
                             <div className="flex flex-col items-center gap-0">
                               <span className="text-[11px] font-bold">{formatDay(schedule.trainingDate)}</span>
                               <span className="text-[9px] text-muted-foreground">({getDayOfWeek(schedule.trainingDate)})</span>
-                              {!isCancelled ? (
+                              {batchMode && !isCancelled ? (
+                                <button
+                                  className="text-indigo-500 hover:text-indigo-700 mt-0.5"
+                                  title="選取整列"
+                                  onClick={() => {
+                                    const studentIds = students.filter((s: any) => s.status === 'active' && isStudentJoined(s, schedule.trainingDate))
+                                      .map((s: any) => s.id);
+                                    selectAllForSchedule(schedule.id, studentIds);
+                                  }}
+                                >
+                                  <CheckSquare className="h-3 w-3" />
+                                </button>
+                              ) : !isCancelled ? (
                                 <button
                                   className="text-red-400 hover:text-red-600 opacity-30 hover:opacity-100"
                                   title="取消課堂"
@@ -510,6 +586,7 @@ export default function EliteHistory() {
                             const joined = isStudentJoined(student, schedule.trainingDate);
                             const key = `${schedule.id}-${student.id}`;
                             const status = attendanceMap.get(key);
+                            const isSelected = batchMode && selectedCells.has(key);
 
                             if (isCancelled) {
                               return (
@@ -522,6 +599,27 @@ export default function EliteHistory() {
                               return (
                                 <td key={schedule.id} className="px-1 py-1.5 text-center bg-gray-900 border-r border-b" title="未加入">
                                   <span className="text-gray-900">■</span>
+                                </td>
+                              );
+                            }
+
+                            if (batchMode) {
+                              return (
+                                <td
+                                  key={schedule.id}
+                                  className={`px-1 py-1.5 text-center transition-colors border-r border-b select-none cursor-pointer ${
+                                    isSelected ? 'bg-indigo-200 ring-2 ring-inset ring-indigo-500'
+                                    : status === 'present' ? 'bg-green-50 hover:bg-indigo-100'
+                                    : status === 'excused' ? 'bg-red-50 hover:bg-indigo-100'
+                                    : 'bg-yellow-50/50 hover:bg-indigo-100'
+                                  }`}
+                                  onClick={() => toggleCellSelection(schedule.id, student.id)}
+                                >
+                                  {isSelected ? (
+                                    <CheckSquare className="h-4 w-4 mx-auto text-indigo-600" />
+                                  ) : (
+                                    <Square className="h-4 w-4 mx-auto text-gray-300" />
+                                  )}
                                 </td>
                               );
                             }
@@ -631,10 +729,21 @@ export default function EliteHistory() {
     <div className="space-y-4 px-3 md:px-0">
       {/* 標題 + 年份選擇 */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-bold flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          精英班點名表
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            精英班點名表
+          </h2>
+          <Button
+            variant={batchMode ? "default" : "outline"}
+            size="sm"
+            className={`h-8 text-xs ${batchMode ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+            onClick={() => { setBatchMode(!batchMode); setSelectedCells(new Set()); }}
+          >
+            <CheckSquare className="h-3.5 w-3.5 mr-1" />
+            {batchMode ? '退出批量' : '批量點名'}
+          </Button>
+        </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           {(availableYears || []).map((year: number) => (
             <Button
@@ -743,6 +852,53 @@ export default function EliteHistory() {
           <div className="h-4" />
           {renderClassTable('B', 'B班（4:30-6:30pm）', classTimeB, 'bg-orange-600', monthSchedulesB, studentsB, statsB)}
         </>
+      )}
+
+      {/* 批量操作浮動工具列 */}
+      {batchMode && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-white rounded-xl shadow-2xl border border-indigo-200">
+            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-300 font-bold">
+              已選 {selectedCells.size} 格
+            </Badge>
+            <div className="w-px h-6 bg-gray-200" />
+            <Button
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
+              disabled={selectedCells.size === 0 || batchMutation.isPending}
+              onClick={() => applyBatchStatus('present')}
+            >
+              全部出席
+            </Button>
+            <Button
+              size="sm"
+              className="bg-red-500 hover:bg-red-600 text-white h-8 text-xs"
+              disabled={selectedCells.size === 0 || batchMutation.isPending}
+              onClick={() => applyBatchStatus('excused')}
+            >
+              全部請假
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={selectedCells.size === 0 || batchMutation.isPending}
+              onClick={() => applyBatchStatus('absent')}
+            >
+              全部清除
+            </Button>
+            <div className="w-px h-6 bg-gray-200" />
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 text-xs text-gray-500"
+              onClick={() => { setSelectedCells(new Set()); setBatchMode(false); }}
+            >
+              取消
+            </Button>
+            {batchMutation.isPending && <span className="text-xs text-muted-foreground animate-pulse">處理中...</span>}
+          </div>
+        </div>
       )}
 
       {/* 撤回按鈕 - 浮動顯示 */}
