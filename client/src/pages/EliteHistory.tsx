@@ -26,7 +26,8 @@ export default function EliteHistory() {
   const utils = trpc.useUtils();
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
+  // 季度模式：1=1-3月, 2=4-6月, 3=7-9月, 4=10-12月
+  const [selectedQuarter, setSelectedQuarter] = useState<number>(Math.ceil((now.getMonth() + 1) / 3));
 
   const { data: availableYears, isLoading: yearsLoading } = trpc.elite.getAvailableYears.useQuery();
   const { data: historyData, isLoading: historyLoading } = trpc.elite.getHistoryByYear.useQuery({ year: selectedYear });
@@ -181,17 +182,24 @@ export default function EliteHistory() {
   const classTimeA = '12:00-2:00pm';
   const classTimeB = '4:30-6:30pm';
 
-  // 按月份過濾 schedules（訓練日期兩班共用，不按 scheduleTime 過濾）
-  const getMonthSchedules = () => {
+  // 季度的3個月份
+  const quarterMonths = useMemo(() => {
+    const startMonth = (selectedQuarter - 1) * 3 + 1;
+    return [startMonth, startMonth + 1, startMonth + 2];
+  }, [selectedQuarter]);
+
+  // 按季度過濾 schedules（3個月）
+  const getQuarterSchedules = () => {
     return allSchedules.filter((s: any) => {
       const d = new Date(s.trainingDate);
-      return d.getMonth() + 1 === selectedMonth;
+      const month = d.getMonth() + 1;
+      return quarterMonths.includes(month);
     });
   };
 
   // A班和B班共用相同訓練日期
-  const monthSchedulesA = useMemo(() => getMonthSchedules(), [allSchedules, selectedMonth]);
-  const monthSchedulesB = useMemo(() => getMonthSchedules(), [allSchedules, selectedMonth]);
+  const quarterSchedulesA = useMemo(() => getQuarterSchedules(), [allSchedules, quarterMonths]);
+  const quarterSchedulesB = useMemo(() => getQuarterSchedules(), [allSchedules, quarterMonths]);
 
   // attendance map (server data)
   const serverAttendanceMap = useMemo(() => {
@@ -369,9 +377,9 @@ export default function EliteHistory() {
     return () => { clearTimeout(timer); document.removeEventListener('click', handleClickOutside); };
   }, [popupCell]);
 
-  // 按班別計算統計
-  const getMonthStats = (students: any[], monthSchedules: any[]) => {
-    const activeSchedules = monthSchedules.filter((s: any) => s.status !== 'cancelled');
+  // 按班別計算統計（季度）
+  const getQuarterStats = (students: any[], quarterSchedules: any[]) => {
+    const activeSchedules = quarterSchedules.filter((s: any) => s.status !== 'cancelled');
     const studentStats = new Map<number, { present: number; excused: number; total: number }>();
     let totalPresent = 0, totalExcused = 0, totalSlots = 0;
     students.forEach((student: any) => {
@@ -393,30 +401,34 @@ export default function EliteHistory() {
     return { studentStats, totalPresent, totalExcused, totalSlots, scheduleDays: activeSchedules.length };
   };
 
-  const statsA = useMemo(() => getMonthStats(studentsA, monthSchedulesA), [studentsA, monthSchedulesA, attendanceMap]);
-  const statsB = useMemo(() => getMonthStats(studentsB, monthSchedulesB), [studentsB, monthSchedulesB, attendanceMap]);
+  const statsA = useMemo(() => getQuarterStats(studentsA, quarterSchedulesA), [studentsA, quarterSchedulesA, attendanceMap]);
+  const statsB = useMemo(() => getQuarterStats(studentsB, quarterSchedulesB), [studentsB, quarterSchedulesB, attendanceMap]);
 
-  // 月份導航
-  const goPreMonth = () => {
-    if (selectedMonth === 1) { setSelectedYear(y => y - 1); setSelectedMonth(12); }
-    else { setSelectedMonth(m => m - 1); }
+  // 季度導航
+  const goPrevQuarter = () => {
+    if (selectedQuarter === 1) { setSelectedYear(y => y - 1); setSelectedQuarter(4); }
+    else { setSelectedQuarter(q => q - 1); }
   };
-  const goNextMonth = () => {
-    if (selectedMonth === 12) { setSelectedYear(y => y + 1); setSelectedMonth(1); }
-    else { setSelectedMonth(m => m + 1); }
+  const goNextQuarter = () => {
+    if (selectedQuarter === 4) { setSelectedYear(y => y + 1); setSelectedQuarter(1); }
+    else { setSelectedQuarter(q => q + 1); }
   };
 
   const minYear = availableYears ? Math.min(...availableYears) : 2022;
   const maxYear = availableYears ? Math.max(...availableYears) : 2026;
-  const canGoPrev = selectedYear > minYear || selectedMonth > 1;
-  const canGoNext = selectedYear < maxYear || selectedMonth < 12;
+  const canGoPrev = selectedYear > minYear || selectedQuarter > 1;
+  const canGoNext = selectedYear < maxYear || selectedQuarter < 4;
 
-  const monthsWithData = useMemo(() => {
-    const months = new Set<number>();
-    allSchedules.forEach((s: any) => { months.add(new Date(s.trainingDate).getMonth() + 1); });
-    return Array.from(months).sort((a, b) => a - b);
+  const quartersWithData = useMemo(() => {
+    const quarters = new Set<number>();
+    allSchedules.forEach((s: any) => {
+      const m = new Date(s.trainingDate).getMonth() + 1;
+      quarters.add(Math.ceil(m / 3));
+    });
+    return Array.from(quarters).sort((a, b) => a - b);
   }, [allSchedules]);
 
+  const QUARTER_LABELS = ['', '1-3月', '4-6月', '7-9月', '10-12月'];
   const MONTH_NAMES = ['', '1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
   // 需繳費 (combined)
@@ -441,15 +453,31 @@ export default function EliteHistory() {
     );
   }
 
+  // 計算每月的 schedule 分組，用於在表格中加入月份分隔
+  const groupSchedulesByMonth = (schedules: any[]) => {
+    const groups: { month: number; schedules: any[] }[] = [];
+    let currentMonth = -1;
+    for (const s of schedules) {
+      const m = new Date(s.trainingDate).getMonth() + 1;
+      if (m !== currentMonth) {
+        currentMonth = m;
+        groups.push({ month: m, schedules: [s] });
+      } else {
+        groups[groups.length - 1].schedules.push(s);
+      }
+    }
+    return groups;
+  };
+
   // 渲染單班表格
   const renderClassTable = (
     className: string,
     classLabel: string,
     classTime: string,
     headerColor: string,
-    monthSchedules: any[],
+    quarterSchedules: any[],
     students: any[],
-    stats: ReturnType<typeof getMonthStats>,
+    stats: ReturnType<typeof getQuarterStats>,
   ) => {
     // 按教練分組排序
     const sortedStudents = [...students].sort((a: any, b: any) => {
@@ -458,6 +486,8 @@ export default function EliteHistory() {
       if (coachA !== coachB) return coachA.localeCompare(coachB, 'zh');
       return (a.name || '').localeCompare(b.name || '', 'zh');
     });
+
+    const monthGroups = groupSchedulesByMonth(quarterSchedules);
 
     return (
       <div key={className}>
@@ -476,76 +506,88 @@ export default function EliteHistory() {
           </div>
         </div>
 
-        {monthSchedules.length === 0 ? (
+        {quarterSchedules.length === 0 ? (
           <Card className="rounded-t-none">
             <CardContent className="py-8 text-center text-muted-foreground">
-              {selectedYear}年{selectedMonth}月沒有訓練日
+              {selectedYear}年 {QUARTER_LABELS[selectedQuarter]} 沒有訓練日
             </CardContent>
           </Card>
         ) : (
           <Card className="rounded-t-none">
             <CardContent className="p-0">
-              <div className="overflow-auto max-h-[65vh]">
-                <table className="w-full text-xs border-collapse">
+              {/* 手機版水平拖拉 */}
+              <div className="overflow-auto max-h-[70vh]" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <table className="w-full text-xs border-collapse" style={{ minWidth: `${112 + quarterSchedules.length * 48 + 200}px` }}>
                   <thead className="sticky top-0 z-30">
+                    {/* 月份分組標題列 */}
                     <tr className="bg-slate-700 text-white">
-                      <th className="sticky left-0 z-40 bg-slate-700 px-2 py-1.5 border-r border-b border-slate-600 w-[32px]"></th>
-                      <th className="sticky left-[32px] z-40 bg-slate-700 px-2 py-1.5 border-r border-b border-slate-600 w-[80px]"></th>
-                      <th
-                        colSpan={monthSchedules.length}
-                        className="px-2 py-1.5 text-center font-bold text-sm tracking-wider border-r border-b border-slate-600"
-                      >
-                        {selectedYear}年{selectedMonth}月
-                      </th>
+                      <th className="sticky left-0 z-40 bg-slate-700 px-2 py-1.5 border-r border-b border-slate-600 w-[32px]" rowSpan={1}></th>
+                      <th className="sticky left-[32px] z-40 bg-slate-700 px-2 py-1.5 border-r border-b border-slate-600 w-[80px]" rowSpan={1}></th>
+                      {monthGroups.map((group) => (
+                        <th
+                          key={group.month}
+                          colSpan={group.schedules.length}
+                          className={`px-2 py-1.5 text-center font-bold text-sm tracking-wider border-b border-slate-600 ${
+                            monthGroups.length > 1 ? 'border-r-2 border-r-slate-400' : 'border-r border-r-slate-600'
+                          }`}
+                        >
+                          {selectedYear}年{MONTH_NAMES[group.month]}
+                        </th>
+                      ))}
                       <th colSpan={4} className="px-2 py-1.5 text-center text-[10px] font-medium border-b border-slate-600 text-slate-300">統計</th>
                     </tr>
                     <tr className="bg-muted border-b">
                       <th className="sticky left-0 z-40 bg-muted px-1 py-2 text-center font-medium w-[32px] min-w-[32px] border-r border-b">#</th>
                       <th className="sticky left-[32px] z-40 bg-muted px-2 py-2 text-left font-medium w-[80px] min-w-[80px] border-r border-b">姓名</th>
-                      {monthSchedules.map((schedule: any) => {
-                        const isCancelled = schedule.status === 'cancelled';
-                        return (
-                          <th
-                            key={schedule.id}
-                            className={`px-1 py-1 text-center font-medium min-w-[48px] w-[48px] border-r border-b ${isCancelled ? 'bg-gray-300 text-gray-500 line-through' : 'bg-muted'}`}
-                            title={`${formatFullDate(schedule.trainingDate)}${isCancelled ? ' (已取消)' : ''}`}
-                          >
-                            <div className="flex flex-col items-center gap-0">
-                              <span className="text-[11px] font-bold">{formatDay(schedule.trainingDate)}</span>
-                              <span className="text-[9px] text-muted-foreground">({getDayOfWeek(schedule.trainingDate)})</span>
-                              {batchMode && !isCancelled ? (
-                                <button
-                                  className="text-indigo-500 hover:text-indigo-700 mt-0.5"
-                                  title="選取整列"
-                                  onClick={() => {
-                                    const studentIds = students.filter((s: any) => s.status === 'active' && isStudentJoined(s, schedule.trainingDate))
-                                      .map((s: any) => s.id);
-                                    selectAllForSchedule(schedule.id, studentIds);
-                                  }}
-                                >
-                                  <CheckSquare className="h-3 w-3" />
-                                </button>
-                              ) : !isCancelled ? (
-                                <button
-                                  className="text-red-400 hover:text-red-600 opacity-30 hover:opacity-100"
-                                  title="取消課堂"
-                                  onClick={() => cancelScheduleMutation.mutate({ id: schedule.id })}
-                                >
-                                  <Ban className="h-2.5 w-2.5" />
-                                </button>
-                              ) : (
-                                <button
-                                  className="text-green-500 hover:text-green-700 opacity-60 hover:opacity-100"
-                                  title="恢復課堂"
-                                  onClick={() => activateScheduleMutation.mutate({ id: schedule.id })}
-                                >
-                                  <RotateCcw className="h-2.5 w-2.5" />
-                                </button>
-                              )}
-                            </div>
-                          </th>
-                        );
-                      })}
+                      {monthGroups.map((group) =>
+                        group.schedules.map((schedule: any, schedIdx: number) => {
+                          const isCancelled = schedule.status === 'cancelled';
+                          const isLastInGroup = schedIdx === group.schedules.length - 1;
+                          return (
+                            <th
+                              key={schedule.id}
+                              className={`px-1 py-1 text-center font-medium min-w-[48px] w-[48px] border-b ${isCancelled ? 'bg-gray-300 text-gray-500 line-through' : 'bg-muted'} ${
+                                isLastInGroup && monthGroups.length > 1 ? 'border-r-2 border-r-slate-300' : 'border-r'
+                              }`}
+                              title={`${formatFullDate(schedule.trainingDate)}${isCancelled ? ' (已取消)' : ''}`}
+                            >
+                              <div className="flex flex-col items-center gap-0">
+                                <span className="text-[11px] font-bold">{formatDay(schedule.trainingDate)}</span>
+                                <span className="text-[9px] text-muted-foreground">({getDayOfWeek(schedule.trainingDate)})</span>
+                                {batchMode && !isCancelled ? (
+                                  <button
+                                    className="text-indigo-500 hover:text-indigo-700 mt-0.5"
+                                    title="選取整列"
+                                    onClick={() => {
+                                      const studentIds = students.filter((s: any) => s.status === 'active' && isStudentJoined(s, schedule.trainingDate))
+                                        .map((s: any) => s.id);
+                                      selectAllForSchedule(schedule.id, studentIds);
+                                    }}
+                                  >
+                                    <CheckSquare className="h-3 w-3" />
+                                  </button>
+                                ) : !isCancelled ? (
+                                  <button
+                                    className="text-red-400 hover:text-red-600 opacity-30 hover:opacity-100"
+                                    title="取消課堂"
+                                    onClick={() => cancelScheduleMutation.mutate({ id: schedule.id })}
+                                  >
+                                    <Ban className="h-2.5 w-2.5" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="text-green-500 hover:text-green-700 opacity-60 hover:opacity-100"
+                                    title="恢復課堂"
+                                    onClick={() => activateScheduleMutation.mutate({ id: schedule.id })}
+                                  >
+                                    <RotateCcw className="h-2.5 w-2.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </th>
+                          );
+                        })
+                      )}
                       <th className="px-2 py-2 text-center font-medium min-w-[50px] bg-purple-100 border-r border-b">循環</th>
                       <th className="px-2 py-2 text-center font-medium min-w-[38px] bg-green-100 border-r border-b" title="WhatsApp 通知">通知</th>
                       <th className="px-2 py-2 text-center font-medium min-w-[60px] bg-indigo-100 border-r border-b">今期開始</th>
@@ -562,7 +604,7 @@ export default function EliteHistory() {
 
                       // 使用後端計算的循環堂數（1-12，基於全歷史出席記錄，12堂一循環）
                       const cellNumbers: Record<number, number> = {};
-                      for (const s of monthSchedules) {
+                      for (const s of quarterSchedules) {
                         if (s.status === 'cancelled') continue;
                         const mapKey = `${s.id}-${student.id}`;
                         if (serverCycleNumberMap[mapKey]) {
@@ -581,81 +623,85 @@ export default function EliteHistory() {
                               <span className={`text-[9px] ${coachColor.text}`}>{student.coach || '-'}</span>
                             </div>
                           </td>
-                          {monthSchedules.map((schedule: any) => {
-                            const isCancelled = schedule.status === 'cancelled';
-                            const joined = isStudentJoined(student, schedule.trainingDate);
-                            const key = `${schedule.id}-${student.id}`;
-                            const status = attendanceMap.get(key);
-                            const isSelected = batchMode && selectedCells.has(key);
+                          {monthGroups.map((group) =>
+                            group.schedules.map((schedule: any, schedIdx: number) => {
+                              const isCancelled = schedule.status === 'cancelled';
+                              const joined = isStudentJoined(student, schedule.trainingDate);
+                              const key = `${schedule.id}-${student.id}`;
+                              const status = attendanceMap.get(key);
+                              const isSelected = batchMode && selectedCells.has(key);
+                              const isLastInGroup = schedIdx === group.schedules.length - 1;
+                              const monthBorderClass = isLastInGroup && monthGroups.length > 1 ? 'border-r-2 border-r-slate-300' : 'border-r';
 
-                            if (isCancelled) {
-                              return (
-                                <td key={schedule.id} className="px-1 py-1.5 text-center bg-gray-200 border-r border-b">
-                                  <span className="text-gray-400">—</span>
-                                </td>
-                              );
-                            }
-                            if (!joined) {
-                              return (
-                                <td key={schedule.id} className="px-1 py-1.5 text-center bg-gray-900 border-r border-b" title="未加入">
-                                  <span className="text-gray-900">■</span>
-                                </td>
-                              );
-                            }
+                              if (isCancelled) {
+                                return (
+                                  <td key={schedule.id} className={`px-1 py-1.5 text-center bg-gray-200 ${monthBorderClass} border-b`}>
+                                    <span className="text-gray-400">—</span>
+                                  </td>
+                                );
+                              }
+                              if (!joined) {
+                                return (
+                                  <td key={schedule.id} className={`px-1 py-1.5 text-center bg-gray-900 ${monthBorderClass} border-b`} title="未加入">
+                                    <span className="text-gray-900">■</span>
+                                  </td>
+                                );
+                              }
 
-                            if (batchMode) {
+                              if (batchMode) {
+                                return (
+                                  <td
+                                    key={schedule.id}
+                                    className={`px-1 py-1.5 text-center transition-colors ${monthBorderClass} border-b select-none cursor-pointer ${
+                                      isSelected ? 'bg-indigo-200 ring-2 ring-inset ring-indigo-500'
+                                      : status === 'present' ? 'bg-green-50 hover:bg-indigo-100'
+                                      : status === 'excused' ? 'bg-red-50 hover:bg-indigo-100'
+                                      : 'bg-yellow-50/50 hover:bg-indigo-100'
+                                    }`}
+                                    onClick={() => toggleCellSelection(schedule.id, student.id)}
+                                  >
+                                    {isSelected ? (
+                                      <CheckSquare className="h-4 w-4 mx-auto text-indigo-600" />
+                                    ) : (
+                                      <Square className="h-4 w-4 mx-auto text-gray-300" />
+                                    )}
+                                  </td>
+                                );
+                              }
+
                               return (
                                 <td
                                   key={schedule.id}
-                                  className={`px-1 py-1.5 text-center transition-colors border-r border-b select-none cursor-pointer ${
-                                    isSelected ? 'bg-indigo-200 ring-2 ring-inset ring-indigo-500'
-                                    : status === 'present' ? 'bg-green-50 hover:bg-indigo-100'
-                                    : status === 'excused' ? 'bg-red-50 hover:bg-indigo-100'
-                                    : 'bg-yellow-50/50 hover:bg-indigo-100'
+                                  className={`px-1 py-1.5 text-center transition-colors ${monthBorderClass} border-b select-none ${
+                                    status === 'present' ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer'
+                                    : status === 'excused' ? 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer'
+                                    : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100 cursor-pointer'
                                   }`}
-                                  onClick={() => toggleCellSelection(schedule.id, student.id)}
+                                  title={`${student.name} - ${formatFullDate(schedule.trainingDate)}: ${
+                                    status === 'present' ? `第${cellNumbers[schedule.id] || '?'}堂（長按修改）` : status === 'excused' ? '請假（長按修改）' : '未記錄（點擊選擇）'
+                                  }`}
+                                  onClick={(e) => handleCellClick(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
+                                  onMouseDown={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
+                                  onMouseUp={handleLongPressEnd}
+                                  onMouseLeave={handleLongPressEnd}
+                                  onTouchStart={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
+                                  onTouchEnd={(e) => { handleLongPressEnd(); if (longPressTriggered.current) e.preventDefault(); }}
+                                  onTouchMove={handleTouchMove}
+                                  onContextMenu={(e) => e.preventDefault()}
                                 >
-                                  {isSelected ? (
-                                    <CheckSquare className="h-4 w-4 mx-auto text-indigo-600" />
-                                  ) : (
-                                    <Square className="h-4 w-4 mx-auto text-gray-300" />
-                                  )}
+                                  {cellNumbers[schedule.id] ? (
+                                  <span className={`font-bold text-sm ${
+                                    cellNumbers[schedule.id] >= 10 ? 'text-orange-600' : cellNumbers[schedule.id] >= 7 ? 'text-yellow-700' : 'text-green-700'
+                                  }`}>{cellNumbers[schedule.id]}</span>
+                                ) : status === 'excused' ? (
+                                  <span className="text-red-400 text-sm">✗</span>
+                                ) : (
+                                  <span className="text-gray-300 text-lg">·</span>
+                                )}
                                 </td>
                               );
-                            }
-
-                            return (
-                              <td
-                                key={schedule.id}
-                                className={`px-1 py-1.5 text-center transition-colors border-r border-b select-none ${
-                                  status === 'present' ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer'
-                                  : status === 'excused' ? 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer'
-                                  : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100 cursor-pointer'
-                                }`}
-                                title={`${student.name} - ${formatFullDate(schedule.trainingDate)}: ${
-                                  status === 'present' ? `第${cellNumbers[schedule.id] || '?'}堂（長按修改）` : status === 'excused' ? '請假（長按修改）' : '未記錄（點擊選擇）'
-                                }`}
-                                onClick={(e) => handleCellClick(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
-                                onMouseDown={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
-                                onMouseUp={handleLongPressEnd}
-                                onMouseLeave={handleLongPressEnd}
-                                onTouchStart={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
-                                onTouchEnd={(e) => { handleLongPressEnd(); if (longPressTriggered.current) e.preventDefault(); }}
-                                onTouchMove={handleTouchMove}
-                                onContextMenu={(e) => e.preventDefault()}
-                              >
-                                {cellNumbers[schedule.id] ? (
-                                <span className={`font-bold text-sm ${
-                                  cellNumbers[schedule.id] >= 10 ? 'text-orange-600' : cellNumbers[schedule.id] >= 7 ? 'text-yellow-700' : 'text-green-700'
-                                }`}>{cellNumbers[schedule.id]}</span>
-                              ) : status === 'excused' ? (
-                                <span className="text-red-400 text-sm">✗</span>
-                              ) : (
-                                <span className="text-gray-300 text-lg">·</span>
-                              )}
-                              </td>
-                            );
-                          })}
+                            })
+                          )}
                           <td className="px-2 py-1.5 text-center bg-purple-50 border-r border-b">
                             {cycleNum > 0 ? (
                               <Badge variant="outline" className={`font-bold text-[10px] ${
@@ -759,30 +805,30 @@ export default function EliteHistory() {
         </div>
       </div>
 
-      {/* 月份導航 */}
+      {/* 季度導航 */}
       <div className="flex items-center justify-between bg-muted/30 rounded-lg px-2 sm:px-4 py-3">
-        <Button variant="ghost" size="sm" className="px-2 sm:px-3 shrink-0" onClick={goPreMonth} disabled={!canGoPrev}>
-          <ChevronLeft className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">上月</span>
+        <Button variant="ghost" size="sm" className="px-2 sm:px-3 shrink-0" onClick={goPrevQuarter} disabled={!canGoPrev}>
+          <ChevronLeft className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">上季</span>
         </Button>
         <div className="text-center min-w-0">
-          <span className="text-lg sm:text-xl font-bold">{selectedYear}年 {MONTH_NAMES[selectedMonth]}</span>
+          <span className="text-lg sm:text-xl font-bold">{selectedYear}年 {QUARTER_LABELS[selectedQuarter]}</span>
         </div>
-        <Button variant="ghost" size="sm" className="px-2 sm:px-3 shrink-0" onClick={goNextMonth} disabled={!canGoNext}>
-          <span className="hidden sm:inline">下月</span><ChevronRight className="h-4 w-4 sm:ml-1" />
+        <Button variant="ghost" size="sm" className="px-2 sm:px-3 shrink-0" onClick={goNextQuarter} disabled={!canGoNext}>
+          <span className="hidden sm:inline">下季</span><ChevronRight className="h-4 w-4 sm:ml-1" />
         </Button>
       </div>
 
-      {/* 月份快速跳轉 */}
+      {/* 季度快速跳轉 */}
       <div className="flex gap-1 flex-wrap">
-        {monthsWithData.map((m: number) => (
+        {quartersWithData.map((q: number) => (
           <Button
-            key={m}
-            variant={selectedMonth === m ? "default" : "outline"}
+            key={q}
+            variant={selectedQuarter === q ? "default" : "outline"}
             size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => setSelectedMonth(m)}
+            className="h-7 px-3 text-xs"
+            onClick={() => setSelectedQuarter(q)}
           >
-            {m}月
+            {QUARTER_LABELS[q]}
           </Button>
         ))}
       </div>
@@ -830,7 +876,7 @@ export default function EliteHistory() {
                 ? Math.round(((statsA.totalPresent + statsB.totalPresent) / (statsA.totalSlots + statsB.totalSlots)) * 100)
                 : 0}%
             </div>
-            <div className="text-xs text-muted-foreground">本月出席率</div>
+            <div className="text-xs text-muted-foreground">本季出席率</div>
           </CardContent>
         </Card>
         {needPaymentAll.length > 0 && (
@@ -848,9 +894,9 @@ export default function EliteHistory() {
         <Skeleton className="h-96 w-full" />
       ) : (
         <>
-          {renderClassTable('A', 'A班（12:00-2:00pm）', classTimeA, 'bg-blue-600', monthSchedulesA, studentsA, statsA)}
+          {renderClassTable('A', 'A班（12:00-2:00pm）', classTimeA, 'bg-blue-600', quarterSchedulesA, studentsA, statsA)}
           <div className="h-4" />
-          {renderClassTable('B', 'B班（4:30-6:30pm）', classTimeB, 'bg-orange-600', monthSchedulesB, studentsB, statsB)}
+          {renderClassTable('B', 'B班（4:30-6:30pm）', classTimeB, 'bg-orange-600', quarterSchedulesB, studentsB, statsB)}
         </>
       )}
 
