@@ -2875,12 +2875,12 @@ export const appRouter = router({
       .input(z.object({ year: z.number() }))
       .query(async ({ input }) => {
         const db = await getDb();
-        if (!db) return { schedules: [], attendance: [], students: [] };
+        if (!db) return { schedules: [], attendance: [], students: [], cycleNumberMap: {} as Record<string, number> };
         
         const startDate = new Date(Date.UTC(input.year, 0, 1));
         const endDate = new Date(Date.UTC(input.year, 11, 31, 23, 59, 59));
         const { eliteTrainingSchedules, eliteAttendanceRecords, eliteStudents } = await import('../drizzle/schema');
-        const { gte, lte, and, asc, inArray } = await import('drizzle-orm');
+        const { gte, lte, and, asc, inArray, eq } = await import('drizzle-orm');
         
         const schedules = await db.select().from(eliteTrainingSchedules)
           .where(and(
@@ -2901,7 +2901,36 @@ export const appRouter = router({
         const students = await db.select().from(eliteStudents)
           .orderBy(asc(eliteStudents.id));
         
-        return { schedules, attendance, students };
+        // ── 計算每個學生每堂的循環堂數（1-12，基於全歷史出席記錄）──
+        // 查詢所有學生的全歷史出席記錄（present 才算），按日期排序
+        const cycleNumberMap: Record<string, number> = {}; // key: "scheduleId-studentId" → 循環內堂數
+        const activeStudentIds = students.filter(s => s.status === 'active').map(s => s.id);
+        
+        for (const studentId of activeStudentIds) {
+          // 取得該學生全歷史出席記錄（含訓練日期排序）
+          const allAttendance = await db.select({
+            scheduleId: eliteAttendanceRecords.scheduleId,
+            status: eliteAttendanceRecords.status,
+            trainingDate: eliteTrainingSchedules.trainingDate,
+          })
+            .from(eliteAttendanceRecords)
+            .innerJoin(eliteTrainingSchedules, eq(eliteAttendanceRecords.scheduleId, eliteTrainingSchedules.id))
+            .where(eq(eliteAttendanceRecords.studentId, studentId))
+            .orderBy(asc(eliteTrainingSchedules.trainingDate));
+          
+          // 只算 present（出席）的堂數，按日期順序累計
+          let count = 0;
+          for (const rec of allAttendance) {
+            if (rec.status === 'present') {
+              count++;
+              // 循環內堂數：1-12，完成 12 堂後重新從 1 開始
+              const cycleNum = ((count - 1) % 12) + 1;
+              cycleNumberMap[`${rec.scheduleId}-${studentId}`] = cycleNum;
+            }
+          }
+        }
+        
+        return { schedules, attendance, students, cycleNumberMap };
       }),
 
     // 從恆常班匹配電話號碼

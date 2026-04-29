@@ -212,6 +212,12 @@ export default function EliteHistory() {
     return merged;
   }, [serverAttendanceMap, optimisticUpdates]);
 
+  // 後端返回的循環堂數映射：key="scheduleId-studentId" → 循環內堂數(1-12)
+  const serverCycleNumberMap = useMemo(() => {
+    if (!historyData?.cycleNumberMap) return {} as Record<string, number>;
+    return historyData.cycleNumberMap as Record<string, number>;
+  }, [historyData?.cycleNumberMap]);
+
   // active students split by class
   const allActiveStudents = useMemo(() => {
     if (!historyData?.students) return [];
@@ -554,19 +560,13 @@ export default function EliteHistory() {
                       const amountDue = bal?.amountDue || 0;
                       const coachColor = getCoachColor(student.coach || '');
 
-                      // 計算每個日期格子的累計堂數：按日期順序，出席 +1
-                      let runningCount = 0;
+                      // 使用後端計算的循環堂數（1-12，基於全歷史出席記錄，12堂一循環）
                       const cellNumbers: Record<number, number> = {};
-                      const sortedMonthSchedules = [...monthSchedules].sort((a: any, b: any) =>
-                        new Date(a.trainingDate).getTime() - new Date(b.trainingDate).getTime()
-                      );
-                      for (const s of sortedMonthSchedules) {
+                      for (const s of monthSchedules) {
                         if (s.status === 'cancelled') continue;
-                        if (!isStudentJoined(student, s.trainingDate)) continue;
-                        const status = attendanceMap.get(`${s.id}-${student.id}`);
-                        if (status === 'present') {
-                          runningCount++;
-                          cellNumbers[s.id] = runningCount;
+                        const mapKey = `${s.id}-${student.id}`;
+                        if (serverCycleNumberMap[mapKey]) {
+                          cellNumbers[s.id] = serverCycleNumberMap[mapKey];
                         }
                       }
 
