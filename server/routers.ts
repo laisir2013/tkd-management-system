@@ -1764,14 +1764,29 @@ export const appRouter = router({
         year: z.number(),
         months: z.array(z.number().min(1).max(12)).min(1), // 可以1個月或3個月（1季）
         paymentType: z.enum(['monthly', 'quarterly']), // monthly=單月, quarterly=季繳
+        // 收據上傳（可選）
+        receiptBase64: z.string().optional(),
+        receiptMimeType: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        // 只有管理員可以確認繳費
-        if (ctx.user.role !== 'admin') {
-          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以確認繳費' });
+        // 管理員或教練皆可確認繳費
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員或教練可以確認繳費' });
         }
         const student = await getStudentById(input.studentId);
         if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: '學生不存在' });
+
+        // 處理收據上傳
+        let receiptUrl: string | null = null;
+        let receiptKey: string | null = null;
+        if (input.receiptBase64 && input.receiptMimeType) {
+          const receiptBuffer = Buffer.from(input.receiptBase64, 'base64');
+          const fileExt = input.receiptMimeType.split('/')[1] || 'jpg';
+          const rKey = `receipts/regular-${input.studentId}-${Date.now()}.${fileExt}`;
+          const result = await storagePut(rKey, receiptBuffer, input.receiptMimeType);
+          receiptUrl = result.url;
+          receiptKey = rKey;
+        }
 
         const feePerQuarter = parseFloat(student.feePerQuarter);
         const confirmedBy = 'admin_approved';
@@ -1794,8 +1809,8 @@ export const appRouter = router({
             paymentMonth: null,
             amount: String(feePerQuarter),
             classCount: null,
-            receiptUrl: null,
-            receiptKey: null,
+            receiptUrl,
+            receiptKey,
             receiptTransferDate: null,
             paymentDate: new Date(),
             status: 'confirmed',
@@ -1812,6 +1827,8 @@ export const appRouter = router({
               coachName: student.coach,
               dojoName: student.venue || null,
               category: 'tuition',
+              receiptUrl,
+              receiptKey,
             });
           } catch (e) {
             console.error("Auto sync to accounting after quarterly confirmMonthlyPayment failed:", e);
@@ -1828,8 +1845,8 @@ export const appRouter = router({
               paymentMonth: month,
               amount: String(monthlyFee),
               classCount: null,
-              receiptUrl: null,
-              receiptKey: null,
+              receiptUrl,
+              receiptKey,
               receiptTransferDate: null,
               paymentDate: new Date(),
               status: 'confirmed',
@@ -1846,6 +1863,8 @@ export const appRouter = router({
                 coachName: student.coach,
                 dojoName: student.venue || null,
                 category: 'tuition',
+                receiptUrl,
+                receiptKey,
               });
             } catch (e) {
               console.error("Auto sync to accounting after monthly confirmMonthlyPayment failed:", e);

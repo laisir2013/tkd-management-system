@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle, Search } from "lucide-react";
+import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle, Search, Plus, X } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -53,6 +53,8 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     paymentType: 'monthly' | 'quarterly';
     label: string;
   } | null>(null);
+  // 確認繳費時的收據上傳
+  const [confirmReceiptFile, setConfirmReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
 
   // Approve payment dialog state (待審核→批准)
   const [approveDialog, setApproveDialog] = useState<{
@@ -79,6 +81,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       toast.success('已確認繳費');
       refetch();
       setConfirmDialog(null);
+      setConfirmReceiptFile(null);
     },
     onError: (err: any) => {
       toast.error(`確認失敗: ${err.message}`);
@@ -612,7 +615,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      <Dialog open={!!confirmDialog} onOpenChange={() => setConfirmDialog(null)}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -626,12 +629,49 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   ? `季繳：一次確認 ${confirmDialog?.label} 共3個月`
                   : `月繳：僅確認 ${confirmDialog?.label}`
                 }
-                ，此操作由管理員/教練批准，無需上傳收據。
               </span>
             </DialogDescription>
           </DialogHeader>
+          {/* 收據上傳（可選） */}
+          <div className="px-0">
+            <Label className="text-sm font-medium">上傳收據（可選）</Label>
+            <div className="mt-1">
+              {confirmReceiptFile ? (
+                <div className="flex items-center gap-2 p-2 border rounded-lg bg-green-50">
+                  <Check className="h-4 w-4 text-green-600 shrink-0" />
+                  <span className="text-sm text-green-700 flex-1 truncate">{confirmReceiptFile.name}</span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setConfirmReceiptFile(null)}>
+                    <X className="h-3 w-3 text-red-500" />
+                  </Button>
+                </div>
+              ) : (
+                <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                  <Plus className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">點擊或拖曳上傳收據圖片</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 10 * 1024 * 1024) { toast.error('檔案不能超過 10MB'); return; }
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const result = reader.result as string;
+                        const base64 = result.split(',')[1];
+                        setConfirmReceiptFile({ base64, mimeType: file.type, name: file.name });
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">管理員/教練上傳收據直接確認，無需額外審批</p>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDialog(null)}>取消</Button>
+            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); }}>取消</Button>
             <Button
               className={confirmDialog?.paymentType === 'quarterly' ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
               disabled={confirmMonthlyPayment.isPending}
@@ -642,6 +682,8 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                     year: selectedYear,
                     months: confirmDialog.months,
                     paymentType: confirmDialog.paymentType,
+                    receiptBase64: confirmReceiptFile?.base64,
+                    receiptMimeType: confirmReceiptFile?.mimeType,
                   });
                 }
               }}
