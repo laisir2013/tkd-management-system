@@ -315,6 +315,8 @@ export default function EliteHistory() {
   }, [attendanceMap, upsertAttendanceMutation]);
 
   const handleCellClick = useCallback((e: React.MouseEvent | React.TouchEvent, scheduleId: number, studentId: number, studentName: string, dateStr: string) => {
+    // 如果長按已觸發 popup，跳過 click
+    if (longPressTriggered.current) { longPressTriggered.current = false; return; }
     const key = `${scheduleId}-${studentId}`;
     const current = attendanceMap.get(key);
     // If no record or absent: show popup to choose present or excused
@@ -325,8 +327,21 @@ export default function EliteHistory() {
         setPopupCell({ scheduleId, studentId, studentName, dateStr, rect: { top: rect.bottom, left: rect.left, width: rect.width } });
       }
     } else {
-      // Already has a record (present/excused): show warning toast instead
-      toast.warning(`⚠️ ${studentName} 已標記為${current === 'present' ? '出席' : '請假'}，長按可修改`, { duration: 2000 });
+      // Already has a record (present/excused): show hint
+      toast.warning(`⚠️ ${studentName} 已標記為${current === 'present' ? '出席' : '請假'}，右鍵或長按可修改`, { duration: 2000 });
+    }
+  }, [attendanceMap]);
+
+  // 右鍵點擊（電腦版）：直接打開修改選單
+  const handleContextMenu = useCallback((e: React.MouseEvent, scheduleId: number, studentId: number, studentName: string, dateStr: string) => {
+    e.preventDefault();
+    const key = `${scheduleId}-${studentId}`;
+    const current = attendanceMap.get(key);
+    // 無記錄也允許右鍵打開選單
+    const target = (e.target as HTMLElement).closest('td');
+    if (target) {
+      const rect = target.getBoundingClientRect();
+      setPopupCell({ scheduleId, studentId, studentName, dateStr, rect: { top: rect.bottom, left: rect.left, width: rect.width } });
     }
   }, [attendanceMap]);
 
@@ -678,7 +693,7 @@ export default function EliteHistory() {
                                     : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100 cursor-pointer'
                                   }`}
                                   title={`${student.name} - ${formatFullDate(schedule.trainingDate)}: ${
-                                    status === 'present' ? `第${cellNumbers[schedule.id] || '?'}堂（長按修改）` : status === 'excused' ? '請假（長按修改）' : '未記錄（點擊選擇）'
+                                    status === 'present' ? `第${cellNumbers[schedule.id] || '?'}堂（右鍵或長按修改）` : status === 'excused' ? '請假（右鍵或長按修改）' : '未記錄（點擊選擇）'
                                   }`}
                                   onClick={(e) => handleCellClick(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
                                   onMouseDown={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
@@ -687,7 +702,7 @@ export default function EliteHistory() {
                                   onTouchStart={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
                                   onTouchEnd={(e) => { handleLongPressEnd(); if (longPressTriggered.current) e.preventDefault(); }}
                                   onTouchMove={handleTouchMove}
-                                  onContextMenu={(e) => e.preventDefault()}
+                                  onContextMenu={(e) => handleContextMenu(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
                                 >
                                   {cellNumbers[schedule.id] ? (
                                   <span className={`font-bold text-sm ${
@@ -1035,7 +1050,7 @@ export default function EliteHistory() {
           <span>已取消</span>
         </div>
         <div className="flex items-center gap-1 ml-2 text-orange-600 font-medium">
-          <span>💡 已記錄需<strong>長按</strong>才能修改</span>
+          <span>💡 已記錄需<strong>右鍵</strong>（電腦）或<strong>長按</strong>（手機）修改</span>
         </div>
       </div>
       <div className="flex gap-4 text-xs flex-wrap">
