@@ -173,7 +173,7 @@ import {
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
-import { eq, gte, lte, and, desc, sql, asc } from "drizzle-orm";
+import { eq, gte, lte, and, or, desc, sql, asc } from "drizzle-orm";
 import { verifyPassword, hashPassword } from "./password";
 import { TRPCError } from "@trpc/server";
 import {
@@ -2770,11 +2770,78 @@ export const appRouter = router({
         return { count: results.length };
       }),
 
-    // 繳費記錄
+    // 繳費記錄（含期數和該期第1堂日期）
     getPayments: protectedProcedure
       .input(z.object({ studentId: z.number().optional() }).optional())
       .query(async ({ input }) => {
-        return getElitePaymentRecords(input?.studentId);
+        const payments = await getElitePaymentRecords(input?.studentId);
+
+        // 計算每筆繳費對應的期數和該期第1堂日期
+        // 按學生分組，每個學生的 confirmed 繳費按付款日期正序排列
+        const studentPaymentsMap = new Map<number, typeof payments>();
+        for (const p of payments) {
+          if (!studentPaymentsMap.has(p.studentId)) studentPaymentsMap.set(p.studentId, []);
+          studentPaymentsMap.get(p.studentId)!.push(p);
+        }
+
+        // 取得每個學生的出席記錄（含日期），按日期排序
+        const studentAttendanceMap = new Map<number, Array<{ date: string }>>();
+        const db = await getDb();
+        if (db) {
+          for (const sid of studentPaymentsMap.keys()) {
+            const attendedWithDates = await db.select({
+              trainingDate: schema.eliteTrainingSchedules.trainingDate,
+              status: schema.eliteAttendanceRecords.status,
+            })
+              .from(schema.eliteAttendanceRecords)
+              .innerJoin(schema.eliteTrainingSchedules, eq(schema.eliteAttendanceRecords.scheduleId, schema.eliteTrainingSchedules.id))
+              .where(and(
+                eq(schema.eliteAttendanceRecords.studentId, sid),
+                or(
+                  eq(schema.eliteAttendanceRecords.status, 'present'),
+                  eq(schema.eliteAttendanceRecords.status, 'late'),
+                )
+              ))
+              .orderBy(asc(schema.eliteTrainingSchedules.trainingDate));
+            studentAttendanceMap.set(sid, attendedWithDates.map(a => ({
+              date: a.trainingDate?.toISOString() || '',
+            })));
+          }
+        }
+
+        // 為每筆繳費計算期數和該期第1堂日期
+        const cycleInfoMap = new Map<number, { periodNumber: number; periodStartDate: string | null }>();
+        for (const [sid, sPayments] of studentPaymentsMap.entries()) {
+          // 只計算 confirmed 的繳費，按付款日期正序排列
+          const confirmedPayments = sPayments
+            .filter(p => p.status === 'confirmed')
+            .sort((a, b) => new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime());
+
+          const attendedDates = studentAttendanceMap.get(sid) || [];
+          let accumulatedClasses = 0;
+
+          for (let i = 0; i < confirmedPayments.length; i++) {
+            const cp = confirmedPayments[i];
+            // 該期第1堂的日期：就是出席記錄中第 accumulatedClasses+1 堂的日期
+            const firstClassIndex = accumulatedClasses; // 0-based
+            const periodStartDate = firstClassIndex < attendedDates.length
+              ? attendedDates[firstClassIndex].date
+              : null;
+
+            cycleInfoMap.set(cp.id, {
+              periodNumber: i + 1,
+              periodStartDate,
+            });
+            accumulatedClasses += cp.classCount;
+          }
+        }
+
+        // 將期數資訊附加到每筆繳費
+        return payments.map(p => ({
+          ...p,
+          periodNumber: cycleInfoMap.get(p.id)?.periodNumber || null,
+          periodStartDate: cycleInfoMap.get(p.id)?.periodStartDate || null,
+        }));
       }),
     createPayment: protectedProcedure
       .input(z.object({

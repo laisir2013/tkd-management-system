@@ -1307,6 +1307,8 @@ function EliteFinanceTab() {
                 <TableRow>
                   <TableHead>日期</TableHead>
                   <TableHead>學生</TableHead>
+                  <TableHead className="text-center">期數</TableHead>
+                  <TableHead className="text-center">首堂日期</TableHead>
                   <TableHead className="text-center">堂數</TableHead>
                   <TableHead className="text-right">金額</TableHead>
                   <TableHead>來源</TableHead>
@@ -1319,8 +1321,29 @@ function EliteFinanceTab() {
                   const student = students.find((s: any) => s.id === p.studentId);
                   return (
                     <TableRow key={p.id}>
-                      <TableCell>{formatDayMonthYear(p.paymentDate)}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDayMonthYear(p.paymentDate)}</TableCell>
                       <TableCell className="font-medium">{student?.name || `#${p.studentId}`}</TableCell>
+                      <TableCell className="text-center">
+                        {p.periodNumber ? (
+                          <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                            第{p.periodNumber}期
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center whitespace-nowrap">
+                        {p.periodStartDate ? (
+                          <span className="text-xs text-muted-foreground">
+                            {(() => {
+                              const d = new Date(p.periodStartDate);
+                              return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+                            })()}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">未開始</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-center">{p.classCount} 堂</TableCell>
                       <TableCell className="text-right">${Number(p.amount).toLocaleString()}</TableCell>
                       <TableCell>
@@ -1341,7 +1364,7 @@ function EliteFinanceTab() {
                   );
                 })}
                 {allPayments.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">暫無繳費記錄</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">暫無繳費記錄</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
