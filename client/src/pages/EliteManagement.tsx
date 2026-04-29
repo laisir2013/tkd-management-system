@@ -17,7 +17,9 @@ import { getLoginUrl } from "@/const";
 import { addMonths, subMonths } from "date-fns";
 import { formatDayMonthYear } from "@/lib/dateFormat";
 import { zhTW } from "date-fns/locale";
-import { Users, Calendar, DollarSign, ChevronLeft, ChevronRight, Plus, MoreHorizontal, ArrowLeft, Loader2, Ban, RotateCcw, ArrowRightLeft, Phone, RefreshCw, Pencil, Check, X, Trash2 } from "lucide-react";
+import { Users, Calendar, DollarSign, ChevronLeft, ChevronRight, Plus, MoreHorizontal, ArrowLeft, Loader2, Ban, RotateCcw, ArrowRightLeft, Phone, RefreshCw, Pencil, Check, X, Trash2, ChevronsUpDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
@@ -1000,6 +1002,95 @@ function EliteAttendanceTab() {
   );
 }
 
+// ============ 學生搜尋 Combobox ============
+function StudentSearchCombobox({ students, balanceMap, value, onSelect }: {
+  students: any[];
+  balanceMap: Record<number, any>;
+  value: number;
+  onSelect: (studentId: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const selected = students.find((s: any) => s.id === value);
+
+  // 按搜尋詞過濾（支援中文姓名搜尋）
+  const filtered = useMemo(() => {
+    if (!search.trim()) return students;
+    const q = search.trim().toLowerCase();
+    return students.filter((s: any) =>
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.phone || '').includes(q) ||
+      (s.coach || '').toLowerCase().includes(q)
+    );
+  }, [students, search]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal h-10"
+        >
+          {selected ? (
+            <span className="truncate">
+              {selected.name} (${selected.feePerClass}/堂)
+              {balanceMap[selected.id]?.amountDue > 0 && (
+                <span className="text-orange-600 ml-1">⚠️ 欠${balanceMap[selected.id].amountDue.toLocaleString()}</span>
+              )}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">輸入姓名搜尋學生...</span>
+          )}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="搜尋學生姓名..."
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            <CommandEmpty>找不到學生</CommandEmpty>
+            <CommandGroup>
+              {filtered.map((s: any) => {
+                const bal = balanceMap[s.id];
+                const due = bal?.amountDue || 0;
+                const isSelected = s.id === value;
+                return (
+                  <CommandItem
+                    key={s.id}
+                    onSelect={() => {
+                      onSelect(s.id);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {isSelected && <Check className="h-4 w-4 text-green-600 shrink-0" />}
+                      <span className={`truncate ${isSelected ? 'font-medium' : ''}`}>{s.name}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">${s.feePerClass}/堂</span>
+                    </div>
+                    {due > 0 && (
+                      <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200 text-[10px] shrink-0 ml-2">
+                        欠${due.toLocaleString()}
+                      </Badge>
+                    )}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ============ 財務管理 Tab ============
 function EliteFinanceTab() {
   const utils = trpc.useUtils();
@@ -1268,20 +1359,12 @@ function EliteFinanceTab() {
           <div className="grid gap-4 py-4">
             <div>
               <Label>學生 *</Label>
-              <Select value={paymentForm.studentId ? String(paymentForm.studentId) : ""} onValueChange={handleStudentChange}>
-                <SelectTrigger><SelectValue placeholder="選擇學生" /></SelectTrigger>
-                <SelectContent>
-                  {students.filter((s: any) => s.status === "active").map((s: any) => {
-                    const sBal = balanceMap[s.id];
-                    const due = sBal?.amountDue || 0;
-                    return (
-                      <SelectItem key={s.id} value={String(s.id)}>
-                        {s.name} (${s.feePerClass}/堂){due > 0 ? ` ⚠️ 欠$${due.toLocaleString()}` : ''}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              <StudentSearchCombobox
+                students={students.filter((s: any) => s.status === 'active')}
+                balanceMap={balanceMap}
+                value={paymentForm.studentId}
+                onSelect={(sid) => handleStudentChange(String(sid))}
+              />
             </div>
             {/* 學生繳費狀態摘要 */}
             {paymentForm.studentId > 0 && (() => {
