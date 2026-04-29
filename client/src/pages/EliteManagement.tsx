@@ -1041,13 +1041,30 @@ function EliteFinanceTab() {
     onError: (e) => toast.error(e.message),
   });
 
-  // 自動計算金額
+  // balance map for quick lookup
+  const balanceMap = useMemo(() => {
+    const map: Record<number, any> = {};
+    balances.forEach((b: any) => { if (b) map[b.studentId] = b; });
+    return map;
+  }, [balances]);
+
+  // 自動計算金額 — 選學生時同步帶入欠繳堂數與金額
   function handleStudentChange(studentId: string) {
     const sid = parseInt(studentId);
     const student = students.find((s: any) => s.id === sid);
-    const classCount = parseInt(paymentForm.classCount) || 0;
+    const bal = balanceMap[sid];
     const feePerClass = student ? parseFloat(student.feePerClass) : 0;
-    setPaymentForm(p => ({ ...p, studentId: sid, amount: String(feePerClass * classCount) }));
+    // 如果有欠繳，預設帶入欠繳的堂數和金額
+    const CYCLE_SIZE = 12;
+    const owedPeriods = bal?.owedPeriods || 0;
+    const defaultClassCount = owedPeriods > 0 ? owedPeriods * CYCLE_SIZE : CYCLE_SIZE;
+    const defaultAmount = feePerClass * defaultClassCount;
+    setPaymentForm(p => ({
+      ...p,
+      studentId: sid,
+      classCount: String(defaultClassCount),
+      amount: String(defaultAmount),
+    }));
   }
 
   function handleClassCountChange(value: string) {
@@ -1254,12 +1271,59 @@ function EliteFinanceTab() {
               <Select value={paymentForm.studentId ? String(paymentForm.studentId) : ""} onValueChange={handleStudentChange}>
                 <SelectTrigger><SelectValue placeholder="選擇學生" /></SelectTrigger>
                 <SelectContent>
-                  {students.filter((s: any) => s.status === "active").map((s: any) => (
-                    <SelectItem key={s.id} value={String(s.id)}>{s.name} (${s.feePerClass}/堂)</SelectItem>
-                  ))}
+                  {students.filter((s: any) => s.status === "active").map((s: any) => {
+                    const sBal = balanceMap[s.id];
+                    const due = sBal?.amountDue || 0;
+                    return (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name} (${s.feePerClass}/堂){due > 0 ? ` ⚠️ 欠$${due.toLocaleString()}` : ''}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
+            {/* 學生繳費狀態摘要 */}
+            {paymentForm.studentId > 0 && (() => {
+              const bal = balanceMap[paymentForm.studentId];
+              const student = students.find((s: any) => s.id === paymentForm.studentId);
+              if (!bal || !student) return null;
+              const fpc = parseFloat(student.feePerClass) || 0;
+              return (
+                <div className={`rounded-lg border p-3 text-sm space-y-1.5 ${bal.amountDue > 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{student.name}</span>
+                    <Badge variant="outline" className={bal.amountDue > 0 ? 'bg-orange-100 text-orange-700 border-orange-300' : 'bg-green-100 text-green-700 border-green-300'}>
+                      {bal.amountDue > 0 ? `欠繳 ${bal.owedPeriods} 期` : '✓ 無欠費'}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                    <div>
+                      <span className="block text-[10px]">已繳</span>
+                      <span className="font-medium text-foreground">{bal.paidClasses} 堂</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px]">已上</span>
+                      <span className="font-medium text-foreground">{bal.attendedClasses} 堂</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px]">剩餘</span>
+                      <span className={`font-medium ${bal.remainingClasses <= 2 ? 'text-red-600' : 'text-foreground'}`}>{bal.remainingClasses} 堂</span>
+                    </div>
+                  </div>
+                  {bal.amountDue > 0 && (
+                    <div className="pt-1 border-t border-orange-200 text-xs">
+                      <span className="text-orange-700 font-medium">
+                        應繳 {bal.owedPeriods} 期 × 12堂 × ${fpc}/堂 = <strong>${bal.amountDue.toLocaleString()}</strong>
+                      </span>
+                    </div>
+                  )}
+                  <div className="text-[10px] text-muted-foreground">
+                    每堂 ${fpc} · 每期12堂 · 已繳總額 ${bal.totalPaid?.toLocaleString() || 0}
+                  </div>
+                </div>
+              );
+            })()}
             <div className="grid grid-cols-2 gap-4">
               <div><Label>購買堂數 *</Label><Input type="number" value={paymentForm.classCount} onChange={(e) => handleClassCountChange(e.target.value)} /></div>
               <div><Label>金額 ($)</Label><Input value={paymentForm.amount} onChange={(e) => setPaymentForm(p => ({ ...p, amount: e.target.value }))} /></div>
