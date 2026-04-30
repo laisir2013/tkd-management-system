@@ -2859,6 +2859,12 @@ export const appRouter = router({
         // 管理員或教練皆可確認精英班繳費
         if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員或教練可以確認繳費' });
 
+        // 防護：禁止 $0 金額繳費
+        const parsedAmount = parseFloat(input.amount);
+        if (!parsedAmount || parsedAmount <= 0) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '繳費金額必須大於 $0，請檢查學生的每堂收費是否已設定' });
+        }
+
         // 處理收據上傳
         let receiptUrl: string | null = null;
         let receiptKey: string | null = null;

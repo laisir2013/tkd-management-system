@@ -1477,12 +1477,17 @@ function EliteFinanceTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAddPayment(false); setReceiptFile(null); }}>取消</Button>
             <Button
-              disabled={!paymentForm.studentId || !paymentForm.classCount || createPaymentMutation.isPending}
+              disabled={!paymentForm.studentId || !paymentForm.classCount || !paymentForm.amount || parseFloat(paymentForm.amount) <= 0 || createPaymentMutation.isPending}
               onClick={() => {
+                const amt = parseFloat(paymentForm.amount);
+                if (!amt || amt <= 0) {
+                  toast.error("繳費金額必須大於 $0，請檢查學生的每堂收費是否已設定");
+                  return;
+                }
                 createPaymentMutation.mutate({
                   studentId: paymentForm.studentId,
                   classCount: parseInt(paymentForm.classCount),
-                  amount: paymentForm.amount || "0",
+                  amount: paymentForm.amount,
                   paymentDate: new Date(),
                   confirmedBy: "admin_approved",
                   notes: paymentForm.notes || undefined,
