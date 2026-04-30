@@ -12,7 +12,7 @@ import {
   ArrowLeft, Upload, Loader2, CheckCircle2, KeyRound,
   Award, ClipboardList, CreditCard, ChevronLeft, ChevronRight,
   XCircle, Clock, MinusCircle, CalendarOff, ChevronDown, ChevronUp, AlertCircle, History as HistoryIcon,
-  User, MapPin, Trophy, FileText, Calendar
+  User, MapPin, Trophy, FileText, Calendar, CalendarDays
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { toast } from "sonner";
