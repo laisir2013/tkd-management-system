@@ -2237,6 +2237,7 @@ export async function getAccountingSummary(year: number, month?: number) {
     conditions.push(sql`MONTH(${accountingRecords.transactionDate}) = ${month}`);
   }
 
+  // 基本按 type + category 彙總
   const result = await db.select({
     type: accountingRecords.type,
     category: accountingRecords.category,
@@ -2246,7 +2247,27 @@ export async function getAccountingSummary(year: number, month?: number) {
     .where(and(...conditions))
     .groupBy(accountingRecords.type, accountingRecords.category);
 
-  return result;
+  // 額外：學費收入按精英班 / 恆常班分拆
+  const tuitionBreakdown = await db.select({
+    isElite: sql<number>`CASE WHEN ${accountingRecords.elitePaymentRecordId} IS NOT NULL THEN 1 ELSE 0 END`,
+    total: sql<string>`CAST(SUM(${accountingRecords.amount}) AS CHAR)`,
+    count: sql<number>`COUNT(*)`,
+  }).from(accountingRecords)
+    .where(and(
+      ...conditions,
+      eq(accountingRecords.type, 'income'),
+      eq(accountingRecords.category, 'tuition'),
+    ))
+    .groupBy(sql`CASE WHEN ${accountingRecords.elitePaymentRecordId} IS NOT NULL THEN 1 ELSE 0 END`);
+
+  return {
+    summary: result,
+    tuitionBreakdown: tuitionBreakdown.map(t => ({
+      type: t.isElite ? 'elite' as const : 'regular' as const,
+      total: t.total,
+      count: t.count,
+    })),
+  };
 }
 
 // ==================== 活動管理 ====================

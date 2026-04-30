@@ -62,6 +62,7 @@ export default function AccountingRecords() {
   const [selectedMonth, setSelectedMonth] = useState<number | undefined>(undefined);
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [classFilter, setClassFilter] = useState<'all' | 'elite' | 'regular' | 'other'>('all');
 
   // Dialog states
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -112,7 +113,7 @@ export default function AccountingRecords() {
     category: categoryFilter === 'all' ? undefined : categoryFilter,
   });
 
-  const { data: summary } = trpc.accounting.getSummary.useQuery({
+  const { data: summaryData } = trpc.accounting.getSummary.useQuery({
     year: selectedYear,
     month: selectedMonth,
   });
@@ -192,9 +193,15 @@ export default function AccountingRecords() {
   }
 
   // Calculate totals
+  const summary = summaryData?.summary;
+  const tuitionBreakdown = summaryData?.tuitionBreakdown;
   const totalIncome = summary?.filter(s => s.type === 'income').reduce((sum, s) => sum + parseFloat(s.total || '0'), 0) || 0;
   const totalExpense = summary?.filter(s => s.type === 'expense').reduce((sum, s) => sum + parseFloat(s.total || '0'), 0) || 0;
   const balance = totalIncome - totalExpense;
+  const eliteTuition = tuitionBreakdown?.find(t => t.type === 'elite');
+  const regularTuition = tuitionBreakdown?.find(t => t.type === 'regular');
+  const eliteTuitionTotal = parseFloat(eliteTuition?.total || '0');
+  const regularTuitionTotal = parseFloat(regularTuition?.total || '0');
 
   function resetForm() {
     setFormDate(now.toISOString().slice(0, 10));
@@ -313,6 +320,7 @@ export default function AccountingRecords() {
 
     const exportData = records.map((r: any) => ({
       '日期': formatDate(r.transactionDate),
+      '班別': r.elitePaymentRecordId ? '精英班' : r.paymentRecordId ? '恆常班' : r.dojoName || '',
       '銀行': r.bank || '',
       '金額': r.amount,
       '收入': r.type === 'income' ? r.amount : '',
@@ -355,6 +363,7 @@ export default function AccountingRecords() {
     const detailData = auditData.records.map((r: any, i: number) => ({
       '序號': i + 1,
       '日期': formatDate(r.transactionDate),
+      '班別': r.elitePaymentRecordId ? '精英班' : r.paymentRecordId ? '恆常班' : r.dojoName || '',
       '銀行': r.bank || '',
       '銀行參考編號': r.bankReference || '',
       '收入 (HKD)': r.type === 'income' ? parseFloat(r.amount).toFixed(2) : '',
@@ -580,6 +589,15 @@ export default function AccountingRecords() {
             {EXPENSE_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={classFilter} onValueChange={(v: any) => setClassFilter(v)}>
+          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部班別</SelectItem>
+            <SelectItem value="elite">精英班</SelectItem>
+            <SelectItem value="regular">恆常班</SelectItem>
+            <SelectItem value="other">其他</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 摘要卡片 */}
@@ -591,6 +609,22 @@ export default function AccountingRecords() {
               <span className="text-sm text-green-600 font-medium">總收入</span>
             </div>
             <p className="text-2xl font-bold text-green-700">{formatMoney(totalIncome)}</p>
+            {(eliteTuitionTotal > 0 || regularTuitionTotal > 0) && (
+              <div className="mt-2 pt-2 border-t border-green-200 space-y-1">
+                {regularTuitionTotal > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-green-600">恆常班學費</span>
+                    <span className="font-medium text-green-700">{formatMoney(regularTuitionTotal)}</span>
+                  </div>
+                )}
+                {eliteTuitionTotal > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-amber-600">精英班學費</span>
+                    <span className="font-medium text-amber-700">{formatMoney(eliteTuitionTotal)}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card className="border-red-200 bg-red-50/50">
@@ -629,7 +663,15 @@ export default function AccountingRecords() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">帳目明細</CardTitle>
-          <CardDescription>共 {records?.length || 0} 筆記錄</CardDescription>
+          <CardDescription>共 {(() => {
+            const filtered = records?.filter((r: any) => {
+              if (classFilter === 'elite') return !!r.elitePaymentRecordId;
+              if (classFilter === 'regular') return !!r.paymentRecordId && !r.elitePaymentRecordId;
+              if (classFilter === 'other') return !r.paymentRecordId && !r.elitePaymentRecordId;
+              return true;
+            });
+            return filtered?.length || 0;
+          })()} 筆記錄{classFilter !== 'all' ? ` (已篩選)` : ''}</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -648,7 +690,7 @@ export default function AccountingRecords() {
                       />
                     </TableHead>
                     <TableHead className="w-28">日期</TableHead>
-                    <TableHead>道場</TableHead>
+                    <TableHead>班別</TableHead>
                     <TableHead>銀行</TableHead>
                     <TableHead className="text-right">金額</TableHead>
                     <TableHead className="text-right">收入</TableHead>
@@ -662,7 +704,12 @@ export default function AccountingRecords() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {records.map((record: any) => (
+                  {records.filter((r: any) => {
+                    if (classFilter === 'elite') return !!r.elitePaymentRecordId;
+                    if (classFilter === 'regular') return !!r.paymentRecordId && !r.elitePaymentRecordId;
+                    if (classFilter === 'other') return !r.paymentRecordId && !r.elitePaymentRecordId;
+                    return true;
+                  }).map((record: any) => (
                     <TableRow key={record.id} className={record.type === 'income' ? 'bg-green-50/30' : 'bg-red-50/30'}>
                       <TableCell className="text-center">
                         {record.receiptUrl ? (
@@ -674,7 +721,9 @@ export default function AccountingRecords() {
                       </TableCell>
                       <TableCell className="text-sm">{formatDate(record.transactionDate)}</TableCell>
                       <TableCell className="text-sm">
-                        {record.dojoName ? (
+                        {record.elitePaymentRecordId ? (
+                          <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">精英班</span>
+                        ) : record.dojoName ? (
                           <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">{record.dojoName}</span>
                         ) : '-'}
                       </TableCell>
