@@ -2892,6 +2892,10 @@ export const appRouter = router({
               transactionDate: input.paymentDate,
               amount: input.amount,
               studentName: student.name,
+              coachName: student.coach,
+              dojoName: '精英班',
+              receiptUrl,
+              receiptKey,
             });
           }
         } catch (e) {
