@@ -1453,7 +1453,7 @@ function EliteFinanceTab() {
                     <span className="text-sm text-muted-foreground">點擊選擇收據圖片</span>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/*,application/pdf"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];

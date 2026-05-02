@@ -706,7 +706,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   <span className="text-sm text-muted-foreground">點擊或拖曳上傳收據圖片</span>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,application/pdf"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];

@@ -974,7 +974,7 @@ export default function AccountingRecords() {
               <Input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf"
                 onChange={handleReceiptFileChange}
                 className="mt-1"
               />

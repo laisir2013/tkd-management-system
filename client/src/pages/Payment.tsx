@@ -906,7 +906,7 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
           <CardDescription>上傳轉帳收據照片作為繳費證明，管理員/教練將核對確認</CardDescription>
         </CardHeader>
         <CardContent>
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+          <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleFileChange} className="hidden" />
           {receiptPreview ? (
             <div className="space-y-4">
               <img src={receiptPreview} alt="收據預覽" className="w-full max-h-96 object-contain rounded-lg border" />

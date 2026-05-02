@@ -118,39 +118,106 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selectedFiles = Array.from(e.target.files || []);
     setFiles(selectedFiles);
-    // Generate previews
+    // Generate previews (PDF → show icon, image → show preview)
     const previews: string[] = [];
     selectedFiles.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        previews.push(reader.result as string);
+      if (file.type === 'application/pdf') {
+        // PDF files: use placeholder for preview
+        previews.push('PDF');
         if (previews.length === selectedFiles.length) {
           setFilePreviews([...previews]);
         }
-      };
-      reader.readAsDataURL(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => {
+          previews.push(reader.result as string);
+          if (previews.length === selectedFiles.length) {
+            setFilePreviews([...previews]);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     });
     if (selectedFiles.length === 0) setFilePreviews([]);
   }
 
+  // PDF 轉圖片：使用 CDN pdf.js 將 PDF 每頁渲染為 PNG base64
+  async function convertPdfToImages(file: File): Promise<{ base64: string; mimeType: string }[]> {
+    // 動態載入 pdf.js（從 CDN，不打包進 bundle）
+    const PDFJS_VERSION = '4.4.168';
+    const cdnBase = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
+
+    if (!(window as any).pdfjsLib) {
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = `${cdnBase}/pdf.min.mjs`;
+        script.type = 'module';
+        // Fallback: use legacy build for broader compat
+        script.onerror = () => {
+          const fallback = document.createElement('script');
+          fallback.src = `${cdnBase}/pdf.min.js`;
+          fallback.onload = () => resolve();
+          fallback.onerror = () => reject(new Error('無法載入 PDF 解析器'));
+          document.head.appendChild(fallback);
+        };
+        script.onload = () => resolve();
+        document.head.appendChild(script);
+      });
+    }
+
+    const pdfjsLib = (window as any).pdfjsLib;
+    if (!pdfjsLib) {
+      throw new Error('PDF.js 載入失敗');
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `${cdnBase}/pdf.worker.min.js`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const images: { base64: string; mimeType: string }[] = [];
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const scale = 2; // 高解析度
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d')!;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const dataUrl = canvas.toDataURL('image/png');
+      images.push({ base64: dataUrl.split(',')[1], mimeType: 'image/png' });
+    }
+
+    return images;
+  }
+
   async function handleParse() {
     if (files.length === 0) {
-      toast.error("請選擇月結單圖片");
+      toast.error("請選擇月結單檔案");
       return;
     }
     setIsParsing(true);
     try {
-      // Convert all files to base64
-      const images = await Promise.all(files.map(file => {
-        return new Promise<{ base64: string; mimeType: string }>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve({ base64: result.split(",")[1], mimeType: file.type });
-          };
-          reader.readAsDataURL(file);
-        });
-      }));
+      // Convert all files to base64 images (PDF → 每頁轉圖片)
+      const images: { base64: string; mimeType: string }[] = [];
+      for (const file of files) {
+        if (file.type === 'application/pdf') {
+          // PDF: 用 pdf.js 每頁轉成 PNG
+          const pdfImages = await convertPdfToImages(file);
+          images.push(...pdfImages);
+        } else {
+          // 圖片：直接轉 base64
+          const result = await new Promise<{ base64: string; mimeType: string }>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const dataUrl = reader.result as string;
+              resolve({ base64: dataUrl.split(",")[1], mimeType: file.type });
+            };
+            reader.readAsDataURL(file);
+          });
+          images.push(result);
+        }
+      }
 
       const result = await parseMutation.mutateAsync({
         images,
@@ -318,7 +385,7 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
               <Input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf"
                 multiple
                 onChange={handleFileChange}
                 className="mt-1"
@@ -328,8 +395,15 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
             {filePreviews.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {filePreviews.map((preview, i) => (
-                  <div key={i} className="border rounded-lg overflow-hidden w-32 h-32">
-                    <img src={preview} alt={`第${i + 1}頁`} className="w-full h-full object-cover" />
+                  <div key={i} className="border rounded-lg overflow-hidden w-32 h-32 flex items-center justify-center bg-gray-50">
+                    {files[i]?.type === 'application/pdf' ? (
+                      <div className="text-center p-2">
+                        <FileText className="w-8 h-8 text-red-500 mx-auto" />
+                        <span className="text-xs text-gray-600 mt-1 block truncate w-28">{files[i]?.name}</span>
+                      </div>
+                    ) : (
+                      <img src={preview} alt={`第${i + 1}頁`} className="w-full h-full object-cover" />
+                    )}
                   </div>
                 ))}
               </div>
