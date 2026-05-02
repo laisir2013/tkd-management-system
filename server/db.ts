@@ -2095,6 +2095,12 @@ export async function getAccountingRecordByElitePaymentId(elitePaymentRecordId: 
 export function normalizeBankName(rawBank: string | null | undefined): string | null {
   if (!rawBank) return null;
   const b = rawBank.toUpperCase().trim();
+  if (!b) return null;
+
+  // ★ FPS / 轉數快 / PayMe 優先匹配（因為「中銀香港 (FPS轉數快)」應歸類為 FPS，不是 BOC）
+  if (b.includes('FPS') || b.includes('轉數快') || b.includes('转数快') || b.includes('PAYME') || b.includes('PAY ME')) {
+    return 'fps';
+  }
 
   // HSBC 滙豐銀行
   if (b.includes('HSBC') || b.includes('滙豐') || b.includes('汇丰') || b.includes('匯豐') || b.includes('HONGKONG AND SHANGHAI')) {
@@ -2104,11 +2110,6 @@ export function normalizeBankName(rawBank: string | null | undefined): string | 
   // BOC 中銀香港 / 中國銀行
   if (b.includes('BOC') || b.includes('中銀') || b.includes('中國銀行') || b.includes('中国银行') || b.includes('BANK OF CHINA')) {
     return 'boc';
-  }
-
-  // FPS 轉數快 / PayMe
-  if (b.includes('FPS') || b.includes('轉數快') || b.includes('转数快') || b.includes('PAYME') || b.includes('PAY ME')) {
-    return 'fps';
   }
 
   // Standard Chartered 渣打銀行
