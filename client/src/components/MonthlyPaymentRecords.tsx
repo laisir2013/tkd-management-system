@@ -172,16 +172,26 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
 
     setSendingWhatsApp(student.studentId);
 
-    const unpaidMonths: string[] = [];
-    for (let m = 1; m <= 12; m++) {
-      if (student.months[m]?.status === 'unpaid') {
-        unpaidMonths.push(`${m}月`);
+    // 以季度為單位收集未繳季度
+    const unpaidQuarterLabels: string[] = [];
+    const quarterDefs = [
+      { months: [1, 2, 3], label: '1-3月' },
+      { months: [4, 5, 6], label: '4-6月' },
+      { months: [7, 8, 9], label: '7-9月' },
+      { months: [10, 11, 12], label: '10-12月' },
+    ];
+    for (const q of quarterDefs) {
+      // 季度中任何一個月未繳，整季視為未繳
+      const hasUnpaid = q.months.some(m => student.months[m]?.status === 'unpaid');
+      if (hasUnpaid) {
+        unpaidQuarterLabels.push(q.label);
       }
     }
 
-    const monthsStr = unpaidMonths.join('、') || '（無未繳月份）';
+    // 預設取第一個未繳季度發送通知（一次通知一季）
+    const notifyQuarter = unpaidQuarterLabels[0] || '1-3月';
     const fee = Number(student.feePerQuarter || 0).toFixed(2);
-    const message = `🥋 *${student.studentName}* 家長您好！\n\n📌 *${selectedYear}年 ${monthsStr} 學費通知*\n應繳學費：*$${fee}*\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
+    const message = `🥋 *${student.studentName}* 家長您好！\n\n📌 *${selectedYear}年 ${notifyQuarter} 學費通知*\n應繳學費：*$${fee}*\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
 
     const whatsappUrl = `https://api.whatsapp.com/send?phone=852${student.phone}&text=${encodeURIComponent(message)}`;
     const newWindow = window.open(whatsappUrl, "_blank");
