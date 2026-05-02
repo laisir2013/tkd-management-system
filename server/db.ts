@@ -2088,6 +2088,66 @@ export async function getAccountingRecordByElitePaymentId(elitePaymentRecordId: 
 }
 
 /**
+ * 銀行名稱標準化 → paymentMethod
+ * 將 OCR 識別出的各種銀行名稱統一映射到 mapping_rules 中的 payment_method 值
+ * 用於生成正確的會計分錄（借方對應正確的銀行子科目）
+ */
+export function normalizeBankName(rawBank: string | null | undefined): string | null {
+  if (!rawBank) return null;
+  const b = rawBank.toUpperCase().trim();
+
+  // HSBC 滙豐銀行
+  if (b.includes('HSBC') || b.includes('滙豐') || b.includes('汇丰') || b.includes('匯豐') || b.includes('HONGKONG AND SHANGHAI')) {
+    return 'hsbc';
+  }
+
+  // BOC 中銀香港 / 中國銀行
+  if (b.includes('BOC') || b.includes('中銀') || b.includes('中國銀行') || b.includes('中国银行') || b.includes('BANK OF CHINA')) {
+    return 'boc';
+  }
+
+  // FPS 轉數快 / PayMe
+  if (b.includes('FPS') || b.includes('轉數快') || b.includes('转数快') || b.includes('PAYME') || b.includes('PAY ME')) {
+    return 'fps';
+  }
+
+  // Standard Chartered 渣打銀行
+  if (b.includes('STANDARD CHARTERED') || b.includes('渣打') || b.includes('SCB')) {
+    return 'scb';
+  }
+
+  // Hang Seng 恒生銀行
+  if (b.includes('HANG SENG') || b.includes('恒生') || b.includes('恆生')) {
+    return 'hangseng';
+  }
+
+  // 現金
+  if (b.includes('CASH') || b.includes('現金') || b.includes('现金')) {
+    return 'cash';
+  }
+
+  // 無法識別 → fallback 用 'bank' (通用銀行)
+  console.log(`[normalizeBankName] 無法識別銀行: "${rawBank}" → fallback to 'bank'`);
+  return 'bank';
+}
+
+/**
+ * 將 paymentMethod 映射回顯示用的中文銀行名稱
+ */
+export function paymentMethodToDisplayName(pm: string | null): string {
+  const map: Record<string, string> = {
+    'hsbc': '滙豐銀行 (HSBC)',
+    'boc': '中銀香港 (BOC)',
+    'fps': 'FPS轉數快',
+    'scb': '渣打銀行 (SCB)',
+    'hangseng': '恒生銀行',
+    'cash': '現金',
+    'bank': '銀行',
+  };
+  return pm ? (map[pm] || pm) : '';
+}
+
+/**
  * 同步繳費記錄到會計記錄
  */
 export async function syncPaymentToAccounting(params: {
@@ -2105,9 +2165,13 @@ export async function syncPaymentToAccounting(params: {
   const existing = await getAccountingRecordByPaymentId(params.paymentRecordId);
   if (existing) return;
 
+  // 標準化銀行名稱，同時保留原始 OCR 名稱作為顯示用
+  const normalizedBank = normalizeBankName(params.bank);
+  const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : (params.bank || null);
+
   const result = await insertAccountingRecord({
     transactionDate: params.transactionDate,
-    bank: params.bank || null,
+    bank: displayBank,
     amount: params.amount,
     type: 'income',
     category: params.category || 'tuition',
@@ -2121,8 +2185,8 @@ export async function syncPaymentToAccounting(params: {
     dojoName: params.dojoName || null,
     source: 'auto_sync',
   });
-  // Auto-generate journal entry
-  try { await onAccountingRecordCreated(result.insertId); } catch (e) { console.error('Auto journal from payment sync failed:', e); }
+  // Auto-generate journal entry（帶上 paymentMethod 讓分錄歸入正確銀行子科目）
+  try { await onAccountingRecordCreated(result.insertId, normalizedBank); } catch (e) { console.error('Auto journal from payment sync failed:', e); }
 }
 
 /**
@@ -2142,9 +2206,13 @@ export async function syncElitePaymentToAccounting(params: {
   const existing = await getAccountingRecordByElitePaymentId(params.elitePaymentRecordId);
   if (existing) return;
 
+  // 標準化銀行名稱
+  const normalizedBank = normalizeBankName(params.bank);
+  const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : (params.bank || null);
+
   const result = await insertAccountingRecord({
     transactionDate: params.transactionDate,
-    bank: params.bank || null,
+    bank: displayBank,
     amount: params.amount,
     type: 'income',
     category: 'tuition',
@@ -2158,8 +2226,8 @@ export async function syncElitePaymentToAccounting(params: {
     dojoName: params.dojoName || '精英班',
     source: 'auto_sync',
   });
-  // Auto-generate journal entry
-  try { await onAccountingRecordCreated(result.insertId); } catch (e) { console.error('Auto journal from elite payment sync failed:', e); }
+  // Auto-generate journal entry（帶上 paymentMethod 讓分錄歸入正確銀行子科目）
+  try { await onAccountingRecordCreated(result.insertId, normalizedBank); } catch (e) { console.error('Auto journal from elite payment sync failed:', e); }
 }
 
 /**
@@ -3290,8 +3358,10 @@ export async function deleteJournalEntry(id: number) {
 
 /**
  * 當新 accounting_record 被建立後，自動生成 Journal Entry（Hook）
+ * @param recordId - accounting_records 的 ID
+ * @param paymentMethod - 標準化後的銀行代碼 (hsbc/boc/fps/scb/hangseng/cash/bank)，用於匹配映射規則
  */
-export async function onAccountingRecordCreated(recordId: number) {
+export async function onAccountingRecordCreated(recordId: number, paymentMethod?: string | null) {
   const db = await getDb();
   if (!db) return { success: false, error: 'Database not available' };
 
@@ -3303,11 +3373,15 @@ export async function onAccountingRecordCreated(recordId: number) {
     ? record.transactionDate.toISOString().split('T')[0]
     : String(record.transactionDate).split('T')[0];
 
+  // 如果沒有傳入 paymentMethod，嘗試從 record.bank 欄位推斷
+  const resolvedPaymentMethod = paymentMethod || normalizeBankName(record.bank);
+
   const result = await createJournalEntryFromRecord({
     id: record.id,
     type: record.type as 'income' | 'expense',
     amount: String(record.amount),
     category: record.category,
+    paymentMethod: resolvedPaymentMethod,
     description: record.description ?? null,
     date: dateStr,
   });

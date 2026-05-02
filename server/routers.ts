@@ -1465,9 +1465,9 @@ export const appRouter = router({
             console.log(`[MergedPayment][OCR] 使用 LLM OCR 識別收據... (嘗試 ${attempt}/${maxRetries})`);
             const ocrResponse = await invokeLLM({
               messages: [
-                { role: "system", content: '從收據提取JSON: {"amount","bank","status","date","time","recipientName","recipientAccount"}' },
+                { role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(例如:HSBC/滙豐/BOC/中銀/恒生/渣打/FPS轉數快/PayMe)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：bank欄位請填寫「付款方/轉出方」使用的銀行或支付方式，不是收款方的銀行。如果是FPS轉數快或PayMe轉帳，bank請填\"FPS\"。' },
                 { role: "user", content: [
-                  { type: "text", text: "識別收據:" },
+                  { type: "text", text: "請識別這張收據的金額、付款銀行、收款人資訊:" },
                   { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }
                 ] }
               ]
@@ -3325,7 +3325,7 @@ export const appRouter = router({
             messages: [
               {
                 role: "system",
-                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00\",\n  \"bank\": \"銀行名稱\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
+                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00\",\n  \"bank\": \"付款方/轉出方使用的銀行或支付方式（例如：HSBC、滙豐、BOC、中銀、恒生、渣打、FPS、PayMe）。注意是轉帳者用的銀行，不是收款方的銀行\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
               },
               {
                 role: "user",

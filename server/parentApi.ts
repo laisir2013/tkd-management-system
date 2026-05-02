@@ -461,7 +461,7 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
     if (!exAmt || exAmt === "0" || exAmt === amount) {
       try {
         console.log(`[Receipt][OCR] 使用 LLM OCR 識別收據...`);
-        const oR = await invokeLLM({ messages: [{ role: "system", content: '從收據提取JSON: {"amount","bank","status","date","time","recipientName","recipientAccount"}' }, { role: "user", content: [{ type: "text", text: "識別收據:" }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }] }] });
+        const oR = await invokeLLM({ messages: [{ role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(例如:HSBC/滙豐/BOC/中銀/恒生/渣打/FPS轉數快/PayMe)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：bank欄位請填寫「付款方/轉出方」使用的銀行或支付方式，不是收款方的銀行。如果是FPS轉數快或PayMe轉帳，bank請填"FPS"。' }, { role: "user", content: [{ type: "text", text: "請識別這張收據的金額、付款銀行、收款人資訊:" }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }] }] });
         const c = oR.choices[0]?.message?.content;
         if (typeof c === "string") {
           const d = JSON.parse(c.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim());
