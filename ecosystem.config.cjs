@@ -40,8 +40,10 @@ module.exports = {
         VITE_APP_ID: dotenv.VITE_APP_ID || 'local-dev',
         OWNER_OPEN_ID: dotenv.OWNER_OPEN_ID || 'admin-local',
         OAUTH_SERVER_URL: dotenv.OAUTH_SERVER_URL || '',
-        // LLM API - 優先使用 .env 裡的設定
+        // LLM API - 優先使用 .env 裡的設定（支援多 key 輪換）
         OPENAI_API_KEY: dotenv.OPENAI_API_KEY || '',
+        OPENAI_API_KEY_2: dotenv.OPENAI_API_KEY_2 || '',
+        OPENAI_API_KEY_3: dotenv.OPENAI_API_KEY_3 || '',
         OPENAI_BASE_URL: dotenv.OPENAI_BASE_URL || '',
         // R2 Storage
         R2_ACCOUNT_ID: dotenv.R2_ACCOUNT_ID || '',

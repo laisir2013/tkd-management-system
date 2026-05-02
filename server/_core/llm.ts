@@ -230,6 +230,10 @@ function getApiKeys(): string[] {
   return keys;
 }
 
+// 啟動時記錄可用 key 數量
+const _initKeys = getApiKeys();
+console.log(`[LLM] 已載入 ${_initKeys.length} 個 API Key (${_initKeys.map((k, i) => `key${i+1}: ${k.substring(0,10)}...`).join(', ')})`);
+
 let currentKeyIndex = 0;
 
 function getNextApiKey(): string {
