@@ -1418,6 +1418,8 @@ export const appRouter = router({
         // 向後兼容：舊版單季度
         paymentPeriod: z.enum(["Q1", "Q2", "Q3", "Q4", "CUSTOM"]).optional(),
         customMonths: z.array(z.string()).optional(),
+        // 請假排除月份（1-12）
+        excludedMonths: z.array(z.number().min(1).max(12)).optional(),
         amount: z.string(),
         receiptBase64: z.string(),
         receiptMimeType: z.string(),
@@ -1427,7 +1429,15 @@ export const appRouter = router({
         // 向後兼容：如果有 paymentPeriods 就用，否則 fallback 到舊版 paymentPeriod
         const paymentPeriods = input.paymentPeriods || (input.paymentPeriod ? [input.paymentPeriod] : ['Q1']);
         const quarterPeriods = paymentPeriods.filter(p => p !== 'CUSTOM');
-        const quarterCount = quarterPeriods.length || 1;
+        const excludedMonths = input.excludedMonths || [];
+
+        // 季度對應月份映射
+        const QUARTER_MONTHS: Record<string, number[]> = {
+          Q1: [1, 2, 3],
+          Q2: [4, 5, 6],
+          Q3: [7, 8, 9],
+          Q4: [10, 11, 12],
+        };
 
         // ── 1. 取得所有學生資料 ──
         const studentsData = [];
@@ -1443,7 +1453,7 @@ export const appRouter = router({
         const receiptKey = `receipts/merged-${studentIds.join('_')}-${Date.now()}.${fileExt}`;
         const { url: receiptUrl } = await storagePut(receiptKey, receiptBuffer, receiptMimeType);
 
-        // ── 3. 計算應繳金額（多季度 × 多學生）──
+        // ── 3. 計算應繳金額（考慮請假排除月份）──
         let totalExpectedFee = 0;
         // perStudentFees: 每位學生在每個季度的費用
         const perStudentFees: { studentId: number; fee: number; period: string }[] = [];
@@ -1457,8 +1467,12 @@ export const appRouter = router({
             perStudentFees.push({ studentId: s.id, fee, period: 'CUSTOM' });
           } else {
             for (const period of quarterPeriods) {
-              totalExpectedFee += feePerQuarter;
-              perStudentFees.push({ studentId: s.id, fee: feePerQuarter, period });
+              // 計算該季度中實際需繳費的月份數（排除請假月）
+              const quarterMonths = QUARTER_MONTHS[period] || [];
+              const activeMonthsInQuarter = quarterMonths.filter(m => !excludedMonths.includes(m));
+              const fee = monthlyFee * activeMonthsInQuarter.length;
+              totalExpectedFee += fee;
+              perStudentFees.push({ studentId: s.id, fee, period });
             }
           }
         }
@@ -1603,10 +1617,22 @@ export const appRouter = router({
         const createdPaymentIds: number[] = [];
         for (const entry of perStudentFees) {
           const studentFeeStr = entry.fee.toString();
+          // 如果有排除月份，記錄實際繳費的月份到 customMonths
+          let recordCustomMonths: string[] | null = null;
+          if (entry.period === 'CUSTOM') {
+            recordCustomMonths = input.customMonths || null;
+          } else if (excludedMonths.length > 0) {
+            // 季度繳費但有請假月 → 記錄實際繳費的月份
+            const quarterMonths = QUARTER_MONTHS[entry.period] || [];
+            const activeInQuarter = quarterMonths.filter(m => !excludedMonths.includes(m));
+            if (activeInQuarter.length < quarterMonths.length) {
+              recordCustomMonths = activeInQuarter.map(m => `${m}月`);
+            }
+          }
           const newPaymentId = await insertPaymentRecord({
             studentId: entry.studentId,
             paymentPeriod: entry.period,
-            customMonths: entry.period === 'CUSTOM' ? (input.customMonths || null) : null,
+            customMonths: recordCustomMonths,
             amount: (extractedAmount > 0 ? entry.fee : parseFloat(studentFeeStr)).toString(),
             classCount: null,
             receiptUrl: stampedReceiptUrl,
@@ -1646,7 +1672,7 @@ export const appRouter = router({
           }
         }
 
-        console.log(`[MergedPayment] 完成：學生=${allStudentNames}, 季度=${paymentPeriods.join('+')}, OCR金額=$${extractedAmount}, 應繳合計=$${totalExpectedFee}, 記錄數=${createdPaymentIds.length}, 狀態=${finalStatus}`);
+        console.log(`[MergedPayment] 完成：學生=${allStudentNames}, 季度=${paymentPeriods.join('+')}, 排除月=${excludedMonths.length > 0 ? excludedMonths.join(',') : '無'}, OCR金額=$${extractedAmount}, 應繳合計=$${totalExpectedFee}, 記錄數=${createdPaymentIds.length}, 狀態=${finalStatus}`);
 
         return {
           success: true,
