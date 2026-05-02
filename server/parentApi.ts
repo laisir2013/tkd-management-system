@@ -446,21 +446,37 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
     let exStatus: string | null = null, exDT: string | null = null;
     let exRName: string | null = null, exRAcc: string | null = null;
     const b64 = buf.toString("base64");
+    let ocrSucceeded = false;
     try {
       const lr = await ocrReceipt(b64, mime);
-      if (lr.amount) exAmt = lr.amount;
+      if (lr.amount) { exAmt = lr.amount; ocrSucceeded = true; }
       if (lr.bank) exBank = lr.bank;
       if (lr.status) exStatus = lr.status;
       if (lr.recipientName) exRName = lr.recipientName;
       if (lr.recipientAccount) exRAcc = lr.recipientAccount;
       if (lr.date) { const d = new Date(lr.time ? `${lr.date}T${lr.time}` : lr.date); if (!isNaN(d.getTime())) rDate = d; exDT = lr.time ? `${lr.date} ${lr.time}` : lr.date; }
-    } catch {}
+    } catch (localOcrErr) {
+      console.warn(`[Receipt][OCR] Local OCR 失敗:`, localOcrErr instanceof Error ? localOcrErr.message : String(localOcrErr));
+    }
     if (!exAmt || exAmt === "0" || exAmt === amount) {
       try {
+        console.log(`[Receipt][OCR] 使用 LLM OCR 識別收據...`);
         const oR = await invokeLLM({ messages: [{ role: "system", content: '從收據提取JSON: {"amount","bank","status","date","time","recipientName","recipientAccount"}' }, { role: "user", content: [{ type: "text", text: "識別收據:" }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }] }] });
         const c = oR.choices[0]?.message?.content;
-        if (typeof c === "string") { const d = JSON.parse(c.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim()); if (d.amount) { const p = parseFloat(d.amount.replace(/[^0-9.]/g, "")); if (!isNaN(p) && p > 0) exAmt = p.toString(); } if (d.bank) exBank = d.bank; if (d.date) { const pd = new Date(d.time ? `${d.date}T${d.time}` : d.date); if (!isNaN(pd.getTime())) rDate = pd; } }
-      } catch {}
+        if (typeof c === "string") {
+          const d = JSON.parse(c.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim());
+          console.log(`[Receipt][OCR] LLM 解析結果:`, JSON.stringify(d));
+          if (d.amount) { const p = parseFloat(d.amount.replace(/[^0-9.]/g, "")); if (!isNaN(p) && p > 0) { exAmt = p.toString(); ocrSucceeded = true; } }
+          if (d.bank) exBank = d.bank;
+          if (d.recipientName) exRName = d.recipientName;
+          if (d.recipientAccount) exRAcc = d.recipientAccount;
+          if (d.date) { const pd = new Date(d.time ? `${d.date}T${d.time}` : d.date); if (!isNaN(pd.getTime())) rDate = pd; }
+        }
+      } catch (llmErr) {
+        console.warn(`[Receipt][OCR] LLM OCR 也失敗:`, llmErr instanceof Error ? llmErr.message : String(llmErr));
+        console.log(`[Receipt][OCR] OCR 全部失敗，使用家長提交金額: $${amount}`);
+        exAmt = amount;
+      }
     }
 
     const student = await getStudentById(numId);
@@ -479,7 +495,7 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
       amtOk = Math.abs(pAmt - feeQ) < 1;
     }
     let rcpOk = false, rcpNote = "";
-    try { const v = await getSystemConfig("receipt_validation_enabled"); if (v === "true") { const acc = await getAcceptedPayeeAccounts(); if (!acc.length) rcpOk = true; else { for (const a of acc) { if ((exRAcc && a.account && (exRAcc.includes(a.account) || a.account.includes(exRAcc))) || (exRName && a.name && (exRName.toUpperCase().includes(a.name.toUpperCase()) || a.name.toUpperCase().includes(exRName.toUpperCase())))) { rcpOk = true; break; } } if (!rcpOk) rcpNote = `收款人不匹配`; } } else rcpOk = true; } catch { rcpOk = true; }
+    try { const v = await getSystemConfig("receipt_validation_enabled"); if (v === "true") { const acc = await getAcceptedPayeeAccounts(); if (!acc.length) rcpOk = true; else if (!ocrSucceeded) { rcpOk = true; console.log(`[Receipt] OCR 失敗，跳過收款人驗證`); } else { for (const a of acc) { if ((exRAcc && a.account && (exRAcc.includes(a.account) || a.account.includes(exRAcc))) || (exRName && a.name && (exRName.toUpperCase().includes(a.name.toUpperCase()) || a.name.toUpperCase().includes(exRName.toUpperCase())))) { rcpOk = true; break; } } if (!rcpOk) rcpNote = `收款人不匹配`; } } else rcpOk = true; } catch { rcpOk = true; }
 
     let reason = ""; if (!amtOk) reason += `金額不符`; if (!rcpOk) { if (reason) reason += "; "; reason += rcpNote; }
     const st = amtOk && rcpOk ? "confirmed" : "pending";

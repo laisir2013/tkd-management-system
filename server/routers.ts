@@ -1500,7 +1500,16 @@ export const appRouter = router({
           }
         }
 
-        console.log(`[MergedPayment] OCR金額=${extractedAmount}, 應繳合計=${totalExpectedFee}, 銀行=${extractedBank}`);
+        // ── 4b. OCR 失敗時 fallback：使用家長提交的金額 ──
+        const parentSubmittedAmount = parseFloat(input.amount);
+        let ocrFailed = false;
+        if (extractedAmount <= 0 && !isNaN(parentSubmittedAmount) && parentSubmittedAmount > 0) {
+          console.log(`[MergedPayment][OCR] OCR 完全失敗，fallback 使用家長提交金額: $${parentSubmittedAmount}`);
+          extractedAmount = parentSubmittedAmount;
+          ocrFailed = true;
+        }
+
+        console.log(`[MergedPayment] OCR金額=${extractedAmount}, 應繳合計=${totalExpectedFee}, 銀行=${extractedBank}, OCR失敗=${ocrFailed}`);
 
         // ── 5. 驗證金額和收款人 ──
         const amtOk = extractedAmount > 0 && Math.abs(extractedAmount - totalExpectedFee) < 1;
@@ -1512,13 +1521,19 @@ export const appRouter = router({
             const acceptedAccounts = await getAcceptedPayeeAccounts();
             if (!acceptedAccounts.length) { rcpOk = true; }
             else {
-              for (const a of acceptedAccounts) {
-                if ((extractedRecipientAccount && a.account && (extractedRecipientAccount.includes(a.account) || a.account.includes(extractedRecipientAccount))) ||
-                    (extractedRecipientName && a.name && (extractedRecipientName.toUpperCase().includes(a.name.toUpperCase()) || a.name.toUpperCase().includes(extractedRecipientName.toUpperCase())))) {
-                  rcpOk = true; break;
+              // OCR 失敗時無法驗證收款人，跳過收款人檢查
+              if (ocrFailed) {
+                rcpOk = true;
+                console.log(`[MergedPayment] OCR 失敗，跳過收款人驗證`);
+              } else {
+                for (const a of acceptedAccounts) {
+                  if ((extractedRecipientAccount && a.account && (extractedRecipientAccount.includes(a.account) || a.account.includes(extractedRecipientAccount))) ||
+                      (extractedRecipientName && a.name && (extractedRecipientName.toUpperCase().includes(a.name.toUpperCase()) || a.name.toUpperCase().includes(extractedRecipientName.toUpperCase())))) {
+                    rcpOk = true; break;
+                  }
                 }
+                if (!rcpOk) rcpNote = `收款人不匹配: 名稱=${extractedRecipientName || '未識別'}, 帳號=${extractedRecipientAccount || '未識別'}`;
               }
-              if (!rcpOk) rcpNote = `收款人不匹配: 名稱=${extractedRecipientName || '未識別'}, 帳號=${extractedRecipientAccount || '未識別'}`;
             }
           } else { rcpOk = true; }
         } catch { rcpOk = true; }

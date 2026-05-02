@@ -218,8 +218,35 @@ const resolveApiUrl = () => {
   return `${cleaned}/v1/chat/completions`;
 };
 
+// ── 多 API Key 輪換機制 ──
+// 從環境變數讀取多個 key: OPENAI_API_KEY, OPENAI_API_KEY_2, OPENAI_API_KEY_3
+function getApiKeys(): string[] {
+  const keys: string[] = [];
+  if (ENV.forgeApiKey) keys.push(ENV.forgeApiKey);
+  const key2 = process.env.OPENAI_API_KEY_2?.trim();
+  const key3 = process.env.OPENAI_API_KEY_3?.trim();
+  if (key2) keys.push(key2);
+  if (key3) keys.push(key3);
+  return keys;
+}
+
+let currentKeyIndex = 0;
+
+function getNextApiKey(): string {
+  const keys = getApiKeys();
+  if (keys.length === 0) throw new Error("OPENAI_API_KEY is not configured");
+  currentKeyIndex = (currentKeyIndex + 1) % keys.length;
+  return keys[currentKeyIndex];
+}
+
+function getCurrentApiKey(): string {
+  const keys = getApiKeys();
+  if (keys.length === 0) throw new Error("OPENAI_API_KEY is not configured");
+  return keys[currentKeyIndex % keys.length];
+}
+
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
+  if (getApiKeys().length === 0) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
 };
@@ -317,37 +344,47 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const MAX_RETRIES = 3;
-  const RETRY_DELAYS = [2000, 5000, 10000]; // 2s, 5s, 10s
+  const apiKeys = getApiKeys();
+  const totalAttempts = apiKeys.length * 2; // 每個 key 最多試 2 次
+  const RETRY_DELAY = 2000; // 同一 key 重試等 2 秒
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+  let lastError = '';
+
+  for (let attempt = 0; attempt < totalAttempts; attempt++) {
+    const apiKey = getCurrentApiKey();
+    const keyLabel = `key${(currentKeyIndex % apiKeys.length) + 1}/${apiKeys.length}`;
+
     const response = await fetch(resolveApiUrl(), {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${ENV.forgeApiKey}`,
+        authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(payload),
     });
 
     if (response.ok) {
+      if (attempt > 0) {
+        console.log(`[LLM] 成功 (${keyLabel}, attempt ${attempt + 1})`);
+      }
       return (await response.json()) as InvokeResult;
     }
 
     const errorText = await response.text();
+    lastError = `${response.status} ${response.statusText} – ${errorText}`;
 
-    // Retry on 429 (rate limit) or 503 (overloaded)
-    if ((response.status === 429 || response.status === 503) && attempt < MAX_RETRIES) {
-      const delay = RETRY_DELAYS[attempt] || 10000;
-      console.warn(`[LLM] ${response.status} rate limited, retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms...`);
-      await new Promise(r => setTimeout(r, delay));
+    // 429 (rate limit) / 503 (overloaded) / 403 (quota) → 切換到下一個 key
+    if (response.status === 429 || response.status === 503 || response.status === 403) {
+      console.warn(`[LLM] ${keyLabel} → ${response.status}, 切換下一個 key...`);
+      getNextApiKey();
+      // 短暫等待再試
+      await new Promise(r => setTimeout(r, RETRY_DELAY));
       continue;
     }
 
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+    // 其他錯誤直接拋出
+    throw new Error(`LLM invoke failed: ${lastError}`);
   }
 
-  throw new Error("LLM invoke failed: max retries exceeded");
+  throw new Error(`LLM invoke failed after ${totalAttempts} attempts: ${lastError}`);
 }
