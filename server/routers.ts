@@ -1436,7 +1436,7 @@ export const appRouter = router({
         const receiptKey = `receipts/merged-${studentIds.join('_')}-${Date.now()}.${fileExt}`;
         const { url: receiptUrl } = await storagePut(receiptKey, receiptBuffer, receiptMimeType);
 
-        // ── 3. 計算應繳金額（不依賴 OCR，由系統自動計算）──
+        // ── 3. 計算應繳金額 ──
         let totalExpectedFee = 0;
         const perStudentFees: { studentId: number; fee: number }[] = [];
         for (const s of studentsData) {
@@ -1450,19 +1450,103 @@ export const appRouter = router({
           perStudentFees.push({ studentId: s.id, fee });
         }
 
-        // 所有家長上傳的收據一律標記為「待審核」，由管理員或教練核對
-        const recordStatus = "pending" as const;
-        const reviewReason = '家長上傳收據，待管理員/教練核對';
-        const reviewMatchType: string | null = 'parent_upload';
+        // ── 4. LLM OCR 識別收據 ──
+        let extractedAmount = 0;
+        let extractedBank = '';
+        let extractedDate: Date | null = null;
+        let extractedRecipientName = '';
+        let extractedRecipientAccount = '';
+        const b64 = receiptBase64;
+        const mime = receiptMimeType;
 
-        // ── 4. 為收據蓋章（包含所有學生名字）──
+        try {
+          console.log(`[MergedPayment][OCR] 使用 LLM OCR 識別收據...`);
+          const ocrResponse = await invokeLLM({
+            messages: [
+              { role: "system", content: '從收據提取JSON: {"amount","bank","status","date","time","recipientName","recipientAccount"}' },
+              { role: "user", content: [
+                { type: "text", text: "識別收據:" },
+                { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }
+              ] }
+            ]
+          });
+          const content = ocrResponse.choices[0]?.message?.content;
+          if (typeof content === "string") {
+            const parsed = JSON.parse(content.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim());
+            console.log(`[MergedPayment][OCR] LLM 解析結果:`, JSON.stringify(parsed));
+            if (parsed.amount) {
+              const p = parseFloat(parsed.amount.replace(/[^0-9.]/g, ""));
+              if (!isNaN(p) && p > 0) extractedAmount = p;
+            }
+            if (parsed.bank) extractedBank = parsed.bank;
+            if (parsed.date) {
+              const pd = new Date(parsed.time ? `${parsed.date}T${parsed.time}` : parsed.date);
+              if (!isNaN(pd.getTime())) extractedDate = pd;
+            }
+            if (parsed.recipientName) extractedRecipientName = parsed.recipientName;
+            if (parsed.recipientAccount) extractedRecipientAccount = parsed.recipientAccount;
+          }
+        } catch (ocrErr) {
+          console.warn("[MergedPayment][OCR] LLM OCR 失敗:", ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
+        }
+
+        console.log(`[MergedPayment] OCR金額=${extractedAmount}, 應繳合計=${totalExpectedFee}, 銀行=${extractedBank}`);
+
+        // ── 5. 驗證金額和收款人 ──
+        const amtOk = extractedAmount > 0 && Math.abs(extractedAmount - totalExpectedFee) < 1;
+        let rcpOk = false;
+        let rcpNote = '';
+        try {
+          const validationEnabled = await getSystemConfig("receipt_validation_enabled");
+          if (validationEnabled === "true") {
+            const acceptedAccounts = await getAcceptedPayeeAccounts();
+            if (!acceptedAccounts.length) { rcpOk = true; }
+            else {
+              for (const a of acceptedAccounts) {
+                if ((extractedRecipientAccount && a.account && (extractedRecipientAccount.includes(a.account) || a.account.includes(extractedRecipientAccount))) ||
+                    (extractedRecipientName && a.name && (extractedRecipientName.toUpperCase().includes(a.name.toUpperCase()) || a.name.toUpperCase().includes(extractedRecipientName.toUpperCase())))) {
+                  rcpOk = true; break;
+                }
+              }
+              if (!rcpOk) rcpNote = `收款人不匹配: 名稱=${extractedRecipientName || '未識別'}, 帳號=${extractedRecipientAccount || '未識別'}`;
+            }
+          } else { rcpOk = true; }
+        } catch { rcpOk = true; }
+
+        let reason = '';
+        if (!amtOk) reason += extractedAmount > 0 ? `金額不符(收據:$${extractedAmount}, 應繳:$${totalExpectedFee})` : 'OCR未能識別金額';
+        if (!rcpOk) { if (reason) reason += '; '; reason += rcpNote; }
+
+        const autoConfirmed = amtOk && rcpOk;
+
+        // ── 6. 重複收據檢測 ──
+        let needsReview = !autoConfirmed;
+        let reviewReason = reason;
+        let reviewMatchType: string | null = autoConfirmed ? null : 'validation_failed';
+        let reviewMatchPaymentId: number | null = null;
+
+        if (extractedAmount > 0) {
+          const dupCheck = await checkDuplicateReceipt({ studentId: studentIds[0], amount: extractedAmount.toString(), receiptTransferDate: extractedDate, receiptKey, paymentType: 'regular' });
+          if (dupCheck.isDuplicate) {
+            needsReview = true;
+            reviewMatchType = dupCheck.matchType;
+            reviewMatchPaymentId = dupCheck.matchPaymentId;
+            reviewReason = reviewReason ? `${reviewReason}; ${dupCheck.reason || '疑似重複收據'}` : (dupCheck.reason || '疑似重複收據');
+            console.log(`[MergedPayment] 偵測到疑似重複: ${reviewReason}`);
+          }
+        }
+
+        const finalStatus = needsReview ? 'pending' : 'confirmed';
+        console.log(`[MergedPayment] 驗證結果: 金額OK=${amtOk}, 收款人OK=${rcpOk}, 需審查=${needsReview}, 狀態=${finalStatus}`);
+
+        // ── 7. 為收據蓋章（包含所有學生名字）──
         const allStudentNames = studentsData.map(s => s.name).join(', ');
         let stampedReceiptUrl = receiptUrl;
         let stampedReceiptKey = receiptKey;
         try {
           const stampedBuffer = await stampReceipt(receiptBuffer, receiptMimeType, {
             studentName: allStudentNames,
-            amount: totalExpectedFee.toString(),
+            amount: (extractedAmount || totalExpectedFee).toString(),
             paymentPeriod,
             customMonths: input.customMonths,
             dojoName: studentsData[0].venue || undefined,
@@ -1475,7 +1559,7 @@ export const appRouter = router({
           console.warn("[MergedPayment] 收據標記失敗，使用原始收據:", stampErr instanceof Error ? stampErr.message : String(stampErr));
         }
 
-        // ── 5. 為每位學生建立繳費記錄（一律待審核）──
+        // ── 8. 為每位學生建立繳費記錄 ──
         const createdPaymentIds: number[] = [];
         for (const entry of perStudentFees) {
           const studentFeeStr = entry.fee.toString();
@@ -1483,32 +1567,54 @@ export const appRouter = router({
             studentId: entry.studentId,
             paymentPeriod,
             customMonths: input.customMonths || null,
-            amount: studentFeeStr,
+            amount: (extractedAmount > 0 ? entry.fee : parseFloat(studentFeeStr)).toString(),
             classCount: null,
             receiptUrl: stampedReceiptUrl,
             receiptKey: stampedReceiptKey,
-            receiptTransferDate: null,
+            receiptTransferDate: extractedDate,
             paymentDate: new Date(),
-            status: recordStatus,
+            status: finalStatus as any,
             confirmedBy: 'parent_upload',
-            reviewStatus: 'pending_review',
-            reviewReason,
+            reviewStatus: needsReview ? 'pending_review' : 'normal',
+            reviewReason: needsReview ? reviewReason : null,
             reviewMatchType,
-            reviewMatchPaymentId: null,
+            reviewMatchPaymentId,
           });
           createdPaymentIds.push(newPaymentId);
         }
 
-        // 不再自動同步會計，等管理員/教練核准後才同步
+        // ── 9. 自動確認 → 同步到會計 ──
+        if (finalStatus === 'confirmed') {
+          for (let i = 0; i < perStudentFees.length; i++) {
+            try {
+              await syncPaymentToAccounting({
+                paymentRecordId: createdPaymentIds[i],
+                transactionDate: extractedDate || new Date(),
+                amount: perStudentFees[i].fee.toString(),
+                bank: extractedBank,
+                studentName: studentsData[i].name,
+                coachName: studentsData[i].coach,
+                dojoName: studentsData[i].venue || null,
+                category: 'tuition',
+                receiptUrl: stampedReceiptUrl,
+                receiptKey: stampedReceiptKey,
+              });
+            } catch (syncErr) {
+              console.error(`[MergedPayment] 同步會計失敗(學生=${studentsData[i].name}):`, syncErr);
+            }
+          }
+        }
 
-        console.log(`[MergedPayment] 完成：學生=${allStudentNames}, 應繳合計=${totalExpectedFee}, 每人費用=${perStudentFees.map(e => e.fee).join('/')}, 狀態=pending_review（待核對）`);
+        console.log(`[MergedPayment] 完成：學生=${allStudentNames}, OCR金額=$${extractedAmount}, 應繳合計=$${totalExpectedFee}, 每人費用=${perStudentFees.map(e => e.fee).join('/')}, 狀態=${finalStatus}`);
 
         return {
           success: true,
           totalExpectedFee,
-          status: 'pending' as const,
-          needsReview: true,
-          reviewReason,
+          extractedAmount,
+          extractedBank,
+          status: finalStatus as 'confirmed' | 'pending',
+          needsReview,
+          reviewReason: needsReview ? reviewReason : undefined,
           createdPaymentIds,
           perStudentFees: perStudentFees.map(e => ({ studentId: e.studentId, fee: e.fee })),
         };
