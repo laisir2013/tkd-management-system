@@ -2164,6 +2164,7 @@ export async function syncPaymentToAccounting(params: {
   transactionDate: Date;
   amount: string;
   bank?: string | null;
+  receivingBank?: string | null; // 收款銀行（入數到哪間銀行，用於銀行月結單對帳）
   studentName: string;
   coachName?: string | null;
   dojoName?: string | null;
@@ -2178,9 +2179,16 @@ export async function syncPaymentToAccounting(params: {
   const normalizedBank = normalizeBankName(params.bank);
   const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : (params.bank || null);
 
+  // 標準化收款銀行名稱（用於對帳）
+  const normalizedReceivingBank = params.receivingBank ? normalizeBankName(params.receivingBank) : null;
+  const displayReceivingBank = normalizedReceivingBank
+    ? paymentMethodToDisplayName(normalizedReceivingBank)
+    : (params.receivingBank || null);
+
   const result = await insertAccountingRecord({
     transactionDate: params.transactionDate,
     bank: displayBank,
+    receivingBank: displayReceivingBank,
     amount: params.amount,
     type: 'income',
     category: params.category || 'tuition',
@@ -2206,6 +2214,7 @@ export async function syncElitePaymentToAccounting(params: {
   transactionDate: Date;
   amount: string;
   bank?: string | null;
+  receivingBank?: string | null; // 收款銀行（入數到哪間銀行，用於銀行月結單對帳）
   studentName: string;
   coachName?: string | null;
   dojoName?: string | null;
@@ -2219,9 +2228,16 @@ export async function syncElitePaymentToAccounting(params: {
   const normalizedBank = normalizeBankName(params.bank);
   const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : (params.bank || null);
 
+  // 標準化收款銀行名稱（用於對帳）
+  const normalizedReceivingBank = params.receivingBank ? normalizeBankName(params.receivingBank) : null;
+  const displayReceivingBank = normalizedReceivingBank
+    ? paymentMethodToDisplayName(normalizedReceivingBank)
+    : (params.receivingBank || null);
+
   const result = await insertAccountingRecord({
     transactionDate: params.transactionDate,
     bank: displayBank,
+    receivingBank: displayReceivingBank,
     amount: params.amount,
     type: 'income',
     category: 'tuition',
@@ -2258,6 +2274,7 @@ export async function syncOrphanedPayments(): Promise<{ synced: number; errors: 
     receiptUrl: paymentRecords.receiptUrl,
     receiptKey: paymentRecords.receiptKey,
     bank: paymentRecords.bank,
+    receivingBank: paymentRecords.receivingBank,
   })
     .from(paymentRecords)
     .leftJoin(accountingRecords, eq(accountingRecords.paymentRecordId, paymentRecords.id))
@@ -2283,6 +2300,7 @@ export async function syncOrphanedPayments(): Promise<{ synced: number; errors: 
         transactionDate: payment.receiptTransferDate || payment.paymentDate,
         amount: String(payment.amount),
         bank: payment.bank || null,
+        receivingBank: payment.receivingBank || null,
         studentName: student.name,
         coachName: student.coach,
         dojoName: student.venue || null,

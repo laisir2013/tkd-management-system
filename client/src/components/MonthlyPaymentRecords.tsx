@@ -60,6 +60,8 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const [confirmExcludedMonths, setConfirmExcludedMonths] = useState<number[]>([]);
   // 付款銀行（教練/管理員確認時選擇）
   const [confirmBank, setConfirmBank] = useState<string>("");
+  // 收款銀行（入數到哪間銀行，用於銀行月結單對帳）
+  const [confirmReceivingBank, setConfirmReceivingBank] = useState<string>("");
 
   // Approve payment dialog state (待審核→批准)
   const [approveDialog, setApproveDialog] = useState<{
@@ -630,7 +632,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmBank(""); } }}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmBank(""); setConfirmReceivingBank(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -707,7 +709,24 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                 <SelectItem value="其他銀行">其他銀行</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground mt-1">選擇家長的付款方式，用於銀行對帳</p>
+            <p className="text-xs text-muted-foreground mt-1">選擇家長的付款方式</p>
+          </div>
+          {/* 收款銀行選擇（入數到哪間銀行，對帳用） */}
+          <div className="px-0">
+            <Label className="text-sm font-medium">收款銀行（入數到哪間公司帳戶）*</Label>
+            <Select value={confirmReceivingBank} onValueChange={setConfirmReceivingBank}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="請選擇收款銀行" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                <SelectItem value="恒生銀行">恒生銀行</SelectItem>
+                <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
+                <SelectItem value="現金">現金（不經銀行）</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>
           </div>
           {/* 收據上傳（可選） */}
           <div className="px-0">
@@ -748,7 +767,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             <p className="text-xs text-muted-foreground mt-1">管理員/教練上傳收據直接確認，無需額外審批</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmBank(""); }}>取消</Button>
+            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmBank(""); setConfirmReceivingBank(""); }}>取消</Button>
             <Button
               className={confirmDialog?.paymentType === 'quarterly' ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
               disabled={confirmMonthlyPayment.isPending}
@@ -765,11 +784,13 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                     months: actualMonths,
                     paymentType: confirmExcludedMonths.length > 0 ? 'monthly' : confirmDialog.paymentType,
                     bank: confirmBank || undefined,
+                    receivingBank: confirmReceivingBank || undefined,
                     receiptBase64: confirmReceiptFile?.base64,
                     receiptMimeType: confirmReceiptFile?.mimeType,
                   });
                   setConfirmExcludedMonths([]);
                   setConfirmBank("");
+                  setConfirmReceivingBank("");
                 }
               }}
             >

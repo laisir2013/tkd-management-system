@@ -7,6 +7,7 @@ import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coachName?: string; showConfirmButton?: boolean } = {}) {
@@ -27,6 +28,8 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
 
   // Confirm payment dialog state
   const [confirmDialog, setConfirmDialog] = useState<{ studentId: number; studentName: string; quarter: string; quarterLabel: string } | null>(null);
+  const [confirmBank, setConfirmBank] = useState<string>("");
+  const [confirmReceivingBank, setConfirmReceivingBank] = useState<string>("");
   const confirmPayment = trpc.payments.confirmPayment.useMutation({
     onSuccess: () => {
       toast.success('已確認繳費');
@@ -348,7 +351,7 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      <Dialog open={!!confirmDialog} onOpenChange={() => setConfirmDialog(null)}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmBank(""); setConfirmReceivingBank(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>確認繳費</DialogTitle>
@@ -358,8 +361,43 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
               <span className="text-xs text-gray-500 mt-1 block">此操作由管理員/教練批准，無需上傳收據。</span>
             </DialogDescription>
           </DialogHeader>
+          {/* 付款銀行選擇 */}
+          <div>
+            <Label className="text-sm font-medium">付款銀行</Label>
+            <Select value={confirmBank} onValueChange={setConfirmBank}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="請選擇付款銀行" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="FPS轉數快">FPS 轉數快</SelectItem>
+                <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                <SelectItem value="恒生銀行">恒生銀行</SelectItem>
+                <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
+                <SelectItem value="現金">現金</SelectItem>
+                <SelectItem value="其他銀行">其他銀行</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {/* 收款銀行選擇（對帳用） */}
+          <div>
+            <Label className="text-sm font-medium">收款銀行（入數到哪間公司帳戶）*</Label>
+            <Select value={confirmReceivingBank} onValueChange={setConfirmReceivingBank}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="請選擇收款銀行" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                <SelectItem value="恒生銀行">恒生銀行</SelectItem>
+                <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
+                <SelectItem value="現金">現金（不經銀行）</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDialog(null)}>取消</Button>
+            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmBank(""); setConfirmReceivingBank(""); }}>取消</Button>
             <Button
               className="bg-green-600 hover:bg-green-700"
               disabled={confirmPayment.isPending}
@@ -369,6 +407,8 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
                     studentId: confirmDialog.studentId,
                     year: selectedYear,
                     quarter: confirmDialog.quarter as 'Q1' | 'Q2' | 'Q3' | 'Q4',
+                    bank: confirmBank || undefined,
+                    receivingBank: confirmReceivingBank || undefined,
                   });
                 }
               }}

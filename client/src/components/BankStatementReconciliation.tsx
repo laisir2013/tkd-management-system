@@ -262,13 +262,15 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
 
       const amount = txn.credit || txn.debit || '0';
       const type = txn.credit ? 'income' : 'expense';
+      const statementBankName = parsedStatement?.bankName || bankName || undefined;
       items.push({
         date: txn.date || `${statementYear}-${String(statementMonth).padStart(2, '0')}-01`,
         description: txn.description || '',
         amount: parseFloat(amount).toFixed(2),
         type,
         category: fill.category,
-        bank: parsedStatement?.bankName || bankName || undefined,
+        bank: statementBankName,
+        receivingBank: statementBankName, // 月結單匯入的項目，收款銀行就是月結單的銀行
         studentName: fill.studentName || undefined,
         coachName: fill.coachName || undefined,
       });

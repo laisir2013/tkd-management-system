@@ -15,6 +15,7 @@ const execAsync = promisify(exec);
 interface OcrResult {
   amount: string | null;
   bank: string | null;
+  receivingBank: string | null; // 收款方銀行（入數到哪間銀行，用於對帳）
   status: string | null;
   date: string | null;
   time: string | null;
@@ -517,6 +518,7 @@ function mergeResults(base: OcrResult, ...others: Partial<OcrResult>[]): OcrResu
   for (const o of others) {
     if (!merged.amount && o.amount) merged.amount = o.amount;
     if (!merged.bank && o.bank) merged.bank = o.bank;
+    if (!merged.receivingBank && o.receivingBank) merged.receivingBank = o.receivingBank;
     if (!merged.status && o.status) merged.status = o.status;
     if (!merged.date && o.date) merged.date = o.date;
     if (!merged.time && o.time) merged.time = o.time;
@@ -531,6 +533,74 @@ function mergeResults(base: OcrResult, ...others: Partial<OcrResult>[]): OcrResu
 }
 
 /**
+ * 從 OCR 文字中提取收款方銀行（入數到哪間銀行）
+ * 根據收款人帳號前3位（香港銀行編號）判斷
+ */
+function extractReceivingBank(text: string, recipientAccount: string | null): string | null {
+  // 1. 從收款帳號前3位判斷銀行
+  if (recipientAccount) {
+    const bankCodeMap: [RegExp, string][] = [
+      [/^003/, "渣打銀行"],
+      [/^004/, "匯豐銀行"],
+      [/^009/, "中信銀行"],
+      [/^012/, "中銀香港"],
+      [/^015/, "東亞銀行"],
+      [/^016/, "星展銀行"],
+      [/^024/, "恒生銀行"],
+      [/^025/, "上海商業銀行"],
+      [/^027/, "招商永隆銀行"],
+      [/^028/, "大新銀行"],
+      [/^035/, "工銀亞洲"],
+      [/^039/, "花旗銀行"],
+      [/^041/, "集友銀行"],
+      [/^043/, "南洋商業銀行"],
+    ];
+    for (const [pattern, name] of bankCodeMap) {
+      if (pattern.test(recipientAccount)) {
+        return name;
+      }
+    }
+  }
+
+  // 2. 從文字中尋找「收款銀行」、「To Bank」等欄位
+  const receivingBankPatterns: [RegExp, string][] = [
+    [/收款(?:方)?銀行[：:\s]+(.+)/m, ''],
+    [/To\s+Bank[：:\s]+(.+)/im, ''],
+    [/Beneficiary\s+Bank[：:\s]+(.+)/im, ''],
+  ];
+  for (const [pattern] of receivingBankPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const bankText = match[1].trim();
+      // 用 extractBank 的邏輯來識別銀行名稱
+      const identified = extractBank(bankText);
+      if (identified) return identified;
+    }
+  }
+
+  // 3. 如果找到了帳號格式 xxx-xxx-x-xxxxxxx，提取前3位判斷
+  const accountPatterns = [
+    /收款[^\n]*?(\d{3})-\d{3}/,
+    /To[^\n]*?(\d{3})-\d{3}/i,
+    /帳[號号戶户][^\n]*?(\d{3})-\d{3}/,
+  ];
+  for (const pattern of accountPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const code = match[1];
+      const codeMap: Record<string, string> = {
+        '003': '渣打銀行', '004': '匯豐銀行', '009': '中信銀行',
+        '012': '中銀香港', '015': '東亞銀行', '016': '星展銀行',
+        '024': '恒生銀行', '025': '上海商業銀行', '028': '大新銀行',
+      };
+      if (codeMap[code]) return codeMap[code];
+    }
+  }
+
+  return null;
+}
+
+/**
  * 從一段 OCR 文字中提取所有可用欄位
  */
 function parseAll(rawText: string): OcrResult {
@@ -538,6 +608,7 @@ function parseAll(rawText: string): OcrResult {
   return {
     amount: extractAmount(rawText),
     bank: extractBank(rawText),
+    receivingBank: extractReceivingBank(rawText, recipient.account),
     status: extractStatus(rawText),
     date: extractDate(rawText),
     time: extractTime(rawText),
@@ -588,7 +659,7 @@ export async function ocrReceipt(
     const result1 = parseAll(rawText1);
 
     // ── Pass 2: ImageMagick 預處理 + PSM 4 ──
-    let result2: OcrResult = { amount: null, bank: null, status: null, date: null, time: null, recipientName: null, recipientAccount: null, rawText: "" };
+    let result2: OcrResult = { amount: null, bank: null, receivingBank: null, status: null, date: null, time: null, recipientName: null, recipientAccount: null, rawText: "" };
     try {
       const preprocessedPath = await preprocessImage(tmpPath);
       if (preprocessedPath !== tmpPath) tempFiles.push(preprocessedPath);
@@ -600,7 +671,7 @@ export async function ocrReceipt(
     }
 
     // ── Pass 3: 高對比二值化 + PSM 6 ──
-    let result3: OcrResult = { amount: null, bank: null, status: null, date: null, time: null, recipientName: null, recipientAccount: null, rawText: "" };
+    let result3: OcrResult = { amount: null, bank: null, receivingBank: null, status: null, date: null, time: null, recipientName: null, recipientAccount: null, rawText: "" };
     // Only run Pass 3 if still missing key fields
     if (!result1.amount && !result2.amount || !result1.recipientName && !result2.recipientName) {
       try {
@@ -615,7 +686,7 @@ export async function ocrReceipt(
     }
 
     // ── Pass 4: 原圖 PSM 3（全自動）作為備用 ──
-    let result4: OcrResult = { amount: null, bank: null, status: null, date: null, time: null, recipientName: null, recipientAccount: null, rawText: "" };
+    let result4: OcrResult = { amount: null, bank: null, receivingBank: null, status: null, date: null, time: null, recipientName: null, recipientAccount: null, rawText: "" };
     if (!result1.amount && !result2.amount && !result3.amount) {
       try {
         const rawText4 = await runTesseract(tmpPath, "3");
@@ -632,6 +703,7 @@ export async function ocrReceipt(
     console.log("[Local OCR] Final merged result:", {
       amount: finalResult.amount,
       bank: finalResult.bank,
+      receivingBank: finalResult.receivingBank,
       status: finalResult.status,
       date: finalResult.date,
       time: finalResult.time,

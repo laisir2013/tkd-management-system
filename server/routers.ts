@@ -1483,6 +1483,7 @@ export const appRouter = router({
         // ── 4. LLM OCR 識別收據（含重試機制）──
         let extractedAmount = 0;
         let extractedBank = '';
+        let extractedReceivingBank = '';
         let extractedDate: Date | null = null;
         let extractedRecipientName = '';
         let extractedRecipientAccount = '';
@@ -1495,9 +1496,9 @@ export const appRouter = router({
             console.log(`[MergedPayment][OCR] 使用 LLM OCR 識別收據... (嘗試 ${attempt}/${maxRetries})`);
             const ocrResponse = await invokeLLM({
               messages: [
-                { role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(例如:HSBC/滙豐/BOC/中銀/恒生/渣打/FPS轉數快/PayMe)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：bank欄位請填寫「付款方/轉出方」使用的銀行或支付方式，不是收款方的銀行。如果是FPS轉數快或PayMe轉帳，bank請填\"FPS\"。' },
+                { role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(即轉帳者使用的銀行，例如:HSBC/滙豐/BOC/中銀/恒生/渣打/ZA Bank)","receivingBank":"收款方銀行名稱(即錢入了哪間銀行帳戶，從收款人帳號的銀行編號判斷，例如:BOC/中銀/HSBC/滙豐/恒生/渣打。如果是FPS/轉數快轉帳且無法判斷收款銀行，填null)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：\n1. bank = 付款方/轉出方使用的銀行。如果截圖來自某銀行App，bank就是該銀行。\n2. receivingBank = 收款方的銀行。根據收款帳號前3位判斷：012=中銀BOC, 004=HSBC滙豐, 024=恒生, 003=渣打。或從收據上「收款銀行」欄位識別。這是對帳時最重要的欄位。\n3. 如果是FPS轉帳且只有FPS ID沒有銀行帳號，receivingBank可填null。' },
                 { role: "user", content: [
-                  { type: "text", text: "請識別這張收據的金額、付款銀行、收款人資訊:" },
+                  { type: "text", text: "請識別這張收據的金額、付款銀行、收款銀行、收款人資訊:" },
                   { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }
                 ] }
               ]
@@ -1511,6 +1512,7 @@ export const appRouter = router({
                 if (!isNaN(p) && p > 0) extractedAmount = p;
               }
               if (parsed.bank) extractedBank = parsed.bank;
+              if (parsed.receivingBank) extractedReceivingBank = parsed.receivingBank;
               if (parsed.date) {
                 const pd = new Date(parsed.time ? `${parsed.date}T${parsed.time}` : parsed.date);
                 if (!isNaN(pd.getTime())) extractedDate = pd;
@@ -1539,7 +1541,7 @@ export const appRouter = router({
           ocrFailed = true;
         }
 
-        console.log(`[MergedPayment] OCR金額=${extractedAmount}, 應繳合計=${totalExpectedFee}, 銀行=${extractedBank}, OCR失敗=${ocrFailed}`);
+        console.log(`[MergedPayment] OCR金額=${extractedAmount}, 應繳合計=${totalExpectedFee}, 付款銀行=${extractedBank}, 收款銀行=${extractedReceivingBank}, OCR失敗=${ocrFailed}`);
 
         // ── 5. 驗證金額和收款人 ──
         const amtOk = extractedAmount > 0 && Math.abs(extractedAmount - totalExpectedFee) < 1;
@@ -1642,6 +1644,7 @@ export const appRouter = router({
             receiptKey: stampedReceiptKey,
             receiptTransferDate: extractedDate,
             bank: extractedBank || null,
+            receivingBank: extractedReceivingBank || null,
             paymentDate: new Date(),
             status: finalStatus as any,
             confirmedBy: 'parent_upload',
@@ -1663,6 +1666,7 @@ export const appRouter = router({
                 transactionDate: extractedDate || new Date(),
                 amount: perStudentFees[i].fee.toString(),
                 bank: extractedBank,
+                receivingBank: extractedReceivingBank || null,
                 studentName: studentData.name,
                 coachName: studentData.coach,
                 dojoName: studentData.venue || null,
@@ -1683,6 +1687,7 @@ export const appRouter = router({
           totalExpectedFee,
           extractedAmount,
           extractedBank,
+          extractedReceivingBank,
           status: finalStatus as 'confirmed' | 'pending',
           needsReview,
           reviewReason: needsReview ? reviewReason : undefined,
@@ -1699,6 +1704,7 @@ export const appRouter = router({
         amount: z.string(),
         classCount: z.number().optional(), // 精英班堂數
         bank: z.string().optional(), // 付款銀行
+        receivingBank: z.string().optional(), // 收款銀行（入數到哪間銀行）
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
@@ -1716,6 +1722,7 @@ export const appRouter = router({
           receiptKey: null,
           receiptTransferDate: null,
           bank: input.bank || null,
+          receivingBank: input.receivingBank || null,
           paymentDate: new Date(),
           status: "confirmed", // 管理員手動標記,直接設為 confirmed
           confirmedBy: 'admin_approved',
@@ -1730,6 +1737,7 @@ export const appRouter = router({
               transactionDate: new Date(),
               amount: input.amount,
               bank: input.bank || null,
+              receivingBank: input.receivingBank || null,
               studentName: student.name,
               coachName: student.coach,
               category: 'tuition',
@@ -1871,6 +1879,7 @@ export const appRouter = router({
                   transactionDate: paymentRecord.receiptTransferDate || paymentRecord.paymentDate,
                   amount: syncAmount,
                   bank: (paymentRecord as any).bank || null,
+                  receivingBank: (paymentRecord as any).receivingBank || null,
                   studentName: student.name,
                   coachName: student.coach,
                   dojoName: student.venue || null,
@@ -1895,6 +1904,7 @@ export const appRouter = router({
         year: z.number(),
         quarter: z.enum(['Q1', 'Q2', 'Q3', 'Q4']),
         bank: z.string().optional(), // 付款銀行
+        receivingBank: z.string().optional(), // 收款銀行（入數到哪間銀行）
       }))
       .mutation(async ({ input, ctx }) => {
         // 只有管理員可以確認繳費
@@ -1916,6 +1926,7 @@ export const appRouter = router({
           receiptKey: null,
           receiptTransferDate: null,
           bank: input.bank || null,
+          receivingBank: input.receivingBank || null,
           paymentDate: new Date(),
           status: 'confirmed',
           confirmedBy: 'admin_approved',
@@ -1928,6 +1939,7 @@ export const appRouter = router({
             transactionDate: new Date(),
             amount: student.feePerQuarter,
             bank: input.bank || null,
+            receivingBank: input.receivingBank || null,
             studentName: student.name,
             coachName: student.coach,
             dojoName: student.venue || null,
@@ -1948,6 +1960,7 @@ export const appRouter = router({
         months: z.array(z.number().min(1).max(12)).min(1), // 可以1個月或3個月（1季）
         paymentType: z.enum(['monthly', 'quarterly']), // monthly=單月, quarterly=季繳
         bank: z.string().optional(), // 付款銀行
+        receivingBank: z.string().optional(), // 收款銀行（入數到哪間銀行）
         // 收據上傳（可選）
         receiptBase64: z.string().optional(),
         receiptMimeType: z.string().optional(),
@@ -1997,6 +2010,7 @@ export const appRouter = router({
             receiptKey,
             receiptTransferDate: null,
             bank: input.bank || null,
+            receivingBank: input.receivingBank || null,
             paymentDate: new Date(),
             status: 'confirmed',
             confirmedBy,
@@ -2009,6 +2023,7 @@ export const appRouter = router({
               transactionDate: new Date(),
               amount: String(feePerQuarter),
               bank: input.bank || null,
+              receivingBank: input.receivingBank || null,
               studentName: student.name,
               coachName: student.coach,
               dojoName: student.venue || null,
@@ -2035,6 +2050,7 @@ export const appRouter = router({
               receiptKey,
               receiptTransferDate: null,
               bank: input.bank || null,
+              receivingBank: input.receivingBank || null,
               paymentDate: new Date(),
               status: 'confirmed',
               confirmedBy,
@@ -2047,6 +2063,7 @@ export const appRouter = router({
                 transactionDate: new Date(),
                 amount: String(monthlyFee),
                 bank: input.bank || null,
+                receivingBank: input.receivingBank || null,
                 studentName: student.name,
                 coachName: student.coach,
                 dojoName: student.venue || null,
@@ -3374,6 +3391,7 @@ export const appRouter = router({
         // OCR
         let extractedAmount: string | null = null;
         let extractedBank: string | null = null;
+        let extractedReceivingBank2: string | null = null;
         let extractedDate: Date | null = null;
         let extractedDateTime: string | null = null;
 
@@ -3382,12 +3400,12 @@ export const appRouter = router({
             messages: [
               {
                 role: "system",
-                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00\",\n  \"bank\": \"付款方/轉出方使用的銀行或支付方式（例如：HSBC、滙豐、BOC、中銀、恒生、渣打、FPS、PayMe）。注意是轉帳者用的銀行，不是收款方的銀行\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
+                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00\",\n  \"bank\": \"付款方/轉出方使用的銀行或支付方式（例如：HSBC、滙豐、BOC、中銀、恒生、渣打、FPS、PayMe）\",\n  \"receivingBank\": \"收款方銀行名稱（即錢入了哪間銀行帳戶。根據收款帳號前3位判斷：012=中銀BOC, 004=HSBC滙豐, 024=恒生, 003=渣打。這是對帳最重要的欄位）\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
               },
               {
                 role: "user",
                 content: [
-                  { type: "text", text: "請識別這張收據/截圖的金額、銀行名稱、轉帳是否成功、以及轉帳日期和時間:" },
+                  { type: "text", text: "請識別這張收據/截圖的金額、付款銀行、收款銀行、轉帳是否成功、以及轉帳日期和時間:" },
                   {
                     type: "image_url",
                     image_url: {
@@ -3411,6 +3429,7 @@ export const appRouter = router({
               if (!isNaN(parsed) && parsed > 0) extractedAmount = parsed.toFixed(2);
             }
             if (ocrData.bank) extractedBank = ocrData.bank;
+            if (ocrData.receivingBank) extractedReceivingBank2 = ocrData.receivingBank;
             if (ocrData.date) {
               const dateStr = ocrData.time ? `${ocrData.date}T${ocrData.time}` : ocrData.date;
               const parsedDate = new Date(dateStr);
@@ -3431,10 +3450,12 @@ export const appRouter = router({
         const finalAmount = input.manualAmount || extractedAmount || "0";
         const finalDate = input.manualDate || extractedDate || new Date();
         const finalBank = input.manualBank || extractedBank || null;
+        const finalReceivingBank = extractedReceivingBank2 || null;
 
         const result = await insertAccountingRecord({
           transactionDate: finalDate,
           bank: finalBank,
+          receivingBank: finalReceivingBank,
           amount: finalAmount,
           type: input.type,
           category: input.category,
@@ -3448,7 +3469,7 @@ export const appRouter = router({
           dojoName: input.dojoName || null,
           source: 'manual',
           ocrRawResult: extractedAmount || extractedBank || extractedDateTime
-            ? JSON.stringify({ amount: extractedAmount, bank: extractedBank, dateTime: extractedDateTime })
+            ? JSON.stringify({ amount: extractedAmount, bank: extractedBank, receivingBank: finalReceivingBank, dateTime: extractedDateTime })
             : null,
         });
 
@@ -3525,7 +3546,8 @@ export const appRouter = router({
               paymentRecordId: payment.id,
               transactionDate: payment.paymentDate,
               amount: payment.amount,
-              bank: null,
+              bank: (payment as any).bank || null,
+              receivingBank: (payment as any).receivingBank || null,
               studentName: student.name,
               coachName: student.coach,
               dojoName: student.venue || null,
@@ -3760,16 +3782,28 @@ export const appRouter = router({
               else if (diffDays <= 5.5) dateScore = 5;    // ±4-5天：微弱匹配
             }
 
-            // Bank matching: 比對銀行名稱
+            // Bank matching: 用收款銀行(receivingBank)匹配月結單銀行
+            // 月結單是收款方銀行的記錄，所以應比對系統中的 receivingBank 欄位
             let bankScore = 0;
-            if (inputBankNormalized && rec.bank) {
-              const recBankNormalized = normalizeBankName(rec.bank);
-              if (recBankNormalized === inputBankNormalized) {
-                bankScore = 15; // 銀行完全匹配
-              } else if (recBankNormalized && inputBankNormalized && 
-                         (rec.bank.toUpperCase().includes(input.bankName!.toUpperCase()) || 
-                          input.bankName!.toUpperCase().includes(rec.bank.toUpperCase()))) {
-                bankScore = 10; // 銀行名稱部分匹配
+            if (inputBankNormalized) {
+              // 優先用 receivingBank（收款銀行）匹配
+              const recReceivingBank = (rec as any).receivingBank;
+              if (recReceivingBank) {
+                const recReceivingBankNormalized = normalizeBankName(recReceivingBank);
+                if (recReceivingBankNormalized === inputBankNormalized) {
+                  bankScore = 20; // 收款銀行完全匹配（最高分）
+                } else if (recReceivingBankNormalized && 
+                           (recReceivingBank.toUpperCase().includes(input.bankName!.toUpperCase()) || 
+                            input.bankName!.toUpperCase().includes(recReceivingBank.toUpperCase()))) {
+                  bankScore = 15; // 收款銀行部分匹配
+                }
+              }
+              // 如果 receivingBank 沒匹配到，fallback 用 bank（付款方銀行）
+              if (bankScore === 0 && rec.bank) {
+                const recBankNormalized = normalizeBankName(rec.bank);
+                if (recBankNormalized === inputBankNormalized) {
+                  bankScore = 10; // 付款銀行匹配（較低分，因為不如收款銀行精準）
+                }
               }
             }
 
@@ -3807,14 +3841,20 @@ export const appRouter = router({
               systemRecord: bestMatch,
               matchScore: bestScore,
             });
-            // 更新對帳狀態，同時記錄銀行參考編號和銀行名稱
+            // 更新對帳狀態，同時記錄銀行參考編號和收款銀行名稱
             try {
               const updateData: any = {
                 reconciliationStatus: 'matched',
                 reconciliationDate: new Date(),
                 bankReference: txn.reference || null,
               };
-              // 如果系統記錄沒有銀行名稱但月結單有，補上
+              // 如果系統記錄沒有收款銀行但月結單有，補上 receivingBank
+              if (!(bestMatch as any).receivingBank && input.bankName) {
+                const normalizedBank = normalizeBankName(input.bankName);
+                const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : input.bankName;
+                updateData.receivingBank = displayBank;
+              }
+              // 如果系統記錄沒有付款銀行但月結單有，也補上 bank
               if (!bestMatch.bank && input.bankName) {
                 const normalizedBank = normalizeBankName(input.bankName);
                 const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : input.bankName;
@@ -3830,14 +3870,23 @@ export const appRouter = router({
         }
 
         // Find system records not matched to any bank transaction
-        // 只顯示同銀行的未匹配系統記錄（如果有指定銀行）
+        // 只顯示同收款銀行的未匹配系統記錄（如果有指定銀行）
         for (const rec of existingRecords) {
           if (!usedSystemIds.has(rec.id)) {
-            // 如果有指定銀行，只顯示同銀行或無銀行的記錄
-            if (inputBankNormalized && rec.bank) {
-              const recBankNormalized = normalizeBankName(rec.bank);
-              if (recBankNormalized !== inputBankNormalized) {
-                continue; // 不同銀行的記錄不算「系統有但月結單沒有」
+            // 如果有指定銀行，只顯示收款銀行匹配的記錄
+            if (inputBankNormalized) {
+              const recReceivingBank = (rec as any).receivingBank;
+              if (recReceivingBank) {
+                const recReceivingBankNormalized = normalizeBankName(recReceivingBank);
+                if (recReceivingBankNormalized !== inputBankNormalized) {
+                  continue; // 收款銀行不同，不算「系統有但月結單沒有」
+                }
+              } else if (rec.bank) {
+                // fallback: 如果沒有 receivingBank，用 bank 欄位判斷
+                const recBankNormalized = normalizeBankName(rec.bank);
+                if (recBankNormalized !== inputBankNormalized) {
+                  continue;
+                }
               }
             }
             unmatchedSystem.push(rec);
@@ -3868,6 +3917,7 @@ export const appRouter = router({
           type: z.enum(['income', 'expense']),
           category: z.string(),
           bank: z.string().optional(),
+          receivingBank: z.string().optional(), // 收款銀行（月結單的銀行）
           studentName: z.string().optional(),
           coachName: z.string().optional(),
         })),
@@ -3882,6 +3932,7 @@ export const appRouter = router({
           const result = await insertAccountingRecord({
             transactionDate: new Date(item.date),
             bank: item.bank || null,
+            receivingBank: item.receivingBank || item.bank || null, // 月結單匯入的項目，receivingBank = 月結單銀行
             amount: item.amount,
             type: item.type,
             category: item.category,
@@ -5448,7 +5499,8 @@ export const appRouter = router({
                       paymentRecordId: input.paymentId,
                       transactionDate: payment.receiptTransferDate || payment.paymentDate,
                       amount: syncAmount,
-                      bank: null,
+                      bank: (payment as any).bank || null,
+                      receivingBank: (payment as any).receivingBank || null,
                       studentName: student.name,
                       coachName: student.coach,
                       dojoName: student.venue || null,
