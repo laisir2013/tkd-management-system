@@ -144,23 +144,14 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
   // PDF 轉圖片：使用 CDN pdf.js 將 PDF 每頁渲染為 PNG base64
   async function convertPdfToImages(file: File): Promise<{ base64: string; mimeType: string }[]> {
     // 動態載入 pdf.js（從 CDN，不打包進 bundle）
-    const PDFJS_VERSION = '4.4.168';
-    const cdnBase = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
+    const cdnBase = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174`;
 
     if (!(window as any).pdfjsLib) {
       await new Promise<void>((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = `${cdnBase}/pdf.min.mjs`;
-        script.type = 'module';
-        // Fallback: use legacy build for broader compat
-        script.onerror = () => {
-          const fallback = document.createElement('script');
-          fallback.src = `${cdnBase}/pdf.min.js`;
-          fallback.onload = () => resolve();
-          fallback.onerror = () => reject(new Error('無法載入 PDF 解析器'));
-          document.head.appendChild(fallback);
-        };
+        script.src = `${cdnBase}/pdf.min.js`;
         script.onload = () => resolve();
+        script.onerror = () => reject(new Error('無法載入 PDF 解析器'));
         document.head.appendChild(script);
       });
     }
