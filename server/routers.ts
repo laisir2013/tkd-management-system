@@ -1450,7 +1450,7 @@ export const appRouter = router({
           perStudentFees.push({ studentId: s.id, fee });
         }
 
-        // ── 4. LLM OCR 識別收據 ──
+        // ── 4. LLM OCR 識別收據（含重試機制）──
         let extractedAmount = 0;
         let extractedBank = '';
         let extractedDate: Date | null = null;
@@ -1459,35 +1459,45 @@ export const appRouter = router({
         const b64 = receiptBase64;
         const mime = receiptMimeType;
 
-        try {
-          console.log(`[MergedPayment][OCR] 使用 LLM OCR 識別收據...`);
-          const ocrResponse = await invokeLLM({
-            messages: [
-              { role: "system", content: '從收據提取JSON: {"amount","bank","status","date","time","recipientName","recipientAccount"}' },
-              { role: "user", content: [
-                { type: "text", text: "識別收據:" },
-                { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }
-              ] }
-            ]
-          });
-          const content = ocrResponse.choices[0]?.message?.content;
-          if (typeof content === "string") {
-            const parsed = JSON.parse(content.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim());
-            console.log(`[MergedPayment][OCR] LLM 解析結果:`, JSON.stringify(parsed));
-            if (parsed.amount) {
-              const p = parseFloat(parsed.amount.replace(/[^0-9.]/g, ""));
-              if (!isNaN(p) && p > 0) extractedAmount = p;
+        const maxRetries = 3;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            console.log(`[MergedPayment][OCR] 使用 LLM OCR 識別收據... (嘗試 ${attempt}/${maxRetries})`);
+            const ocrResponse = await invokeLLM({
+              messages: [
+                { role: "system", content: '從收據提取JSON: {"amount","bank","status","date","time","recipientName","recipientAccount"}' },
+                { role: "user", content: [
+                  { type: "text", text: "識別收據:" },
+                  { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }
+                ] }
+              ]
+            });
+            const content = ocrResponse.choices[0]?.message?.content;
+            if (typeof content === "string") {
+              const parsed = JSON.parse(content.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim());
+              console.log(`[MergedPayment][OCR] LLM 解析結果:`, JSON.stringify(parsed));
+              if (parsed.amount) {
+                const p = parseFloat(parsed.amount.replace(/[^0-9.]/g, ""));
+                if (!isNaN(p) && p > 0) extractedAmount = p;
+              }
+              if (parsed.bank) extractedBank = parsed.bank;
+              if (parsed.date) {
+                const pd = new Date(parsed.time ? `${parsed.date}T${parsed.time}` : parsed.date);
+                if (!isNaN(pd.getTime())) extractedDate = pd;
+              }
+              if (parsed.recipientName) extractedRecipientName = parsed.recipientName;
+              if (parsed.recipientAccount) extractedRecipientAccount = parsed.recipientAccount;
             }
-            if (parsed.bank) extractedBank = parsed.bank;
-            if (parsed.date) {
-              const pd = new Date(parsed.time ? `${parsed.date}T${parsed.time}` : parsed.date);
-              if (!isNaN(pd.getTime())) extractedDate = pd;
+            break; // 成功，跳出重試循環
+          } catch (ocrErr) {
+            const errMsg = ocrErr instanceof Error ? ocrErr.message : String(ocrErr);
+            console.warn(`[MergedPayment][OCR] LLM OCR 失敗 (嘗試 ${attempt}/${maxRetries}):`, errMsg);
+            if (attempt < maxRetries && (errMsg.includes('429') || errMsg.includes('负载') || errMsg.includes('quota') || errMsg.includes('rate'))) {
+              const delay = attempt * 2000; // 2s, 4s
+              console.log(`[MergedPayment][OCR] 等待 ${delay}ms 後重試...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
             }
-            if (parsed.recipientName) extractedRecipientName = parsed.recipientName;
-            if (parsed.recipientAccount) extractedRecipientAccount = parsed.recipientAccount;
           }
-        } catch (ocrErr) {
-          console.warn("[MergedPayment][OCR] LLM OCR 失敗:", ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
         }
 
         console.log(`[MergedPayment] OCR金額=${extractedAmount}, 應繳合計=${totalExpectedFee}, 銀行=${extractedBank}`);
