@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Image, Upload, ShieldCheck, Check, X } from "lucide-react";
+import { Image, Upload, ShieldCheck, Check, X, Building2 } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -38,6 +38,27 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
     },
     onError: (err: any) => {
       toast.error(`確認失敗: ${err.message}`);
+    },
+  });
+
+  // 修改銀行 dialog state
+  const [editBankDialog, setEditBankDialog] = useState<{
+    paymentRecordId: number;
+    studentName: string;
+    quarterLabel: string;
+    currentBank: string;
+    currentReceivingBank: string;
+  } | null>(null);
+  const [editBank, setEditBank] = useState("");
+  const [editReceivingBank, setEditReceivingBank] = useState("");
+  const updatePaymentBank = trpc.payments.updatePaymentBank.useMutation({
+    onSuccess: () => {
+      toast.success('已更新銀行資訊');
+      refetch();
+      setEditBankDialog(null);
+    },
+    onError: (err: any) => {
+      toast.error(`更新失敗: ${err.message}`);
     },
   });
 
@@ -114,6 +135,9 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
     quarterLabel?: string,
     studentId?: number,
     quarter?: string,
+    paymentRecordId?: number | null,
+    bank?: string | null,
+    receivingBank?: string | null,
   ) => {
     if (status === 'paid') {
       return (
@@ -143,6 +167,26 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
             >
               <Image className="w-3 h-3" />
               查看收據
+            </button>
+          )}
+          {paymentRecordId && showConfirmButton && (
+            <button
+              onClick={() => {
+                setEditBankDialog({
+                  paymentRecordId,
+                  studentName: studentName || '',
+                  quarterLabel: quarterLabel || '',
+                  currentBank: bank || '',
+                  currentReceivingBank: receivingBank || '',
+                });
+                setEditBank(bank || '');
+                setEditReceivingBank(receivingBank || '');
+              }}
+              className="flex items-center justify-center gap-0.5 text-[10px] text-blue-600 hover:text-blue-800 hover:underline cursor-pointer mx-auto mt-0.5"
+              title="修改付款/收款銀行"
+            >
+              <Building2 className="w-3 h-3" />
+              修改銀行
             </button>
           )}
         </div>
@@ -293,6 +337,9 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
                           quarterLabels[i],
                           student.studentId,
                           q,
+                          (student as any)[`${q}PaymentRecordId`],
+                          (student as any)[`${q}Bank`],
+                          (student as any)[`${q}ReceivingBank`],
                         )}
                       </TableCell>
                     ))}
@@ -415,6 +462,74 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
             >
               <ShieldCheck className="w-4 h-4 mr-1" />
               {confirmPayment.isPending ? '處理中...' : '確認已繳'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 修改銀行對話框 */}
+      <Dialog open={!!editBankDialog} onOpenChange={(open) => { if (!open) { setEditBankDialog(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>修改銀行資訊</DialogTitle>
+            <DialogDescription>
+              {editBankDialog?.studentName} — {selectedYear}年 {editBankDialog?.quarterLabel}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-sm font-medium">付款銀行</Label>
+              <Select value={editBank} onValueChange={(v) => { setEditBank(v); if (v === 'FPS轉數快' && !editReceivingBank) setEditReceivingBank('中銀香港 (BOC)'); }}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="請選擇付款銀行" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FPS轉數快">FPS 轉數快</SelectItem>
+                  <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                  <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                  <SelectItem value="恒生銀行">恒生銀行</SelectItem>
+                  <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
+                  <SelectItem value="Mox Bank">Mox Bank</SelectItem>
+                  <SelectItem value="ZA Bank">ZA Bank</SelectItem>
+                  <SelectItem value="現金">現金</SelectItem>
+                  <SelectItem value="其他銀行">其他銀行</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">收款銀行（入數到哪間公司帳戶）</Label>
+              <Select value={editReceivingBank} onValueChange={setEditReceivingBank}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="請選擇收款銀行" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                  <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                  <SelectItem value="恒生銀行">恒生銀行</SelectItem>
+                  <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
+                  <SelectItem value="現金">現金（不經銀行）</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditBankDialog(null)}>取消</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={updatePaymentBank.isPending}
+              onClick={() => {
+                if (editBankDialog) {
+                  updatePaymentBank.mutate({
+                    paymentRecordId: editBankDialog.paymentRecordId,
+                    bank: editBank || undefined,
+                    receivingBank: editReceivingBank || undefined,
+                  });
+                }
+              }}
+            >
+              <Building2 className="w-4 h-4 mr-1" />
+              {updatePaymentBank.isPending ? '處理中...' : '確認修改'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -2161,6 +2161,52 @@ export const appRouter = router({
         await deletePaymentForMonth(input.studentId, input.year, input.month);
         return { success: true };
       }),
+
+    // 事後修改付款記錄的銀行資訊（收款銀行 / 付款銀行）
+    updatePaymentBank: protectedProcedure
+      .input(z.object({
+        paymentRecordId: z.number(),
+        bank: z.string().optional(),
+        receivingBank: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員或教練可以修改銀行資訊' });
+        }
+
+        const dbInst = await getDb();
+        if (!dbInst) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+        // 更新 paymentRecords
+        const updateData: Record<string, any> = {};
+        if (input.bank !== undefined) updateData.bank = input.bank;
+        if (input.receivingBank !== undefined) updateData.receivingBank = input.receivingBank;
+
+        if (Object.keys(updateData).length === 0) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '請提供至少一個要修改的欄位' });
+        }
+
+        await dbInst.update(schema.paymentRecords)
+          .set(updateData)
+          .where(eq(schema.paymentRecords.id, input.paymentRecordId));
+
+        // 同步更新 accounting_records
+        try {
+          const acctRecord = await getAccountingRecordByPaymentId(input.paymentRecordId);
+          if (acctRecord) {
+            const acctUpdate: Record<string, any> = {};
+            if (input.bank !== undefined) acctUpdate.bank = input.bank;
+            if (input.receivingBank !== undefined) acctUpdate.receivingBank = input.receivingBank;
+            await updateAccountingRecord(acctRecord.id, acctUpdate);
+            console.log(`[updatePaymentBank] 已同步 accounting_records id=${acctRecord.id}`);
+          }
+        } catch (e) {
+          console.error("[updatePaymentBank] 同步 accounting_records 失敗:", e);
+        }
+
+        console.log(`[updatePaymentBank] paymentRecordId=${input.paymentRecordId}, bank=${input.bank}, receivingBank=${input.receivingBank}`);
+        return { success: true };
+      }),
   }),
 
   users: router({

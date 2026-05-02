@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
-import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle, Search, Plus, X } from "lucide-react";
+import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle, Search, Plus, X, Building2 } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -83,6 +83,17 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   } | null>(null);
   const [revertPassword, setRevertPassword] = useState("");
 
+  // 修改銀行 dialog state
+  const [editBankDialog, setEditBankDialog] = useState<{
+    paymentRecordId: number;
+    studentName: string;
+    month: number;
+    currentBank: string;
+    currentReceivingBank: string;
+  } | null>(null);
+  const [editBank, setEditBank] = useState("");
+  const [editReceivingBank, setEditReceivingBank] = useState("");
+
   const confirmMonthlyPayment = trpc.payments.confirmMonthlyPayment.useMutation({
     onSuccess: () => {
       toast.success('已確認繳費');
@@ -104,6 +115,17 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     },
     onError: (err: any) => {
       toast.error(`撤銷失敗: ${err.message}`);
+    },
+  });
+
+  const updatePaymentBank = trpc.payments.updatePaymentBank.useMutation({
+    onSuccess: () => {
+      toast.success('已更新銀行資訊');
+      refetch();
+      setEditBankDialog(null);
+    },
+    onError: (err: any) => {
+      toast.error(`更新失敗: ${err.message}`);
     },
   });
 
@@ -279,7 +301,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   };
 
   const getMonthStatusCell = (
-    monthData: { status: string; paymentDate?: string | null; confirmedBy?: string | null; receiptUrl?: string | null; paymentType?: string | null; paymentRecordId?: number | null; amount?: string | null },
+    monthData: { status: string; paymentDate?: string | null; confirmedBy?: string | null; receiptUrl?: string | null; paymentType?: string | null; paymentRecordId?: number | null; amount?: string | null; bank?: string | null; receivingBank?: string | null },
     month: number,
     studentName: string,
     studentId: number,
@@ -336,6 +358,26 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                 <Undo2 className="w-2.5 h-2.5" />
                 轉未繳
               </button>
+              {monthData.paymentRecordId && (
+                <button
+                  onClick={() => {
+                    setEditBankDialog({
+                      paymentRecordId: monthData.paymentRecordId!,
+                      studentName,
+                      month,
+                      currentBank: monthData.bank || '',
+                      currentReceivingBank: monthData.receivingBank || '',
+                    });
+                    setEditBank(monthData.bank || '');
+                    setEditReceivingBank(monthData.receivingBank || '');
+                  }}
+                  className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors border border-blue-300"
+                  title="修改付款/收款銀行"
+                >
+                  <Building2 className="w-2.5 h-2.5" />
+                  銀行
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -963,6 +1005,74 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             >
               <Undo2 className="w-4 h-4 mr-1" />
               {revertPayment.isPending ? '處理中...' : '確認撤銷（轉未繳）'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 修改銀行對話框 */}
+      <Dialog open={!!editBankDialog} onOpenChange={(open) => { if (!open) { setEditBankDialog(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>修改銀行資訊</DialogTitle>
+            <DialogDescription>
+              {editBankDialog?.studentName} — {selectedYear}年{editBankDialog?.month}月
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-sm font-medium">付款銀行</Label>
+              <Select value={editBank} onValueChange={(v) => { setEditBank(v); if (v === 'FPS轉數快' && !editReceivingBank) setEditReceivingBank('中銀香港 (BOC)'); }}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="請選擇付款銀行" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FPS轉數快">FPS 轉數快</SelectItem>
+                  <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                  <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                  <SelectItem value="恒生銀行">恒生銀行</SelectItem>
+                  <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
+                  <SelectItem value="Mox Bank">Mox Bank</SelectItem>
+                  <SelectItem value="ZA Bank">ZA Bank</SelectItem>
+                  <SelectItem value="現金">現金</SelectItem>
+                  <SelectItem value="其他銀行">其他銀行</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">收款銀行（入數到哪間公司帳戶）</Label>
+              <Select value={editReceivingBank} onValueChange={setEditReceivingBank}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="請選擇收款銀行" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                  <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                  <SelectItem value="恒生銀行">恒生銀行</SelectItem>
+                  <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
+                  <SelectItem value="現金">現金（不經銀行）</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditBankDialog(null)}>取消</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={updatePaymentBank.isPending}
+              onClick={() => {
+                if (editBankDialog) {
+                  updatePaymentBank.mutate({
+                    paymentRecordId: editBankDialog.paymentRecordId,
+                    bank: editBank || undefined,
+                    receivingBank: editReceivingBank || undefined,
+                  });
+                }
+              }}
+            >
+              <Building2 className="w-4 h-4 mr-1" />
+              {updatePaymentBank.isPending ? '處理中...' : '確認修改'}
             </Button>
           </DialogFooter>
         </DialogContent>
