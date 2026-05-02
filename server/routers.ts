@@ -1496,7 +1496,7 @@ export const appRouter = router({
             console.log(`[MergedPayment][OCR] 使用 LLM OCR 識別收據... (嘗試 ${attempt}/${maxRetries})`);
             const ocrResponse = await invokeLLM({
               messages: [
-                { role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(即轉帳者使用的銀行，例如:HSBC/滙豐/BOC/中銀/恒生/渣打/ZA Bank)","receivingBank":"收款方銀行名稱(即錢入了哪間銀行帳戶，從收款人帳號的銀行編號判斷，例如:BOC/中銀/HSBC/滙豐/恒生/渣打。如果是FPS/轉數快轉帳且無法判斷收款銀行，填null)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：\n1. bank = 付款方/轉出方使用的銀行。如果截圖來自某銀行App，bank就是該銀行。\n2. receivingBank = 收款方的銀行。根據收款帳號前3位判斷：012=中銀BOC, 004=HSBC滙豐, 024=恒生, 003=渣打。或從收據上「收款銀行」欄位識別。這是對帳時最重要的欄位。\n3. 如果是FPS轉帳且只有FPS ID沒有銀行帳號，receivingBank可填null。' },
+                { role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(即轉帳者使用的銀行，例如:HSBC/滙豐/BOC/中銀/恒生/渣打/ZA Bank)","receivingBank":"收款方銀行名稱(即錢入了哪間銀行帳戶，從收款人帳號的銀行編號判斷，例如:BOC/中銀/HSBC/滙豐/恒生/渣打)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：\n1. bank = 付款方/轉出方使用的銀行。如果截圖來自某銀行App，bank就是該銀行。\n2. receivingBank = 收款方的銀行。根據收款帳號前3位判斷：012=中銀BOC, 004=HSBC滙豐, 024=恒生, 003=渣打。或從收據上「收款銀行」欄位識別。這是對帳時最重要的欄位。\n3. 如果是FPS/轉數快轉帳，receivingBank填「中銀香港」（因為公司的FPS收款帳戶是中國銀行）。\n4. 只有完全無法判斷收款銀行時才填null。' },
                 { role: "user", content: [
                   { type: "text", text: "請識別這張收據的金額、付款銀行、收款銀行、收款人資訊:" },
                   { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }
@@ -1542,6 +1542,15 @@ export const appRouter = router({
         }
 
         console.log(`[MergedPayment] OCR金額=${extractedAmount}, 應繳合計=${totalExpectedFee}, 付款銀行=${extractedBank}, 收款銀行=${extractedReceivingBank}, OCR失敗=${ocrFailed}`);
+
+        // ── 4c. FPS/轉數快 → 收款銀行預設為中銀 ──
+        if (!extractedReceivingBank && extractedBank) {
+          const bankUpper = extractedBank.toUpperCase();
+          if (bankUpper.includes('FPS') || bankUpper.includes('轉數快') || bankUpper.includes('FASTER PAYMENT')) {
+            extractedReceivingBank = '中銀香港 (BOC)';
+            console.log(`[MergedPayment] FPS轉帳 → 收款銀行自動設為中銀`);
+          }
+        }
 
         // ── 5. 驗證金額和收款人 ──
         const amtOk = extractedAmount > 0 && Math.abs(extractedAmount - totalExpectedFee) < 1;
@@ -3450,7 +3459,14 @@ export const appRouter = router({
         const finalAmount = input.manualAmount || extractedAmount || "0";
         const finalDate = input.manualDate || extractedDate || new Date();
         const finalBank = input.manualBank || extractedBank || null;
-        const finalReceivingBank = extractedReceivingBank2 || null;
+        // FPS/轉數快 → 收款銀行預設為中銀
+        let finalReceivingBank = extractedReceivingBank2 || null;
+        if (!finalReceivingBank && finalBank) {
+          const bankUpper = finalBank.toUpperCase();
+          if (bankUpper.includes('FPS') || bankUpper.includes('轉數快') || bankUpper.includes('FASTER PAYMENT')) {
+            finalReceivingBank = '中銀香港 (BOC)';
+          }
+        }
 
         const result = await insertAccountingRecord({
           transactionDate: finalDate,

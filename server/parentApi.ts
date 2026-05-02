@@ -463,7 +463,7 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
     if (!exAmt || exAmt === "0" || exAmt === amount) {
       try {
         console.log(`[Receipt][OCR] 使用 LLM OCR 識別收據...`);
-        const oR = await invokeLLM({ messages: [{ role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(即轉帳者使用的銀行，例如:HSBC/滙豐/BOC/中銀/恒生/渣打/ZA Bank)","receivingBank":"收款方銀行名稱(即錢入了哪間銀行帳戶，從收款人帳號的銀行編號判斷，例如:BOC/中銀/HSBC/滙豐/恒生/渣打。如果是FPS/轉數快轉帳且無法判斷收款銀行，填null)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：\n1. bank = 付款方/轉出方使用的銀行。如果截圖來自某銀行App（如HSBC App），bank就是該銀行。如果是FPS/PayMe轉帳，bank填轉出的銀行名。\n2. receivingBank = 收款方的銀行。根據收款帳號前3位判斷：012=中銀BOC, 004=HSBC滙豐, 024=恒生, 003=渣打。或從收據上「收款銀行」欄位識別。這是對帳時最重要的欄位。\n3. 如果是FPS轉帳且只有FPS ID沒有銀行帳號，receivingBank可填null。' }, { role: "user", content: [{ type: "text", text: "請識別這張收據的金額、付款銀行、收款銀行、收款人資訊:" }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }] }] });
+        const oR = await invokeLLM({ messages: [{ role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(即轉帳者使用的銀行，例如:HSBC/滙豐/BOC/中銀/恒生/渣打/ZA Bank)","receivingBank":"收款方銀行名稱(即錢入了哪間銀行帳戶，從收款人帳號的銀行編號判斷，例如:BOC/中銀/HSBC/滙豐/恒生/渣打)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：\n1. bank = 付款方/轉出方使用的銀行。如果截圖來自某銀行App（如HSBC App），bank就是該銀行。如果是FPS/PayMe轉帳，bank填轉出的銀行名。\n2. receivingBank = 收款方的銀行。根據收款帳號前3位判斷：012=中銀BOC, 004=HSBC滙豐, 024=恒生, 003=渣打。或從收據上「收款銀行」欄位識別。這是對帳時最重要的欄位。\n3. 如果是FPS/轉數快轉帳，receivingBank填「中銀香港」（因為公司的FPS收款帳戶是中國銀行）。\n4. 只有完全無法判斷收款銀行時才填null。' }, { role: "user", content: [{ type: "text", text: "請識別這張收據的金額、付款銀行、收款銀行、收款人資訊:" }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }] }] });
         const c = oR.choices[0]?.message?.content;
         if (typeof c === "string") {
           const d = JSON.parse(c.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim());
@@ -479,6 +479,15 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
         console.warn(`[Receipt][OCR] LLM OCR 也失敗:`, llmErr instanceof Error ? llmErr.message : String(llmErr));
         console.log(`[Receipt][OCR] OCR 全部失敗，使用家長提交金額: $${amount}`);
         exAmt = amount;
+      }
+    }
+
+    // FPS/轉數快 → 收款銀行預設為中銀
+    if (!exRecvBank && exBank) {
+      const bankUpper = exBank.toUpperCase();
+      if (bankUpper.includes('FPS') || bankUpper.includes('轉數快') || bankUpper.includes('FASTER PAYMENT')) {
+        exRecvBank = '中銀香港 (BOC)';
+        console.log(`[Receipt] FPS轉帳 → 收款銀行自動設為中銀`);
       }
     }
 

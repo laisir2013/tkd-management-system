@@ -77,7 +77,7 @@ export function MarkAsPaidButton({
           {/* 付款銀行 */}
           <div>
             <Label className="text-sm font-medium">付款銀行</Label>
-            <Select value={bank} onValueChange={setBank}>
+            <Select value={bank} onValueChange={(v) => { setBank(v); if (v === 'FPS轉數快' && !receivingBank) setReceivingBank('中銀香港 (BOC)'); }}>
               <SelectTrigger className="mt-1">
                 <SelectValue placeholder="請選擇付款銀行" />
               </SelectTrigger>

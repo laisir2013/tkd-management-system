@@ -364,7 +364,7 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
           {/* 付款銀行選擇 */}
           <div>
             <Label className="text-sm font-medium">付款銀行</Label>
-            <Select value={confirmBank} onValueChange={setConfirmBank}>
+            <Select value={confirmBank} onValueChange={(v) => { setConfirmBank(v); if (v === 'FPS轉數快' && !confirmReceivingBank) setConfirmReceivingBank('中銀香港 (BOC)'); }}>
               <SelectTrigger className="mt-1">
                 <SelectValue placeholder="請選擇付款銀行" />
               </SelectTrigger>

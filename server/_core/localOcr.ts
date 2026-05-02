@@ -700,6 +700,14 @@ export async function ocrReceipt(
     // ── 合併所有結果 ──
     const finalResult = mergeResults(result1, result2, result3, result4);
 
+    // FPS/轉數快 → 收款銀行預設為中銀
+    if (!finalResult.receivingBank && finalResult.bank) {
+      const bankUpper = finalResult.bank.toUpperCase();
+      if (bankUpper.includes('FPS') || bankUpper.includes('轉數快') || bankUpper.includes('FASTER PAYMENT')) {
+        finalResult.receivingBank = '中銀香港 (BOC)';
+      }
+    }
+
     console.log("[Local OCR] Final merged result:", {
       amount: finalResult.amount,
       bank: finalResult.bank,
