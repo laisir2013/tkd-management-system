@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
 import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle, Search, Plus, X } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
@@ -55,6 +56,8 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   } | null>(null);
   // 確認繳費時的收據上傳
   const [confirmReceiptFile, setConfirmReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
+  // 請假月份排除（僅教練/管理員確認季繳時使用）
+  const [confirmExcludedMonths, setConfirmExcludedMonths] = useState<number[]>([]);
 
   // Approve payment dialog state (待審核→批准)
   const [approveDialog, setApproveDialog] = useState<{
@@ -625,7 +628,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); } }}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -642,6 +645,49 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               </span>
             </DialogDescription>
           </DialogHeader>
+          {/* 請假月排除（僅季繳時顯示） */}
+          {confirmDialog?.paymentType === 'quarterly' && confirmDialog.months.length > 1 && (
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="text-sm font-medium text-orange-800 mb-2">如有請假月份，可取消勾選：</div>
+              <div className="flex flex-wrap gap-2">
+                {confirmDialog.months.map(month => {
+                  const isExcluded = confirmExcludedMonths.includes(month);
+                  return (
+                    <div
+                      key={month}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer transition-all ${
+                        isExcluded
+                          ? 'bg-red-50 border-red-300 text-red-600 line-through'
+                          : 'bg-green-50 border-green-300 text-green-700'
+                      }`}
+                      onClick={() => {
+                        setConfirmExcludedMonths(prev =>
+                          prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month]
+                        );
+                      }}
+                    >
+                      <Checkbox
+                        checked={!isExcluded}
+                        onCheckedChange={() => {
+                          setConfirmExcludedMonths(prev =>
+                            prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month]
+                          );
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-3.5 h-3.5"
+                      />
+                      <span className="text-sm font-medium">{month}月</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {confirmExcludedMonths.length > 0 && (
+                <div className="mt-2 text-xs text-orange-700">
+                  ℹ️ 已排除 {confirmExcludedMonths.sort((a,b)=>a-b).map(m => `${m}月`).join('、')}（請假免繳），實繳 {confirmDialog.months.length - confirmExcludedMonths.length} 個月
+                </div>
+              )}
+            </div>
+          )}
           {/* 收據上傳（可選） */}
           <div className="px-0">
             <Label className="text-sm font-medium">上傳收據（可選）</Label>
@@ -687,14 +733,20 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               disabled={confirmMonthlyPayment.isPending}
               onClick={() => {
                 if (confirmDialog) {
+                  const actualMonths = confirmDialog.months.filter(m => !confirmExcludedMonths.includes(m));
+                  if (actualMonths.length === 0) {
+                    toast.error('至少需保留一個月份');
+                    return;
+                  }
                   confirmMonthlyPayment.mutate({
                     studentId: confirmDialog.studentId,
                     year: selectedYear,
-                    months: confirmDialog.months,
-                    paymentType: confirmDialog.paymentType,
+                    months: actualMonths,
+                    paymentType: confirmExcludedMonths.length > 0 ? 'monthly' : confirmDialog.paymentType,
                     receiptBase64: confirmReceiptFile?.base64,
                     receiptMimeType: confirmReceiptFile?.mimeType,
                   });
+                  setConfirmExcludedMonths([]);
                 }
               }}
             >

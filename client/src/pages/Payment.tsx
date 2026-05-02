@@ -535,8 +535,6 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   const currentQ = `Q${Math.ceil(currentMonth / 3)}` as PaymentPeriod;
   const [selectedPeriods, setSelectedPeriods] = useState<PaymentPeriod[]>([currentQ]);
   const [customMonths, setCustomMonths] = useState("");
-  // 請假月份排除：key = 月份數字(1-12)，value = true 表示該月被排除（請假）
-  const [excludedMonths, setExcludedMonths] = useState<number[]>([]);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>("");
   const [receiptBase64, setReceiptBase64] = useState<string>("");
@@ -582,62 +580,28 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
     return null;
   };
 
-  // 季度對應月份映射
-  const QUARTER_MONTHS: Record<string, number[]> = {
-    Q1: [1, 2, 3],
-    Q2: [4, 5, 6],
-    Q3: [7, 8, 9],
-    Q4: [10, 11, 12],
-  };
-
-  // 計算所有已選季度包含的月份
-  const allSelectedMonths = useMemo(() => {
-    const months: number[] = [];
-    selectedPeriods.filter(p => p !== 'CUSTOM').forEach(p => {
-      months.push(...(QUARTER_MONTHS[p] || []));
-    });
-    return months.sort((a, b) => a - b);
-  }, [selectedPeriods]);
-
-  // 實際需繳費的月份（排除請假月）
-  const activeMonths = useMemo(() => {
-    return allSelectedMonths.filter(m => !excludedMonths.includes(m));
-  }, [allSelectedMonths, excludedMonths]);
-
   // 切換季度選擇
   const handlePeriodToggle = (p: PaymentPeriod) => {
     setSelectedPeriods(prev => {
       if (p === 'CUSTOM') {
         // CUSTOM 與季度互斥
-        setExcludedMonths([]);
         return prev.includes('CUSTOM') ? [] : ['CUSTOM'];
       }
       // 選季度時移除 CUSTOM
       const withoutCustom = prev.filter(x => x !== 'CUSTOM');
-      let newPeriods: PaymentPeriod[];
       if (withoutCustom.includes(p)) {
-        newPeriods = withoutCustom.filter(x => x !== p);
-        // 移除該季度時，清除其對應月份的排除記錄
-        const removedMonths = QUARTER_MONTHS[p] || [];
-        setExcludedMonths(prev => prev.filter(m => !removedMonths.includes(m)));
+        return withoutCustom.filter(x => x !== p);
       } else {
-        newPeriods = [...withoutCustom, p];
+        return [...withoutCustom, p];
       }
-      return newPeriods;
     });
   };
 
-  // 切換排除月份
-  const handleMonthExcludeToggle = (month: number) => {
-    setExcludedMonths(prev =>
-      prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month]
-    );
-  };
-
-  // 計算合計金額（根據實際需繳月份數和學生數）
+  // 計算合計金額（根據選擇的季度數和學生數）
   const totalFee = useMemo(() => {
     if (selectedStudentIds.length === 0) return 0;
     const selectedStudents = students.filter(s => selectedStudentIds.includes(s.id));
+    const perStudentPerQuarter = selectedStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
     if (selectedPeriods.includes('CUSTOM') && customMonths.trim()) {
       const monthCount = customMonths.split(',').filter(m => m.trim()).length;
       // 月費 = 季費 / 3
@@ -646,13 +610,9 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
         return sum + monthlyFee * monthCount;
       }, 0);
     }
-    // 按實際繳費月數計算（排除請假月後）
-    const payableMonthCount = activeMonths.length;
-    return selectedStudents.reduce((sum, s) => {
-      const monthlyFee = Math.round((parseFloat(s.feePerQuarter || '0') / 3) * 100) / 100;
-      return sum + monthlyFee * payableMonthCount;
-    }, 0);
-  }, [selectedStudentIds, selectedPeriods, customMonths, students, activeMonths]);
+    const quarterCount = selectedPeriods.filter(p => p !== 'CUSTOM').length;
+    return perStudentPerQuarter * quarterCount;
+  }, [selectedStudentIds, selectedPeriods, customMonths, students]);
 
   // 當前選擇是否已繳費（用於提交按鈕禁用）
   const isCurrentSelectionPaid = () => {
@@ -712,7 +672,7 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
         studentIds: selectedStudentIds,
         paymentPeriods: selectedPeriods,
         customMonths: selectedPeriods.includes("CUSTOM") ? customMonths.split(",").map(m => m.trim()) : undefined,
-        excludedMonths: excludedMonths.length > 0 ? excludedMonths : undefined,
+
         amount: "0",
         receiptBase64: base64,
         receiptMimeType: receiptFile.type,
@@ -911,46 +871,6 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
             </div>
           )}
 
-          {/* 月份微調：選季後可排除請假月份 */}
-          {allSelectedMonths.length > 0 && !selectedPeriods.includes('CUSTOM') && (
-            <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-              <div className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
-                <CalendarOff className="w-4 h-4" />
-                月份調整（如有請假月可取消勾選）
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {allSelectedMonths.map(month => {
-                  const isExcluded = excludedMonths.includes(month);
-                  return (
-                    <div
-                      key={month}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer transition-all ${
-                        isExcluded
-                          ? 'bg-red-50 border-red-300 text-red-600 line-through'
-                          : 'bg-green-50 border-green-300 text-green-700'
-                      }`}
-                      onClick={() => handleMonthExcludeToggle(month)}
-                    >
-                      <Checkbox
-                        checked={!isExcluded}
-                        onCheckedChange={() => handleMonthExcludeToggle(month)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-3.5 h-3.5"
-                      />
-                      <span className="text-sm font-medium">{month}月</span>
-                    </div>
-                  );
-                })}
-              </div>
-              {excludedMonths.length > 0 && (
-                <div className="mt-2 text-xs text-orange-600 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  已排除 {excludedMonths.sort((a,b)=>a-b).map(m => `${m}月`).join('、')}（請假免繳），實繳 {activeMonths.length} 個月
-                </div>
-              )}
-            </div>
-          )}
-
           {/* 費用合計摘要 */}
           {selectedStudentIds.length > 0 && selectedPeriods.length > 0 && (
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -959,18 +879,14 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
                   <div className="text-sm font-medium text-blue-800">
                     {selectedStudentIds.length} 位學生 × {selectedPeriods.includes('CUSTOM')
                       ? `${customMonths.split(',').filter(m => m.trim()).length || 0} 個月`
-                      : `${activeMonths.length} 個月`
+                      : `${selectedPeriods.length} 季`
                     }
-                    {excludedMonths.length > 0 && !selectedPeriods.includes('CUSTOM') && (
-                      <span className="text-orange-600 ml-1">（已扣除 {excludedMonths.length} 個月請假）</span>
-                    )}
                   </div>
                   <div className="text-xs text-blue-600 mt-0.5">
                     {selectedPeriods.filter(p => p !== 'CUSTOM').map(p => {
                       const opt = PERIOD_OPTIONS.find(o => o.value === p);
                       return opt?.label.replace('（季繳）', '') || p;
                     }).join(' + ')}
-                    {excludedMonths.length > 0 && ` → 實繳: ${activeMonths.map(m => `${m}月`).join(', ')}`}
                   </div>
                 </div>
                 <div className="text-right">
