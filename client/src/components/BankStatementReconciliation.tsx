@@ -381,15 +381,36 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
             </div>
 
             <div>
-              <Label>月結單圖片 *（可多選多頁）</Label>
+              <Label>月結單檔案 *（可多選多頁，支援圖片及PDF）</Label>
               <Input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,application/pdf"
+                accept="image/*,application/pdf,.pdf"
                 multiple
                 onChange={handleFileChange}
-                className="mt-1"
+                className="mt-1 hidden"
               />
+              <div className="mt-1 flex gap-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.accept = "image/*";
+                    fileInputRef.current.click();
+                  }
+                }}>
+                  <Upload className="w-4 h-4 mr-1" /> 選擇圖片
+                </Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.accept = "application/pdf,.pdf,*/*";
+                    fileInputRef.current.click();
+                  }
+                }}>
+                  <FileText className="w-4 h-4 mr-1" /> 選擇PDF
+                </Button>
+              </div>
+              {files.length > 0 && (
+                <p className="text-xs text-green-600 mt-1">已選擇 {files.length} 個檔案</p>
+              )}
             </div>
 
             {filePreviews.length > 0 && (
