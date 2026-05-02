@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
 import { Input } from "@/components/ui/input";
 import {
   ArrowLeft, Upload, Loader2, CheckCircle2, KeyRound,
@@ -531,9 +531,9 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>(
     students.length === 1 ? [students[0].id] : []
   );
-  // 自動選擇當前季度
+  // 自動選擇當前季度（多選）
   const currentQ = `Q${Math.ceil(currentMonth / 3)}` as PaymentPeriod;
-  const [period, setPeriod] = useState<PaymentPeriod>(currentQ);
+  const [selectedPeriods, setSelectedPeriods] = useState<PaymentPeriod[]>([currentQ]);
   const [customMonths, setCustomMonths] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string>("");
@@ -564,7 +564,6 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
   // 取得某季度的繳費資訊（顯示確認日期和來源）
   const getPeriodPaymentInfo = (p: PaymentPeriod) => {
     if (!existingPayments) return null;
-    // 優先從已選學生找，否則從所有學生找
     const searchIds = selectedStudentIds.length > 0 ? selectedStudentIds : students.map(s => s.id);
     for (const studentId of searchIds) {
       const payment = existingPayments.find(
@@ -581,13 +580,51 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
     return null;
   };
 
+  // 切換季度選擇
+  const handlePeriodToggle = (p: PaymentPeriod) => {
+    setSelectedPeriods(prev => {
+      if (p === 'CUSTOM') {
+        // CUSTOM 與季度互斥
+        return prev.includes('CUSTOM') ? [] : ['CUSTOM'];
+      }
+      // 選季度時移除 CUSTOM
+      const withoutCustom = prev.filter(x => x !== 'CUSTOM');
+      if (withoutCustom.includes(p)) {
+        return withoutCustom.filter(x => x !== p);
+      } else {
+        return [...withoutCustom, p];
+      }
+    });
+  };
+
+  // 計算合計金額（根據選擇的季度數和學生數）
+  const totalFee = useMemo(() => {
+    if (selectedStudentIds.length === 0) return 0;
+    const selectedStudents = students.filter(s => selectedStudentIds.includes(s.id));
+    const perStudentPerQuarter = selectedStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
+    if (selectedPeriods.includes('CUSTOM') && customMonths.trim()) {
+      const monthCount = customMonths.split(',').filter(m => m.trim()).length;
+      // 月費 = 季費 / 3
+      return selectedStudents.reduce((sum, s) => {
+        const monthlyFee = Math.round((parseFloat(s.feePerQuarter || '0') / 3) * 100) / 100;
+        return sum + monthlyFee * monthCount;
+      }, 0);
+    }
+    const quarterCount = selectedPeriods.filter(p => p !== 'CUSTOM').length;
+    return perStudentPerQuarter * quarterCount;
+  }, [selectedStudentIds, selectedPeriods, customMonths, students]);
+
   // 當前選擇是否已繳費（用於提交按鈕禁用）
   const isCurrentSelectionPaid = () => {
-    // 如果該季度所有學生都已繳費，直接鎖定
-    if (isPeriodFullyPaid(period)) return true;
-    // 如果已選學生中有人已繳該季度，也鎖定
-    if (selectedStudentIds.length === 0) return false;
-    return selectedStudentIds.some(studentId => isPeriodPaid(studentId, period));
+    if (selectedPeriods.length === 0) return false;
+    // 所有選中的季度都已繳費
+    const quarterPeriods = selectedPeriods.filter(p => p !== 'CUSTOM');
+    if (quarterPeriods.length === 0) return false;
+    return quarterPeriods.every(p => {
+      if (isPeriodFullyPaid(p)) return true;
+      if (selectedStudentIds.length === 0) return false;
+      return selectedStudentIds.some(sid => isPeriodPaid(sid, p));
+    });
   };
 
   const handleStudentToggle = (studentId: number) => {
@@ -621,19 +658,20 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
 
   const handleSubmit = async () => {
     if (selectedStudentIds.length === 0) { toast.error("請選擇至少一位學生"); return; }
+    if (selectedPeriods.length === 0) { toast.error("請選擇繳費期間"); return; }
     if (isCurrentSelectionPaid()) { toast.error("所選學生已繳交此期間的學費,請勿重複繳費"); return; }
     if (!receiptFile || !receiptBase64) { toast.error("請上傳收據照片"); return; }
-    if (period === "CUSTOM" && !customMonths.trim()) { toast.error("請輸入自選月份"); return; }
+    if (selectedPeriods.includes("CUSTOM") && !customMonths.trim()) { toast.error("請輸入自選月份"); return; }
 
     setIsSubmitting(true);
     try {
       const base64 = receiptBase64;
 
-      // 使用合併繳費 API（一張收據對應多個學生）
+      // 使用合併繳費 API（一張收據對應多個學生 × 多個季度）
       await createMergedPayment.mutateAsync({
         studentIds: selectedStudentIds,
-        paymentPeriod: period,
-        customMonths: period === "CUSTOM" ? customMonths.split(",").map(m => m.trim()) : undefined,
+        paymentPeriods: selectedPeriods,
+        customMonths: selectedPeriods.includes("CUSTOM") ? customMonths.split(",").map(m => m.trim()) : undefined,
         amount: "0",
         receiptBase64: base64,
         receiptMimeType: receiptFile.type,
@@ -765,61 +803,95 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
         </Card>
       )}
 
-      {/* 繳費期間 */}
+      {/* 繳費期間（可多選） */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">繳費期間</CardTitle>
+          <CardDescription>可同時選擇多個季度，費用會自動合計</CardDescription>
         </CardHeader>
-        <CardContent>
-          <RadioGroup value={period} onValueChange={(v) => setPeriod(v as PaymentPeriod)}>
-            {PERIOD_OPTIONS.map(option => {
-              const periodValue = option.value as PaymentPeriod;
-              // 所有學生都已繳費 → 完全鎖定
-              const allPaid = isPeriodFullyPaid(periodValue);
-              // 已選學生中有人已繳費 → 鎖定（選了人之後才檢查）
-              const selectedPaid = selectedStudentIds.length > 0 && selectedStudentIds.some(sid => isPeriodPaid(sid, periodValue));
-              const isLocked = allPaid || selectedPaid;
-              const paymentInfo = getPeriodPaymentInfo(periodValue);
+        <CardContent className="space-y-2">
+          {PERIOD_OPTIONS.map(option => {
+            const periodValue = option.value as PaymentPeriod;
+            const allPaid = isPeriodFullyPaid(periodValue);
+            const selectedPaid = selectedStudentIds.length > 0 && selectedStudentIds.some(sid => isPeriodPaid(sid, periodValue));
+            const isLocked = allPaid || selectedPaid;
+            const paymentInfo = getPeriodPaymentInfo(periodValue);
+            const isChecked = selectedPeriods.includes(periodValue);
+            // CUSTOM 與季度互斥
+            const isDisabledByCustom = periodValue !== 'CUSTOM' && selectedPeriods.includes('CUSTOM');
+            const isDisabledByQuarter = periodValue === 'CUSTOM' && selectedPeriods.some(p => p !== 'CUSTOM');
 
-              return (
-                <div key={option.value} className={`flex items-center space-x-3 p-3 rounded-lg ${
-                  allPaid
-                    ? 'bg-green-50 border border-green-200 opacity-60'
-                    : selectedPaid
-                    ? 'bg-yellow-50 border border-yellow-200 opacity-70'
-                    : 'hover:bg-gray-50'
-                }`}>
-                  <RadioGroupItem value={option.value} id={option.value} disabled={isLocked} />
-                  <Label htmlFor={option.value} className={`flex-1 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                    <div className="flex items-center gap-2">
-                      <span>{option.label}</span>
-                      {allPaid && (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">
-                          <CheckCircle2 className="w-3 h-3" /> 已繳交
-                        </span>
-                      )}
-                      {!allPaid && selectedPaid && (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">
-                          ⚠️ 部分已繳
-                        </span>
-                      )}
-                    </div>
-                    {isLocked && paymentInfo && (
-                      <div className="text-xs text-green-700 mt-1">
-                        {paymentInfo.confirmedBy === 'parent_upload'
-                          ? `家長於 ${formatDayMonthYear(paymentInfo.date)} 上傳收據繳費`
-                          : `管理員於 ${formatDayMonthYear(paymentInfo.date)} 確認已繳費`}
-                      </div>
+            return (
+              <div key={option.value} className={`flex items-center space-x-3 p-3 rounded-lg border ${
+                isChecked && !isLocked
+                  ? 'bg-blue-50 border-blue-300'
+                  : allPaid
+                  ? 'bg-green-50 border-green-200 opacity-60'
+                  : selectedPaid
+                  ? 'bg-yellow-50 border-yellow-200 opacity-70'
+                  : 'border-gray-200 hover:bg-gray-50'
+              }`}>
+                <Checkbox
+                  id={`period-${option.value}`}
+                  checked={isChecked}
+                  onCheckedChange={() => handlePeriodToggle(periodValue)}
+                  disabled={isLocked || isDisabledByCustom || isDisabledByQuarter}
+                />
+                <Label htmlFor={`period-${option.value}`} className={`flex-1 ${isLocked || isDisabledByCustom || isDisabledByQuarter ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                  <div className="flex items-center gap-2">
+                    <span>{option.label}</span>
+                    {allPaid && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">
+                        <CheckCircle2 className="w-3 h-3" /> 已繳交
+                      </span>
                     )}
-                  </Label>
-                </div>
-              );
-            })}
-          </RadioGroup>
-          {period === "CUSTOM" && (
+                    {!allPaid && selectedPaid && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">
+                        ⚠️ 部分已繳
+                      </span>
+                    )}
+                  </div>
+                  {isLocked && paymentInfo && (
+                    <div className="text-xs text-green-700 mt-1">
+                      {paymentInfo.confirmedBy === 'parent_upload'
+                        ? `家長於 ${formatDayMonthYear(paymentInfo.date)} 上傳收據繳費`
+                        : `管理員於 ${formatDayMonthYear(paymentInfo.date)} 確認已繳費`}
+                    </div>
+                  )}
+                </Label>
+              </div>
+            );
+          })}
+          {selectedPeriods.includes("CUSTOM") && (
             <div className="mt-4">
               <Label htmlFor="customMonths">自選月份 (用逗號分隔)</Label>
               <Input id="customMonths" value={customMonths} onChange={e => setCustomMonths(e.target.value)} placeholder="例如: 1月, 2月, 3月" className="mt-2" />
+            </div>
+          )}
+
+          {/* 費用合計摘要 */}
+          {selectedStudentIds.length > 0 && selectedPeriods.length > 0 && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-blue-800">
+                    {selectedStudentIds.length} 位學生 × {selectedPeriods.includes('CUSTOM')
+                      ? `${customMonths.split(',').filter(m => m.trim()).length || 0} 個月`
+                      : `${selectedPeriods.length} 季`
+                    }
+                  </div>
+                  <div className="text-xs text-blue-600 mt-0.5">
+                    {selectedPeriods.filter(p => p !== 'CUSTOM').map(p => {
+                      const opt = PERIOD_OPTIONS.find(o => o.value === p);
+                      return opt?.label.replace('（季繳）', '') || p;
+                    }).join(' + ')}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-700">${totalFee.toLocaleString()}</div>
+                  <div className="text-xs text-blue-500">應繳合計</div>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
@@ -861,13 +933,13 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
       {/* 提交 */}
       <Button
         onClick={handleSubmit}
-        disabled={isSubmitting || selectedStudentIds.length === 0 || !receiptFile || !receiptBase64 || isCurrentSelectionPaid()}
+        disabled={isSubmitting || selectedStudentIds.length === 0 || selectedPeriods.length === 0 || !receiptFile || !receiptBase64 || isCurrentSelectionPaid()}
         className="w-full h-12 text-lg"
         size="lg"
       >
         {isSubmitting ? (
           <><Loader2 className="w-5 h-5 mr-2 animate-spin" />處理中...</>
-        ) : isCurrentSelectionPaid() ? "此期間已繳費" : "確認提交"}
+        ) : isCurrentSelectionPaid() ? "此期間已繳費" : totalFee > 0 ? `確認提交 ($${totalFee.toLocaleString()})` : "確認提交"}
       </Button>
     </div>
   );

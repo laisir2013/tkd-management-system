@@ -1413,14 +1413,21 @@ export const appRouter = router({
     createMergedPayment: publicProcedure
       .input(z.object({
         studentIds: z.array(z.number()).min(1),
-        paymentPeriod: z.enum(["Q1", "Q2", "Q3", "Q4", "CUSTOM"]),
+        // 支援多季度選擇
+        paymentPeriods: z.array(z.enum(["Q1", "Q2", "Q3", "Q4", "CUSTOM"])).min(1),
+        // 向後兼容：舊版單季度
+        paymentPeriod: z.enum(["Q1", "Q2", "Q3", "Q4", "CUSTOM"]).optional(),
         customMonths: z.array(z.string()).optional(),
         amount: z.string(),
         receiptBase64: z.string(),
         receiptMimeType: z.string(),
       }))
       .mutation(async ({ input }) => {
-        const { studentIds, paymentPeriod, receiptBase64, receiptMimeType } = input;
+        const { studentIds, receiptBase64, receiptMimeType } = input;
+        // 向後兼容：如果有 paymentPeriods 就用，否則 fallback 到舊版 paymentPeriod
+        const paymentPeriods = input.paymentPeriods || (input.paymentPeriod ? [input.paymentPeriod] : ['Q1']);
+        const quarterPeriods = paymentPeriods.filter(p => p !== 'CUSTOM');
+        const quarterCount = quarterPeriods.length || 1;
 
         // ── 1. 取得所有學生資料 ──
         const studentsData = [];
@@ -1436,18 +1443,24 @@ export const appRouter = router({
         const receiptKey = `receipts/merged-${studentIds.join('_')}-${Date.now()}.${fileExt}`;
         const { url: receiptUrl } = await storagePut(receiptKey, receiptBuffer, receiptMimeType);
 
-        // ── 3. 計算應繳金額 ──
+        // ── 3. 計算應繳金額（多季度 × 多學生）──
         let totalExpectedFee = 0;
-        const perStudentFees: { studentId: number; fee: number }[] = [];
+        // perStudentFees: 每位學生在每個季度的費用
+        const perStudentFees: { studentId: number; fee: number; period: string }[] = [];
         for (const s of studentsData) {
           const feePerQuarter = parseFloat(s.feePerQuarter);
           const monthlyFee = Math.round((feePerQuarter / 3) * 100) / 100;
-          let fee = feePerQuarter;
-          if (paymentPeriod === 'CUSTOM' && input.customMonths) {
-            fee = monthlyFee * input.customMonths.length;
+
+          if (paymentPeriods.includes('CUSTOM') && input.customMonths) {
+            const fee = monthlyFee * input.customMonths.length;
+            totalExpectedFee += fee;
+            perStudentFees.push({ studentId: s.id, fee, period: 'CUSTOM' });
+          } else {
+            for (const period of quarterPeriods) {
+              totalExpectedFee += feePerQuarter;
+              perStudentFees.push({ studentId: s.id, fee: feePerQuarter, period });
+            }
           }
-          totalExpectedFee += fee;
-          perStudentFees.push({ studentId: s.id, fee });
         }
 
         // ── 4. LLM OCR 識別收據（含重試機制）──
@@ -1566,13 +1579,15 @@ export const appRouter = router({
 
         // ── 7. 為收據蓋章（包含所有學生名字）──
         const allStudentNames = studentsData.map(s => s.name).join(', ');
+        // 蓋章用的 paymentPeriod 顯示文字
+        const stampPeriodLabel = paymentPeriods.includes('CUSTOM') ? 'CUSTOM' : quarterPeriods.join('+');
         let stampedReceiptUrl = receiptUrl;
         let stampedReceiptKey = receiptKey;
         try {
           const stampedBuffer = await stampReceipt(receiptBuffer, receiptMimeType, {
             studentName: allStudentNames,
             amount: (extractedAmount || totalExpectedFee).toString(),
-            paymentPeriod,
+            paymentPeriod: stampPeriodLabel,
             customMonths: input.customMonths,
             dojoName: studentsData[0].venue || undefined,
           });
@@ -1584,14 +1599,14 @@ export const appRouter = router({
           console.warn("[MergedPayment] 收據標記失敗，使用原始收據:", stampErr instanceof Error ? stampErr.message : String(stampErr));
         }
 
-        // ── 8. 為每位學生建立繳費記錄 ──
+        // ── 8. 為每位學生的每個季度建立繳費記錄 ──
         const createdPaymentIds: number[] = [];
         for (const entry of perStudentFees) {
           const studentFeeStr = entry.fee.toString();
           const newPaymentId = await insertPaymentRecord({
             studentId: entry.studentId,
-            paymentPeriod,
-            customMonths: input.customMonths || null,
+            paymentPeriod: entry.period,
+            customMonths: entry.period === 'CUSTOM' ? (input.customMonths || null) : null,
             amount: (extractedAmount > 0 ? entry.fee : parseFloat(studentFeeStr)).toString(),
             classCount: null,
             receiptUrl: stampedReceiptUrl,
@@ -1611,26 +1626,27 @@ export const appRouter = router({
         // ── 9. 自動確認 → 同步到會計 ──
         if (finalStatus === 'confirmed') {
           for (let i = 0; i < perStudentFees.length; i++) {
+            const studentData = studentsData.find(s => s.id === perStudentFees[i].studentId)!;
             try {
               await syncPaymentToAccounting({
                 paymentRecordId: createdPaymentIds[i],
                 transactionDate: extractedDate || new Date(),
                 amount: perStudentFees[i].fee.toString(),
                 bank: extractedBank,
-                studentName: studentsData[i].name,
-                coachName: studentsData[i].coach,
-                dojoName: studentsData[i].venue || null,
+                studentName: studentData.name,
+                coachName: studentData.coach,
+                dojoName: studentData.venue || null,
                 category: 'tuition',
                 receiptUrl: stampedReceiptUrl,
                 receiptKey: stampedReceiptKey,
               });
             } catch (syncErr) {
-              console.error(`[MergedPayment] 同步會計失敗(學生=${studentsData[i].name}):`, syncErr);
+              console.error(`[MergedPayment] 同步會計失敗(學生=${studentData.name}, 季度=${perStudentFees[i].period}):`, syncErr);
             }
           }
         }
 
-        console.log(`[MergedPayment] 完成：學生=${allStudentNames}, OCR金額=$${extractedAmount}, 應繳合計=$${totalExpectedFee}, 每人費用=${perStudentFees.map(e => e.fee).join('/')}, 狀態=${finalStatus}`);
+        console.log(`[MergedPayment] 完成：學生=${allStudentNames}, 季度=${paymentPeriods.join('+')}, OCR金額=$${extractedAmount}, 應繳合計=$${totalExpectedFee}, 記錄數=${createdPaymentIds.length}, 狀態=${finalStatus}`);
 
         return {
           success: true,
