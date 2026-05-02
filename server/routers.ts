@@ -170,6 +170,9 @@ import {
   reviewReceipt,
   // CUSTOM 月份解析
   extractMonthNumbers,
+  // 銀行名稱標準化
+  normalizeBankName,
+  paymentMethodToDisplayName,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -1638,6 +1641,7 @@ export const appRouter = router({
             receiptUrl: stampedReceiptUrl,
             receiptKey: stampedReceiptKey,
             receiptTransferDate: extractedDate,
+            bank: extractedBank || null,
             paymentDate: new Date(),
             status: finalStatus as any,
             confirmedBy: 'parent_upload',
@@ -1694,6 +1698,7 @@ export const appRouter = router({
         month: z.number(),
         amount: z.string(),
         classCount: z.number().optional(), // 精英班堂數
+        bank: z.string().optional(), // 付款銀行
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
@@ -1710,6 +1715,7 @@ export const appRouter = router({
           receiptUrl: null,
           receiptKey: null,
           receiptTransferDate: null,
+          bank: input.bank || null,
           paymentDate: new Date(),
           status: "confirmed", // 管理員手動標記,直接設為 confirmed
           confirmedBy: 'admin_approved',
@@ -1723,6 +1729,7 @@ export const appRouter = router({
               paymentRecordId: newPaymentId2,
               transactionDate: new Date(),
               amount: input.amount,
+              bank: input.bank || null,
               studentName: student.name,
               coachName: student.coach,
               category: 'tuition',
@@ -1863,7 +1870,7 @@ export const appRouter = router({
                   paymentRecordId: input.paymentRecordId,
                   transactionDate: paymentRecord.receiptTransferDate || paymentRecord.paymentDate,
                   amount: syncAmount,
-                  bank: null,
+                  bank: (paymentRecord as any).bank || null,
                   studentName: student.name,
                   coachName: student.coach,
                   dojoName: student.venue || null,
@@ -1887,6 +1894,7 @@ export const appRouter = router({
         studentId: z.number(),
         year: z.number(),
         quarter: z.enum(['Q1', 'Q2', 'Q3', 'Q4']),
+        bank: z.string().optional(), // 付款銀行
       }))
       .mutation(async ({ input, ctx }) => {
         // 只有管理員可以確認繳費
@@ -1907,6 +1915,7 @@ export const appRouter = router({
           receiptUrl: null,
           receiptKey: null,
           receiptTransferDate: null,
+          bank: input.bank || null,
           paymentDate: new Date(),
           status: 'confirmed',
           confirmedBy: 'admin_approved',
@@ -1918,6 +1927,7 @@ export const appRouter = router({
             paymentRecordId: confirmPmtId,
             transactionDate: new Date(),
             amount: student.feePerQuarter,
+            bank: input.bank || null,
             studentName: student.name,
             coachName: student.coach,
             dojoName: student.venue || null,
@@ -1937,6 +1947,7 @@ export const appRouter = router({
         year: z.number(),
         months: z.array(z.number().min(1).max(12)).min(1), // 可以1個月或3個月（1季）
         paymentType: z.enum(['monthly', 'quarterly']), // monthly=單月, quarterly=季繳
+        bank: z.string().optional(), // 付款銀行
         // 收據上傳（可選）
         receiptBase64: z.string().optional(),
         receiptMimeType: z.string().optional(),
@@ -1985,6 +1996,7 @@ export const appRouter = router({
             receiptUrl,
             receiptKey,
             receiptTransferDate: null,
+            bank: input.bank || null,
             paymentDate: new Date(),
             status: 'confirmed',
             confirmedBy,
@@ -1996,6 +2008,7 @@ export const appRouter = router({
               paymentRecordId: qtrPmtId,
               transactionDate: new Date(),
               amount: String(feePerQuarter),
+              bank: input.bank || null,
               studentName: student.name,
               coachName: student.coach,
               dojoName: student.venue || null,
@@ -2021,6 +2034,7 @@ export const appRouter = router({
               receiptUrl,
               receiptKey,
               receiptTransferDate: null,
+              bank: input.bank || null,
               paymentDate: new Date(),
               status: 'confirmed',
               confirmedBy,
@@ -2032,6 +2046,7 @@ export const appRouter = router({
                 paymentRecordId: monthPmtId,
                 transactionDate: new Date(),
                 amount: String(monthlyFee),
+                bank: input.bank || null,
                 studentName: student.name,
                 coachName: student.coach,
                 dojoName: student.venue || null,
@@ -3704,6 +3719,9 @@ export const appRouter = router({
           month: input.month,
         });
 
+        // 標準化輸入的銀行名稱，用於匹配
+        const inputBankNormalized = input.bankName ? normalizeBankName(input.bankName) : null;
+
         // Build matching: try to match each bank transaction to a system record
         const matched: any[] = [];
         const unmatchedBank: any[] = []; // In bank but not in system
@@ -3730,18 +3748,50 @@ export const appRouter = router({
 
             const typeMatch = rec.type === txnType;
 
-            // Date matching: same day ±1
-            let dateMatch = false;
+            // Date matching: 放寬到 ±3 天（銀行入帳可能有延遲）
+            let dateScore = 0;
             if (txn.date && rec.transactionDate) {
               const txnDate = new Date(txn.date);
               const recDate = new Date(rec.transactionDate);
               const diffDays = Math.abs((txnDate.getTime() - recDate.getTime()) / (1000 * 60 * 60 * 24));
-              dateMatch = diffDays <= 1;
+              if (diffDays <= 0.5) dateScore = 20;       // 同一天：滿分
+              else if (diffDays <= 1.5) dateScore = 15;   // ±1天
+              else if (diffDays <= 3.5) dateScore = 10;   // ±2-3天
+              else if (diffDays <= 5.5) dateScore = 5;    // ±4-5天：微弱匹配
             }
 
-            let score = 50; // 金額已匹配，基礎分 50
-            if (typeMatch) score += 25;
-            if (dateMatch) score += 25;
+            // Bank matching: 比對銀行名稱
+            let bankScore = 0;
+            if (inputBankNormalized && rec.bank) {
+              const recBankNormalized = normalizeBankName(rec.bank);
+              if (recBankNormalized === inputBankNormalized) {
+                bankScore = 15; // 銀行完全匹配
+              } else if (recBankNormalized && inputBankNormalized && 
+                         (rec.bank.toUpperCase().includes(input.bankName!.toUpperCase()) || 
+                          input.bankName!.toUpperCase().includes(rec.bank.toUpperCase()))) {
+                bankScore = 10; // 銀行名稱部分匹配
+              }
+            }
+
+            // Description matching: 說明文字相似度
+            let descScore = 0;
+            if (txn.description && rec.description) {
+              const txnDesc = txn.description.toUpperCase();
+              const recDesc = rec.description.toUpperCase();
+              if (txnDesc.includes(recDesc) || recDesc.includes(txnDesc)) {
+                descScore = 5;
+              }
+              // 如果系統記錄有學生名，檢查月結單說明是否包含
+              if (rec.studentName && txnDesc.includes(rec.studentName.toUpperCase())) {
+                descScore = 10;
+              }
+            }
+
+            let score = 40; // 金額已匹配，基礎分 40
+            if (typeMatch) score += 20;
+            score += dateScore;
+            score += bankScore;
+            score += descScore;
 
             if (score > bestScore) {
               bestScore = score;
@@ -3749,6 +3799,7 @@ export const appRouter = router({
             }
           }
 
+          // 降低匹配門檻：只要金額匹配（40分）就算匹配成功
           if (bestMatch) {
             usedSystemIds.add(bestMatch.id);
             matched.push({
@@ -3756,13 +3807,20 @@ export const appRouter = router({
               systemRecord: bestMatch,
               matchScore: bestScore,
             });
-            // 更新對帳狀態
+            // 更新對帳狀態，同時記錄銀行參考編號和銀行名稱
             try {
-              await updateAccountingRecord(bestMatch.id, {
+              const updateData: any = {
                 reconciliationStatus: 'matched',
                 reconciliationDate: new Date(),
                 bankReference: txn.reference || null,
-              } as any);
+              };
+              // 如果系統記錄沒有銀行名稱但月結單有，補上
+              if (!bestMatch.bank && input.bankName) {
+                const normalizedBank = normalizeBankName(input.bankName);
+                const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : input.bankName;
+                updateData.bank = displayBank;
+              }
+              await updateAccountingRecord(bestMatch.id, updateData);
             } catch (e) {
               // 如果更新失敗不影響對帳流程
             }
@@ -3772,8 +3830,16 @@ export const appRouter = router({
         }
 
         // Find system records not matched to any bank transaction
+        // 只顯示同銀行的未匹配系統記錄（如果有指定銀行）
         for (const rec of existingRecords) {
           if (!usedSystemIds.has(rec.id)) {
+            // 如果有指定銀行，只顯示同銀行或無銀行的記錄
+            if (inputBankNormalized && rec.bank) {
+              const recBankNormalized = normalizeBankName(rec.bank);
+              if (recBankNormalized !== inputBankNormalized) {
+                continue; // 不同銀行的記錄不算「系統有但月結單沒有」
+              }
+            }
             unmatchedSystem.push(rec);
           }
         }

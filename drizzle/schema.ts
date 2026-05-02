@@ -143,6 +143,8 @@ export const paymentRecords = mysqlTable("paymentRecords", {
   receiptUrl: text("receiptUrl"),
   receiptKey: text("receiptKey"),
   receiptTransferDate: timestamp("receiptTransferDate"),
+  bank: varchar("bank", { length: 100 }), // 付款銀行（OCR識別或手動填入）
+  receivingBank: varchar("receivingBank", { length: 100 }), // 收款銀行（入數到哪間銀行，用於對帳）
   paymentDate: timestamp("paymentDate").notNull(),
   status: mysqlEnum("status", ["pending", "confirmed"]).default("confirmed").notNull(),
   confirmedBy: mysqlEnum("confirmedBy", ["parent_upload", "admin_approved", "coach_approved"]).default("admin_approved"),
@@ -340,7 +342,8 @@ export const accountingRecords = mysqlTable("accounting_records", {
   id: int("id").autoincrement().primaryKey(),
   // 基本資訊
   transactionDate: timestamp("transaction_date").notNull(), // 交易日期（入帳日期）
-  bank: varchar("bank", { length: 100 }), // 銀行名稱
+  bank: varchar("bank", { length: 100 }), // 銀行名稱（付款方銀行）
+  receivingBank: varchar("receiving_bank", { length: 100 }), // 收款銀行（入數到哪間銀行，用於對帳）
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(), // 金額（正數）
   
   // 收支類型

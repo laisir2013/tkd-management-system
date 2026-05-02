@@ -641,6 +641,8 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
                             <TableHead className="text-right">月結單金額</TableHead>
                             <TableHead>系統類別</TableHead>
                             <TableHead>系統說明</TableHead>
+                            <TableHead>系統銀行</TableHead>
+                            <TableHead className="text-right w-16">匹配度</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -656,6 +658,16 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
                                 </span>
                               </TableCell>
                               <TableCell className="text-sm">{m.systemRecord.description || '-'}</TableCell>
+                              <TableCell className="text-sm">{m.systemRecord.bank || <span className="text-gray-400">未記錄</span>}</TableCell>
+                              <TableCell className="text-right">
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  m.matchScore >= 80 ? 'bg-green-100 text-green-700' :
+                                  m.matchScore >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-orange-100 text-orange-700'
+                                }`}>
+                                  {m.matchScore}%
+                                </span>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -689,6 +701,7 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
                             <TableHead>說明</TableHead>
                             <TableHead className="text-right">金額</TableHead>
                             <TableHead>類別</TableHead>
+                            <TableHead>銀行</TableHead>
                             <TableHead>來源</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -703,6 +716,7 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
                               <TableCell>
                                 <span className="text-xs px-2 py-0.5 rounded bg-gray-100">{CATEGORY_MAP[rec.category] || rec.category}</span>
                               </TableCell>
+                              <TableCell className="text-sm">{rec.bank || <span className="text-gray-400">-</span>}</TableCell>
                               <TableCell className="text-xs">{rec.source === 'auto_sync' ? '自動' : '手動'}</TableCell>
                             </TableRow>
                           ))}

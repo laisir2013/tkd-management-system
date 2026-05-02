@@ -94,6 +94,14 @@ export async function getDb() {
         connection.query('SET NAMES utf8mb4');
       });
       _db = drizzle(pool);
+      // Auto-migrate: 確保 receivingBank 欄位存在
+      try {
+        await pool.promise().query(`ALTER TABLE paymentRecords ADD COLUMN receivingBank VARCHAR(100) NULL AFTER bank`).catch(() => {});
+        await pool.promise().query(`ALTER TABLE accounting_records ADD COLUMN receiving_bank VARCHAR(100) NULL AFTER bank`).catch(() => {});
+        console.log("[Database] receivingBank columns ensured");
+      } catch (migErr) {
+        // Column already exists or other non-critical error
+      }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -2249,6 +2257,7 @@ export async function syncOrphanedPayments(): Promise<{ synced: number; errors: 
     receiptTransferDate: paymentRecords.receiptTransferDate,
     receiptUrl: paymentRecords.receiptUrl,
     receiptKey: paymentRecords.receiptKey,
+    bank: paymentRecords.bank,
   })
     .from(paymentRecords)
     .leftJoin(accountingRecords, eq(accountingRecords.paymentRecordId, paymentRecords.id))
@@ -2273,7 +2282,7 @@ export async function syncOrphanedPayments(): Promise<{ synced: number; errors: 
         paymentRecordId: payment.id,
         transactionDate: payment.receiptTransferDate || payment.paymentDate,
         amount: String(payment.amount),
-        bank: null,
+        bank: payment.bank || null,
         studentName: student.name,
         coachName: student.coach,
         dojoName: student.venue || null,

@@ -443,6 +443,7 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
 
     // OCR
     let exAmt = amount, rDate: Date | null = null, exBank: string | null = null;
+    let exRecvBank: string | null = null; // 收款方銀行（入數到哪間銀行）
     let exStatus: string | null = null, exDT: string | null = null;
     let exRName: string | null = null, exRAcc: string | null = null;
     const b64 = buf.toString("base64");
@@ -451,6 +452,7 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
       const lr = await ocrReceipt(b64, mime);
       if (lr.amount) { exAmt = lr.amount; ocrSucceeded = true; }
       if (lr.bank) exBank = lr.bank;
+      if (lr.receivingBank) exRecvBank = lr.receivingBank;
       if (lr.status) exStatus = lr.status;
       if (lr.recipientName) exRName = lr.recipientName;
       if (lr.recipientAccount) exRAcc = lr.recipientAccount;
@@ -461,13 +463,14 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
     if (!exAmt || exAmt === "0" || exAmt === amount) {
       try {
         console.log(`[Receipt][OCR] 使用 LLM OCR 識別收據...`);
-        const oR = await invokeLLM({ messages: [{ role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(例如:HSBC/滙豐/BOC/中銀/恒生/渣打/FPS轉數快/PayMe)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：bank欄位請填寫「付款方/轉出方」使用的銀行或支付方式，不是收款方的銀行。如果是FPS轉數快或PayMe轉帳，bank請填"FPS"。' }, { role: "user", content: [{ type: "text", text: "請識別這張收據的金額、付款銀行、收款人資訊:" }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }] }] });
+        const oR = await invokeLLM({ messages: [{ role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(即轉帳者使用的銀行，例如:HSBC/滙豐/BOC/中銀/恒生/渣打/ZA Bank)","receivingBank":"收款方銀行名稱(即錢入了哪間銀行帳戶，從收款人帳號的銀行編號判斷，例如:BOC/中銀/HSBC/滙豐/恒生/渣打。如果是FPS/轉數快轉帳且無法判斷收款銀行，填null)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：\n1. bank = 付款方/轉出方使用的銀行。如果截圖來自某銀行App（如HSBC App），bank就是該銀行。如果是FPS/PayMe轉帳，bank填轉出的銀行名。\n2. receivingBank = 收款方的銀行。根據收款帳號前3位判斷：012=中銀BOC, 004=HSBC滙豐, 024=恒生, 003=渣打。或從收據上「收款銀行」欄位識別。這是對帳時最重要的欄位。\n3. 如果是FPS轉帳且只有FPS ID沒有銀行帳號，receivingBank可填null。' }, { role: "user", content: [{ type: "text", text: "請識別這張收據的金額、付款銀行、收款銀行、收款人資訊:" }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }] }] });
         const c = oR.choices[0]?.message?.content;
         if (typeof c === "string") {
           const d = JSON.parse(c.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim());
           console.log(`[Receipt][OCR] LLM 解析結果:`, JSON.stringify(d));
           if (d.amount) { const p = parseFloat(d.amount.replace(/[^0-9.]/g, "")); if (!isNaN(p) && p > 0) { exAmt = p.toString(); ocrSucceeded = true; } }
           if (d.bank) exBank = d.bank;
+          if (d.receivingBank) exRecvBank = d.receivingBank;
           if (d.recipientName) exRName = d.recipientName;
           if (d.recipientAccount) exRAcc = d.recipientAccount;
           if (d.date) { const pd = new Date(d.time ? `${d.date}T${d.time}` : d.date); if (!isNaN(pd.getTime())) rDate = pd; }
@@ -524,15 +527,15 @@ parentRouter.post("/payments/upload", upload.single("receipt"), async (req: Auth
       console.log(`[ReceiptReview] 偵測到疑似重複: ${reviewReason}`);
     }
 
-    const pid = await insertPaymentRecord({ studentId: numId, paymentPeriod, customMonths: cm2, amount: exAmt, classCount: classCount ? parseInt(classCount) : null, receiptUrl: sUrl, receiptKey: sKey, receiptTransferDate: rDate, paymentDate: new Date(), status: needsReview ? 'pending' : st, confirmedBy: "parent_upload", reviewStatus: needsReview ? 'pending_review' : 'normal', reviewReason: needsReview ? reviewReason : (reason || null), reviewMatchType, reviewMatchPaymentId });
-    if (st === "confirmed" && !needsReview) { try { await syncPaymentToAccounting({ paymentRecordId: pid, transactionDate: rDate || new Date(), amount: exAmt, bank: exBank, studentName: student.name, coachName: student.coach, dojoName: student.venue || null, category: "tuition", receiptUrl: sUrl, receiptKey: sKey }); } catch (syncErr) { console.error("[AppAPI] 上傳後自動同步會計失敗:", syncErr); } }
+    const pid = await insertPaymentRecord({ studentId: numId, paymentPeriod, customMonths: cm2, amount: exAmt, classCount: classCount ? parseInt(classCount) : null, receiptUrl: sUrl, receiptKey: sKey, receiptTransferDate: rDate, bank: exBank || null, receivingBank: exRecvBank || null, paymentDate: new Date(), status: needsReview ? 'pending' : st, confirmedBy: "parent_upload", reviewStatus: needsReview ? 'pending_review' : 'normal', reviewReason: needsReview ? reviewReason : (reason || null), reviewMatchType, reviewMatchPaymentId });
+    if (st === "confirmed" && !needsReview) { try { await syncPaymentToAccounting({ paymentRecordId: pid, transactionDate: rDate || new Date(), amount: exAmt, bank: exBank, receivingBank: exRecvBank, studentName: student.name, coachName: student.coach, dojoName: student.venue || null, category: "tuition", receiptUrl: sUrl, receiptKey: sKey }); } catch (syncErr) { console.error("[AppAPI] 上傳後自動同步會計失敗:", syncErr); } }
 
     // 通知管理員審查
     if (needsReview) {
       notifyAdminReviewNeeded({ studentName: student.name, amount: exAmt, matchType: reviewMatchType || 'unknown', reason: reviewReason }).catch(() => {});
     }
 
-    return res.json({ success: true, extractedAmount: exAmt, extractedBank: exBank, status: needsReview ? 'pending' : st, pendingReason: reason || undefined, needsReview, reviewReason: needsReview ? reviewReason : undefined });
+    return res.json({ success: true, extractedAmount: exAmt, extractedBank: exBank, extractedReceivingBank: exRecvBank, status: needsReview ? 'pending' : st, pendingReason: reason || undefined, needsReview, reviewReason: needsReview ? reviewReason : undefined });
   } catch (err: any) { console.error("[AppAPI] upload error:", err); return res.status(500).json({ success: false, error: "上傳失敗" }); }
 });
 
