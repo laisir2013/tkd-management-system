@@ -314,28 +314,19 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     response_format,
   } = params;
 
-  // Use gpt-5-mini for GenSpark proxy, fallback to gemini-2.5-flash for Forge API
+  // ── 多模型 fallback 機制 ──
+  // 主模型不可用時自動降級到備用模型
   const isGenSparkProxy = ENV.forgeApiUrl?.includes('genspark.ai');
-  const model = isGenSparkProxy ? "gpt-5-mini" : "gemini-2.5-flash";
-  
-  const payload: Record<string, unknown> = {
-    model,
-    messages: messages.map(normalizeMessage),
-  };
+  const modelCandidates = isGenSparkProxy
+    ? ["gpt-5-mini"]
+    : ["gemini-2.5-flash", "gemini-2.5-pro", "gpt-5-mini", "claude-sonnet-4-6"];
 
-  if (tools && tools.length > 0) {
-    payload.tools = tools;
-  }
+  const normalizedMessages = messages.map(normalizeMessage);
 
   const normalizedToolChoice = normalizeToolChoice(
     toolChoice || tool_choice,
     tools
   );
-  if (normalizedToolChoice) {
-    payload.tool_choice = normalizedToolChoice;
-  }
-
-  payload.max_tokens = 4096;
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -344,51 +335,84 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     output_schema,
   });
 
-  if (normalizedResponseFormat) {
-    payload.response_format = normalizedResponseFormat;
-  }
-
-  const apiKeys = getApiKeys();
-  const totalAttempts = apiKeys.length * 2; // 每個 key 最多試 2 次
-  const RETRY_DELAY = 2000; // 同一 key 重試等 2 秒
-
   let lastError = '';
 
-  for (let attempt = 0; attempt < totalAttempts; attempt++) {
-    const apiKey = getCurrentApiKey();
-    const keyLabel = `key${(currentKeyIndex % apiKeys.length) + 1}/${apiKeys.length}`;
+  for (const model of modelCandidates) {
+    const payload: Record<string, unknown> = {
+      model,
+      messages: normalizedMessages,
+      max_tokens: 4096,
+    };
 
-    const response = await fetch(resolveApiUrl(), {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    if (tools && tools.length > 0) {
+      payload.tools = tools;
+    }
+    if (normalizedToolChoice) {
+      payload.tool_choice = normalizedToolChoice;
+    }
+    if (normalizedResponseFormat) {
+      payload.response_format = normalizedResponseFormat;
+    }
 
-    if (response.ok) {
-      if (attempt > 0) {
-        console.log(`[LLM] 成功 (${keyLabel}, attempt ${attempt + 1})`);
+    const apiKeys = getApiKeys();
+    const attemptsPerModel = apiKeys.length * 2; // 每個 key 最多試 2 次
+    const RETRY_DELAY = 2000;
+    let modelAllFailed503 = true; // 追蹤是否全部都是 503/429/403
+
+    for (let attempt = 0; attempt < attemptsPerModel; attempt++) {
+      const apiKey = getCurrentApiKey();
+      const keyLabel = `key${(currentKeyIndex % apiKeys.length) + 1}/${apiKeys.length}`;
+
+      try {
+        const response = await fetch(resolveApiUrl(), {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          if (model !== modelCandidates[0]) {
+            console.log(`[LLM] 使用備用模型 ${model} 成功 (${keyLabel}, attempt ${attempt + 1})`);
+          } else if (attempt > 0) {
+            console.log(`[LLM] 成功 (${model}, ${keyLabel}, attempt ${attempt + 1})`);
+          }
+          return (await response.json()) as InvokeResult;
+        }
+
+        const errorText = await response.text();
+        lastError = `${response.status} ${response.statusText} – ${errorText}`;
+
+        // 429 (rate limit) / 503 (overloaded) / 403 (quota) → 切換到下一個 key
+        if (response.status === 429 || response.status === 503 || response.status === 403) {
+          console.warn(`[LLM] ${model} ${keyLabel} → ${response.status}, 切換下一個 key...`);
+          getNextApiKey();
+          await new Promise(r => setTimeout(r, RETRY_DELAY));
+          continue;
+        }
+
+        // 其他錯誤（如 400 Bad Request）可能是模型不支援某些參數
+        // 嘗試下一個模型
+        modelAllFailed503 = false;
+        console.warn(`[LLM] ${model} → ${response.status}, 嘗試下一個模型...`);
+        break;
+
+      } catch (networkErr: any) {
+        lastError = `Network error: ${networkErr.message}`;
+        console.warn(`[LLM] ${model} ${keyLabel} 網路錯誤: ${networkErr.message}`);
+        getNextApiKey();
+        await new Promise(r => setTimeout(r, RETRY_DELAY));
+        continue;
       }
-      return (await response.json()) as InvokeResult;
     }
 
-    const errorText = await response.text();
-    lastError = `${response.status} ${response.statusText} – ${errorText}`;
-
-    // 429 (rate limit) / 503 (overloaded) / 403 (quota) → 切換到下一個 key
-    if (response.status === 429 || response.status === 503 || response.status === 403) {
-      console.warn(`[LLM] ${keyLabel} → ${response.status}, 切換下一個 key...`);
-      getNextApiKey();
-      // 短暫等待再試
-      await new Promise(r => setTimeout(r, RETRY_DELAY));
-      continue;
+    // 該模型所有 key 都試完了，嘗試下一個模型
+    if (modelCandidates.indexOf(model) < modelCandidates.length - 1) {
+      console.warn(`[LLM] 模型 ${model} 所有嘗試失敗，降級到下一個備用模型...`);
     }
-
-    // 其他錯誤直接拋出
-    throw new Error(`LLM invoke failed: ${lastError}`);
   }
 
-  throw new Error(`LLM invoke failed after ${totalAttempts} attempts: ${lastError}`);
+  throw new Error(`LLM invoke failed after trying all models [${modelCandidates.join(', ')}]: ${lastError}`);
 }
