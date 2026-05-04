@@ -2268,15 +2268,21 @@ export async function syncPaymentToAccounting(params: {
   const existing = await getAccountingRecordByPaymentId(params.paymentRecordId);
   if (existing) return;
 
-  // 標準化銀行名稱，同時保留原始 OCR 名稱作為顯示用
-  const normalizedBank = normalizeBankName(params.bank);
-  const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : (params.bank || null);
+  // ★ 核心邏輯：bank（付款銀行）為空時，用 receivingBank（收款銀行）補上
+  // 管理員確認繳費時通常只選「轉入銀行」（receivingBank），不選付款銀行
+  // 此處確保會計帳目一定有銀行資訊，不需再手動分配
+  const effectiveBank = params.bank || params.receivingBank || null;
+  const effectiveReceivingBank = params.receivingBank || params.bank || null;
+
+  // 標準化銀行名稱
+  const normalizedBank = normalizeBankName(effectiveBank);
+  const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : (effectiveBank || null);
 
   // 標準化收款銀行名稱（用於對帳）
-  const normalizedReceivingBank = params.receivingBank ? normalizeBankName(params.receivingBank) : null;
+  const normalizedReceivingBank = effectiveReceivingBank ? normalizeBankName(effectiveReceivingBank) : null;
   const displayReceivingBank = normalizedReceivingBank
     ? paymentMethodToDisplayName(normalizedReceivingBank)
-    : (params.receivingBank || null);
+    : (effectiveReceivingBank || null);
 
   const result = await insertAccountingRecord({
     transactionDate: params.transactionDate,
@@ -2317,15 +2323,19 @@ export async function syncElitePaymentToAccounting(params: {
   const existing = await getAccountingRecordByElitePaymentId(params.elitePaymentRecordId);
   if (existing) return;
 
+  // ★ bank 為空時用 receivingBank 補上（與 syncPaymentToAccounting 同邏輯）
+  const effectiveBank = params.bank || params.receivingBank || null;
+  const effectiveReceivingBank = params.receivingBank || params.bank || null;
+
   // 標準化銀行名稱
-  const normalizedBank = normalizeBankName(params.bank);
-  const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : (params.bank || null);
+  const normalizedBank = normalizeBankName(effectiveBank);
+  const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : (effectiveBank || null);
 
   // 標準化收款銀行名稱（用於對帳）
-  const normalizedReceivingBank = params.receivingBank ? normalizeBankName(params.receivingBank) : null;
+  const normalizedReceivingBank = effectiveReceivingBank ? normalizeBankName(effectiveReceivingBank) : null;
   const displayReceivingBank = normalizedReceivingBank
     ? paymentMethodToDisplayName(normalizedReceivingBank)
-    : (params.receivingBank || null);
+    : (effectiveReceivingBank || null);
 
   const result = await insertAccountingRecord({
     transactionDate: params.transactionDate,

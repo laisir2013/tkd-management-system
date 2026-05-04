@@ -711,7 +711,13 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             </DialogDescription>
           </DialogHeader>
           {/* 多季登記（季繳時，可加選其他季度，例如一次交2季或以上） */}
-          {confirmDialog?.paymentType === 'quarterly' && (
+          {confirmDialog?.paymentType === 'quarterly' && (() => {
+            // 取得當前學生資料以檢查各季度繳費狀態
+            const currentStudent = filteredStatuses.find((s: any) => s.studentId === confirmDialog.studentId);
+            const feePerQuarter = currentStudent ? parseFloat(currentStudent.feePerQuarter || '0') : 0;
+            const totalQuarters = 1 + confirmExtraQuarters.length;
+            const totalAmount = feePerQuarter * totalQuarters;
+            return (
             <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
               <div className="text-sm font-medium text-purple-800 mb-2">
                 如需一次登記多季（例如遲交一次過交2季），可加選其他季度：
@@ -723,11 +729,24 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   // 判斷是否為當前已選的季度
                   const isCurrentQuarter = confirmDialog.months.some(m => qMonths.includes(m));
                   const isExtra = confirmExtraQuarters.includes(q);
+                  // ★ 檢查該季度是否已繳費（任一月份為 paid 即視為已繳）
+                  const isAlreadyPaid = currentStudent && qMonths.some(m =>
+                    currentStudent.months[m]?.status === 'paid'
+                  );
                   if (isCurrentQuarter) {
                     return (
                       <div key={q} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 border border-green-400 text-green-800">
                         <Checkbox checked={true} disabled className="w-3.5 h-3.5" />
                         <span className="text-sm font-medium">{qLabel}（已選）</span>
+                      </div>
+                    );
+                  }
+                  // ★ 已繳季度：灰色禁用，不可再選
+                  if (isAlreadyPaid) {
+                    return (
+                      <div key={q} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed">
+                        <Checkbox checked={false} disabled className="w-3.5 h-3.5 opacity-50" />
+                        <span className="text-sm font-medium">{qLabel}（已繳）</span>
                       </div>
                     );
                   }
@@ -760,22 +779,34 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   );
                 })}
               </div>
+              {/* ★ 顯示多季總金額 */}
+              <div className="mt-2 text-sm font-medium text-purple-800">
+                💰 入帳金額：{totalQuarters} 季 × ${feePerQuarter.toLocaleString()} = <strong>${totalAmount.toLocaleString()}</strong>
+              </div>
               {confirmExtraQuarters.length > 0 && (
-                <div className="mt-2 text-xs text-purple-700">
-                  📌 共選擇 {1 + confirmExtraQuarters.length} 季，每位學生將建立 {1 + confirmExtraQuarters.length} 筆季繳記錄
+                <div className="text-xs text-purple-700">
+                  📌 每位學生將建立 {totalQuarters} 筆季繳記錄
                 </div>
               )}
             </div>
-          )}
-          {/* 多位學生選擇（同一張收據登記多個學生，例如兄弟姐妹） */}
-          {confirmDialog && filteredStatuses.length > 1 && (
+            );
+          })()}
+          {/* 多位學生選擇（同一張收據登記多個學生，僅限同電話號碼的家長/兄弟姐妹） */}
+          {confirmDialog && (() => {
+            // ★ 只顯示與當前學生同電話號碼的其他學生（同一個家長）
+            const currentStudent = filteredStatuses.find((s: any) => s.studentId === confirmDialog.studentId);
+            const currentPhone = currentStudent?.phone?.trim();
+            const siblings = currentPhone
+              ? filteredStatuses.filter((s: any) => s.studentId !== confirmDialog.studentId && s.phone?.trim() === currentPhone)
+              : [];
+            if (siblings.length === 0) return null;
+            return (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="text-sm font-medium text-blue-800 mb-2">
-                如同一張收據需登記多位學生，可勾選其他學生：
+                同一家長的其他學生（同電話 {currentPhone}），可一併登記：
               </div>
               <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                {filteredStatuses
-                  .filter((s: any) => s.studentId !== confirmDialog.studentId)
+                {siblings
                   .map((s: any) => {
                     const isSelected = confirmExtraStudentIds.includes(s.studentId);
                     return (
@@ -813,7 +844,8 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
           {/* 請假月排除（僅季繳時顯示） */}
           {confirmDialog?.paymentType === 'quarterly' && confirmDialog.months.length > 1 && (
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
