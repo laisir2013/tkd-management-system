@@ -173,6 +173,13 @@ import {
   // 銀行名稱標準化
   normalizeBankName,
   paymentMethodToDisplayName,
+  // 銀行月結單 CRUD
+  saveBankStatement,
+  listBankStatements,
+  getBankStatementWithTransactions,
+  updateBankStatementTransactionStatus,
+  updateBankStatementCounts,
+  deleteBankStatement,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -4049,6 +4056,314 @@ export const appRouter = router({
           imported++;
         }
         return { success: true, imported };
+      }),
+
+    // ===== 銀行月結單持久化 CRUD =====
+
+    // 保存 OCR 識別結果到資料庫（上傳後事後再對帳）
+    saveBankStatementData: protectedProcedure
+      .input(z.object({
+        bankName: z.string().nullable(),
+        statementMonth: z.string(), // 格式: 2026-03
+        statementPeriod: z.string().nullable(),
+        openingBalance: z.string().nullable(),
+        closingBalance: z.string().nullable(),
+        transactions: z.array(z.object({
+          date: z.string().nullable(),
+          description: z.string().nullable(),
+          debit: z.string().nullable(),
+          credit: z.string().nullable(),
+          balance: z.string().nullable(),
+          reference: z.string().nullable(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const result = await saveBankStatement({
+          bankName: input.bankName,
+          statementMonth: input.statementMonth,
+          statementPeriod: input.statementPeriod,
+          openingBalance: input.openingBalance,
+          closingBalance: input.closingBalance,
+          transactions: input.transactions,
+          uploadedBy: ctx.user.id,
+        });
+        return result;
+      }),
+
+    // 列出所有已保存的月結單
+    listSavedStatements: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return listBankStatements();
+      }),
+
+    // 取得某份月結單的完整資料（含交易明細）
+    getSavedStatementDetail: protectedProcedure
+      .input(z.object({ statementId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return getBankStatementWithTransactions(input.statementId);
+      }),
+
+    // 更新單筆交易的對帳狀態（手動對帳 / 匹配）
+    updateTransactionStatus: protectedProcedure
+      .input(z.object({
+        txnId: z.number(),
+        statementId: z.number(),
+        reconcileStatus: z.enum(['pending', 'matched', 'manual', 'skipped']),
+        matchedRecordId: z.number().nullable().optional(),
+        matchScore: z.number().nullable().optional(),
+        manualCategory: z.string().nullable().optional(),
+        manualStudentName: z.string().nullable().optional(),
+        manualCoachName: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await updateBankStatementTransactionStatus(input.txnId, {
+          reconcileStatus: input.reconcileStatus,
+          matchedRecordId: input.matchedRecordId ?? null,
+          matchScore: input.matchScore ?? null,
+          manualCategory: input.manualCategory ?? null,
+          manualStudentName: input.manualStudentName ?? null,
+          manualCoachName: input.manualCoachName ?? null,
+        });
+        // 更新月結單的統計
+        await updateBankStatementCounts(input.statementId);
+        return { success: true };
+      }),
+
+    // 對已保存的月結單進行（重新）自動對帳
+    reconcileSaved: protectedProcedure
+      .input(z.object({
+        statementId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+
+        const data = await getBankStatementWithTransactions(input.statementId);
+        if (!data) throw new TRPCError({ code: 'NOT_FOUND', message: '找不到該月結單' });
+
+        const { statement, transactions: txns } = data;
+        const [yearStr, monthStr] = statement.statementMonth.split('-');
+        const year = parseInt(yearStr);
+        const month = parseInt(monthStr);
+
+        // Fetch system records for the month
+        const existingRecords = await getAllAccountingRecords({ year, month });
+        const inputBankNormalized = statement.bankName ? normalizeBankName(statement.bankName) : null;
+
+        const matched: any[] = [];
+        const unmatchedBank: any[] = [];
+        const usedSystemIds = new Set<number>();
+
+        for (const txn of txns) {
+          // 如果已經是 manual 或 skipped，保留現有狀態
+          if (txn.reconcileStatus === 'manual' || txn.reconcileStatus === 'skipped') {
+            if (txn.reconcileStatus === 'manual') {
+              matched.push({ txnId: txn.id, bankTransaction: txn, systemRecord: null, matchScore: 0, status: 'manual' });
+            }
+            continue;
+          }
+
+          const txnAmount = parseFloat(txn.credit as string || txn.debit as string || '0');
+          const txnType = txn.credit ? 'income' : 'expense';
+          if (txnAmount === 0) continue;
+
+          let bestMatch: any = null;
+          let bestScore = 0;
+
+          for (const rec of existingRecords) {
+            if (usedSystemIds.has(rec.id)) continue;
+            const recAmount = parseFloat(rec.amount);
+            if (Math.abs(recAmount - txnAmount) >= 0.01) continue;
+
+            const typeMatch = rec.type === txnType;
+            let dateScore = 0;
+            if (txn.date && rec.transactionDate) {
+              const txnDate = new Date(txn.date);
+              const recDate = new Date(rec.transactionDate);
+              const diffDays = Math.abs((txnDate.getTime() - recDate.getTime()) / (1000 * 60 * 60 * 24));
+              if (diffDays <= 0.5) dateScore = 20;
+              else if (diffDays <= 1.5) dateScore = 15;
+              else if (diffDays <= 3.5) dateScore = 10;
+              else if (diffDays <= 5.5) dateScore = 5;
+            }
+
+            let bankScore = 0;
+            if (inputBankNormalized) {
+              const recReceivingBank = (rec as any).receivingBank;
+              if (recReceivingBank) {
+                const recNorm = normalizeBankName(recReceivingBank);
+                if (recNorm === inputBankNormalized) bankScore = 20;
+                else if (recReceivingBank.toUpperCase().includes((statement.bankName || '').toUpperCase())) bankScore = 15;
+              }
+              if (bankScore === 0 && rec.bank) {
+                if (normalizeBankName(rec.bank) === inputBankNormalized) bankScore = 10;
+              }
+            }
+
+            let descScore = 0;
+            if (txn.description && rec.description) {
+              const txnDesc = txn.description.toUpperCase();
+              const recDesc = rec.description.toUpperCase();
+              if (txnDesc.includes(recDesc) || recDesc.includes(txnDesc)) descScore = 5;
+              if (rec.studentName && txnDesc.includes(rec.studentName.toUpperCase())) descScore = 10;
+            }
+
+            let score = 40;
+            if (typeMatch) score += 20;
+            score += dateScore + bankScore + descScore;
+            if (score > bestScore) { bestScore = score; bestMatch = rec; }
+          }
+
+          if (bestMatch) {
+            usedSystemIds.add(bestMatch.id);
+            matched.push({ txnId: txn.id, bankTransaction: txn, systemRecord: bestMatch, matchScore: bestScore, status: 'matched' });
+            // 更新交易狀態
+            await updateBankStatementTransactionStatus(txn.id, {
+              reconcileStatus: 'matched',
+              matchedRecordId: bestMatch.id,
+              matchScore: bestScore,
+            });
+            // 更新系統記錄
+            try {
+              const updateData: any = {
+                reconciliationStatus: 'matched',
+                reconciliationDate: new Date(),
+                bankReference: txn.reference || null,
+              };
+              if (!(bestMatch as any).receivingBank && statement.bankName) {
+                const nb = normalizeBankName(statement.bankName);
+                updateData.receivingBank = nb ? paymentMethodToDisplayName(nb) : statement.bankName;
+              }
+              if (!bestMatch.bank && statement.bankName) {
+                const nb = normalizeBankName(statement.bankName);
+                updateData.bank = nb ? paymentMethodToDisplayName(nb) : statement.bankName;
+              }
+              await updateAccountingRecord(bestMatch.id, updateData);
+            } catch (e) { /* skip */ }
+          } else {
+            unmatchedBank.push(txn);
+            // 確保交易狀態為 pending
+            if (txn.reconcileStatus !== 'pending') {
+              await updateBankStatementTransactionStatus(txn.id, { reconcileStatus: 'pending' });
+            }
+          }
+        }
+
+        // 系統有但月結單沒有
+        const unmatchedSystem: any[] = [];
+        for (const rec of existingRecords) {
+          if (!usedSystemIds.has(rec.id)) {
+            if (inputBankNormalized) {
+              const rrb = (rec as any).receivingBank;
+              if (rrb) {
+                if (normalizeBankName(rrb) !== inputBankNormalized) continue;
+              } else if (rec.bank) {
+                if (normalizeBankName(rec.bank) !== inputBankNormalized) continue;
+              }
+            }
+            unmatchedSystem.push(rec);
+          }
+        }
+
+        // 更新月結單統計
+        await updateBankStatementCounts(input.statementId);
+
+        return {
+          matched,
+          unmatchedBank,
+          unmatchedSystem,
+          summary: {
+            totalBankTransactions: txns.filter(t => parseFloat(t.credit as string || t.debit as string || '0') > 0).length,
+            totalSystemRecords: existingRecords.length,
+            matchedCount: matched.length,
+            unmatchedBankCount: unmatchedBank.length,
+            unmatchedSystemCount: unmatchedSystem.length,
+          },
+        };
+      }),
+
+    // 匯入已保存月結單中的未匹配交易（管理員手動填寫類別後）
+    importSavedUnmatched: protectedProcedure
+      .input(z.object({
+        statementId: z.number(),
+        items: z.array(z.object({
+          txnId: z.number(),
+          date: z.string(),
+          description: z.string(),
+          amount: z.string(),
+          type: z.enum(['income', 'expense']),
+          category: z.string(),
+          bank: z.string().optional(),
+          receivingBank: z.string().optional(),
+          studentName: z.string().optional(),
+          coachName: z.string().optional(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+
+        let imported = 0;
+        for (const item of input.items) {
+          const result = await insertAccountingRecord({
+            transactionDate: new Date(item.date),
+            bank: item.bank || null,
+            receivingBank: item.receivingBank || item.bank || null,
+            amount: item.amount,
+            type: item.type,
+            category: item.category,
+            description: item.description,
+            receiptUrl: null,
+            receiptKey: null,
+            paymentRecordId: null,
+            elitePaymentRecordId: null,
+            studentName: item.studentName || null,
+            coachName: item.coachName || null,
+            source: 'manual',
+            reconciliationStatus: 'matched',
+            reconciliationDate: new Date(),
+          } as any);
+          try { await onAccountingRecordCreated((result as any).insertId ?? 0); } catch (e) { /* skip */ }
+
+          // 更新交易狀態為 manual
+          await updateBankStatementTransactionStatus(item.txnId, {
+            reconcileStatus: 'manual',
+            manualCategory: item.category,
+            manualStudentName: item.studentName || null,
+            manualCoachName: item.coachName || null,
+          });
+
+          imported++;
+        }
+
+        // 更新月結單統計
+        await updateBankStatementCounts(input.statementId);
+        return { success: true, imported };
+      }),
+
+    // 刪除已保存的月結單
+    deleteSavedStatement: protectedProcedure
+      .input(z.object({ statementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await deleteBankStatement(input.statementId);
+        return { success: true };
       }),
 
     // 匯出核數師/報稅格式數據

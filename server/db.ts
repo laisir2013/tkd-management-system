@@ -1,7 +1,7 @@
 import { eq, and, inArray, gte, lte, sql, or, desc, asc, isNull, between } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig } from "../drizzle/schema";
+import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig, bankStatements, InsertBankStatement, BankStatement, bankStatementTransactions, InsertBankStatementTransaction, BankStatementTransaction } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 // 安全解析 customMonths JSON：防止 double-parse 和無效格式
@@ -3679,4 +3679,136 @@ export async function reviewReceipt(params: {
     console.error("[ReceiptReview] reviewReceipt error:", err);
     return false;
   }
+}
+
+// ===== 銀行月結單持久化 CRUD =====
+
+export async function saveBankStatement(data: {
+  bankName: string | null;
+  statementMonth: string;
+  statementPeriod: string | null;
+  openingBalance: string | null;
+  closingBalance: string | null;
+  transactions: Array<{
+    date: string | null;
+    description: string | null;
+    debit: string | null;
+    credit: string | null;
+    balance: string | null;
+    reference: string | null;
+  }>;
+  uploadedBy?: number;
+}): Promise<{ statementId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(bankStatements).values({
+    bankName: data.bankName,
+    statementMonth: data.statementMonth,
+    statementPeriod: data.statementPeriod,
+    openingBalance: data.openingBalance,
+    closingBalance: data.closingBalance,
+    totalTransactions: data.transactions.length,
+    matchedCount: 0,
+    unmatchedCount: data.transactions.length,
+    status: 'pending',
+    uploadedBy: data.uploadedBy || null,
+  } as any);
+
+  const statementId = (result as any)[0].insertId;
+
+  // Insert all transactions
+  if (data.transactions.length > 0) {
+    const txnValues = data.transactions.map(txn => ({
+      statementId,
+      date: txn.date,
+      description: txn.description,
+      debit: txn.debit,
+      credit: txn.credit,
+      balance: txn.balance,
+      reference: txn.reference,
+      reconcileStatus: 'pending' as const,
+    }));
+    await db.insert(bankStatementTransactions).values(txnValues as any);
+  }
+
+  return { statementId };
+}
+
+export async function listBankStatements(): Promise<BankStatement[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(bankStatements).orderBy(desc(bankStatements.createdAt));
+}
+
+export async function getBankStatementWithTransactions(statementId: number): Promise<{
+  statement: BankStatement;
+  transactions: BankStatementTransaction[];
+} | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const stmts = await db.select().from(bankStatements).where(eq(bankStatements.id, statementId)).limit(1);
+  if (stmts.length === 0) return null;
+
+  const txns = await db.select().from(bankStatementTransactions)
+    .where(eq(bankStatementTransactions.statementId, statementId))
+    .orderBy(asc(bankStatementTransactions.id));
+
+  return { statement: stmts[0], transactions: txns };
+}
+
+export async function updateBankStatementTransactionStatus(
+  txnId: number,
+  data: {
+    reconcileStatus: 'pending' | 'matched' | 'manual' | 'skipped';
+    matchedRecordId?: number | null;
+    matchScore?: number | null;
+    manualCategory?: string | null;
+    manualStudentName?: string | null;
+    manualCoachName?: string | null;
+  }
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(bankStatementTransactions).set({
+    reconcileStatus: data.reconcileStatus,
+    matchedRecordId: data.matchedRecordId ?? null,
+    matchScore: data.matchScore ?? null,
+    manualCategory: data.manualCategory ?? null,
+    manualStudentName: data.manualStudentName ?? null,
+    manualCoachName: data.manualCoachName ?? null,
+    reconciledAt: data.reconcileStatus !== 'pending' ? new Date() : null,
+  } as any).where(eq(bankStatementTransactions.id, txnId));
+}
+
+export async function updateBankStatementCounts(statementId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  const txns = await db.select().from(bankStatementTransactions)
+    .where(eq(bankStatementTransactions.statementId, statementId));
+
+  const total = txns.length;
+  const matched = txns.filter(t => t.reconcileStatus === 'matched' || t.reconcileStatus === 'manual').length;
+  const pending = txns.filter(t => t.reconcileStatus === 'pending').length;
+
+  let status: 'pending' | 'partial' | 'completed' = 'pending';
+  if (matched === total && total > 0) status = 'completed';
+  else if (matched > 0) status = 'partial';
+
+  await db.update(bankStatements).set({
+    matchedCount: matched,
+    unmatchedCount: pending,
+    status,
+  } as any).where(eq(bankStatements.id, statementId));
+}
+
+export async function deleteBankStatement(statementId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(bankStatementTransactions).where(eq(bankStatementTransactions.statementId, statementId));
+  await db.delete(bankStatements).where(eq(bankStatements.id, statementId));
 }

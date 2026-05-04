@@ -624,3 +624,53 @@ export const mappingRules = mysqlTable("mapping_rules", {
 
 export type MappingRule = typeof mappingRules.$inferSelect;
 export type InsertMappingRule = typeof mappingRules.$inferInsert;
+
+// ==================== 銀行月結單持久化 ====================
+
+/**
+ * 銀行月結單主表 - 保存每次上傳的 OCR 結果
+ */
+export const bankStatements = mysqlTable("bank_statements", {
+  id: int("id").autoincrement().primaryKey(),
+  bankName: varchar("bank_name", { length: 100 }), // 銀行名稱
+  statementMonth: varchar("statement_month", { length: 7 }).notNull(), // 格式: 2026-03
+  statementPeriod: varchar("statement_period", { length: 100 }), // OCR 識別的結算期
+  openingBalance: decimal("opening_balance", { precision: 12, scale: 2 }), // 期初結餘
+  closingBalance: decimal("closing_balance", { precision: 12, scale: 2 }), // 期末結餘
+  totalTransactions: int("total_transactions").default(0).notNull(), // 總交易筆數
+  matchedCount: int("matched_count").default(0).notNull(), // 已匹配筆數
+  unmatchedCount: int("unmatched_count").default(0).notNull(), // 未匹配筆數
+  status: mysqlEnum("status", ["pending", "partial", "completed"]).default("pending").notNull(), // 對帳狀態
+  uploadedBy: int("uploaded_by"), // 上傳者 user id
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BankStatement = typeof bankStatements.$inferSelect;
+export type InsertBankStatement = typeof bankStatements.$inferInsert;
+
+/**
+ * 銀行月結單交易明細 - 每筆 OCR 識別的交易
+ */
+export const bankStatementTransactions = mysqlTable("bank_statement_transactions", {
+  id: int("id").autoincrement().primaryKey(),
+  statementId: int("statement_id").notNull(), // 關聯到 bank_statements
+  date: varchar("txn_date", { length: 20 }), // 交易日期
+  description: text("description"), // 交易說明
+  debit: decimal("debit", { precision: 12, scale: 2 }), // 支出金額
+  credit: decimal("credit", { precision: 12, scale: 2 }), // 收入金額
+  balance: decimal("balance", { precision: 12, scale: 2 }), // 結餘
+  reference: varchar("reference", { length: 200 }), // 參考編號
+  // 對帳狀態
+  reconcileStatus: mysqlEnum("reconcile_status", ["pending", "matched", "manual", "skipped"]).default("pending").notNull(),
+  matchedRecordId: int("matched_record_id"), // 匹配到的 accounting_records.id
+  matchScore: int("match_score"), // 匹配分數
+  manualCategory: varchar("manual_category", { length: 50 }), // 手動填寫的類別
+  manualStudentName: varchar("manual_student_name", { length: 100 }), // 手動填寫的學生名
+  manualCoachName: varchar("manual_coach_name", { length: 100 }), // 手動填寫的教練名
+  reconciledAt: timestamp("reconciled_at"), // 對帳完成時間
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type BankStatementTransaction = typeof bankStatementTransactions.$inferSelect;
+export type InsertBankStatementTransaction = typeof bankStatementTransactions.$inferInsert;
