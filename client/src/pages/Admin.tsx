@@ -565,6 +565,7 @@ export default function Admin() {
             <TabsTrigger value="coach-stats" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-green-300 bg-green-50 text-green-700 rounded-md data-[state=active]:border-green-500 data-[state=active]:bg-green-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📊 教練統計</TabsTrigger>
             <TabsTrigger value="monthly-finance" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-teal-300 bg-teal-50 text-teal-700 rounded-md data-[state=active]:border-teal-500 data-[state=active]:bg-teal-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">💰 財務報表</TabsTrigger>
             <TabsTrigger value="accounting" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-violet-300 bg-violet-50 text-violet-700 rounded-md data-[state=active]:border-violet-500 data-[state=active]:bg-violet-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">📋 會計總帳</TabsTrigger>
+            <TabsTrigger value="bank-reconciliation" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border-2 border-indigo-400 bg-indigo-50 text-indigo-700 rounded-md data-[state=active]:border-indigo-500 data-[state=active]:bg-indigo-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-bold">🏦 銀行對帳</TabsTrigger>
             <TabsTrigger value="events" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-orange-300 bg-orange-50 text-orange-700 rounded-md data-[state=active]:border-orange-500 data-[state=active]:bg-orange-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">🏆 活動管理</TabsTrigger>
             <TabsTrigger value="exam" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-red-300 bg-red-50 text-red-700 rounded-md data-[state=active]:border-red-500 data-[state=active]:bg-red-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">🥋 考試評分</TabsTrigger>
             <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-4 py-2.5 sm:py-2 border border-border rounded-md data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:shadow-sm active:scale-95 transition-transform">用戶管理</TabsTrigger>
@@ -1111,11 +1112,11 @@ export default function Admin() {
           {/* ========= 會計總帳 (含子分頁) ========= */}
           <TabsContent value="accounting">
             <Tabs defaultValue="records" className="space-y-4">
-              <TabsList className="flex flex-wrap h-auto gap-1 p-1.5 bg-violet-50/80 rounded-lg border border-violet-200">
-                <TabsTrigger value="records" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">流水帳</TabsTrigger>
-                <TabsTrigger value="journal" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">日記帳</TabsTrigger>
-                <TabsTrigger value="reports" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">財務報表</TabsTrigger>
-                <TabsTrigger value="reconciliation" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">銀行對帳</TabsTrigger>
+              <TabsList className="flex flex-wrap h-auto gap-1.5 p-1.5 bg-violet-50/80 rounded-lg border border-violet-200">
+                <TabsTrigger value="records" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">📒 流水帳</TabsTrigger>
+                <TabsTrigger value="journal" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">📓 日記帳</TabsTrigger>
+                <TabsTrigger value="reports" className="text-xs sm:text-sm px-3 py-1.5 rounded data-[state=active]:bg-white data-[state=active]:shadow-sm">📊 財務報表</TabsTrigger>
+                <TabsTrigger value="reconciliation" className="text-xs sm:text-sm px-3 py-2 rounded font-semibold border-2 border-indigo-400 bg-indigo-50 text-indigo-700 data-[state=active]:bg-indigo-100 data-[state=active]:border-indigo-500 data-[state=active]:shadow-sm">🏦 銀行對帳</TabsTrigger>
               </TabsList>
 
               <TabsContent value="records">
@@ -1134,6 +1135,11 @@ export default function Admin() {
                 <BankStatementReconciliation />
               </TabsContent>
             </Tabs>
+          </TabsContent>
+
+          {/* ========= 銀行對帳 (獨立主標籤，方便快速進入) ========= */}
+          <TabsContent value="bank-reconciliation">
+            <BankStatementReconciliation />
           </TabsContent>
 
           {/* ========= 活動管理 ========= */}
