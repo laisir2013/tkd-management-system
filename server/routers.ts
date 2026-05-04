@@ -1976,10 +1976,11 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // 管理員確認月份繳費（支援1月或1季繳交）
+    // 管理員確認月份繳費（支援1月或1季繳交，支援多位學生）
     confirmMonthlyPayment: protectedProcedure
       .input(z.object({
-        studentId: z.number(),
+        studentId: z.number().optional(), // 向後兼容：單一學生
+        studentIds: z.array(z.number()).optional(), // 新增：多位學生
         year: z.number(),
         months: z.array(z.number().min(1).max(12)).min(1), // 可以1個月或3個月（1季）
         paymentType: z.enum(['monthly', 'quarterly']), // monthly=單月, quarterly=季繳
@@ -1994,102 +1995,75 @@ export const appRouter = router({
         if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
           throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員或教練可以確認繳費' });
         }
-        const student = await getStudentById(input.studentId);
-        if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: '學生不存在' });
 
-        // 處理收據上傳
+        // 向後兼容：支援單一 studentId 或多個 studentIds
+        const allStudentIds = input.studentIds && input.studentIds.length > 0
+          ? input.studentIds
+          : (input.studentId ? [input.studentId] : []);
+        if (allStudentIds.length === 0) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '至少需要一位學生' });
+        }
+
+        // 取得所有學生資料
+        const studentsData = [];
+        for (const sid of allStudentIds) {
+          const s = await getStudentById(sid);
+          if (!s) throw new TRPCError({ code: 'NOT_FOUND', message: `學生 ID ${sid} 不存在` });
+          studentsData.push(s);
+        }
+
+        // 處理收據上傳（只上傳一次，多位學生共用）
         let receiptUrl: string | null = null;
         let receiptKey: string | null = null;
         if (input.receiptBase64 && input.receiptMimeType) {
           const receiptBuffer = Buffer.from(input.receiptBase64, 'base64');
           const fileExt = input.receiptMimeType.split('/')[1] || 'jpg';
-          const rKey = `receipts/regular-${input.studentId}-${Date.now()}.${fileExt}`;
+          const rKey = `receipts/regular-${allStudentIds.join('_')}-${Date.now()}.${fileExt}`;
           const result = await storagePut(rKey, receiptBuffer, input.receiptMimeType);
           receiptUrl = result.url;
           receiptKey = rKey;
         }
 
-        const feePerQuarter = parseFloat(student.feePerQuarter);
         const confirmedBy = 'admin_approved';
 
-        if (input.paymentType === 'quarterly') {
-          // 季繳：找出對應的季度
-          const sortedMonths = [...input.months].sort((a, b) => a - b);
-          const firstMonth = sortedMonths[0];
-          let quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
-          if (firstMonth <= 3) quarter = 'Q1';
-          else if (firstMonth <= 6) quarter = 'Q2';
-          else if (firstMonth <= 9) quarter = 'Q3';
-          else quarter = 'Q4';
-          
-          // 管理員/教練確認季繳：以當前日期作為入帳日期
-          const qtrTxDate = new Date();
-          const qtrPmtId = await insertPaymentRecord({
-            studentId: input.studentId,
-            year: input.year,
-            paymentPeriod: quarter,
-            customMonths: null,
-            paymentMonth: null,
-            amount: String(feePerQuarter),
-            classCount: null,
-            receiptUrl,
-            receiptKey,
-            receiptTransferDate: qtrTxDate,
-            bank: input.bank || null,
-            receivingBank: input.receivingBank || null,
-            paymentDate: qtrTxDate,
-            status: 'confirmed',
-            confirmedBy,
-          });
+        // 為每位學生建立繳費記錄
+        for (const student of studentsData) {
+          const feePerQuarter = parseFloat(student.feePerQuarter);
 
-          // 自動同步季繳到會計記錄 → 日記帳
-          try {
-            await syncPaymentToAccounting({
-              paymentRecordId: qtrPmtId,
-              transactionDate: qtrTxDate,
-              amount: String(feePerQuarter),
-              bank: input.bank || null,
-              receivingBank: input.receivingBank || null,
-              studentName: student.name,
-              coachName: student.coach,
-              dojoName: student.venue || null,
-              category: 'tuition',
-              receiptUrl,
-              receiptKey,
-            });
-          } catch (e) {
-            console.error("Auto sync to accounting after quarterly confirmMonthlyPayment failed:", e);
-          }
-        } else {
-          // 單月繳費：為每個月建立一筆記錄
-          const monthlyFee = Math.round((feePerQuarter / 3) * 100) / 100;
-          for (const month of input.months) {
-            // 管理員/教練確認月繳：以當前日期作為入帳日期
-            const monthTxDate = new Date();
-            const monthPmtId = await insertPaymentRecord({
-              studentId: input.studentId,
+          if (input.paymentType === 'quarterly') {
+            // 季繳：找出對應的季度
+            const sortedMonths = [...input.months].sort((a, b) => a - b);
+            const firstMonth = sortedMonths[0];
+            let quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+            if (firstMonth <= 3) quarter = 'Q1';
+            else if (firstMonth <= 6) quarter = 'Q2';
+            else if (firstMonth <= 9) quarter = 'Q3';
+            else quarter = 'Q4';
+            
+            const qtrTxDate = new Date();
+            const qtrPmtId = await insertPaymentRecord({
+              studentId: student.id,
               year: input.year,
-              paymentPeriod: 'MONTHLY',
+              paymentPeriod: quarter,
               customMonths: null,
-              paymentMonth: month,
-              amount: String(monthlyFee),
+              paymentMonth: null,
+              amount: String(feePerQuarter),
               classCount: null,
               receiptUrl,
               receiptKey,
-              receiptTransferDate: monthTxDate,
+              receiptTransferDate: qtrTxDate,
               bank: input.bank || null,
               receivingBank: input.receivingBank || null,
-              paymentDate: monthTxDate,
+              paymentDate: qtrTxDate,
               status: 'confirmed',
               confirmedBy,
             });
 
-            // 自動同步每筆月繳到會計記錄 → 日記帳
             try {
               await syncPaymentToAccounting({
-                paymentRecordId: monthPmtId,
-                transactionDate: monthTxDate,
-                amount: String(monthlyFee),
+                paymentRecordId: qtrPmtId,
+                transactionDate: qtrTxDate,
+                amount: String(feePerQuarter),
                 bank: input.bank || null,
                 receivingBank: input.receivingBank || null,
                 studentName: student.name,
@@ -2100,10 +2074,53 @@ export const appRouter = router({
                 receiptKey,
               });
             } catch (e) {
-              console.error("Auto sync to accounting after monthly confirmMonthlyPayment failed:", e);
+              console.error(`Auto sync to accounting after quarterly confirmMonthlyPayment failed (student=${student.name}):`, e);
+            }
+          } else {
+            // 單月繳費：為每個月建立一筆記錄
+            const monthlyFee = Math.round((feePerQuarter / 3) * 100) / 100;
+            for (const month of input.months) {
+              const monthTxDate = new Date();
+              const monthPmtId = await insertPaymentRecord({
+                studentId: student.id,
+                year: input.year,
+                paymentPeriod: 'MONTHLY',
+                customMonths: null,
+                paymentMonth: month,
+                amount: String(monthlyFee),
+                classCount: null,
+                receiptUrl,
+                receiptKey,
+                receiptTransferDate: monthTxDate,
+                bank: input.bank || null,
+                receivingBank: input.receivingBank || null,
+                paymentDate: monthTxDate,
+                status: 'confirmed',
+                confirmedBy,
+              });
+
+              try {
+                await syncPaymentToAccounting({
+                  paymentRecordId: monthPmtId,
+                  transactionDate: monthTxDate,
+                  amount: String(monthlyFee),
+                  bank: input.bank || null,
+                  receivingBank: input.receivingBank || null,
+                  studentName: student.name,
+                  coachName: student.coach,
+                  dojoName: student.venue || null,
+                  category: 'tuition',
+                  receiptUrl,
+                  receiptKey,
+                });
+              } catch (e) {
+                console.error(`Auto sync to accounting after monthly confirmMonthlyPayment failed (student=${student.name}):`, e);
+              }
             }
           }
         }
+
+        console.log(`[confirmMonthlyPayment] 完成：學生=${studentsData.map(s => s.name).join(', ')}, 月份=${input.months.join(',')}, 類型=${input.paymentType}`);
         return { success: true };
       }),
 
@@ -2714,6 +2731,34 @@ export const appRouter = router({
             count++;
           } catch (e) {
             console.warn(`[BatchMarkAbsent] Failed for student ${studentId}:`, e);
+          }
+        }
+        return { success: true, count };
+      }),
+
+    // 批量標記請假：將指定日期中所有未點名的學生一次過標記為請假
+    batchMarkExcused: protectedProcedure
+      .input(z.object({
+        scheduleId: z.number(),
+        attendanceDate: z.date(),
+        studentIds: z.array(z.number()).min(1), // 要標記為請假的學生 ID 列表
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        let count = 0;
+        for (const studentId of input.studentIds) {
+          try {
+            await upsertAttendanceRecord(
+              studentId,
+              input.scheduleId,
+              input.attendanceDate,
+              'excused'
+            );
+            count++;
+          } catch (e) {
+            console.warn(`[BatchMarkExcused] Failed for student ${studentId}:`, e);
           }
         }
         return { success: true, count };

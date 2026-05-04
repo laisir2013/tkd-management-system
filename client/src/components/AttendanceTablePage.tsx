@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Check, X, ChevronLeft, ChevronRight, MinusCircle } from "lucide-react";
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import { trpc } from "@/lib/trpc";
@@ -50,16 +50,18 @@ export function AttendanceTablePage({
 }: AttendanceTablePageProps) {
   // Server data as a stable map
   const serverAttendance = useMemo(() => {
-    const map = new Map<string, "present" | "absent">();
+    const map = new Map<string, "present" | "absent" | "excused">();
     attendanceRecords.forEach((record) => {
       const key = `${record.studentId}-${format(new Date(record.attendanceDate), "yyyy-MM-dd")}`;
-      map.set(key, record.status === "present" ? "present" : "absent");
+      if (record.status === "present") map.set(key, "present");
+      else if (record.status === "excused") map.set(key, "excused");
+      else map.set(key, "absent");
     });
     return map;
   }, [attendanceRecords]);
 
   // Optimistic overlay: only stores user clicks that haven't been confirmed by server yet
-  const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, "present" | "absent" | null>>(new Map());
+  const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, "present" | "absent" | "excused" | null>>(new Map());
 
   // Track in-flight mutations to avoid premature clearing
   const inflightCount = useRef(0);
@@ -72,7 +74,7 @@ export function AttendanceTablePage({
 
   // Merged attendance: optimistic overrides server
   const localAttendance = useMemo(() => {
-    const merged = new Map<string, "present" | "absent" | null>(serverAttendance);
+    const merged = new Map<string, "present" | "absent" | "excused" | null>(serverAttendance);
     optimisticUpdates.forEach((status, key) => {
       if (status === null) {
         merged.delete(key);
@@ -173,6 +175,23 @@ export function AttendanceTablePage({
     },
   });
 
+  // 批量標記請假
+  const batchMarkExcusedMutation = trpc.attendance.batchMarkExcused.useMutation({
+    onMutate: () => {
+      inflightCount.current++;
+    },
+    onSuccess: (data) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      toast.success(`已將 ${data.count} 位未點名學生標記為請假`);
+      scheduleRefetch();
+    },
+    onError: () => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      toast.error("批量標記請假失敗");
+      scheduleRefetch();
+    },
+  });
+
   // 分離 active 和 cancelled 的訓練日期
   const activeDates = useMemo(() => trainingDates.filter(td => td.status === "active"), [trainingDates]);
   const cancelledDateIds = useMemo(() => new Set(trainingDates.filter(td => td.status === "cancelled").map(td => td.scheduleId)), [trainingDates]);
@@ -251,7 +270,7 @@ export function AttendanceTablePage({
   };
 
   // 獲取出席狀態
-  const getAttendanceStatus = (studentId: number, date: Date): "present" | "absent" | null => {
+  const getAttendanceStatus = (studentId: number, date: Date): "present" | "absent" | "excused" | null => {
     const key = `${studentId}-${format(date, "yyyy-MM-dd")}`;
     return localAttendance.get(key) ?? null;
   };
@@ -279,6 +298,30 @@ export function AttendanceTablePage({
 
     // 呼叫 API
     batchMarkAbsentMutation.mutate({
+      scheduleId: td.scheduleId,
+      attendanceDate: td.date,
+      studentIds: unmarked.map(s => s.id),
+    });
+  };
+
+  // 批量標記未點名學生為請假
+  const handleBatchMarkExcused = (td: TrainingDate) => {
+    const unmarked = getUnmarkedStudents(td);
+    if (unmarked.length === 0) return;
+
+    // Optimistic: 立即在 UI 顯示為請假
+    setOptimisticUpdates(prev => {
+      const next = new Map(prev);
+      unmarked.forEach(s => {
+        const key = `${s.id}-${format(td.date, "yyyy-MM-dd")}`;
+        next.set(key, "excused");
+      });
+      return next;
+    });
+    vibrate([20, 40, 20]);
+
+    // 呼叫 API
+    batchMarkExcusedMutation.mutate({
       scheduleId: td.scheduleId,
       attendanceDate: td.date,
       studentIds: unmarked.map(s => s.id),
@@ -423,6 +466,8 @@ export function AttendanceTablePage({
                                 ? "bg-emerald-100 text-emerald-700"
                                 : status === "absent"
                                 ? "bg-red-400 text-white"
+                                : status === "excused"
+                                ? "bg-blue-100 text-blue-700"
                                 : "bg-muted text-muted-foreground"
                             }`}
                           >
@@ -430,6 +475,8 @@ export function AttendanceTablePage({
                               <Check className="h-4 w-4" />
                             ) : status === "absent" ? (
                               <X className="h-4 w-4" />
+                            ) : status === "excused" ? (
+                              <MinusCircle className="h-4 w-4" />
                             ) : (
                               "-"
                             )}
@@ -452,7 +499,7 @@ export function AttendanceTablePage({
                   </td>
                 </tr>
               ))}
-              {/* 底部操作列：批量標記缺席按鈕 */}
+              {/* 底部操作列：批量標記缺席/請假按鈕 */}
               <tr className="bg-gray-50 border-t-2 border-gray-300">
                 <td className="sticky left-0 z-10 bg-gray-50 border-b border-r border-gray-200 px-1 sm:px-2 py-1.5 text-center" colSpan={1}>
                 </td>
@@ -465,20 +512,34 @@ export function AttendanceTablePage({
                   return (
                     <td
                       key={`batch-${td.scheduleId}`}
-                      className={`border-b border-r border-gray-200 p-1 text-center ${isCancelled ? "bg-gray-100" : ""}`}
+                      className={`border-b border-r border-gray-200 p-0.5 text-center ${isCancelled ? "bg-gray-100" : ""}`}
                     >
                       {!isCancelled && unmarkedCount > 0 ? (
-                        <button
-                          onClick={() => handleBatchMarkAbsent(td)}
-                          disabled={batchMarkAbsentMutation.isPending}
-                          className="inline-flex flex-col items-center justify-center w-full px-0.5 py-0.5 rounded bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 transition-colors group"
-                          title={`將 ${unmarkedCount} 位未點名學生標記為缺席`}
-                        >
-                          <X className="h-3 w-3 text-red-400 group-hover:text-red-600" />
-                          <span className="text-[9px] sm:text-[10px] text-red-500 group-hover:text-red-700 font-bold leading-tight">
-                            {unmarkedCount}
-                          </span>
-                        </button>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <button
+                            onClick={() => handleBatchMarkAbsent(td)}
+                            disabled={batchMarkAbsentMutation.isPending}
+                            className="inline-flex flex-col items-center justify-center w-full px-0.5 py-0.5 rounded bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 transition-colors group"
+                            title={`將 ${unmarkedCount} 位未點名學生標記為缺席`}
+                          >
+                            <X className="h-3 w-3 text-red-400 group-hover:text-red-600" />
+                            <span className="text-[8px] sm:text-[9px] text-red-500 group-hover:text-red-700 font-bold leading-tight">
+                              缺席
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => handleBatchMarkExcused(td)}
+                            disabled={batchMarkExcusedMutation.isPending}
+                            className="inline-flex flex-col items-center justify-center w-full px-0.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-300 transition-colors group"
+                            title={`將 ${unmarkedCount} 位未點名學生標記為請假`}
+                          >
+                            <MinusCircle className="h-3 w-3 text-blue-400 group-hover:text-blue-600" />
+                            <span className="text-[8px] sm:text-[9px] text-blue-500 group-hover:text-blue-700 font-bold leading-tight">
+                              請假
+                            </span>
+                          </button>
+                          <span className="text-[8px] text-gray-400 leading-tight">{unmarkedCount}人</span>
+                        </div>
                       ) : !isCancelled ? (
                         <span className="text-[9px] sm:text-[10px] text-emerald-500 font-medium">✓</span>
                       ) : null}
@@ -513,18 +574,18 @@ export function AttendanceTablePage({
             <span className="text-red-700 dark:text-red-300 font-medium">缺席</span>
           </span>
           <span className="flex items-center gap-1.5">
+            <span className="w-5 h-5 rounded bg-blue-100 flex items-center justify-center">
+              <MinusCircle className="h-3 w-3 text-blue-700" />
+            </span>
+            <span className="text-blue-700 dark:text-blue-300 font-medium">請假</span>
+          </span>
+          <span className="flex items-center gap-1.5">
             <span className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
               <span className="text-gray-400 text-xs">-</span>
             </span>
             <span className="text-gray-600 dark:text-gray-400 font-medium">未點名</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded bg-red-50 border border-red-200 flex items-center justify-center">
-              <X className="h-3 w-3 text-red-400" />
-            </span>
-            <span className="text-red-600 dark:text-red-400 font-medium">未點→缺席</span>
-          </span>
-          <span className="ml-1 text-muted-foreground">點擊格子切換狀態，底部按鈕可一次過將未點名標記為缺席</span>
+          <span className="ml-1 text-muted-foreground">點擊格子切換狀態，底部按鈕可一次過將未點名標記為缺席或請假</span>
         </div>
       </div>
     </div>

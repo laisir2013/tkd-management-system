@@ -756,8 +756,6 @@ export default function AccountingRecords() {
                             <SelectContent>
                               <SelectItem value="中銀香港 (BOC)">中銀 (BOC)</SelectItem>
                               <SelectItem value="滙豐銀行 (HSBC)">滙豐 (HSBC)</SelectItem>
-                              <SelectItem value="FPS轉數快">FPS轉數快</SelectItem>
-                              <SelectItem value="現金">現金</SelectItem>
                             </SelectContent>
                           </Select>
                         )}
@@ -891,8 +889,6 @@ export default function AccountingRecords() {
                   <SelectItem value="_none">不指定</SelectItem>
                   <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
                   <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                  <SelectItem value="FPS轉數快">FPS轉數快</SelectItem>
-                  <SelectItem value="現金">現金</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -962,8 +958,6 @@ export default function AccountingRecords() {
                   <SelectItem value="_none">不指定</SelectItem>
                   <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
                   <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                  <SelectItem value="FPS轉數快">FPS轉數快</SelectItem>
-                  <SelectItem value="現金">現金</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1092,8 +1086,6 @@ export default function AccountingRecords() {
                   <SelectItem value="_none">不指定</SelectItem>
                   <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
                   <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                  <SelectItem value="FPS轉數快">FPS轉數快</SelectItem>
-                  <SelectItem value="現金">現金</SelectItem>
                 </SelectContent>
               </Select>
             </div>

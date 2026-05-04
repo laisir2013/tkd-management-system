@@ -46,7 +46,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const [receiptUrl, setReceiptUrl] = useState<string>("");
   const [receiptInfo, setReceiptInfo] = useState<{ studentName: string; month: string } | null>(null);
 
-  // Confirm payment dialog state
+  // Confirm payment dialog state（支援多位學生）
   const [confirmDialog, setConfirmDialog] = useState<{
     studentId: number;
     studentName: string;
@@ -54,6 +54,8 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     paymentType: 'monthly' | 'quarterly';
     label: string;
   } | null>(null);
+  // 額外選中的學生 ID（同一張收據登記多位學生）
+  const [confirmExtraStudentIds, setConfirmExtraStudentIds] = useState<number[]>([]);
   // 確認繳費時的收據上傳
   const [confirmReceiptFile, setConfirmReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
   // 請假月份排除（僅教練/管理員確認季繳時使用）
@@ -372,7 +374,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                     setEditReceivingBank(monthData.receivingBank || '');
                   }}
                   className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors border border-blue-300"
-                  title="修改付款/收款銀行"
+                  title="修改轉入銀行"
                 >
                   <Building2 className="w-2.5 h-2.5" />
                   銀行
@@ -674,23 +676,77 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmBank(""); setConfirmReceivingBank(""); } }}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmReceivingBank(""); setConfirmExtraStudentIds([]); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
               {confirmDialog?.paymentType === 'quarterly' ? '季度繳費確認' : '單月繳費確認'}
             </DialogTitle>
             <DialogDescription>
-              確認 <strong>{confirmDialog?.studentName}</strong> 已繳 {selectedYear}年{confirmDialog?.label} 學費？
+              確認 <strong>{confirmDialog?.studentName}</strong>{confirmExtraStudentIds.length > 0 && (() => {
+                const extraNames = confirmExtraStudentIds.map(id => {
+                  const s = filteredStatuses.find((st: any) => st.studentId === id);
+                  return s?.studentName || `ID${id}`;
+                });
+                return <><strong>、{extraNames.join('、')}</strong></>;
+              })()} 已繳 {selectedYear}年{confirmDialog?.label} 學費？
               <br />
               <span className="text-xs text-gray-500 mt-1 block">
                 {confirmDialog?.paymentType === 'quarterly' 
                   ? `季繳：一次確認 ${confirmDialog?.label} 共3個月`
                   : `月繳：僅確認 ${confirmDialog?.label}`
                 }
+                {confirmExtraStudentIds.length > 0 && ` · 共 ${1 + confirmExtraStudentIds.length} 位學生`}
               </span>
             </DialogDescription>
           </DialogHeader>
+          {/* 多位學生選擇（同一張收據登記多個學生，例如兄弟姐妹） */}
+          {confirmDialog && filteredStatuses.length > 1 && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="text-sm font-medium text-blue-800 mb-2">
+                如同一張收據需登記多位學生，可勾選其他學生：
+              </div>
+              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                {filteredStatuses
+                  .filter((s: any) => s.studentId !== confirmDialog.studentId)
+                  .map((s: any) => {
+                    const isSelected = confirmExtraStudentIds.includes(s.studentId);
+                    return (
+                      <div
+                        key={s.studentId}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-blue-100 border-blue-400 text-blue-800'
+                            : 'bg-white border-gray-300 text-gray-600 hover:border-blue-300'
+                        }`}
+                        onClick={() => {
+                          setConfirmExtraStudentIds(prev =>
+                            prev.includes(s.studentId) ? prev.filter((id: number) => id !== s.studentId) : [...prev, s.studentId]
+                          );
+                        }}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => {
+                            setConfirmExtraStudentIds(prev =>
+                              prev.includes(s.studentId) ? prev.filter((id: number) => id !== s.studentId) : [...prev, s.studentId]
+                            );
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-3.5 h-3.5"
+                        />
+                        <span className="text-sm font-medium">{s.studentName}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+              {confirmExtraStudentIds.length > 0 && (
+                <div className="mt-2 text-xs text-blue-700">
+                  ✅ 共選擇 {1 + confirmExtraStudentIds.length} 位學生，將使用同一張收據登記
+                </div>
+              )}
+            </div>
+          )}
           {/* 請假月排除（僅季繳時顯示） */}
           {confirmDialog?.paymentType === 'quarterly' && confirmDialog.months.length > 1 && (
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
@@ -734,38 +790,16 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               )}
             </div>
           )}
-          {/* 付款銀行選擇 */}
+          {/* 轉入銀行選擇（入數到哪間銀行） */}
           <div className="px-0">
-            <Label className="text-sm font-medium">付款銀行 *</Label>
-            <Select value={confirmBank} onValueChange={(v) => { setConfirmBank(v); if (v === 'FPS轉數快' && !confirmReceivingBank) setConfirmReceivingBank('中銀香港 (BOC)'); }}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="請選擇付款銀行" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="FPS轉數快">FPS 轉數快</SelectItem>
-                <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
-                <SelectItem value="恒生銀行">恒生銀行</SelectItem>
-                <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
-                <SelectItem value="現金">現金</SelectItem>
-                <SelectItem value="其他銀行">其他銀行</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">選擇家長的付款方式</p>
-          </div>
-          {/* 收款銀行選擇（入數到哪間銀行，對帳用） */}
-          <div className="px-0">
-            <Label className="text-sm font-medium">收款銀行（入數到哪間公司帳戶）*</Label>
+            <Label className="text-sm font-medium">轉入銀行（入數到哪間公司帳戶）*</Label>
             <Select value={confirmReceivingBank} onValueChange={setConfirmReceivingBank}>
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="請選擇收款銀行" />
+                <SelectValue placeholder="請選擇轉入銀行" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
                 <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                <SelectItem value="恒生銀行">恒生銀行</SelectItem>
-                <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
-                <SelectItem value="現金">現金（不經銀行）</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>
@@ -809,7 +843,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             <p className="text-xs text-muted-foreground mt-1">管理員/教練上傳收據直接確認，無需額外審批</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmBank(""); setConfirmReceivingBank(""); }}>取消</Button>
+            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmReceivingBank(""); setConfirmExtraStudentIds([]); }}>取消</Button>
             <Button
               className={confirmDialog?.paymentType === 'quarterly' ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
               disabled={confirmMonthlyPayment.isPending}
@@ -820,25 +854,28 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                     toast.error('至少需保留一個月份');
                     return;
                   }
+                  // 合併所有學生 ID（主要學生 + 額外選中的學生）
+                  const allStudentIds = [confirmDialog.studentId, ...confirmExtraStudentIds];
                   confirmMonthlyPayment.mutate({
-                    studentId: confirmDialog.studentId,
+                    studentIds: allStudentIds,
                     year: selectedYear,
                     months: actualMonths,
                     paymentType: confirmExcludedMonths.length > 0 ? 'monthly' : confirmDialog.paymentType,
-                    bank: confirmBank || undefined,
                     receivingBank: confirmReceivingBank || undefined,
                     receiptBase64: confirmReceiptFile?.base64,
                     receiptMimeType: confirmReceiptFile?.mimeType,
                   });
                   setConfirmExcludedMonths([]);
-                  setConfirmBank("");
                   setConfirmReceivingBank("");
+                  setConfirmExtraStudentIds([]);
                 }
               }}
             >
               <ShieldCheck className="w-4 h-4 mr-1" />
               {confirmMonthlyPayment.isPending ? '處理中...' : (
-                confirmDialog?.paymentType === 'quarterly' ? '確認季繳' : '確認月繳'
+                confirmDialog?.paymentType === 'quarterly'
+                  ? `確認季繳${confirmExtraStudentIds.length > 0 ? ` (${1 + confirmExtraStudentIds.length}位)` : ''}`
+                  : `確認月繳${confirmExtraStudentIds.length > 0 ? ` (${1 + confirmExtraStudentIds.length}位)` : ''}`
               )}
             </Button>
           </DialogFooter>
@@ -1014,43 +1051,21 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       <Dialog open={!!editBankDialog} onOpenChange={(open) => { if (!open) { setEditBankDialog(null); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>修改銀行資訊</DialogTitle>
+            <DialogTitle>修改轉入銀行</DialogTitle>
             <DialogDescription>
               {editBankDialog?.studentName} — {selectedYear}年{editBankDialog?.month}月
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-sm font-medium">付款銀行</Label>
-              <Select value={editBank} onValueChange={(v) => { setEditBank(v); if (v === 'FPS轉數快' && !editReceivingBank) setEditReceivingBank('中銀香港 (BOC)'); }}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="請選擇付款銀行" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FPS轉數快">FPS 轉數快</SelectItem>
-                  <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                  <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
-                  <SelectItem value="恒生銀行">恒生銀行</SelectItem>
-                  <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
-                  <SelectItem value="Mox Bank">Mox Bank</SelectItem>
-                  <SelectItem value="ZA Bank">ZA Bank</SelectItem>
-                  <SelectItem value="現金">現金</SelectItem>
-                  <SelectItem value="其他銀行">其他銀行</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">收款銀行（入數到哪間公司帳戶）</Label>
+              <Label className="text-sm font-medium">轉入銀行（入數到哪間公司帳戶）</Label>
               <Select value={editReceivingBank} onValueChange={setEditReceivingBank}>
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="請選擇收款銀行" />
+                  <SelectValue placeholder="請選擇轉入銀行" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
                   <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                  <SelectItem value="恒生銀行">恒生銀行</SelectItem>
-                  <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
-                  <SelectItem value="現金">現金（不經銀行）</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>
@@ -1065,7 +1080,6 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                 if (editBankDialog) {
                   updatePaymentBank.mutate({
                     paymentRecordId: editBankDialog.paymentRecordId,
-                    bank: editBank || undefined,
                     receivingBank: editReceivingBank || undefined,
                   });
                 }
