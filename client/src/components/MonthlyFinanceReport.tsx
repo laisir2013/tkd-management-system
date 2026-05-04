@@ -14,7 +14,7 @@ export default function MonthlyFinanceReport() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(new Set([currentMonth]));
 
-  const { data, isLoading } = trpc.coachStats.getMonthlyFinance.useQuery({ year: selectedYear });
+  const { data, isLoading } = trpc.coachStats.getMonthlyFinance.useQuery({ year: selectedYear }, { refetchInterval: 30000 });
 
   const yearOptions = [];
   for (let y = 2026; y <= currentYear + 1; y++) yearOptions.push(y);
@@ -255,6 +255,18 @@ export default function MonthlyFinanceReport() {
                           </div>
                         </div>
 
+                        {/* 逾期入帳提示 */}
+                        {cm.lateEntries && cm.lateEntries.length > 0 && (
+                          <div className="bg-amber-50 border border-amber-200 rounded p-2 space-y-1">
+                            <div className="text-[10px] font-semibold text-amber-700">⚠️ 逾期入帳（{cm.lateEntries.length} 筆）</div>
+                            {cm.lateEntries.map((le: any, idx: number) => (
+                              <div key={idx} className="text-[10px] text-amber-600 pl-2">
+                                {le.studentName} ${le.amount.toLocaleString()} — 收據為{le.originalMonth}月，{le.processedDate} 才處理
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                         {/* 結餘 */}
                         <div className="flex justify-between items-center pt-2 border-t-2 border-teal-200">
                           <span className="text-xs font-bold text-teal-800">💰 教練實收</span>
@@ -313,11 +325,13 @@ export default function MonthlyFinanceReport() {
         <CardContent className="pt-4 pb-3">
           <h4 className="text-sm font-semibold text-gray-700 mb-2">💡 每月財務報表說明</h4>
           <ul className="text-xs text-gray-600 space-y-1.5">
+            <li>• <strong>入帳日期</strong>：以收據轉帳日期為準（非處理日期），確保收入歸入正確月份</li>
             <li>• <strong>恆常班月費</strong>：季度學費 ÷ 3 = 月費，只有已繳月份才計入收入</li>
-            <li>• <strong>精英班收入</strong>：按付款日期歸入對應月份</li>
+            <li>• <strong>精英班收入</strong>：按收據轉帳日期歸入對應月份</li>
             <li>• <strong>MPF 強積金</strong>：收入的 10%</li>
             <li>• <strong>公司營運費</strong>：收入的 5%</li>
             <li>• <strong>教練實收</strong>：收入 × 85%（扣除 MPF + 營運費）</li>
+            <li>• <strong>⚠️ 逾期入帳</strong>：如收據轉帳日期在4月但5月才處理，收入仍計入4月，但會標示為逾期入帳，教練薪金計入5月出糧</li>
             <li>• 灰色月份為未到期月份（尚未有繳費數據）</li>
           </ul>
         </CardContent>

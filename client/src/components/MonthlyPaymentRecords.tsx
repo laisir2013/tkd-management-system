@@ -34,7 +34,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const [coachFilter, setCoachFilter] = useState<string>(coachName || "all");
   const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const { data: statuses, isLoading, refetch } = trpc.payments.getMonthlyStatuses.useQuery({ year: selectedYear });
+  const { data: statuses, isLoading, refetch } = trpc.payments.getMonthlyStatuses.useQuery({ year: selectedYear }, { refetchInterval: 15000 });
   
   const yearOptions = [];
   for (let year = 2025; year <= currentYear + 1; year++) {

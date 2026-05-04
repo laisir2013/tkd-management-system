@@ -1650,8 +1650,12 @@ export const appRouter = router({
               recordCustomMonths = activeInQuarter.map(m => `${m}月`);
             }
           }
+          // 根據收據轉帳日期或當前日期決定入帳年份
+          const entryDate = extractedDate || new Date();
+          const entryYear = entryDate.getFullYear();
           const newPaymentId = await insertPaymentRecord({
             studentId: entry.studentId,
+            year: entryYear,
             paymentPeriod: entry.period,
             customMonths: recordCustomMonths,
             amount: (extractedAmount > 0 ? entry.fee : parseFloat(studentFeeStr)).toString(),
@@ -1728,6 +1732,8 @@ export const appRouter = router({
         }
         
         // 創建繳費記錄,不需要收據圖片
+        // 管理員手動標記：以當前日期作為入帳日期
+        const markTxDate = new Date();
         const newPaymentId2 = await insertPaymentRecord({
           studentId: input.studentId,
           paymentPeriod: "CUSTOM",
@@ -1736,10 +1742,10 @@ export const appRouter = router({
           classCount: input.classCount || null, // 精英班堂數
           receiptUrl: null,
           receiptKey: null,
-          receiptTransferDate: null,
+          receiptTransferDate: markTxDate,
           bank: input.bank || null,
           receivingBank: input.receivingBank || null,
-          paymentDate: new Date(),
+          paymentDate: markTxDate,
           status: "confirmed", // 管理員手動標記,直接設為 confirmed
           confirmedBy: 'admin_approved',
         });
@@ -1750,7 +1756,7 @@ export const appRouter = router({
           if (student) {
             await syncPaymentToAccounting({
               paymentRecordId: newPaymentId2,
-              transactionDate: new Date(),
+              transactionDate: markTxDate,
               amount: input.amount,
               bank: input.bank || null,
               receivingBank: input.receivingBank || null,
@@ -1931,6 +1937,8 @@ export const appRouter = router({
         const student = await getStudentById(input.studentId);
         if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: '學生不存在' });
 
+        // 管理員確認繳費：以當前日期作為入帳日期（因沒有收據轉帳日期）
+        const confirmTxDate = new Date();
         const confirmPmtId = await insertPaymentRecord({
           studentId: input.studentId,
           year: input.year,
@@ -1940,10 +1948,10 @@ export const appRouter = router({
           classCount: null,
           receiptUrl: null,
           receiptKey: null,
-          receiptTransferDate: null,
+          receiptTransferDate: confirmTxDate,
           bank: input.bank || null,
           receivingBank: input.receivingBank || null,
-          paymentDate: new Date(),
+          paymentDate: confirmTxDate,
           status: 'confirmed',
           confirmedBy: 'admin_approved',
         });
@@ -1952,7 +1960,7 @@ export const appRouter = router({
         try {
           await syncPaymentToAccounting({
             paymentRecordId: confirmPmtId,
-            transactionDate: new Date(),
+            transactionDate: confirmTxDate,
             amount: student.feePerQuarter,
             bank: input.bank || null,
             receivingBank: input.receivingBank || null,
@@ -2014,6 +2022,8 @@ export const appRouter = router({
           else if (firstMonth <= 9) quarter = 'Q3';
           else quarter = 'Q4';
           
+          // 管理員/教練確認季繳：以當前日期作為入帳日期
+          const qtrTxDate = new Date();
           const qtrPmtId = await insertPaymentRecord({
             studentId: input.studentId,
             year: input.year,
@@ -2024,10 +2034,10 @@ export const appRouter = router({
             classCount: null,
             receiptUrl,
             receiptKey,
-            receiptTransferDate: null,
+            receiptTransferDate: qtrTxDate,
             bank: input.bank || null,
             receivingBank: input.receivingBank || null,
-            paymentDate: new Date(),
+            paymentDate: qtrTxDate,
             status: 'confirmed',
             confirmedBy,
           });
@@ -2036,7 +2046,7 @@ export const appRouter = router({
           try {
             await syncPaymentToAccounting({
               paymentRecordId: qtrPmtId,
-              transactionDate: new Date(),
+              transactionDate: qtrTxDate,
               amount: String(feePerQuarter),
               bank: input.bank || null,
               receivingBank: input.receivingBank || null,
@@ -2054,6 +2064,8 @@ export const appRouter = router({
           // 單月繳費：為每個月建立一筆記錄
           const monthlyFee = Math.round((feePerQuarter / 3) * 100) / 100;
           for (const month of input.months) {
+            // 管理員/教練確認月繳：以當前日期作為入帳日期
+            const monthTxDate = new Date();
             const monthPmtId = await insertPaymentRecord({
               studentId: input.studentId,
               year: input.year,
@@ -2064,10 +2076,10 @@ export const appRouter = router({
               classCount: null,
               receiptUrl,
               receiptKey,
-              receiptTransferDate: null,
+              receiptTransferDate: monthTxDate,
               bank: input.bank || null,
               receivingBank: input.receivingBank || null,
-              paymentDate: new Date(),
+              paymentDate: monthTxDate,
               status: 'confirmed',
               confirmedBy,
             });
@@ -2076,7 +2088,7 @@ export const appRouter = router({
             try {
               await syncPaymentToAccounting({
                 paymentRecordId: monthPmtId,
-                transactionDate: new Date(),
+                transactionDate: monthTxDate,
                 amount: String(monthlyFee),
                 bank: input.bank || null,
                 receivingBank: input.receivingBank || null,

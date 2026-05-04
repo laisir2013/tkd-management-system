@@ -21,7 +21,7 @@ export default function CoachStatsWithElite() {
   const { data: coachStats, isLoading } = trpc.coachStats.getAll.useQuery({
     year: selectedYear,
     quarter: selectedQuarter,
-  });
+  }, { refetchInterval: 30000 });
 
   if (isLoading) {
     return (

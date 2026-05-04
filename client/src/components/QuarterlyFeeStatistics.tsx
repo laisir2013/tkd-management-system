@@ -29,7 +29,7 @@ export function QuarterlyFeeStatistics({ coachName, year: externalYear, quarter:
     year: selectedYear,
     quarter: selectedQuarter,
     coachName,
-  });
+  }, { refetchInterval: 30000 });
 
   const { data: unpaidData, isLoading: unpaidLoading } = trpc.users.getUnpaidStudentsForQuarter.useQuery({
     year: selectedYear,

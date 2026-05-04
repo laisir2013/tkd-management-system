@@ -1546,12 +1546,19 @@ export async function getCoachStatsWithElite(year?: number, quarter?: number) {
   const allRegularStudents = allStudents.filter(s => s.venue !== '精英班道場' && s.status === 'active');
   const regularStudentIdSet = new Set(allRegularStudents.map(s => s.id));
   
-  // 按入帳日期歸季：paymentDate 落在該季度月份範圍內的才計入
+  // 按入帳日期歸季：以 receiptTransferDate（收據轉帳日期）為準，fallback 到 paymentDate
   const quarterMonths: Record<number, number[]> = { 1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12] };
+  
+  /** 取得付款的入帳日期（優先使用收據轉帳日期） */
+  function getEntryDate(p: any): Date | null {
+    if (p.receiptTransferDate) return new Date(p.receiptTransferDate);
+    if (p.paymentDate) return new Date(p.paymentDate);
+    return null;
+  }
   
   /**
    * 計算某筆付款在指定季度中應佔的金額
-   * - Q1/Q2/Q3/Q4 標準付款：按 paymentDate 歸季，全額計入
+   * - Q1/Q2/Q3/Q4 標準付款：按 receiptTransferDate（收據轉帳日期）歸季，全額計入
    * - CUSTOM 付款：按 customMonths 覆蓋的月份比例分攤到各季
    */
   function getPaymentAmountForQuarter(p: any, targetYear: number, targetQuarter: number): number {
@@ -1569,9 +1576,9 @@ export async function getCoachStatsWithElite(year?: number, quarter?: number) {
       // 按比例分攤
       return amount * (monthsInThisQuarter / coveredMonths.length);
     } else {
-      // Q1/Q2/Q3/Q4 標準付款：用 paymentDate 歸季
-      if (!p.paymentDate) return 0;
-      const d = new Date(p.paymentDate);
+      // Q1/Q2/Q3/Q4 標準付款：用 receiptTransferDate 歸季（fallback paymentDate）
+      const d = getEntryDate(p);
+      if (!d) return 0;
       if (d.getFullYear() === targetYear && months.includes(d.getMonth() + 1)) {
         return amount;
       }
@@ -1636,8 +1643,10 @@ export async function getCoachStatsWithElite(year?: number, quarter?: number) {
     if (year && quarter) {
       const months = quarterMonths[quarter];
       eliteConfirmedPayments = eliteConfirmedPayments.filter(p => {
-        if (!p.paymentDate) return false;
-        const d = new Date(p.paymentDate);
+        // 精英班也用 receiptTransferDate 優先
+        const d = (p as any).receiptTransferDate ? new Date((p as any).receiptTransferDate) 
+                  : p.paymentDate ? new Date(p.paymentDate) : null;
+        if (!d) return false;
         return d.getFullYear() === year && months.includes(d.getMonth() + 1);
       });
     }
@@ -1699,9 +1708,16 @@ export async function getMonthlyFinanceReport(year: number) {
     return true;
   });
 
+  /** 取得付款的入帳日期（優先使用收據轉帳日期） */
+  function getEntryDateForMonth(p: any): Date | null {
+    if (p.receiptTransferDate) return new Date(p.receiptTransferDate);
+    if (p.paymentDate) return new Date(p.paymentDate);
+    return null;
+  }
+
   /**
    * 計算某筆付款在指定月份的金額（用於月報）
-   * - Q1/Q2/Q3/Q4：按 paymentDate 歸月，全額計入
+   * - Q1/Q2/Q3/Q4：按 receiptTransferDate（收據轉帳日期）歸月，全額計入
    * - CUSTOM：按 customMonths 覆蓋月份按比例分攤
    */
   function getPaymentAmountForMonth(p: any, targetYear: number, targetMonth: number): number {
@@ -1714,9 +1730,9 @@ export async function getMonthlyFinanceReport(year: number) {
       if (!monthNums.includes(targetMonth)) return 0;
       return amount / monthNums.length;
     } else {
-      // 標準付款：用 paymentDate 歸月
-      if (!p.paymentDate) return 0;
-      const d = new Date(p.paymentDate);
+      // 標準付款：用 receiptTransferDate 歸月（fallback paymentDate）
+      const d = getEntryDateForMonth(p);
+      if (!d) return 0;
       if (d.getFullYear() === targetYear && (d.getMonth() + 1) === targetMonth) {
         return amount;
       }
@@ -1724,14 +1740,16 @@ export async function getMonthlyFinanceReport(year: number) {
     }
   }
 
-  // 精英班：按入帳月份分組繳費記錄（精英班不受 CUSTOM 影響）
+  // 精英班：按入帳月份分組繳費記錄（用 receiptTransferDate 優先）
   const elitePaymentsByMonth = new Map<number, typeof allElitePayments>();
   allElitePayments.forEach(p => {
-    if (!p.paymentDate) return;
-    const d = new Date(p.paymentDate);
-    if (d.getFullYear() !== year) return;
+    // 優先使用收據轉帳日期，fallback 到 paymentDate
+    const entryDate = (p as any).receiptTransferDate ? new Date((p as any).receiptTransferDate)
+                      : p.paymentDate ? new Date(p.paymentDate) : null;
+    if (!entryDate) return;
+    if (entryDate.getFullYear() !== year) return;
     if (p.classCount === 99999) return; // 排除免學費
-    const month = d.getMonth() + 1;
+    const month = entryDate.getMonth() + 1;
     if (!elitePaymentsByMonth.has(month)) elitePaymentsByMonth.set(month, []);
     elitePaymentsByMonth.get(month)!.push(p);
   });
@@ -1755,17 +1773,40 @@ export async function getMonthlyFinanceReport(year: number) {
       mpf: number;
       operating: number;
       netSalary: number;
+      lateEntries: { studentName: string; amount: number; originalMonth: number; processedDate: string }[];
     }> = {};
 
     for (let m = 1; m <= 12; m++) {
       // 恆常班：按付款期歸月的金額（CUSTOM 按比例分攤）
       let regularIncome = 0;
       const paidStudentIds = new Set<number>();
+      const lateEntries: { studentName: string; amount: number; originalMonth: number; processedDate: string }[] = [];
+      
       coachRegularPayments.forEach((p: any) => {
         const amt = getPaymentAmountForMonth(p, year, m);
         if (amt > 0) {
           regularIncome += amt;
           paidStudentIds.add(p.studentId);
+          
+          // 偵測逾期入帳：收據轉帳日期（入帳月份）與處理日期（paymentDate）不同月
+          const entryDate = getEntryDateForMonth(p);
+          const processDate = p.paymentDate ? new Date(p.paymentDate) : null;
+          if (entryDate && processDate) {
+            const entryMonth = entryDate.getMonth() + 1;
+            const processMonth = processDate.getMonth() + 1;
+            const entryYr = entryDate.getFullYear();
+            const processYr = processDate.getFullYear();
+            // 如果處理日期比入帳日期晚一個月以上，標記為逾期入帳
+            if (processYr > entryYr || (processYr === entryYr && processMonth > entryMonth)) {
+              const student = coachRegularStudents.find(s => s.id === p.studentId);
+              lateEntries.push({
+                studentName: student?.name || `學生${p.studentId}`,
+                amount: amt,
+                originalMonth: entryMonth,
+                processedDate: processDate.toISOString().split('T')[0],
+              });
+            }
+          }
         }
       });
       regularIncome = Math.round(regularIncome * 100) / 100;
@@ -1792,6 +1833,7 @@ export async function getMonthlyFinanceReport(year: number) {
         mpf,
         operating,
         netSalary,
+        lateEntries,
       };
     }
 

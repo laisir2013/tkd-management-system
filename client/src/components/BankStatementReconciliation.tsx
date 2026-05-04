@@ -183,6 +183,7 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
   // --- TRPC queries ---
   const statementsQuery = trpc.accounting.listSavedStatements.useQuery(undefined, {
     enabled: true,
+    refetchInterval: 30000,
   });
   const detailQuery = trpc.accounting.getSavedStatementDetail.useQuery(
     { statementId: activeStatementId! },
