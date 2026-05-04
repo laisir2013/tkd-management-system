@@ -156,6 +156,23 @@ export function AttendanceTablePage({
     },
   });
 
+  // 批量標記缺席
+  const batchMarkAbsentMutation = trpc.attendance.batchMarkAbsent.useMutation({
+    onMutate: () => {
+      inflightCount.current++;
+    },
+    onSuccess: (data) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      toast.success(`已將 ${data.count} 位未點名學生標記為缺席`);
+      scheduleRefetch();
+    },
+    onError: () => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      toast.error("批量標記缺席失敗");
+      scheduleRefetch();
+    },
+  });
+
   // 分離 active 和 cancelled 的訓練日期
   const activeDates = useMemo(() => trainingDates.filter(td => td.status === "active"), [trainingDates]);
   const cancelledDateIds = useMemo(() => new Set(trainingDates.filter(td => td.status === "cancelled").map(td => td.scheduleId)), [trainingDates]);
@@ -237,6 +254,35 @@ export function AttendanceTablePage({
   const getAttendanceStatus = (studentId: number, date: Date): "present" | "absent" | null => {
     const key = `${studentId}-${format(date, "yyyy-MM-dd")}`;
     return localAttendance.get(key) ?? null;
+  };
+
+  // 計算某日期未點名的學生列表
+  const getUnmarkedStudents = (td: TrainingDate): Student[] => {
+    return students.filter(s => getAttendanceStatus(s.id, td.date) === null);
+  };
+
+  // 批量標記未點名學生為缺席
+  const handleBatchMarkAbsent = (td: TrainingDate) => {
+    const unmarked = getUnmarkedStudents(td);
+    if (unmarked.length === 0) return;
+
+    // Optimistic: 立即在 UI 顯示為缺席
+    setOptimisticUpdates(prev => {
+      const next = new Map(prev);
+      unmarked.forEach(s => {
+        const key = `${s.id}-${format(td.date, "yyyy-MM-dd")}`;
+        next.set(key, "absent");
+      });
+      return next;
+    });
+    vibrate([20, 40, 20]);
+
+    // 呼叫 API
+    batchMarkAbsentMutation.mutate({
+      scheduleId: td.scheduleId,
+      attendanceDate: td.date,
+      studentIds: unmarked.map(s => s.id),
+    });
   };
 
   // 計算每個學生的出席率（只計算 active 日期）
@@ -406,6 +452,42 @@ export function AttendanceTablePage({
                   </td>
                 </tr>
               ))}
+              {/* 底部操作列：批量標記缺席按鈕 */}
+              <tr className="bg-gray-50 border-t-2 border-gray-300">
+                <td className="sticky left-0 z-10 bg-gray-50 border-b border-r border-gray-200 px-1 sm:px-2 py-1.5 text-center" colSpan={1}>
+                </td>
+                <td className="sticky left-10 sm:left-12 z-10 bg-gray-50 border-b border-r border-gray-200 px-1 sm:px-3 py-1.5 text-center">
+                  <span className="text-[10px] sm:text-xs text-gray-500 font-medium">未點名</span>
+                </td>
+                {trainingDates.map((td) => {
+                  const isCancelled = td.status === "cancelled";
+                  const unmarkedCount = isCancelled ? 0 : getUnmarkedStudents(td).length;
+                  return (
+                    <td
+                      key={`batch-${td.scheduleId}`}
+                      className={`border-b border-r border-gray-200 p-1 text-center ${isCancelled ? "bg-gray-100" : ""}`}
+                    >
+                      {!isCancelled && unmarkedCount > 0 ? (
+                        <button
+                          onClick={() => handleBatchMarkAbsent(td)}
+                          disabled={batchMarkAbsentMutation.isPending}
+                          className="inline-flex flex-col items-center justify-center w-full px-0.5 py-0.5 rounded bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 transition-colors group"
+                          title={`將 ${unmarkedCount} 位未點名學生標記為缺席`}
+                        >
+                          <X className="h-3 w-3 text-red-400 group-hover:text-red-600" />
+                          <span className="text-[9px] sm:text-[10px] text-red-500 group-hover:text-red-700 font-bold leading-tight">
+                            {unmarkedCount}
+                          </span>
+                        </button>
+                      ) : !isCancelled ? (
+                        <span className="text-[9px] sm:text-[10px] text-emerald-500 font-medium">✓</span>
+                      ) : null}
+                    </td>
+                  );
+                })}
+                <td className="border-b border-r border-gray-200 p-1 text-center">
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -436,7 +518,13 @@ export function AttendanceTablePage({
             </span>
             <span className="text-gray-600 dark:text-gray-400 font-medium">未點名</span>
           </span>
-          <span className="ml-1 text-muted-foreground">點擊格子切換狀態</span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-5 h-5 rounded bg-red-50 border border-red-200 flex items-center justify-center">
+              <X className="h-3 w-3 text-red-400" />
+            </span>
+            <span className="text-red-600 dark:text-red-400 font-medium">未點→缺席</span>
+          </span>
+          <span className="ml-1 text-muted-foreground">點擊格子切換狀態，底部按鈕可一次過將未點名標記為缺席</span>
         </div>
       </div>
     </div>

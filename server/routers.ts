@@ -2691,6 +2691,34 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    // 批量標記缺席：將指定日期中所有未點名的學生一次過標記為缺席
+    batchMarkAbsent: protectedProcedure
+      .input(z.object({
+        scheduleId: z.number(),
+        attendanceDate: z.date(),
+        studentIds: z.array(z.number()).min(1), // 要標記為缺席的學生 ID 列表
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        let count = 0;
+        for (const studentId of input.studentIds) {
+          try {
+            await upsertAttendanceRecord(
+              studentId,
+              input.scheduleId,
+              input.attendanceDate,
+              'absent'
+            );
+            count++;
+          } catch (e) {
+            console.warn(`[BatchMarkAbsent] Failed for student ${studentId}:`, e);
+          }
+        }
+        return { success: true, count };
+      }),
+
     getStudentStats: protectedProcedure
       .input(z.object({
         studentId: z.number(),
