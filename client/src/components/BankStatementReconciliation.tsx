@@ -280,6 +280,41 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
     if (selectedFiles.length === 0) setFilePreviews([]);
   }
 
+  // 壓縮圖片：限制最大寬度，改用 JPEG 格式減少 base64 大小
+  function compressImage(canvas: HTMLCanvasElement, maxWidth = 1600): { base64: string; mimeType: string } {
+    let outputCanvas = canvas;
+    // 若超過最大寬度則縮小
+    if (canvas.width > maxWidth) {
+      const ratio = maxWidth / canvas.width;
+      const resized = document.createElement('canvas');
+      resized.width = maxWidth;
+      resized.height = Math.round(canvas.height * ratio);
+      const rCtx = resized.getContext('2d')!;
+      rCtx.drawImage(canvas, 0, 0, resized.width, resized.height);
+      outputCanvas = resized;
+    }
+    // 使用 JPEG 0.82 品質（比 PNG 小 5-10 倍，OCR 仍清晰）
+    const dataUrl = outputCanvas.toDataURL('image/jpeg', 0.82);
+    return { base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' };
+  }
+
+  // 壓縮用戶上傳的圖片檔案
+  async function compressFileImage(file: File): Promise<{ base64: string; mimeType: string }> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        resolve(compressImage(canvas, 1600));
+      };
+      img.onerror = () => reject(new Error('圖片載入失敗'));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
   async function convertPdfToImages(file: File): Promise<{ base64: string; mimeType: string }[]> {
     const cdnBase = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174`;
     if (!(window as any).pdfjsLib) {
@@ -299,15 +334,16 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
     const images: { base64: string; mimeType: string }[] = [];
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const scale = 2;
+      // 使用 scale=1.5（而非 2）以減少圖片大小，OCR 仍足夠清晰
+      const scale = 1.5;
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       const ctx = canvas.getContext('2d')!;
       await page.render({ canvasContext: ctx, viewport }).promise;
-      const dataUrl = canvas.toDataURL('image/png');
-      images.push({ base64: dataUrl.split(',')[1], mimeType: 'image/png' });
+      // 壓縮為 JPEG，大幅減少 base64 大小
+      images.push(compressImage(canvas, 1600));
     }
     return images;
   }
@@ -322,17 +358,20 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
           const pdfImages = await convertPdfToImages(file);
           images.push(...pdfImages);
         } else {
-          const result = await new Promise<{ base64: string; mimeType: string }>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const dataUrl = reader.result as string;
-              resolve({ base64: dataUrl.split(",")[1], mimeType: file.type });
-            };
-            reader.readAsDataURL(file);
-          });
-          images.push(result);
+          // 壓縮用戶上傳的圖片
+          const compressed = await compressFileImage(file);
+          images.push(compressed);
         }
       }
+
+      // 檢查總 payload 大小（base64 字元數），超過 40MB 提示用戶分批上傳
+      const totalSize = images.reduce((sum, img) => sum + img.base64.length, 0);
+      if (totalSize > 40_000_000) {
+        toast.error(`圖片總大小過大（約 ${Math.round(totalSize / 1_000_000)}MB），請減少頁數或分批上傳`);
+        setIsParsing(false);
+        return;
+      }
+
       const result = await parseMutation.mutateAsync({
         images,
         bankName: bankName || undefined,
@@ -342,7 +381,15 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
       setViewMode('parsed');
       toast.success(`成功識別 ${(result as any).transactions?.length || 0} 筆交易記錄`);
     } catch (error: any) {
-      toast.error(`識別失敗: ${error.message}`);
+      const msg = error?.message || String(error);
+      // 捕捉代理返回 HTML 的情況（payload 過大或超時）
+      if (msg.includes('<!DOCTYPE') || msg.includes('Unexpected token') || msg.includes('is not valid JSON')) {
+        toast.error('上傳的檔案過大，伺服器無法處理。請減少頁數或分批上傳（建議每次最多 3-4 頁）。');
+      } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        toast.error('網路連線中斷，請檢查網路後重試。');
+      } else {
+        toast.error(`識別失敗: ${msg}`);
+      }
     } finally {
       setIsParsing(false);
     }

@@ -635,24 +635,61 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
     );
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 壓縮收據圖片：限制最大寬度 1600px，使用 JPEG 0.82 品質
+  const compressReceiptImage = (file: File): Promise<{ base64: string; preview: string }> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = 1600;
+        const canvas = document.createElement('canvas');
+        if (img.width > maxWidth) {
+          const ratio = maxWidth / img.width;
+          canvas.width = maxWidth;
+          canvas.height = Math.round(img.height * ratio);
+        } else {
+          canvas.width = img.width;
+          canvas.height = img.height;
+        }
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        const base64Part = dataUrl.split(',')[1];
+        resolve({ base64: base64Part, preview: dataUrl });
+        URL.revokeObjectURL(img.src);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(img.src);
+        reject(new Error('圖片載入失敗'));
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setReceiptFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string;
-        setReceiptPreview(dataUrl);
-        // 立即提取 base64，避免之後重新讀取 File 物件時在手機瀏覽器上失敗
-        const base64Part = dataUrl.split(",")[1];
-        if (base64Part) setReceiptBase64(base64Part);
-      };
-      reader.onerror = () => {
-        toast.error("讀取檔案失敗，請重新選擇收據照片");
-        setReceiptFile(null);
-        setReceiptPreview("");
-      };
-      reader.readAsDataURL(file);
+      try {
+        // 壓縮圖片以減少上傳大小
+        const { base64, preview } = await compressReceiptImage(file);
+        setReceiptPreview(preview);
+        setReceiptBase64(base64);
+      } catch {
+        // fallback: 直接讀取原始檔案
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          setReceiptPreview(dataUrl);
+          const base64Part = dataUrl.split(",")[1];
+          if (base64Part) setReceiptBase64(base64Part);
+        };
+        reader.onerror = () => {
+          toast.error("讀取檔案失敗，請重新選擇收據照片");
+          setReceiptFile(null);
+          setReceiptPreview("");
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -683,7 +720,14 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
       setTimeout(() => setLocation(`/history?phone=${encodeURIComponent(phone)}`), 2000);
     } catch (err: any) {
       console.error("提交繳費失敗:", err);
-      toast.error(err?.message || "提交失敗,請稍後再試");
+      const msg = err?.message || String(err);
+      if (msg.includes('<!DOCTYPE') || msg.includes('Unexpected token') || msg.includes('is not valid JSON')) {
+        toast.error('收據檔案過大，伺服器無法處理。請嘗試拍攝較小的照片或截圖後重新上傳。');
+      } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        toast.error('網路連線中斷，請檢查網路後重試。');
+      } else {
+        toast.error(msg || "提交失敗,請稍後再試");
+      }
     } finally {
       setIsSubmitting(false);
     }
