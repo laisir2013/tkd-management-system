@@ -74,37 +74,16 @@ export function MarkAsPaidButton({
               確認 <strong>{studentName}</strong> 的 {year}年{month}月 學費 ${amount} 為已繳付
             </DialogDescription>
           </DialogHeader>
-          {/* 付款銀行 */}
+          {/* 轉入銀行（公司只有 BOC 和 HSBC） */}
           <div>
-            <Label className="text-sm font-medium">付款銀行</Label>
-            <Select value={bank} onValueChange={(v) => { setBank(v); if (v === 'FPS轉數快' && !receivingBank) setReceivingBank('中銀香港 (BOC)'); }}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="請選擇付款銀行" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="FPS轉數快">FPS 轉數快</SelectItem>
-                <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
-                <SelectItem value="恒生銀行">恒生銀行</SelectItem>
-                <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
-                <SelectItem value="現金">現金</SelectItem>
-                <SelectItem value="其他銀行">其他銀行</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {/* 收款銀行（對帳用） */}
-          <div>
-            <Label className="text-sm font-medium">收款銀行（入數到哪間公司帳戶）*</Label>
+            <Label className="text-sm font-medium">轉入銀行（入數到哪間公司帳戶）*</Label>
             <Select value={receivingBank} onValueChange={setReceivingBank}>
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="請選擇收款銀行" />
+                <SelectValue placeholder="請選擇轉入銀行" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
                 <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                <SelectItem value="恒生銀行">恒生銀行</SelectItem>
-                <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
-                <SelectItem value="現金">現金（不經銀行）</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>

@@ -408,37 +408,16 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
               <span className="text-xs text-gray-500 mt-1 block">此操作由管理員/教練批准，無需上傳收據。</span>
             </DialogDescription>
           </DialogHeader>
-          {/* 付款銀行選擇 */}
+          {/* 轉入銀行（公司只有 BOC 和 HSBC） */}
           <div>
-            <Label className="text-sm font-medium">付款銀行</Label>
-            <Select value={confirmBank} onValueChange={(v) => { setConfirmBank(v); if (v === 'FPS轉數快' && !confirmReceivingBank) setConfirmReceivingBank('中銀香港 (BOC)'); }}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="請選擇付款銀行" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="FPS轉數快">FPS 轉數快</SelectItem>
-                <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
-                <SelectItem value="恒生銀行">恒生銀行</SelectItem>
-                <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
-                <SelectItem value="現金">現金</SelectItem>
-                <SelectItem value="其他銀行">其他銀行</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {/* 收款銀行選擇（對帳用） */}
-          <div>
-            <Label className="text-sm font-medium">收款銀行（入數到哪間公司帳戶）*</Label>
+            <Label className="text-sm font-medium">轉入銀行（入數到哪間公司帳戶）*</Label>
             <Select value={confirmReceivingBank} onValueChange={setConfirmReceivingBank}>
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="請選擇收款銀行" />
+                <SelectValue placeholder="請選擇轉入銀行" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
                 <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                <SelectItem value="恒生銀行">恒生銀行</SelectItem>
-                <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
-                <SelectItem value="現金">現金（不經銀行）</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>
@@ -467,47 +446,25 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
         </DialogContent>
       </Dialog>
 
-      {/* 修改銀行對話框 */}
+      {/* 修改轉入銀行對話框 */}
       <Dialog open={!!editBankDialog} onOpenChange={(open) => { if (!open) { setEditBankDialog(null); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>修改銀行資訊</DialogTitle>
+            <DialogTitle>修改轉入銀行</DialogTitle>
             <DialogDescription>
               {editBankDialog?.studentName} — {selectedYear}年 {editBankDialog?.quarterLabel}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-sm font-medium">付款銀行</Label>
-              <Select value={editBank} onValueChange={(v) => { setEditBank(v); if (v === 'FPS轉數快' && !editReceivingBank) setEditReceivingBank('中銀香港 (BOC)'); }}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="請選擇付款銀行" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FPS轉數快">FPS 轉數快</SelectItem>
-                  <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                  <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
-                  <SelectItem value="恒生銀行">恒生銀行</SelectItem>
-                  <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
-                  <SelectItem value="Mox Bank">Mox Bank</SelectItem>
-                  <SelectItem value="ZA Bank">ZA Bank</SelectItem>
-                  <SelectItem value="現金">現金</SelectItem>
-                  <SelectItem value="其他銀行">其他銀行</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">收款銀行（入數到哪間公司帳戶）</Label>
+              <Label className="text-sm font-medium">轉入銀行（入數到哪間公司帳戶）</Label>
               <Select value={editReceivingBank} onValueChange={setEditReceivingBank}>
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="請選擇收款銀行" />
+                  <SelectValue placeholder="請選擇轉入銀行" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
                   <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
-                  <SelectItem value="恒生銀行">恒生銀行</SelectItem>
-                  <SelectItem value="渣打銀行 (SCB)">渣打銀行 (SCB)</SelectItem>
-                  <SelectItem value="現金">現金（不經銀行）</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>

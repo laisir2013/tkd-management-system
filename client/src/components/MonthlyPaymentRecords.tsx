@@ -56,6 +56,8 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   } | null>(null);
   // 額外選中的學生 ID（同一張收據登記多位學生）
   const [confirmExtraStudentIds, setConfirmExtraStudentIds] = useState<number[]>([]);
+  // 額外選中的季度（多季登記，例如一次交2季或以上）
+  const [confirmExtraQuarters, setConfirmExtraQuarters] = useState<string[]>([]);
   // 確認繳費時的收據上傳
   const [confirmReceiptFile, setConfirmReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
   // 請假月份排除（僅教練/管理員確認季繳時使用）
@@ -676,7 +678,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmReceivingBank(""); setConfirmExtraStudentIds([]); } }}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmReceivingBank(""); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -689,17 +691,82 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   return s?.studentName || `ID${id}`;
                 });
                 return <><strong>、{extraNames.join('、')}</strong></>;
-              })()} 已繳 {selectedYear}年{confirmDialog?.label} 學費？
+              })()} 已繳 {selectedYear}年{confirmDialog?.label}{confirmExtraQuarters.length > 0 ? (() => {
+                const allQLabels = confirmExtraQuarters.map(q => {
+                  if (q === 'Q1') return '1-3月';
+                  if (q === 'Q2') return '4-6月';
+                  if (q === 'Q3') return '7-9月';
+                  return '10-12月';
+                });
+                return `、${allQLabels.join('、')}`;
+              })() : ''} 學費？
               <br />
               <span className="text-xs text-gray-500 mt-1 block">
                 {confirmDialog?.paymentType === 'quarterly' 
-                  ? `季繳：一次確認 ${confirmDialog?.label} 共3個月`
+                  ? `季繳：一次確認 ${1 + confirmExtraQuarters.length} 季共 ${(1 + confirmExtraQuarters.length) * 3} 個月`
                   : `月繳：僅確認 ${confirmDialog?.label}`
                 }
                 {confirmExtraStudentIds.length > 0 && ` · 共 ${1 + confirmExtraStudentIds.length} 位學生`}
               </span>
             </DialogDescription>
           </DialogHeader>
+          {/* 多季登記（季繳時，可加選其他季度，例如一次交2季或以上） */}
+          {confirmDialog?.paymentType === 'quarterly' && (
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+              <div className="text-sm font-medium text-purple-800 mb-2">
+                如需一次登記多季（例如遲交一次過交2季），可加選其他季度：
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(['Q1', 'Q2', 'Q3', 'Q4'] as const).map(q => {
+                  const qMonths = q === 'Q1' ? [1,2,3] : q === 'Q2' ? [4,5,6] : q === 'Q3' ? [7,8,9] : [10,11,12];
+                  const qLabel = `${qMonths[0]}-${qMonths[2]}月`;
+                  // 判斷是否為當前已選的季度
+                  const isCurrentQuarter = confirmDialog.months.some(m => qMonths.includes(m));
+                  const isExtra = confirmExtraQuarters.includes(q);
+                  if (isCurrentQuarter) {
+                    return (
+                      <div key={q} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 border border-green-400 text-green-800">
+                        <Checkbox checked={true} disabled className="w-3.5 h-3.5" />
+                        <span className="text-sm font-medium">{qLabel}（已選）</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div
+                      key={q}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer transition-all ${
+                        isExtra
+                          ? 'bg-purple-100 border-purple-400 text-purple-800'
+                          : 'bg-white border-gray-300 text-gray-600 hover:border-purple-300'
+                      }`}
+                      onClick={() => {
+                        setConfirmExtraQuarters(prev =>
+                          prev.includes(q) ? prev.filter(x => x !== q) : [...prev, q]
+                        );
+                      }}
+                    >
+                      <Checkbox
+                        checked={isExtra}
+                        onCheckedChange={() => {
+                          setConfirmExtraQuarters(prev =>
+                            prev.includes(q) ? prev.filter(x => x !== q) : [...prev, q]
+                          );
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-3.5 h-3.5"
+                      />
+                      <span className="text-sm font-medium">{qLabel}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {confirmExtraQuarters.length > 0 && (
+                <div className="mt-2 text-xs text-purple-700">
+                  📌 共選擇 {1 + confirmExtraQuarters.length} 季，每位學生將建立 {1 + confirmExtraQuarters.length} 筆季繳記錄
+                </div>
+              )}
+            </div>
+          )}
           {/* 多位學生選擇（同一張收據登記多個學生，例如兄弟姐妹） */}
           {confirmDialog && filteredStatuses.length > 1 && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -843,13 +910,23 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             <p className="text-xs text-muted-foreground mt-1">管理員/教練上傳收據直接確認，無需額外審批</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmReceivingBank(""); setConfirmExtraStudentIds([]); }}>取消</Button>
+            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmReceivingBank(""); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); setConfirmExcludedMonths([]); }}>取消</Button>
             <Button
               className={confirmDialog?.paymentType === 'quarterly' ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
               disabled={confirmMonthlyPayment.isPending}
               onClick={() => {
                 if (confirmDialog) {
-                  const actualMonths = confirmDialog.months.filter(m => !confirmExcludedMonths.includes(m));
+                  // 合併當前季度月份 + 額外選中的季度月份
+                  let allMonths = [...confirmDialog.months];
+                  if (confirmDialog.paymentType === 'quarterly' && confirmExtraQuarters.length > 0) {
+                    for (const q of confirmExtraQuarters) {
+                      const qMonths = q === 'Q1' ? [1,2,3] : q === 'Q2' ? [4,5,6] : q === 'Q3' ? [7,8,9] : [10,11,12];
+                      allMonths.push(...qMonths);
+                    }
+                    // 去重並排序
+                    allMonths = [...new Set(allMonths)].sort((a, b) => a - b);
+                  }
+                  const actualMonths = allMonths.filter(m => !confirmExcludedMonths.includes(m));
                   if (actualMonths.length === 0) {
                     toast.error('至少需保留一個月份');
                     return;
@@ -868,6 +945,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   setConfirmExcludedMonths([]);
                   setConfirmReceivingBank("");
                   setConfirmExtraStudentIds([]);
+                  setConfirmExtraQuarters([]);
                 }
               }}
             >

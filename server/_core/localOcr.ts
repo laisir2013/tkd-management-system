@@ -149,7 +149,7 @@ function extractAmount(text: string): string | null {
  * 從 OCR 文字中解析銀行名稱
  */
 function extractBank(text: string): string | null {
-  // 1. 直接名稱匹配
+  // 1. 直接名稱匹配（保留識別能力，所有結果最終經 normalizeBankName 歸類到 boc/hsbc）
   const bankPatterns: [RegExp, string][] = [
     [/BANK OF CHINA|中國銀行|中银|中銀|BOC(?:HK)?/i, "中銀香港"],
     [/HSBC|匯豐|汇丰|灌豐|滙豐/i, "匯豐銀行"],
@@ -158,21 +158,12 @@ function extractBank(text: string): string | null {
     [/DBS|星展/i, "星展銀行"],
     [/CITIBANK|花旗/i, "花旗銀行"],
     [/ZA\s*Bank/i, "ZA Bank"],
+    [/Mox\s*Bank|Mox/i, "Mox Bank"],
     [/PayMe/i, "PayMe"],
     [/FPS|轉數快|快速支付/i, "FPS轉數快"],
     [/WeChat Pay|微信支付/i, "微信支付"],
     [/AliPay|支付寶/i, "支付寶"],
     [/BEA|東亞銀行/i, "東亞銀行"],
-    [/CITIC|中信/i, "中信銀行"],
-    [/工商銀行|ICBC/i, "工商銀行"],
-    [/建設銀行|CCB/i, "建設銀行"],
-    [/交通銀行|BOCOM/i, "交通銀行"],
-    [/招商銀行|CMB/i, "招商銀行"],
-    [/大新銀行|Dah Sing/i, "大新銀行"],
-    [/創興銀行|Chong Hing/i, "創興銀行"],
-    [/南洋商業|Nanyang/i, "南洋商業銀行"],
-    [/集友銀行|Chiyu/i, "集友銀行"],
-    [/上海商業|SHACOM/i, "上海商業銀行"],
   ];
 
   for (const [pattern, name] of bankPatterns) {
@@ -181,24 +172,12 @@ function extractBank(text: string): string | null {
     }
   }
 
-  // 2. 香港銀行分行編號匹配（帳號前3位）
+  // 2. 香港銀行分行編號匹配（帳號前3位）— 只需識別 BOC(012) 和 HSBC(004)，其他全部經 normalizeBankName 歸類
   const branchCodePatterns: [RegExp, string][] = [
-    [/\b003[\-\*\d]{3,}/,  "渣打銀行"],
     [/\b004[\-\*\d]{3,}/,  "匯豐銀行"],
-    [/\b009[\-\*\d]{3,}/,  "中信銀行"],
     [/\b012[\-\*\d]{3,}/,  "中銀香港"],
-    [/\b015[\-\*\d]{3,}/,  "東亞銀行"],
-    [/\b016[\-\*\d]{3,}/,  "星展銀行"],
+    [/\b003[\-\*\d]{3,}/,  "渣打銀行"],
     [/\b024[\-\*\d]{3,}/,  "恒生銀行"],
-    [/\b025[\-\*\d]{3,}/,  "上海商業銀行"],
-    [/\b027[\-\*\d]{3,}/,  "招商永隆銀行"],
-    [/\b028[\-\*\d]{3,}/,  "大新銀行"],
-    [/\b035[\-\*\d]{3,}/,  "工銀亞洲"],
-    [/\b038[\-\*\d]{3,}/,  "大眾銀行"],
-    [/\b039[\-\*\d]{3,}/,  "花旗銀行"],
-    [/\b040[\-\*\d]{3,}/,  "大新銀行"],
-    [/\b041[\-\*\d]{3,}/,  "集友銀行"],
-    [/\b043[\-\*\d]{3,}/,  "南洋商業銀行"],
   ];
 
   for (const [pattern, name] of branchCodePatterns) {
@@ -537,23 +516,25 @@ function mergeResults(base: OcrResult, ...others: Partial<OcrResult>[]): OcrResu
  * 根據收款人帳號前3位（香港銀行編號）判斷
  */
 function extractReceivingBank(text: string, recipientAccount: string | null): string | null {
-  // 1. 從收款帳號前3位判斷銀行
+  // 1. 先用公司帳號精確匹配（3個公司帳號）
+  if (recipientAccount) {
+    const cleaned = recipientAccount.replace(/[-\s]/g, '');
+    // BOC 帳號: 01269220114816
+    if (cleaned === '01269220114816' || cleaned.includes('01269220114816')) return "中銀香港";
+    // FPS ID: 164577132 → BOC
+    if (cleaned === '164577132' || cleaned.includes('164577132')) return "中銀香港";
+    // HSBC 帳號: 484287123838
+    if (cleaned === '484287123838' || cleaned.includes('484287123838')) return "匯豐銀行";
+  }
+
+  // 2. 從收款帳號前3位判斷銀行（公司只有 BOC 和 HSBC）
   if (recipientAccount) {
     const bankCodeMap: [RegExp, string][] = [
-      [/^003/, "渣打銀行"],
-      [/^004/, "匯豐銀行"],
-      [/^009/, "中信銀行"],
       [/^012/, "中銀香港"],
-      [/^015/, "東亞銀行"],
-      [/^016/, "星展銀行"],
+      [/^004/, "匯豐銀行"],
+      // 其他銀行編號保留識別，最終經 normalizeBankName 歸類
+      [/^003/, "渣打銀行"],
       [/^024/, "恒生銀行"],
-      [/^025/, "上海商業銀行"],
-      [/^027/, "招商永隆銀行"],
-      [/^028/, "大新銀行"],
-      [/^035/, "工銀亞洲"],
-      [/^039/, "花旗銀行"],
-      [/^041/, "集友銀行"],
-      [/^043/, "南洋商業銀行"],
     ];
     for (const [pattern, name] of bankCodeMap) {
       if (pattern.test(recipientAccount)) {
@@ -589,9 +570,8 @@ function extractReceivingBank(text: string, recipientAccount: string | null): st
     if (match) {
       const code = match[1];
       const codeMap: Record<string, string> = {
-        '003': '渣打銀行', '004': '匯豐銀行', '009': '中信銀行',
-        '012': '中銀香港', '015': '東亞銀行', '016': '星展銀行',
-        '024': '恒生銀行', '025': '上海商業銀行', '028': '大新銀行',
+        '012': '中銀香港', '004': '匯豐銀行',
+        '003': '渣打銀行', '024': '恒生銀行',
       };
       if (codeMap[code]) return codeMap[code];
     }

@@ -2159,9 +2159,52 @@ export async function getAccountingRecordByElitePaymentId(elitePaymentRecordId: 
 }
 
 /**
+ * 公司收款帳號常量（用於自動分配銀行）
+ * - BOC 帳號: 012-692-2-0114816 (去掉橫線: 01269220114816)
+ * - FPS ID: 164577132 → 歸類為 BOC
+ * - HSBC 帳號: 484287123838
+ */
+export const COMPANY_ACCOUNTS = {
+  BOC_ACCOUNT: '01269220114816',
+  BOC_ACCOUNT_FORMATTED: '012-692-2-0114816',
+  FPS_ID: '164577132',
+  HSBC_ACCOUNT: '484287123838',
+  COMPANY_NAME: 'Chong Mo Company Limited',
+} as const;
+
+/**
+ * 根據收款人帳號 / FPS ID 自動分配銀行
+ * 只認識3個公司帳號，精確匹配後自動歸類
+ */
+export function detectBankByAccount(accountOrFpsId: string | null | undefined): 'boc' | 'hsbc' | null {
+  if (!accountOrFpsId) return null;
+  const cleaned = accountOrFpsId.replace(/[-\s]/g, '').trim();
+  if (!cleaned) return null;
+
+  // FPS ID 164577132 → BOC
+  if (cleaned === COMPANY_ACCOUNTS.FPS_ID || cleaned.includes(COMPANY_ACCOUNTS.FPS_ID)) {
+    return 'boc';
+  }
+  // BOC 帳號 01269220114816
+  if (cleaned === COMPANY_ACCOUNTS.BOC_ACCOUNT || cleaned.includes(COMPANY_ACCOUNTS.BOC_ACCOUNT)) {
+    return 'boc';
+  }
+  // HSBC 帳號 484287123838
+  if (cleaned === COMPANY_ACCOUNTS.HSBC_ACCOUNT || cleaned.includes(COMPANY_ACCOUNTS.HSBC_ACCOUNT)) {
+    return 'hsbc';
+  }
+  // 帳號前3位判斷：012 = BOC, 004 = HSBC
+  if (cleaned.startsWith('012')) return 'boc';
+  if (cleaned.startsWith('004')) return 'hsbc';
+  // 其他前綴不識別（公司只有 BOC 和 HSBC）
+  return null;
+}
+
+/**
  * 銀行名稱標準化 → paymentMethod
- * 將 OCR 識別出的各種銀行名稱統一映射到 mapping_rules 中的 payment_method 值
- * 用於生成正確的會計分錄（借方對應正確的銀行子科目）
+ * 公司只有 BOC 和 HSBC 兩個銀行帳戶
+ * FPS / 轉數快 / PayMe 全部歸類到 BOC
+ * 其他不支援的銀行名稱也歸類到 'boc'(預設)
  */
 export function normalizeBankName(rawBank: string | null | undefined): string | null {
   if (!rawBank) return null;
@@ -2183,40 +2226,27 @@ export function normalizeBankName(rawBank: string | null | undefined): string | 
     return 'boc';
   }
 
-  // Standard Chartered 渣打銀行 → 系統不支援，歸類為通用銀行
-  if (b.includes('STANDARD CHARTERED') || b.includes('渣打') || b.includes('SCB')) {
-    return 'bank';
-  }
-
-  // Hang Seng 恒生銀行 → 系統不支援，歸類為通用銀行
-  if (b.includes('HANG SENG') || b.includes('恒生') || b.includes('恆生')) {
-    return 'bank';
-  }
-
-  // 現金
-  if (b.includes('CASH') || b.includes('現金') || b.includes('现金')) {
-    return 'cash';
-  }
-
-  // 無法識別 → fallback 用 'bank' (通用銀行)
-  console.log(`[normalizeBankName] 無法識別銀行: "${rawBank}" → fallback to 'bank'`);
-  return 'bank';
+  // 其他銀行名稱全部 fallback 到 'boc'（公司主要收款帳戶）
+  // 包含：渣打、恒生、ZA Bank、Mox 等——都是家長的付款銀行，收款方預設是 BOC
+  console.log(`[normalizeBankName] 非 BOC/HSBC 銀行: "${rawBank}" → fallback to 'boc'`);
+  return 'boc';
 }
 
 /**
  * 將 paymentMethod 映射回顯示用的中文銀行名稱
+ * 公司只有 BOC 和 HSBC
  */
 export function paymentMethodToDisplayName(pm: string | null): string {
   const map: Record<string, string> = {
     'hsbc': '滙豐銀行 (HSBC)',
     'boc': '中銀香港 (BOC)',
-    'fps': 'FPS轉數快',
-    'scb': '銀行 (待分配)',  // 系統不支援渣打
-    'hangseng': '銀行 (待分配)',  // 系統不支援恒生
-    'cash': '現金',
-    'bank': '銀行',
+    'fps': '中銀香港 (BOC)',  // FPS 歸類到 BOC
+    'cash': '中銀香港 (BOC)',  // 現金預設歸 BOC
+    'bank': '中銀香港 (BOC)',  // 未知銀行預設歸 BOC
+    'scb': '中銀香港 (BOC)',
+    'hangseng': '中銀香港 (BOC)',
   };
-  return pm ? (map[pm] || pm) : '';
+  return pm ? (map[pm] || '中銀香港 (BOC)') : '';
 }
 
 /**

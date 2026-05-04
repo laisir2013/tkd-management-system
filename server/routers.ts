@@ -170,9 +170,10 @@ import {
   reviewReceipt,
   // CUSTOM 月份解析
   extractMonthNumbers,
-  // 銀行名稱標準化
+  // 銀行名稱標準化 & 帳號自動分配
   normalizeBankName,
   paymentMethodToDisplayName,
+  detectBankByAccount,
   // 銀行月結單 CRUD
   saveBankStatement,
   listBankStatements,
@@ -1503,7 +1504,7 @@ export const appRouter = router({
             console.log(`[MergedPayment][OCR] 使用 LLM OCR 識別收據... (嘗試 ${attempt}/${maxRetries})`);
             const ocrResponse = await invokeLLM({
               messages: [
-                { role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱(即轉帳者使用的銀行，例如:HSBC/滙豐/BOC/中銀/恒生/渣打/ZA Bank)","receivingBank":"收款方銀行名稱(即錢入了哪間銀行帳戶，從收款人帳號的銀行編號判斷，例如:BOC/中銀/HSBC/滙豐/恒生/渣打)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：\n1. bank = 付款方/轉出方使用的銀行。如果截圖來自某銀行App，bank就是該銀行。\n2. receivingBank = 收款方的銀行。根據收款帳號前3位判斷：012=中銀BOC, 004=HSBC滙豐, 024=恒生, 003=渣打。或從收據上「收款銀行」欄位識別。這是對帳時最重要的欄位。\n3. 如果是FPS/轉數快轉帳，receivingBank填「中銀香港」（因為公司的FPS收款帳戶是中國銀行）。\n4. 只有完全無法判斷收款銀行時才填null。' },
+                { role: "system", content: '從銀行轉帳收據/截圖提取JSON（不要加markdown標記）:\n{"amount":"轉帳金額","bank":"付款方銀行名稱","receivingBank":"收款方銀行名稱(只能是 中銀香港 或 匯豐銀行)","status":"轉帳狀態","date":"YYYY-MM-DD","time":"HH:mm","recipientName":"收款人名稱","recipientAccount":"收款人帳號"}\n注意：\n1. bank = 付款方/轉出方使用的銀行。如果截圖來自某銀行App，bank就是該銀行。\n2. receivingBank = 收款方銀行，公司只有兩個銀行帳戶，請根據以下規則判斷：\n   - 收款帳號 012-692-2-0114816 或帳號前3位012 → receivingBank填「中銀香港」\n   - 收款帳號 484287123838 或帳號前3位004 → receivingBank填「匯豐銀行」\n   - FPS ID 164577132 或任何FPS/轉數快/PayMe轉帳 → receivingBank填「中銀香港」\n   - 收款人名稱含 Chong Mo → 根據帳號判斷，無法判斷時填「中銀香港」\n3. receivingBank只能填「中銀香港」或「匯豐銀行」，不要填其他銀行名稱。\n4. 如果完全無法判斷，預設填「中銀香港」。' },
                 { role: "user", content: [
                   { type: "text", text: "請識別這張收據的金額、付款銀行、收款銀行、收款人資訊:" },
                   { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }
@@ -1550,13 +1551,25 @@ export const appRouter = router({
 
         console.log(`[MergedPayment] OCR金額=${extractedAmount}, 應繳合計=${totalExpectedFee}, 付款銀行=${extractedBank}, 收款銀行=${extractedReceivingBank}, OCR失敗=${ocrFailed}`);
 
-        // ── 4c. FPS/轉數快 → 收款銀行預設為中銀 ──
-        if (!extractedReceivingBank && extractedBank) {
-          const bankUpper = extractedBank.toUpperCase();
-          if (bankUpper.includes('FPS') || bankUpper.includes('轉數快') || bankUpper.includes('FASTER PAYMENT')) {
-            extractedReceivingBank = '中銀香港 (BOC)';
-            console.log(`[MergedPayment] FPS轉帳 → 收款銀行自動設為中銀`);
+        // ── 4c. 自動分配收款銀行：帳號/FPS精確匹配 → FPS/付款銀行推斷 → 預設BOC ──
+        if (!extractedReceivingBank) {
+          // 優先用收款人帳號精確匹配公司3個帳號
+          const detectedByAccount = detectBankByAccount(extractedRecipientAccount);
+          if (detectedByAccount) {
+            extractedReceivingBank = detectedByAccount === 'hsbc' ? '滙豐銀行 (HSBC)' : '中銀香港 (BOC)';
+            console.log(`[MergedPayment] 收款帳號 ${extractedRecipientAccount} → 自動分配到 ${extractedReceivingBank}`);
+          } else if (extractedBank) {
+            const bankUpper = extractedBank.toUpperCase();
+            if (bankUpper.includes('FPS') || bankUpper.includes('轉數快') || bankUpper.includes('FASTER PAYMENT') || bankUpper.includes('PAYME')) {
+              extractedReceivingBank = '中銀香港 (BOC)';
+              console.log(`[MergedPayment] FPS轉帳 → 收款銀行自動設為中銀`);
+            }
           }
+        }
+        // 如果仍無法判斷，預設BOC（公司主要收款帳戶）
+        if (!extractedReceivingBank) {
+          extractedReceivingBank = '中銀香港 (BOC)';
+          console.log(`[MergedPayment] 無法判斷收款銀行 → 預設中銀香港`);
         }
 
         // ── 5. 驗證金額和收款人 ──
@@ -1976,13 +1989,13 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // 管理員確認月份繳費（支援1月或1季繳交，支援多位學生）
+    // 管理員確認月份繳費（支援多月/多季繳交，支援多位學生）
     confirmMonthlyPayment: protectedProcedure
       .input(z.object({
         studentId: z.number().optional(), // 向後兼容：單一學生
         studentIds: z.array(z.number()).optional(), // 新增：多位學生
         year: z.number(),
-        months: z.array(z.number().min(1).max(12)).min(1), // 可以1個月或3個月（1季）
+        months: z.array(z.number().min(1).max(12)).min(1), // 支援任意月份組合（可跨季）
         paymentType: z.enum(['monthly', 'quarterly']), // monthly=單月, quarterly=季繳
         bank: z.string().optional(), // 付款銀行
         receivingBank: z.string().optional(), // 收款銀行（入數到哪間銀行）
@@ -2031,50 +2044,57 @@ export const appRouter = router({
           const feePerQuarter = parseFloat(student.feePerQuarter);
 
           if (input.paymentType === 'quarterly') {
-            // 季繳：找出對應的季度
+            // 季繳：將月份按季度分組，每個季度建立一筆繳費記錄（支援多季一次登記）
             const sortedMonths = [...input.months].sort((a, b) => a - b);
-            const firstMonth = sortedMonths[0];
-            let quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
-            if (firstMonth <= 3) quarter = 'Q1';
-            else if (firstMonth <= 6) quarter = 'Q2';
-            else if (firstMonth <= 9) quarter = 'Q3';
-            else quarter = 'Q4';
-            
-            const qtrTxDate = new Date();
-            const qtrPmtId = await insertPaymentRecord({
-              studentId: student.id,
-              year: input.year,
-              paymentPeriod: quarter,
-              customMonths: null,
-              paymentMonth: null,
-              amount: String(feePerQuarter),
-              classCount: null,
-              receiptUrl,
-              receiptKey,
-              receiptTransferDate: qtrTxDate,
-              bank: input.bank || null,
-              receivingBank: input.receivingBank || null,
-              paymentDate: qtrTxDate,
-              status: 'confirmed',
-              confirmedBy,
-            });
+            const quarterGroups: Record<string, number[]> = {};
+            for (const m of sortedMonths) {
+              let qKey: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+              if (m <= 3) qKey = 'Q1';
+              else if (m <= 6) qKey = 'Q2';
+              else if (m <= 9) qKey = 'Q3';
+              else qKey = 'Q4';
+              if (!quarterGroups[qKey]) quarterGroups[qKey] = [];
+              quarterGroups[qKey].push(m);
+            }
 
-            try {
-              await syncPaymentToAccounting({
-                paymentRecordId: qtrPmtId,
-                transactionDate: qtrTxDate,
+            // 為每個季度建立繳費記錄
+            for (const [quarter, _months] of Object.entries(quarterGroups)) {
+              const qtrTxDate = new Date();
+              const qtrPmtId = await insertPaymentRecord({
+                studentId: student.id,
+                year: input.year,
+                paymentPeriod: quarter as 'Q1' | 'Q2' | 'Q3' | 'Q4',
+                customMonths: null,
+                paymentMonth: null,
                 amount: String(feePerQuarter),
-                bank: input.bank || null,
-                receivingBank: input.receivingBank || null,
-                studentName: student.name,
-                coachName: student.coach,
-                dojoName: student.venue || null,
-                category: 'tuition',
+                classCount: null,
                 receiptUrl,
                 receiptKey,
+                receiptTransferDate: qtrTxDate,
+                bank: input.bank || null,
+                receivingBank: input.receivingBank || null,
+                paymentDate: qtrTxDate,
+                status: 'confirmed',
+                confirmedBy,
               });
-            } catch (e) {
-              console.error(`Auto sync to accounting after quarterly confirmMonthlyPayment failed (student=${student.name}):`, e);
+
+              try {
+                await syncPaymentToAccounting({
+                  paymentRecordId: qtrPmtId,
+                  transactionDate: qtrTxDate,
+                  amount: String(feePerQuarter),
+                  bank: input.bank || null,
+                  receivingBank: input.receivingBank || null,
+                  studentName: student.name,
+                  coachName: student.coach,
+                  dojoName: student.venue || null,
+                  category: 'tuition',
+                  receiptUrl,
+                  receiptKey,
+                });
+              } catch (e) {
+                console.error(`Auto sync to accounting after quarterly confirmMonthlyPayment failed (student=${student.name}, ${quarter}):`, e);
+              }
             }
           } else {
             // 單月繳費：為每個月建立一筆記錄
@@ -3547,7 +3567,7 @@ export const appRouter = router({
             messages: [
               {
                 role: "system",
-                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00\",\n  \"bank\": \"付款方/轉出方使用的銀行或支付方式（例如：HSBC、滙豐、BOC、中銀、恒生、渣打、FPS、PayMe）\",\n  \"receivingBank\": \"收款方銀行名稱（即錢入了哪間銀行帳戶。根據收款帳號前3位判斷：012=中銀BOC, 004=HSBC滙豐, 024=恒生, 003=渣打。這是對帳最重要的欄位）\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
+                content: "你是一個銀行轉帳收據識別助手，能識別中文和英文收據。請從收據/截圖中提取以下資訊並以純JSON格式回傳（不要加markdown標記）:\n{\n  \"amount\": \"轉帳金額，純數字字串如 1800.00\",\n  \"bank\": \"付款方/轉出方使用的銀行或支付方式\",\n  \"receivingBank\": \"收款方銀行名稱（只能是 中銀香港 或 匯豐銀行）\",\n  \"status\": \"轉帳狀態：成功/已完成/處理中/失敗\",\n  \"date\": \"轉帳日期 YYYY-MM-DD 格式\",\n  \"time\": \"轉帳時間 HH:mm:ss 或 HH:mm 格式（24小時制）\"\n}\n公司只有兩個收款帳戶：\n- 中銀香港(BOC): 帳號 012-692-2-0114816，FPS ID 164577132\n- 匯豐銀行(HSBC): 帳號 484287123838\nreceivingBank判斷規則：帳號前3位012或FPS/轉數快/PayMe→中銀香港；帳號前3位004或484287123838→匯豐銀行。無法判斷時預設填中銀香港。\n如果某個欄位無法識別，該欄位回傳 null。只回傳JSON，不要其他文字。"
               },
               {
                 role: "user",
@@ -3597,13 +3617,16 @@ export const appRouter = router({
         const finalAmount = input.manualAmount || extractedAmount || "0";
         const finalDate = input.manualDate || extractedDate || new Date();
         const finalBank = input.manualBank || extractedBank || null;
-        // FPS/轉數快 → 收款銀行預設為中銀
+        // 自動分配收款銀行（公司只有 BOC 和 HSBC）
         let finalReceivingBank = extractedReceivingBank2 || null;
         if (!finalReceivingBank && finalBank) {
           const bankUpper = finalBank.toUpperCase();
-          if (bankUpper.includes('FPS') || bankUpper.includes('轉數快') || bankUpper.includes('FASTER PAYMENT')) {
+          if (bankUpper.includes('FPS') || bankUpper.includes('轉數快') || bankUpper.includes('FASTER PAYMENT') || bankUpper.includes('PAYME')) {
             finalReceivingBank = '中銀香港 (BOC)';
           }
+        }
+        if (!finalReceivingBank) {
+          finalReceivingBank = '中銀香港 (BOC)'; // 預設 BOC
         }
 
         const result = await insertAccountingRecord({
