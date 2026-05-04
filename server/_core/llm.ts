@@ -308,11 +308,15 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     tools,
     toolChoice,
     tool_choice,
+    maxTokens,
+    max_tokens,
     outputSchema,
     output_schema,
     responseFormat,
     response_format,
   } = params;
+
+  const resolvedMaxTokens = maxTokens || max_tokens || 4096;
 
   // ── 多模型 fallback 機制 ──
   // 主模型不可用時自動降級到備用模型
@@ -341,7 +345,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     const payload: Record<string, unknown> = {
       model,
       messages: normalizedMessages,
-      max_tokens: 4096,
+      max_tokens: resolvedMaxTokens,
     };
 
     if (tools && tools.length > 0) {

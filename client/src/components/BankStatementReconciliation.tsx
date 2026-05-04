@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Upload, FileText, CheckCircle2, AlertTriangle, XCircle, ArrowRight, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Upload, FileText, CheckCircle2, AlertTriangle, XCircle, ArrowRight, Save, ChevronDown, ChevronUp, Search, HandMetal, Link2 } from "lucide-react";
 import { toast } from "sonner";
 
 // Same categories as AccountingRecords
@@ -95,7 +95,6 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
 
   // Parsed result
   const [parsedStatement, setParsedStatement] = useState<ParsedStatement | null>(null);
-  const [showParsedAll, setShowParsedAll] = useState(false);
 
   // Reconcile result
   const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
@@ -106,8 +105,10 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
   const [isImporting, setIsImporting] = useState(false);
 
   // Sections collapsed
-  const [showMatched, setShowMatched] = useState(false);
   const [showUnmatchedSystem, setShowUnmatchedSystem] = useState(false);
+
+  // Filter for reconcile view
+  const [reconcileFilter, setReconcileFilter] = useState<'all' | 'matched' | 'unmatched'>('all');
 
   const parseMutation = trpc.accounting.parseBankStatement.useMutation();
   const reconcileMutation = trpc.accounting.reconcile.useMutation();
@@ -115,14 +116,69 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
 
   const yearOptions = Array.from({ length: 3 }, (_, i) => 2026 + i);
 
+  // Compute parsed statement totals
+  const parsedTotals = useMemo(() => {
+    if (!parsedStatement?.transactions) return { totalCredit: 0, totalDebit: 0, count: 0 };
+    let totalCredit = 0, totalDebit = 0;
+    for (const txn of parsedStatement.transactions) {
+      if (txn.credit) totalCredit += parseFloat(txn.credit) || 0;
+      if (txn.debit) totalDebit += parseFloat(txn.debit) || 0;
+    }
+    return { totalCredit, totalDebit, count: parsedStatement.transactions.length };
+  }, [parsedStatement]);
+
+  // Build unified reconcile rows for Step 3
+  const reconcileRows = useMemo(() => {
+    if (!reconcileResult) return [];
+    const rows: Array<{
+      type: 'matched' | 'unmatched';
+      bankTxn: BankTransaction;
+      systemRecord?: any;
+      matchScore?: number;
+      unmatchedIndex?: number; // index in unmatchedBank array
+    }> = [];
+
+    // Add matched rows
+    for (const m of reconcileResult.matched) {
+      rows.push({
+        type: 'matched',
+        bankTxn: m.bankTransaction,
+        systemRecord: m.systemRecord,
+        matchScore: m.matchScore,
+      });
+    }
+
+    // Add unmatched bank rows
+    reconcileResult.unmatchedBank.forEach((txn, i) => {
+      rows.push({
+        type: 'unmatched',
+        bankTxn: txn,
+        unmatchedIndex: i,
+      });
+    });
+
+    // Sort by date
+    rows.sort((a, b) => {
+      const da = a.bankTxn.date || '';
+      const db = b.bankTxn.date || '';
+      return da.localeCompare(db);
+    });
+
+    return rows;
+  }, [reconcileResult]);
+
+  // Filtered rows
+  const filteredRows = useMemo(() => {
+    if (reconcileFilter === 'all') return reconcileRows;
+    return reconcileRows.filter(r => r.type === (reconcileFilter === 'matched' ? 'matched' : 'unmatched'));
+  }, [reconcileRows, reconcileFilter]);
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selectedFiles = Array.from(e.target.files || []);
     setFiles(selectedFiles);
-    // Generate previews (PDF → show icon, image → show preview)
     const previews: string[] = [];
     selectedFiles.forEach(file => {
       if (file.type === 'application/pdf') {
-        // PDF files: use placeholder for preview
         previews.push('PDF');
         if (previews.length === selectedFiles.length) {
           setFilePreviews([...previews]);
@@ -143,7 +199,6 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
 
   // PDF 轉圖片：使用 CDN pdf.js 將 PDF 每頁渲染為 PNG base64
   async function convertPdfToImages(file: File): Promise<{ base64: string; mimeType: string }[]> {
-    // 動態載入 pdf.js（從 CDN，不打包進 bundle）
     const cdnBase = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174`;
 
     if (!(window as any).pdfjsLib) {
@@ -168,7 +223,7 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
 
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const scale = 2; // 高解析度
+      const scale = 2;
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
@@ -189,15 +244,12 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
     }
     setIsParsing(true);
     try {
-      // Convert all files to base64 images (PDF → 每頁轉圖片)
       const images: { base64: string; mimeType: string }[] = [];
       for (const file of files) {
         if (file.type === 'application/pdf') {
-          // PDF: 用 pdf.js 每頁轉成 PNG
           const pdfImages = await convertPdfToImages(file);
           images.push(...pdfImages);
         } else {
-          // 圖片：直接轉 base64
           const result = await new Promise<{ base64: string; mimeType: string }>((resolve) => {
             const reader = new FileReader();
             reader.onload = () => {
@@ -244,6 +296,7 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
       });
       setUnmatchedFills(fills);
       setStep('reconciled');
+      setReconcileFilter('all');
     } catch (error: any) {
       toast.error(`對帳失敗: ${error.message}`);
     } finally {
@@ -254,11 +307,10 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
   async function handleImportUnmatched() {
     if (!reconcileResult) return;
 
-    // Build items to import (only those with category filled)
     const items: any[] = [];
     reconcileResult.unmatchedBank.forEach((txn, i) => {
       const fill = unmatchedFills[i];
-      if (!fill?.category) return; // Skip unfilled ones
+      if (!fill?.category) return;
 
       const amount = txn.credit || txn.debit || '0';
       const type = txn.credit ? 'income' : 'expense';
@@ -270,7 +322,7 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
         type,
         category: fill.category,
         bank: statementBankName,
-        receivingBank: statementBankName, // 月結單匯入的項目，收款銀行就是月結單的銀行
+        receivingBank: statementBankName,
         studentName: fill.studentName || undefined,
         coachName: fill.coachName || undefined,
       });
@@ -309,8 +361,13 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
     setParsedStatement(null);
     setReconcileResult(null);
     setUnmatchedFills({});
+    setReconcileFilter('all');
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
+
+  // Count how many unmatched items have been filled
+  const filledUnmatchedCount = Object.values(unmatchedFills).filter(f => f.category).length;
+  const totalUnmatchedCount = reconcileResult?.unmatchedBank.length || 0;
 
   return (
     <Card className="border-indigo-200">
@@ -332,11 +389,11 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
           </span>
           <ArrowRight className="w-3 h-3 text-gray-400" />
           <span className={`px-2 py-1 rounded ${step === 'parsed' ? 'bg-indigo-100 text-indigo-700 font-semibold' : 'bg-gray-100 text-gray-500'}`}>
-            2. 確認識別結果
+            2. 識別結果
           </span>
           <ArrowRight className="w-3 h-3 text-gray-400" />
           <span className={`px-2 py-1 rounded ${step === 'reconciled' ? 'bg-indigo-100 text-indigo-700 font-semibold' : 'bg-gray-100 text-gray-500'}`}>
-            3. 對帳 & 填寫
+            3. 對帳結果
           </span>
           <ArrowRight className="w-3 h-3 text-gray-400" />
           <span className={`px-2 py-1 rounded ${step === 'imported' ? 'bg-green-100 text-green-700 font-semibold' : 'bg-gray-100 text-gray-500'}`}>
@@ -443,69 +500,91 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
           </div>
         )}
 
-        {/* ===== Step 2: Parsed results ===== */}
+        {/* ===== Step 2: Parsed results - Full transaction table ===== */}
         {step === 'parsed' && parsedStatement && (
           <div className="space-y-4">
-            {/* Statement info */}
+            {/* Statement summary info */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-xs text-muted-foreground">銀行</p>
-                <p className="font-semibold">{parsedStatement.bankName || bankName || '-'}</p>
+                <p className="font-semibold text-sm">{parsedStatement.bankName || bankName || '-'}</p>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-xs text-muted-foreground">月份</p>
-                <p className="font-semibold">{parsedStatement.statementPeriod || `${statementYear}-${String(statementMonth).padStart(2, '0')}`}</p>
+                <p className="font-semibold text-sm">{parsedStatement.statementPeriod || `${statementYear}-${String(statementMonth).padStart(2, '0')}`}</p>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-xs text-muted-foreground">期初結餘</p>
-                <p className="font-semibold">{formatMoney(parsedStatement.openingBalance)}</p>
+                <p className="font-semibold text-sm">{formatMoney(parsedStatement.openingBalance)}</p>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-xs text-muted-foreground">期末結餘</p>
-                <p className="font-semibold">{formatMoney(parsedStatement.closingBalance)}</p>
+                <p className="font-semibold text-sm">{formatMoney(parsedStatement.closingBalance)}</p>
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">
-                共識別 {parsedStatement.transactions.length} 筆交易
-              </h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowParsedAll(!showParsedAll)}>
-                {showParsedAll ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
-                {showParsedAll ? "收起" : "展開全部"}
-              </Button>
+            {/* Transaction totals bar */}
+            <div className="flex flex-wrap gap-3 p-3 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-blue-600">共識別</span>
+                <span className="font-bold text-blue-800">{parsedTotals.count} 筆</span>
+              </div>
+              <div className="w-px h-5 bg-blue-200" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-green-600">總收入</span>
+                <span className="font-bold text-green-700">{formatMoney(parsedTotals.totalCredit)}</span>
+              </div>
+              <div className="w-px h-5 bg-blue-200" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-600">總支出</span>
+                <span className="font-bold text-red-700">{formatMoney(parsedTotals.totalDebit)}</span>
+              </div>
+              <div className="w-px h-5 bg-blue-200" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600">淨額</span>
+                <span className={`font-bold ${parsedTotals.totalCredit - parsedTotals.totalDebit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                  {formatMoney(parsedTotals.totalCredit - parsedTotals.totalDebit)}
+                </span>
+              </div>
             </div>
 
-            {/* Show first 5 or all */}
-            <div className="overflow-x-auto">
+            {/* Full transaction table */}
+            <div className="overflow-x-auto border rounded-lg">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">#</TableHead>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="w-10 text-center">#</TableHead>
                     <TableHead className="w-28">日期</TableHead>
                     <TableHead>說明</TableHead>
-                    <TableHead className="text-right">收入</TableHead>
-                    <TableHead className="text-right">支出</TableHead>
-                    <TableHead className="text-right">結餘</TableHead>
+                    <TableHead className="text-right w-28">收入</TableHead>
+                    <TableHead className="text-right w-28">支出</TableHead>
+                    <TableHead className="text-right w-28">結餘</TableHead>
+                    <TableHead className="w-32">參考編號</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(showParsedAll ? parsedStatement.transactions : parsedStatement.transactions.slice(0, 5)).map((txn, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
-                      <TableCell className="text-sm">{txn.date || '-'}</TableCell>
-                      <TableCell className="text-sm max-w-[200px] truncate" title={txn.description || ''}>{txn.description || '-'}</TableCell>
-                      <TableCell className="text-right text-sm text-green-600">{txn.credit ? formatMoney(txn.credit) : ''}</TableCell>
-                      <TableCell className="text-right text-sm text-red-600">{txn.debit ? formatMoney(txn.debit) : ''}</TableCell>
-                      <TableCell className="text-right text-sm">{formatMoney(txn.balance)}</TableCell>
+                  {parsedStatement.transactions.map((txn, i) => (
+                    <TableRow key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                      <TableCell className="text-xs text-muted-foreground text-center">{i + 1}</TableCell>
+                      <TableCell className="text-sm font-mono">{txn.date || '-'}</TableCell>
+                      <TableCell className="text-sm max-w-[250px]" title={txn.description || ''}>
+                        <span className="line-clamp-2">{txn.description || '-'}</span>
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-medium text-green-600">
+                        {txn.credit ? formatMoney(txn.credit) : ''}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-medium text-red-600">
+                        {txn.debit ? formatMoney(txn.debit) : ''}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-mono">{formatMoney(txn.balance)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground truncate max-w-[120px]" title={txn.reference || ''}>
+                        {txn.reference || '-'}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
-            {!showParsedAll && parsedStatement.transactions.length > 5 && (
-              <p className="text-sm text-muted-foreground text-center">...還有 {parsedStatement.transactions.length - 5} 筆，點擊展開查看</p>
-            )}
 
             <div className="flex gap-2">
               <Button variant="outline" onClick={resetAll}>重新上傳</Button>
@@ -513,14 +592,14 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
                 {isReconciling ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> 對帳中...</>
                 ) : (
-                  <>開始對帳（與系統記錄比對）</>
+                  <><Search className="w-4 h-4 mr-2" /> 開始對帳（與系統記錄比對）</>
                 )}
               </Button>
             </div>
           </div>
         )}
 
-        {/* ===== Step 3: Reconcile results ===== */}
+        {/* ===== Step 3: Reconcile results - Unified table ===== */}
         {step === 'reconciled' && reconcileResult && (
           <div className="space-y-4">
             {/* Summary cards */}
@@ -534,11 +613,11 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
                 <p className="text-xl font-bold text-gray-700">{reconcileResult.summary.totalSystemRecords}</p>
               </div>
               <div className="p-3 bg-green-50 rounded-lg text-center">
-                <p className="text-xs text-green-600">已匹配</p>
+                <p className="text-xs text-green-600">已自動匹配</p>
                 <p className="text-xl font-bold text-green-700">{reconcileResult.summary.matchedCount}</p>
               </div>
-              <div className="p-3 bg-orange-50 rounded-lg text-center">
-                <p className="text-xs text-orange-600">月結單有/系統無</p>
+              <div className="p-3 bg-orange-50 rounded-lg text-center border-2 border-orange-300">
+                <p className="text-xs text-orange-600 font-semibold">需手動處理</p>
                 <p className="text-xl font-bold text-orange-700">{reconcileResult.summary.unmatchedBankCount}</p>
               </div>
               <div className="p-3 bg-red-50 rounded-lg text-center">
@@ -547,138 +626,181 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
               </div>
             </div>
 
-            {/* Unmatched bank items - THE KEY SECTION */}
-            {reconcileResult.unmatchedBank.length > 0 && (
-              <Card className="border-orange-300 bg-orange-50/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2 text-orange-700">
-                    <AlertTriangle className="w-4 h-4" />
-                    銀行月結單有，但系統沒有的記錄（需要填寫類別匯入）
-                  </CardTitle>
-                  <CardDescription>以下交易在月結單上出現，但在系統記錄中找不到匹配。請為需要匯入的項目選擇類別。</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-10">#</TableHead>
-                          <TableHead className="w-28">日期</TableHead>
-                          <TableHead>說明</TableHead>
-                          <TableHead className="text-right w-24">金額</TableHead>
-                          <TableHead className="w-20">收/支</TableHead>
-                          <TableHead className="w-40">類別 *</TableHead>
-                          <TableHead className="w-28">學生</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {reconcileResult.unmatchedBank.map((txn, i) => {
-                          const isCredit = !!txn.credit;
-                          const amount = txn.credit || txn.debit || '0';
-                          return (
-                            <TableRow key={i} className={isCredit ? 'bg-green-50/50' : 'bg-red-50/50'}>
-                              <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
-                              <TableCell className="text-sm">{txn.date || '-'}</TableCell>
-                              <TableCell className="text-sm max-w-[180px]" title={txn.description || ''}>
-                                <span className="line-clamp-2">{txn.description || '-'}</span>
-                              </TableCell>
-                              <TableCell className={`text-right text-sm font-medium ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatMoney(amount)}
-                              </TableCell>
-                              <TableCell>
-                                <span className={`text-xs px-2 py-0.5 rounded ${isCredit ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                  {isCredit ? '收入' : '支出'}
+            {/* Filter tabs */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setReconcileFilter('all')}
+                className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  reconcileFilter === 'all' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                全部 ({reconcileRows.length})
+              </button>
+              <button
+                onClick={() => setReconcileFilter('matched')}
+                className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  reconcileFilter === 'matched' 
+                    ? 'bg-white text-green-700 shadow-sm' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />
+                已匹配 ({reconcileResult.matched.length})
+              </button>
+              <button
+                onClick={() => setReconcileFilter('unmatched')}
+                className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  reconcileFilter === 'unmatched' 
+                    ? 'bg-white text-orange-700 shadow-sm' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
+                需手動 ({reconcileResult.unmatchedBank.length})
+              </button>
+            </div>
+
+            {/* Unified reconciliation table */}
+            <div className="overflow-x-auto border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="w-10 text-center">#</TableHead>
+                    <TableHead className="w-20">狀態</TableHead>
+                    <TableHead className="w-28">日期</TableHead>
+                    <TableHead className="min-w-[180px]">月結單說明</TableHead>
+                    <TableHead className="text-right w-24">金額</TableHead>
+                    <TableHead className="w-16">收/支</TableHead>
+                    <TableHead className="min-w-[200px]">對帳結果</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRows.map((row, rowIdx) => {
+                    const isCredit = !!row.bankTxn.credit;
+                    const amount = row.bankTxn.credit || row.bankTxn.debit || '0';
+
+                    if (row.type === 'matched') {
+                      // ===== Matched row =====
+                      return (
+                        <TableRow key={`m-${rowIdx}`} className="bg-green-50/40 hover:bg-green-50/70">
+                          <TableCell className="text-xs text-muted-foreground text-center">{rowIdx + 1}</TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap">
+                              <CheckCircle2 className="w-3 h-3" />
+                              已匹配
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-sm font-mono">{row.bankTxn.date || '-'}</TableCell>
+                          <TableCell className="text-sm max-w-[200px]" title={row.bankTxn.description || ''}>
+                            <span className="line-clamp-1">{row.bankTxn.description || '-'}</span>
+                          </TableCell>
+                          <TableCell className={`text-right text-sm font-medium ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatMoney(amount)}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${isCredit ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {isCredit ? '收入' : '支出'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {/* Show linked system record info */}
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1 text-xs">
+                                <Link2 className="w-3 h-3 text-green-500 flex-shrink-0" />
+                                <span className="text-green-700 font-medium">
+                                  {CATEGORY_MAP[row.systemRecord.category] || row.systemRecord.category}
                                 </span>
-                              </TableCell>
-                              <TableCell>
-                                <Select value={unmatchedFills[i]?.category || ""} onValueChange={v => updateFill(i, 'category', v)}>
-                                  <SelectTrigger className="h-8 text-xs">
+                                {row.matchScore !== undefined && (
+                                  <span className={`ml-1 px-1 py-0.5 rounded text-[10px] ${
+                                    row.matchScore >= 80 ? 'bg-green-100 text-green-700' :
+                                    row.matchScore >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-orange-100 text-orange-700'
+                                  }`}>
+                                    {row.matchScore}分
+                                  </span>
+                                )}
+                              </div>
+                              {row.systemRecord.description && (
+                                <p className="text-[11px] text-gray-500 line-clamp-1" title={row.systemRecord.description}>
+                                  系統: {row.systemRecord.description}
+                                </p>
+                              )}
+                              {row.systemRecord.studentName && (
+                                <p className="text-[11px] text-gray-500">
+                                  學生: {row.systemRecord.studentName}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    } else {
+                      // ===== Unmatched row - needs manual handling =====
+                      const fillIdx = row.unmatchedIndex!;
+                      return (
+                        <TableRow key={`u-${rowIdx}`} className="bg-orange-50/60 hover:bg-orange-50 border-l-4 border-l-orange-400">
+                          <TableCell className="text-xs text-muted-foreground text-center">{rowIdx + 1}</TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 font-semibold whitespace-nowrap border border-orange-300">
+                              <HandMetal className="w-3 h-3" />
+                              需手動
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-sm font-mono">{row.bankTxn.date || '-'}</TableCell>
+                          <TableCell className="text-sm max-w-[200px]" title={row.bankTxn.description || ''}>
+                            <span className="line-clamp-1">{row.bankTxn.description || '-'}</span>
+                          </TableCell>
+                          <TableCell className={`text-right text-sm font-medium ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatMoney(amount)}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${isCredit ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {isCredit ? '收入' : '支出'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {/* Manual fill-in fields */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-1">
+                                <AlertTriangle className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
+                                <span className="text-xs text-orange-700 font-medium">未能自動對帳，請手動選擇類別</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <Select value={unmatchedFills[fillIdx]?.category || ""} onValueChange={v => updateFill(fillIdx, 'category', v)}>
+                                  <SelectTrigger className="h-7 text-xs w-32">
                                     <SelectValue placeholder="選擇類別" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {isCredit && <SelectItem value="_inc" disabled>── 收入 ──</SelectItem>}
-                                    {isCredit && INCOME_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                                    {!isCredit && <SelectItem value="_exp" disabled>── 支出 ──</SelectItem>}
-                                    {!isCredit && EXPENSE_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                                    {isCredit && <SelectItem value="_inc" disabled className="text-xs font-semibold text-gray-400">── 收入 ──</SelectItem>}
+                                    {isCredit && INCOME_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value} className="text-xs">{c.label}</SelectItem>)}
+                                    {!isCredit && <SelectItem value="_exp" disabled className="text-xs font-semibold text-gray-400">── 支出 ──</SelectItem>}
+                                    {!isCredit && EXPENSE_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value} className="text-xs">{c.label}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
-                              </TableCell>
-                              <TableCell>
                                 <Input
-                                  className="h-8 text-xs"
-                                  placeholder="學生"
-                                  value={unmatchedFills[i]?.studentName || ""}
-                                  onChange={e => updateFill(i, 'studentName', e.target.value)}
+                                  className="h-7 text-xs w-24"
+                                  placeholder="學生姓名"
+                                  value={unmatchedFills[fillIdx]?.studentName || ""}
+                                  onChange={e => updateFill(fillIdx, 'studentName', e.target.value)}
                                 />
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Matched items (collapsible) */}
-            {reconcileResult.matched.length > 0 && (
-              <Card className="border-green-200">
-                <CardHeader className="pb-2 cursor-pointer" onClick={() => setShowMatched(!showMatched)}>
-                  <CardTitle className="text-base flex items-center justify-between text-green-700">
-                    <span className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      已匹配 ({reconcileResult.matched.length} 筆)
-                    </span>
-                    {showMatched ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </CardTitle>
-                </CardHeader>
-                {showMatched && (
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>月結單說明</TableHead>
-                            <TableHead className="text-right">月結單金額</TableHead>
-                            <TableHead>系統類別</TableHead>
-                            <TableHead>系統說明</TableHead>
-                            <TableHead>系統銀行</TableHead>
-                            <TableHead className="text-right w-16">匹配度</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {reconcileResult.matched.map((m, i) => (
-                            <TableRow key={i} className="bg-green-50/20">
-                              <TableCell className="text-sm">{m.bankTransaction.description || '-'}</TableCell>
-                              <TableCell className="text-right text-sm">
-                                {formatMoney(m.bankTransaction.credit || m.bankTransaction.debit)}
-                              </TableCell>
-                              <TableCell>
-                                <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">
-                                  {CATEGORY_MAP[m.systemRecord.category] || m.systemRecord.category}
+                              </div>
+                              {unmatchedFills[fillIdx]?.category && (
+                                <span className="text-[10px] text-green-600 font-medium">
+                                  <CheckCircle2 className="w-3 h-3 inline mr-0.5" />
+                                  已填寫，待匯入
                                 </span>
-                              </TableCell>
-                              <TableCell className="text-sm">{m.systemRecord.description || '-'}</TableCell>
-                              <TableCell className="text-sm">{m.systemRecord.bank || <span className="text-gray-400">未記錄</span>}</TableCell>
-                              <TableCell className="text-right">
-                                <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                  m.matchScore >= 80 ? 'bg-green-100 text-green-700' :
-                                  m.matchScore >= 60 ? 'bg-yellow-100 text-yellow-700' :
-                                  'bg-orange-100 text-orange-700'
-                                }`}>
-                                  {m.matchScore}%
-                                </span>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                )}
-              </Card>
-            )}
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                  })}
+                </TableBody>
+              </Table>
+            </div>
 
             {/* Unmatched system items (collapsible) */}
             {reconcileResult.unmatchedSystem.length > 0 && (
@@ -731,20 +853,26 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
             )}
 
             {/* Action buttons */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button variant="outline" onClick={resetAll}>重新開始</Button>
               {reconcileResult.unmatchedBank.length > 0 && (
-                <Button
-                  onClick={handleImportUnmatched}
-                  disabled={isImporting || Object.values(unmatchedFills).every(f => !f.category)}
-                  className="flex-1 bg-orange-600 hover:bg-orange-700"
-                >
-                  {isImporting ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> 匯入中...</>
-                  ) : (
-                    <><Save className="w-4 h-4 mr-2" /> 匯入已填寫的未匹配項目到會計總帳</>
-                  )}
-                </Button>
+                <>
+                  <div className="flex-1 flex items-center justify-center gap-2 text-sm text-orange-700 bg-orange-50 rounded-lg px-3">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>{filledUnmatchedCount} / {totalUnmatchedCount} 項已填寫類別</span>
+                  </div>
+                  <Button
+                    onClick={handleImportUnmatched}
+                    disabled={isImporting || filledUnmatchedCount === 0}
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
+                    {isImporting ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> 匯入中...</>
+                    ) : (
+                      <><Save className="w-4 h-4 mr-2" /> 匯入已填寫項目 ({filledUnmatchedCount}筆)</>
+                    )}
+                  </Button>
+                </>
               )}
               {reconcileResult.unmatchedBank.length === 0 && (
                 <div className="flex-1 p-3 bg-green-50 rounded-lg text-center text-green-700 font-medium">

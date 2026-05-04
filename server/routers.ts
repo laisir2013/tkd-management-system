@@ -3696,7 +3696,7 @@ export const appRouter = router({
   "transactions": [
     {
       "date": "交易日期 YYYY-MM-DD",
-      "description": "交易說明/摘要（原文）",
+      "description": "交易說明/摘要（原文，盡量簡短）",
       "debit": "支出金額（純數字字串，無支出則為 null）",
       "credit": "收入金額（純數字字串，無收入則為 null）",
       "balance": "結餘（純數字字串，如有顯示）",
@@ -3706,13 +3706,15 @@ export const appRouter = router({
 }
 
 注意事項：
-- 金額必須是純數字字串（如 "1800.00"），不含 $ 或 HK$ 符號
+- 金額必須是純數字字串（如 "1800.00"），不含 $ 或 HK$ 符號、不含逗號
 - 每一筆都要提取，不要遺漏
 - 日期格式統一為 YYYY-MM-DD
-- 如果有多頁，合併所有交易記錄
+- 如果有多頁，合併所有交易記錄到同一個 transactions 陣列
 - debit = 支出/提款/扣款，credit = 收入/存入/入帳
+- description 欄位保留原始交易摘要但盡量精簡（如 "轉賬交易 FPS/MISS NG TSUI" 即可）
 - 如果某個欄位無法識別，回傳 null
-- 中英文月結單皆可識別`
+- 中英文月結單皆可識別
+- 不同帳戶的交易請分開列出（如儲蓄帳戶和往來帳戶）`
               },
               {
                 role: "user",
@@ -3722,6 +3724,8 @@ export const appRouter = router({
                 ]
               }
             ],
+            // 月結單交易多時需要大量 token 輸出
+            maxTokens: 16384,
             response_format: {
               type: "json_schema",
               json_schema: {
@@ -3760,11 +3764,42 @@ export const appRouter = router({
 
           const content = ocrResponse.choices[0]?.message?.content;
           if (typeof content === 'string') {
-            const parsed = JSON.parse(content);
-            // Override with user-provided values if given
-            if (input.bankName) parsed.bankName = input.bankName;
-            if (input.statementMonth) parsed.statementPeriod = input.statementMonth;
-            return parsed;
+            try {
+              const parsed = JSON.parse(content);
+              // Override with user-provided values if given
+              if (input.bankName) parsed.bankName = input.bankName;
+              if (input.statementMonth) parsed.statementPeriod = input.statementMonth;
+              console.log(`[Bank Statement OCR] 成功識別 ${parsed.transactions?.length || 0} 筆交易`);
+              return parsed;
+            } catch (jsonErr: any) {
+              // JSON 被截斷時嘗試修復
+              console.error("[Bank Statement OCR] JSON 解析失敗，嘗試修復截斷的 JSON...");
+              console.error("[Bank Statement OCR] 原始回應長度:", content.length, "最後100字元:", content.slice(-100));
+              
+              // 嘗試找到最後一個完整的 transaction 物件並截斷修復
+              const lastValidBracket = content.lastIndexOf('}');
+              if (lastValidBracket > 0) {
+                // 嘗試補齊 JSON 結構
+                let fixedContent = content.substring(0, lastValidBracket + 1);
+                // 確保 transactions 陣列和外層物件都關閉
+                if (!fixedContent.endsWith(']}')) {
+                  fixedContent += ']}';
+                }
+                if (!fixedContent.endsWith('}]}')) {
+                  // 可能需要再包一層
+                }
+                try {
+                  const parsed = JSON.parse(fixedContent);
+                  if (input.bankName) parsed.bankName = input.bankName;
+                  if (input.statementMonth) parsed.statementPeriod = input.statementMonth;
+                  console.log(`[Bank Statement OCR] JSON 修復成功，識別 ${parsed.transactions?.length || 0} 筆交易（部分結果）`);
+                  return parsed;
+                } catch {
+                  // 修復失敗，拋出原始錯誤
+                }
+              }
+              throw new Error(`LLM 回傳的 JSON 格式不完整（回應長度 ${content.length} 字元），可能因為交易筆數過多。請嘗試減少上傳頁數或分批上傳。`);
+            }
           }
           throw new Error("LLM returned no content");
         } catch (error: any) {
