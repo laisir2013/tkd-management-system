@@ -145,9 +145,7 @@ export default function CoachDashboard() {
    PENDING BADGE — show count of receipts needing review
    ====================================================================== */
 function CoachPendingBadge() {
-  const { data: pendingCount } = trpc.receiptReview.pendingCount.useQuery(undefined, {
-    refetchInterval: 30000,
-  });
+  const { data: pendingCount } = trpc.receiptReview.pendingCount.useQuery();
   const count = pendingCount?.count ?? 0;
   if (count === 0) return null;
   return (

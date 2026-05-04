@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useWebSocket } from "@/lib/useWebSocket";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -38,13 +39,20 @@ function Router() {
   );
 }
 
+function WebSocketProvider({ children }: { children: React.ReactNode }) {
+  useWebSocket(); // 全域 WebSocket 連線 — 自動 invalidate tRPC queries
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <WebSocketProvider>
+            <Router />
+          </WebSocketProvider>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

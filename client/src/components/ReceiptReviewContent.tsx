@@ -51,13 +51,10 @@ export default function ReceiptReviewContent() {
   const [showImage, setShowImage] = useState<string | null>(null);
 
   const { data: reviews, isLoading, refetch } = trpc.receiptReview.list.useQuery(
-    { status: activeTab as any },
-    { refetchInterval: 30000 }
+    { status: activeTab as any }
   );
 
-  const { data: pendingCount } = trpc.receiptReview.pendingCount.useQuery(undefined, {
-    refetchInterval: 30000,
-  });
+  const { data: pendingCount } = trpc.receiptReview.pendingCount.useQuery();
 
   const { data: compareData, isLoading: compareLoading } = trpc.receiptReview.compare.useQuery(
     { paymentId: selectedId ?? 0, paymentType: selectedType },

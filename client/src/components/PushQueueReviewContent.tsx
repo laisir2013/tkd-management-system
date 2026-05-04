@@ -114,14 +114,11 @@ export default function PushQueueReviewContent() {
     isLoading,
     refetch,
   } = trpc.pushQueue.list.useQuery(
-    { status: activeTab as any },
-    { refetchInterval: 30000 }
+    { status: activeTab as any }
   );
 
   const { data: pendingCount, refetch: refetchCount } =
-    trpc.pushQueue.pendingCount.useQuery(undefined, {
-      refetchInterval: 30000,
-    });
+    trpc.pushQueue.pendingCount.useQuery();
 
   const { data: detailData, isLoading: detailLoading } =
     trpc.pushQueue.detail.useQuery(

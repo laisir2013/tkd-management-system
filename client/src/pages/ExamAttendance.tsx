@@ -75,8 +75,8 @@ export default function ExamAttendance() {
   const { data: schedules, isLoading: schedulesLoading } = trpc.exam.schedules.list.useQuery({ examId });
   const { data: candidates, isLoading: candidatesLoading, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery(
     { examId },
-    // 使用較長的 refetchInterval 作為 SSE 的 fallback
-    { refetchInterval: sseConnected ? 30000 : 3000, refetchIntervalInBackground: true }
+    // WebSocket 負責即時更新，SSE 作為考試專用的額外保障
+    { refetchIntervalInBackground: true }
   );
 
   // SSE 即時同步 - 取代頻繁輪詢

@@ -101,7 +101,6 @@ export default function Admin() {
 
   const { data: pushQueueCount } = trpc.pushQueue.pendingCount.useQuery(undefined, {
     enabled: user?.role === "admin",
-    refetchInterval: 30000,
   });
 
   const { data: paymentsData } = trpc.payments.getAllWithStudents.useQuery(undefined, {

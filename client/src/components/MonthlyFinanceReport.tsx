@@ -14,7 +14,7 @@ export default function MonthlyFinanceReport() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(new Set([currentMonth]));
 
-  const { data, isLoading } = trpc.coachStats.getMonthlyFinance.useQuery({ year: selectedYear }, { refetchInterval: 30000 });
+  const { data, isLoading } = trpc.coachStats.getMonthlyFinance.useQuery({ year: selectedYear });
 
   const yearOptions = [];
   for (let y = 2026; y <= currentYear + 1; y++) yearOptions.push(y);

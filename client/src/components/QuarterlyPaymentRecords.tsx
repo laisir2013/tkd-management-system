@@ -14,7 +14,7 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [coachFilter, setCoachFilter] = useState<string>(coachName || "all");
-  const { data: statuses, isLoading, refetch } = trpc.payments.getQuarterlyStatuses.useQuery({ year: selectedYear }, { refetchInterval: 15000 });
+  const { data: statuses, isLoading, refetch } = trpc.payments.getQuarterlyStatuses.useQuery({ year: selectedYear });
   
   // 生成年份選項（從 2026 到當前年份 + 1）
   const yearOptions = [];

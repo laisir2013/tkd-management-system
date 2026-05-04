@@ -111,12 +111,12 @@ export default function AccountingRecords() {
     month: selectedMonth,
     type: typeFilter === 'all' ? undefined : typeFilter,
     category: categoryFilter === 'all' ? undefined : categoryFilter,
-  }, { refetchInterval: 30000 });
+  });
 
   const { data: summaryData } = trpc.accounting.getSummary.useQuery({
     year: selectedYear,
     month: selectedMonth,
-  }, { refetchInterval: 30000 });
+  });
 
   // Mutations
   const createMutation = trpc.accounting.create.useMutation({
