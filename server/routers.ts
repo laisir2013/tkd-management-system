@@ -3701,6 +3701,27 @@ export const appRouter = router({
         return { success: true, synced };
       }),
 
+    // 更新會計記錄的銀行分類（管理員為缺少銀行的記錄分配銀行）
+    updateRecordBank: protectedProcedure
+      .input(z.object({
+        recordId: z.number(),
+        bank: z.string(),           // 顯示用銀行名稱，如 "中銀香港 (BOC)"
+        receivingBank: z.string().optional(), // 收款銀行（用於月結單對帳）
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const updateData: any = {
+          bank: input.bank,
+        };
+        if (input.receivingBank) {
+          updateData.receivingBank = input.receivingBank;
+        }
+        await updateAccountingRecord(input.recordId, updateData);
+        return { success: true };
+      }),
+
     // ===== 銀行月結單對帳 =====
 
     // 1. 上傳並解析銀行月結單（支援多頁圖片）

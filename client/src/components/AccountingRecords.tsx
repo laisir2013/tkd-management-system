@@ -157,6 +157,15 @@ export default function AccountingRecords() {
     onError: (e) => toast.error(`刪除失敗: ${e.message}`),
   });
 
+  // 更新銀行分類
+  const updateBankMutation = trpc.accounting.updateRecordBank.useMutation({
+    onSuccess: () => {
+      toast.success("銀行已更新");
+      refetch();
+    },
+    onError: (e) => toast.error(`更新失敗: ${e.message}`),
+  });
+
   const syncMutation = trpc.accounting.syncExistingPayments.useMutation({
     onSuccess: (result) => {
       toast.success(`成功同步 ${result.synced} 筆繳費記錄到會計總帳`);
@@ -727,7 +736,32 @@ export default function AccountingRecords() {
                           <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">{record.dojoName}</span>
                         ) : '-'}
                       </TableCell>
-                      <TableCell className="text-sm">{record.bank || '-'}</TableCell>
+                      <TableCell className="text-sm">
+                        {record.bank ? (
+                          <span className="text-xs">{record.bank}</span>
+                        ) : (
+                          <Select
+                            value=""
+                            onValueChange={(v) => {
+                              updateBankMutation.mutate({
+                                recordId: record.id,
+                                bank: v,
+                                receivingBank: v,
+                              });
+                            }}
+                          >
+                            <SelectTrigger className="h-7 w-28 text-xs border-orange-300 bg-orange-50 text-orange-700">
+                              <SelectValue placeholder="分配銀行" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="中銀香港 (BOC)">中銀 (BOC)</SelectItem>
+                              <SelectItem value="滙豐銀行 (HSBC)">滙豐 (HSBC)</SelectItem>
+                              <SelectItem value="FPS轉數快">FPS轉數快</SelectItem>
+                              <SelectItem value="現金">現金</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right text-sm font-medium">{formatMoney(record.amount)}</TableCell>
                       <TableCell className="text-right text-sm text-green-600 font-medium">
                         {record.type === 'income' ? formatMoney(record.amount) : ''}
@@ -851,7 +885,16 @@ export default function AccountingRecords() {
             </div>
             <div>
               <Label>銀行</Label>
-              <Input placeholder="例如：匯豐、中銀、FPS" value={formBank} onChange={e => setFormBank(e.target.value)} />
+              <Select value={formBank || "_none"} onValueChange={v => setFormBank(v === '_none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="選擇銀行" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">不指定</SelectItem>
+                  <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                  <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                  <SelectItem value="FPS轉數快">FPS轉數快</SelectItem>
+                  <SelectItem value="現金">現金</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>學生姓名</Label>
@@ -913,7 +956,16 @@ export default function AccountingRecords() {
             </div>
             <div>
               <Label>銀行</Label>
-              <Input placeholder="例如：匯豐、中銀、FPS" value={formBank} onChange={e => setFormBank(e.target.value)} />
+              <Select value={formBank || "_none"} onValueChange={v => setFormBank(v === '_none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="選擇銀行" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">不指定</SelectItem>
+                  <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                  <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                  <SelectItem value="FPS轉數快">FPS轉數快</SelectItem>
+                  <SelectItem value="現金">現金</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>道場</Label>
@@ -1034,7 +1086,16 @@ export default function AccountingRecords() {
             </div>
             <div>
               <Label>銀行</Label>
-              <Input value={formBank} onChange={e => setFormBank(e.target.value)} />
+              <Select value={formBank || "_none"} onValueChange={v => setFormBank(v === '_none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="選擇銀行" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">不指定</SelectItem>
+                  <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                  <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                  <SelectItem value="FPS轉數快">FPS轉數快</SelectItem>
+                  <SelectItem value="現金">現金</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>學生姓名</Label>

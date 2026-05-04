@@ -2183,14 +2183,14 @@ export function normalizeBankName(rawBank: string | null | undefined): string | 
     return 'boc';
   }
 
-  // Standard Chartered 渣打銀行
+  // Standard Chartered 渣打銀行 → 系統不支援，歸類為通用銀行
   if (b.includes('STANDARD CHARTERED') || b.includes('渣打') || b.includes('SCB')) {
-    return 'scb';
+    return 'bank';
   }
 
-  // Hang Seng 恒生銀行
+  // Hang Seng 恒生銀行 → 系統不支援，歸類為通用銀行
   if (b.includes('HANG SENG') || b.includes('恒生') || b.includes('恆生')) {
-    return 'hangseng';
+    return 'bank';
   }
 
   // 現金
@@ -2211,8 +2211,8 @@ export function paymentMethodToDisplayName(pm: string | null): string {
     'hsbc': '滙豐銀行 (HSBC)',
     'boc': '中銀香港 (BOC)',
     'fps': 'FPS轉數快',
-    'scb': '渣打銀行 (SCB)',
-    'hangseng': '恒生銀行',
+    'scb': '銀行 (待分配)',  // 系統不支援渣打
+    'hangseng': '銀行 (待分配)',  // 系統不支援恒生
     'cash': '現金',
     'bank': '銀行',
   };

@@ -281,7 +281,7 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
   }
 
   // 壓縮圖片：限制最大寬度，改用 JPEG 格式減少 base64 大小
-  function compressImage(canvas: HTMLCanvasElement, maxWidth = 1600): { base64: string; mimeType: string } {
+  function compressImage(canvas: HTMLCanvasElement, maxWidth = 1200): { base64: string; mimeType: string } {
     let outputCanvas = canvas;
     // 若超過最大寬度則縮小
     if (canvas.width > maxWidth) {
@@ -293,8 +293,8 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
       rCtx.drawImage(canvas, 0, 0, resized.width, resized.height);
       outputCanvas = resized;
     }
-    // 使用 JPEG 0.82 品質（比 PNG 小 5-10 倍，OCR 仍清晰）
-    const dataUrl = outputCanvas.toDataURL('image/jpeg', 0.82);
+    // 使用 JPEG 0.70 品質（大幅減小體積，OCR 仍足夠清晰）
+    const dataUrl = outputCanvas.toDataURL('image/jpeg', 0.70);
     return { base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' };
   }
 
@@ -308,7 +308,7 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
         canvas.height = img.height;
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0);
-        resolve(compressImage(canvas, 1600));
+        resolve(compressImage(canvas, 1200));
       };
       img.onerror = () => reject(new Error('圖片載入失敗'));
       img.src = URL.createObjectURL(file);
@@ -343,48 +343,80 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
       const ctx = canvas.getContext('2d')!;
       await page.render({ canvasContext: ctx, viewport }).promise;
       // 壓縮為 JPEG，大幅減少 base64 大小
-      images.push(compressImage(canvas, 1600));
+      images.push(compressImage(canvas, 1200));
     }
     return images;
   }
+
+  // 自動分批上傳：每批最多 MAX_PAGES_PER_BATCH 頁，自動合併結果
+  const MAX_PAGES_PER_BATCH = 4;
 
   async function handleParse() {
     if (files.length === 0) { toast.error("請選擇月結單檔案"); return; }
     setIsParsing(true);
     try {
-      const images: { base64: string; mimeType: string }[] = [];
+      const allImages: { base64: string; mimeType: string }[] = [];
       for (const file of files) {
         if (file.type === 'application/pdf') {
           const pdfImages = await convertPdfToImages(file);
-          images.push(...pdfImages);
+          allImages.push(...pdfImages);
         } else {
-          // 壓縮用戶上傳的圖片
           const compressed = await compressFileImage(file);
-          images.push(compressed);
+          allImages.push(compressed);
         }
       }
 
-      // 檢查總 payload 大小（base64 字元數），超過 40MB 提示用戶分批上傳
-      const totalSize = images.reduce((sum, img) => sum + img.base64.length, 0);
-      if (totalSize > 40_000_000) {
-        toast.error(`圖片總大小過大（約 ${Math.round(totalSize / 1_000_000)}MB），請減少頁數或分批上傳`);
+      if (allImages.length === 0) {
+        toast.error('未能讀取任何圖片');
         setIsParsing(false);
         return;
       }
 
-      const result = await parseMutation.mutateAsync({
-        images,
-        bankName: bankName || undefined,
-        statementMonth: `${statementYear}-${String(statementMonth).padStart(2, '0')}`,
-      });
-      setParsedStatement(result as ParsedStatement);
-      setViewMode('parsed');
-      toast.success(`成功識別 ${(result as any).transactions?.length || 0} 筆交易記錄`);
+      // 自動分批：若超過 MAX_PAGES_PER_BATCH 頁則自動拆成多批
+      const batches: { base64: string; mimeType: string }[][] = [];
+      for (let i = 0; i < allImages.length; i += MAX_PAGES_PER_BATCH) {
+        batches.push(allImages.slice(i, i + MAX_PAGES_PER_BATCH));
+      }
+
+      let mergedResult: ParsedStatement | null = null;
+      const stmtMonth = `${statementYear}-${String(statementMonth).padStart(2, '0')}`;
+
+      for (let bIdx = 0; bIdx < batches.length; bIdx++) {
+        const batch = batches[bIdx];
+        if (batches.length > 1) {
+          toast.info(`正在識別第 ${bIdx + 1}/${batches.length} 批（${batch.length} 頁）...`);
+        }
+
+        const result = await parseMutation.mutateAsync({
+          images: batch,
+          bankName: bankName || undefined,
+          statementMonth: stmtMonth,
+        }) as ParsedStatement;
+
+        if (!mergedResult) {
+          mergedResult = result;
+        } else {
+          // 合併多批結果：追加交易、更新期末結餘
+          mergedResult.transactions = [
+            ...mergedResult.transactions,
+            ...(result.transactions || []),
+          ];
+          // 用最後一批的 closingBalance
+          if (result.closingBalance) mergedResult.closingBalance = result.closingBalance;
+          // 用第一批或 AI 識別的銀行名
+          if (!mergedResult.bankName && result.bankName) mergedResult.bankName = result.bankName;
+        }
+      }
+
+      if (mergedResult) {
+        setParsedStatement(mergedResult);
+        setViewMode('parsed');
+        toast.success(`成功識別 ${mergedResult.transactions?.length || 0} 筆交易記錄${batches.length > 1 ? `（分 ${batches.length} 批完成）` : ''}`);
+      }
     } catch (error: any) {
       const msg = error?.message || String(error);
-      // 捕捉代理返回 HTML 的情況（payload 過大或超時）
       if (msg.includes('<!DOCTYPE') || msg.includes('Unexpected token') || msg.includes('is not valid JSON')) {
-        toast.error('上傳的檔案過大，伺服器無法處理。請減少頁數或分批上傳（建議每次最多 3-4 頁）。');
+        toast.error('上傳的檔案過大，伺服器無法處理。請減少頁數後重試。');
       } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
         toast.error('網路連線中斷，請檢查網路後重試。');
       } else {
@@ -679,8 +711,15 @@ export default function BankStatementReconciliation({ onReconciled }: { onReconc
                 </div>
               </div>
               <div>
-                <Label>銀行名稱（選填）</Label>
-                <Input className="mt-1" placeholder="例如：匯豐銀行" value={bankName} onChange={e => setBankName(e.target.value)} />
+                <Label>銀行 *</Label>
+                <Select value={bankName || "_none"} onValueChange={v => setBankName(v === '_none' ? '' : v)}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="選擇銀行" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">請選擇銀行</SelectItem>
+                    <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
+                    <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
