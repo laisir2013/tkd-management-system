@@ -157,6 +157,7 @@ import {
   createJournalEntryFromRecord,
   syncAllPendingRecords,
   syncOrphanedPayments,
+  backfillAccountingBanks,
   createManualJournalEntry,
   postJournalEntry,
   unpostJournalEntry,
@@ -4780,6 +4781,16 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         return syncOrphanedPayments();
+      }),
+
+    // 批量回填會計記錄中缺失的銀行資訊
+    // 從關聯的 paymentRecord.receivingBank 回填到 accounting_records.bank
+    backfillAccountingBanks: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return backfillAccountingBanks();
       }),
 
     // ===== 報表 (Reports) =====

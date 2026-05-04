@@ -2423,6 +2423,80 @@ export async function syncOrphanedPayments(): Promise<{ synced: number; errors: 
 }
 
 /**
+ * 批量回填會計記錄中缺失的銀行資訊
+ * 找出所有 bank 為空的會計記錄，從關聯的 paymentRecord / elitePaymentRecord 取得銀行欄位回填
+ */
+export async function backfillAccountingBanks(): Promise<{ fixed: number; errors: number; details: string[] }> {
+  const db = await getDb();
+  if (!db) return { fixed: 0, errors: 0, details: ['Database not available'] };
+
+  // 找出 bank 為空（NULL 或空字串）的會計記錄
+  const missingBank = await db.select().from(accountingRecords)
+    .where(
+      or(
+        isNull(accountingRecords.bank),
+        eq(accountingRecords.bank, '')
+      )
+    );
+
+  let fixed = 0;
+  let errors = 0;
+  const details: string[] = [];
+
+  for (const record of missingBank) {
+    try {
+      let bankToSet: string | null = null;
+
+      // 1. 嘗試從關聯的 paymentRecord 取得銀行
+      if (record.paymentRecordId) {
+        const pmtRecords = await db.select().from(paymentRecords)
+          .where(eq(paymentRecords.id, record.paymentRecordId))
+          .limit(1);
+        const pmt = pmtRecords[0];
+        if (pmt) {
+          // 優先用 receivingBank（管理員上傳時選的轉入銀行），再用 bank
+          const source = (pmt as any).receivingBank || (pmt as any).bank || null;
+          if (source) {
+            const normalized = normalizeBankName(source);
+            bankToSet = normalized ? paymentMethodToDisplayName(normalized) : source;
+          }
+        }
+      }
+
+      // 2. 嘗試從關聯的 elitePaymentRecord 取得銀行
+      if (!bankToSet && record.elitePaymentRecordId) {
+        const eliteRecords = await db.select().from(elitePaymentRecords)
+          .where(eq(elitePaymentRecords.id, record.elitePaymentRecordId))
+          .limit(1);
+        const elite = eliteRecords[0];
+        if (elite) {
+          const source = (elite as any).receivingBank || (elite as any).bank || null;
+          if (source) {
+            const normalized = normalizeBankName(source);
+            bankToSet = normalized ? paymentMethodToDisplayName(normalized) : source;
+          }
+        }
+      }
+
+      if (bankToSet) {
+        await db.update(accountingRecords)
+          .set({ bank: bankToSet, receivingBank: bankToSet } as any)
+          .where(eq(accountingRecords.id, record.id));
+        details.push(`Record #${record.id}: ${record.description || ''} → ${bankToSet}`);
+        fixed++;
+      } else {
+        details.push(`Record #${record.id}: ${record.description || ''} → 無法取得銀行資訊（paymentRecordId=${record.paymentRecordId}）`);
+      }
+    } catch (e: any) {
+      details.push(`Record #${record.id}: 修復失敗 - ${e.message}`);
+      errors++;
+    }
+  }
+
+  return { fixed, errors, details };
+}
+
+/**
  * 取得會計摘要統計
  */
 export async function getAccountingSummary(year: number, month?: number) {

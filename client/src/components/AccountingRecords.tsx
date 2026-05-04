@@ -174,6 +174,19 @@ export default function AccountingRecords() {
     onError: (e) => toast.error(`同步失敗: ${e.message}`),
   });
 
+  // 批量回填會計記錄中缺失的銀行資訊
+  const backfillBanksMutation = trpc.accounting.backfillAccountingBanks.useMutation({
+    onSuccess: (result) => {
+      if (result.fixed > 0) {
+        toast.success(`已回填 ${result.fixed} 筆記錄的銀行資訊`);
+      } else {
+        toast.info("所有記錄的銀行資訊已齊全，無需回填");
+      }
+      refetch();
+    },
+    onError: (e) => toast.error(`回填失敗: ${e.message}`),
+  });
+
   // 收款帳號設定
   const { data: payeeConfigData, refetch: refetchPayeeConfig } = trpc.payeeConfig.getAcceptedAccounts.useQuery(undefined, {
     enabled: showPayeeConfig,
@@ -552,6 +565,10 @@ export default function AccountingRecords() {
           <Button onClick={() => syncMutation.mutate()} size="sm" variant="outline" disabled={syncMutation.isPending}>
             {syncMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
             同步繳費記錄
+          </Button>
+          <Button onClick={() => backfillBanksMutation.mutate()} size="sm" variant="outline" disabled={backfillBanksMutation.isPending} className="border-amber-300 text-amber-700 hover:bg-amber-50">
+            {backfillBanksMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Shield className="w-4 h-4 mr-1" />}
+            回填銀行資訊
           </Button>
           {selectedRecordIds.size > 0 && (
             <Button onClick={handleBatchDownload} size="sm" variant="outline" className="border-orange-300 text-orange-700 hover:bg-orange-50" disabled={isBatchDownloading}>
