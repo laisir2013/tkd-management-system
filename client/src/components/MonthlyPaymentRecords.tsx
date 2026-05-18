@@ -716,7 +716,14 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             const currentStudent = filteredStatuses.find((s: any) => s.studentId === confirmDialog.studentId);
             const feePerQuarter = currentStudent ? parseFloat(currentStudent.feePerQuarter || '0') : 0;
             const totalQuarters = 1 + confirmExtraQuarters.length;
-            const totalAmount = feePerQuarter * totalQuarters;
+            const totalStudents = 1 + confirmExtraStudentIds.length;
+            // 計算所有學生的總費用（各學生費用可能不同）
+            const allStudentFees = [feePerQuarter];
+            confirmExtraStudentIds.forEach(id => {
+              const s = filteredStatuses.find((st: any) => st.studentId === id);
+              allStudentFees.push(s ? parseFloat(s.feePerQuarter || '0') : feePerQuarter);
+            });
+            const grandTotal = allStudentFees.reduce((sum, fee) => sum + fee * totalQuarters, 0);
             return (
             <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
               <div className="text-sm font-medium text-purple-800 mb-2">
@@ -779,13 +786,16 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   );
                 })}
               </div>
-              {/* ★ 顯示多季總金額 */}
+              {/* ★ 顯示多季 × 多學生總金額 */}
               <div className="mt-2 text-sm font-medium text-purple-800">
-                💰 入帳金額：{totalQuarters} 季 × ${feePerQuarter.toLocaleString()} = <strong>${totalAmount.toLocaleString()}</strong>
+                💰 入帳金額：{totalStudents > 1 
+                  ? `${totalStudents} 位學生 × ${totalQuarters} 季 = `
+                  : `${totalQuarters} 季 × $${feePerQuarter.toLocaleString()} = `
+                }<strong className="text-lg">${grandTotal.toLocaleString()}</strong>
               </div>
-              {confirmExtraQuarters.length > 0 && (
+              {(confirmExtraQuarters.length > 0 || confirmExtraStudentIds.length > 0) && (
                 <div className="text-xs text-purple-700">
-                  📌 每位學生將建立 {totalQuarters} 筆季繳記錄
+                  📌 共建立 {totalStudents * totalQuarters} 筆季繳記錄{totalStudents > 1 ? `（${totalStudents} 位學生各 ${totalQuarters} 季）` : ''}
                 </div>
               )}
             </div>
@@ -838,11 +848,23 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                     );
                   })}
               </div>
-              {confirmExtraStudentIds.length > 0 && (
-                <div className="mt-2 text-xs text-blue-700">
-                  ✅ 共選擇 {1 + confirmExtraStudentIds.length} 位學生，將使用同一張收據登記
-                </div>
-              )}
+              {confirmExtraStudentIds.length > 0 && (() => {
+                const totalStudents = 1 + confirmExtraStudentIds.length;
+                const totalQuarters = 1 + confirmExtraQuarters.length;
+                const currentStudent = filteredStatuses.find((s: any) => s.studentId === confirmDialog.studentId);
+                const baseFee = currentStudent ? parseFloat(currentStudent.feePerQuarter || '0') : 0;
+                const allFees = [baseFee, ...confirmExtraStudentIds.map(id => {
+                  const s = filteredStatuses.find((st: any) => st.studentId === id);
+                  return s ? parseFloat(s.feePerQuarter || '0') : baseFee;
+                })];
+                const grandTotal = allFees.reduce((sum, fee) => sum + fee * totalQuarters, 0);
+                return (
+                  <div className="mt-2 text-sm text-blue-800 font-medium">
+                    ✅ 共 {totalStudents} 位學生{totalQuarters > 1 ? ` × ${totalQuarters} 季` : ''}
+                    ，總入帳金額：<strong className="text-lg">${grandTotal.toLocaleString()}</strong>
+                  </div>
+                );
+              })()}
             </div>
             );
           })()}
@@ -982,11 +1004,23 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               }}
             >
               <ShieldCheck className="w-4 h-4 mr-1" />
-              {confirmMonthlyPayment.isPending ? '處理中...' : (
-                confirmDialog?.paymentType === 'quarterly'
-                  ? `確認季繳${confirmExtraStudentIds.length > 0 ? ` (${1 + confirmExtraStudentIds.length}位)` : ''}`
-                  : `確認月繳${confirmExtraStudentIds.length > 0 ? ` (${1 + confirmExtraStudentIds.length}位)` : ''}`
-              )}
+              {confirmMonthlyPayment.isPending ? '處理中...' : (() => {
+                const totalStudents = 1 + confirmExtraStudentIds.length;
+                const totalQuarters = 1 + confirmExtraQuarters.length;
+                const currentStudent = filteredStatuses.find((s: any) => s.studentId === confirmDialog?.studentId);
+                const baseFee = currentStudent ? parseFloat(currentStudent.feePerQuarter || '0') : 0;
+                const allFees = [baseFee, ...confirmExtraStudentIds.map(id => {
+                  const s = filteredStatuses.find((st: any) => st.studentId === id);
+                  return s ? parseFloat(s.feePerQuarter || '0') : baseFee;
+                })];
+                const grandTotal = allFees.reduce((sum, fee) => sum + fee * totalQuarters, 0);
+                const label = confirmDialog?.paymentType === 'quarterly' ? '季繳' : '月繳';
+                const parts = [];
+                if (totalStudents > 1) parts.push(`${totalStudents}位`);
+                if (totalQuarters > 1) parts.push(`${totalQuarters}季`);
+                const suffix = parts.length > 0 ? ` (${parts.join('·')})` : '';
+                return `確認${label}${suffix} $${grandTotal.toLocaleString()}`;
+              })()}
             </Button>
           </DialogFooter>
         </DialogContent>
