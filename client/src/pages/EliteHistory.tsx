@@ -98,6 +98,50 @@ export default function EliteHistory() {
     batchMutation.mutate({ entries });
   }, [selectedCells, batchMutation]);
 
+  // 確認點名：被選的標記為 present，同一堂課未被選的自動標記為 absent
+  const applyBatchConfirm = useCallback(() => {
+    if (selectedCells.size === 0) { toast.warning("請先選擇出席的學生"); return; }
+
+    // 找出所有涉及的 scheduleId
+    const selectedKeys = Array.from(selectedCells);
+    const scheduleIdsSet = new Set<number>();
+    selectedKeys.forEach(key => {
+      const scheduleId = Number(key.split('-')[0]);
+      scheduleIdsSet.add(scheduleId);
+    });
+
+    const entries: Array<{ scheduleId: number; studentId: number; status: string }> = [];
+
+    // 對每個涉及的堂課，找出所有應到學生
+    for (const scheduleId of scheduleIdsSet) {
+      // 找到對應的 schedule 資料（取訓練日期）
+      const schedule = allSchedules.find((s: any) => s.id === scheduleId);
+      if (!schedule || schedule.status === 'cancelled') continue;
+
+      // 取得該堂課所有應到學生（A班 + B班，已加入且 active）
+      const eligibleStudents = allActiveStudents.filter((s: any) => 
+        isStudentJoined(s, schedule.trainingDate)
+      );
+
+      for (const student of eligibleStudents) {
+        const key = `${scheduleId}-${student.id}`;
+        if (selectedCells.has(key)) {
+          // 被選中 → 出席
+          entries.push({ scheduleId, studentId: student.id, status: 'present' });
+        } else {
+          // 未被選中 → 缺席
+          entries.push({ scheduleId, studentId: student.id, status: 'absent' });
+        }
+      }
+    }
+
+    if (entries.length === 0) { toast.warning("沒有需要更新的記錄"); return; }
+    const presentCount = entries.filter(e => e.status === 'present').length;
+    const absentCount = entries.filter(e => e.status === 'absent').length;
+    toast.info(`點名中：${presentCount} 位出席，${absentCount} 位缺席`);
+    batchMutation.mutate({ entries });
+  }, [selectedCells, batchMutation, allSchedules, allActiveStudents, isStudentJoined]);
+
   // balance map
   const balanceMap = useMemo(() => {
     const map: Record<number, any> = {};
@@ -927,9 +971,19 @@ export default function EliteHistory() {
               size="sm"
               className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
               disabled={selectedCells.size === 0 || batchMutation.isPending}
+              onClick={() => applyBatchConfirm()}
+            >
+              ✅ 確認點名
+            </Button>
+            <div className="w-px h-6 bg-gray-200" />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs border-green-300 text-green-700 hover:bg-green-50"
+              disabled={selectedCells.size === 0 || batchMutation.isPending}
               onClick={() => applyBatchStatus('present')}
             >
-              全部出席
+              僅標記出席
             </Button>
             <Button
               size="sm"
