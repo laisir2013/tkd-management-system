@@ -36,6 +36,7 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
     beltLevel: "",
     birthDate: "",
     coach: "賴政堡教練",
+    joinDate: "", // 入學日期（第一堂課日期）
   });
 
   // 查詢所有道場資料
@@ -80,6 +81,7 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
         beltLevel: "",
         birthDate: "",
         coach: "賴政堡教練",
+        joinDate: "",
       });
     },
     onError: (error) => {
@@ -111,6 +113,7 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
       beltLevel: formData.beltLevel || undefined,
       birthDate: formData.birthDate || null,
       coach: formData.coach || undefined,
+      joinDate: formData.joinDate || null,
     });
   };
 
@@ -150,7 +153,7 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
             </div>
           </div>
 
-          {/* 出生日期 + 色帶 */}
+          {/* 出生日期 + 入學日期 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="add-birthDate">出生日期</Label>
@@ -161,6 +164,20 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
                 onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-joinDate">入學日期（第一堂課）</Label>
+              <Input
+                id="add-joinDate"
+                type="date"
+                value={formData.joinDate}
+                onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">用於計算12堂進度及下期按比例計費</p>
+            </div>
+          </div>
+
+          {/* 色帶級數 */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="add-beltLevel">色帶級數</Label>
               <Select

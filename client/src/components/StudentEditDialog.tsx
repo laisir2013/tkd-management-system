@@ -37,6 +37,7 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
     beltLevel: "",
     birthDate: "",
     coach: "",
+    joinDate: "", // 入學日期（第一堂課日期）
   });
 
   // 查詢所有道場資料
@@ -94,6 +95,7 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
         beltLevel: student.beltLevel || "",
         birthDate: student.birthDate ? new Date(student.birthDate).toISOString().split('T')[0] : "",
         coach: student.coach || "",
+        joinDate: student.joinDate ? new Date(student.joinDate).toISOString().split('T')[0] : "",
       });
     }
   }, [student]);
@@ -109,6 +111,7 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
       id: student.id,
       ...formData,
       birthDate: formData.birthDate || null,
+      joinDate: formData.joinDate || null,
     });
   };
 
@@ -145,7 +148,7 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
             </div>
           </div>
 
-          {/* 出生日期 + 色帶 */}
+          {/* 出生日期 + 入學日期 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="birthDate">出生日期</Label>
@@ -156,6 +159,32 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
                 onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="joinDate">入學日期（第一堂課）</Label>
+              <Input
+                id="joinDate"
+                type="date"
+                value={formData.joinDate}
+                onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
+              />
+              {formData.joinDate && (() => {
+                const join = new Date(formData.joinDate);
+                const now = new Date();
+                const diffDays = Math.floor((now.getTime() - join.getTime()) / (1000 * 60 * 60 * 24));
+                const weeksElapsed = Math.floor(diffDays / 7);
+                const classesEstimate = Math.min(weeksElapsed, 12);
+                return (
+                  <p className="text-xs text-muted-foreground">
+                    入學 {diffDays} 天，約 {classesEstimate}/12 堂
+                    {classesEstimate >= 12 && ' ✅ 已完成一期'}
+                  </p>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* 色帶級數 */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="beltLevel">色帶級數</Label>
               <Select

@@ -699,6 +699,7 @@ export const appRouter = router({
         beltLevel: z.string().optional(),
         birthDate: z.string().nullable().optional(),
         coach: z.string().optional(),
+        joinDate: z.string().nullable().optional(), // 入學日期（第一堂課日期）
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
@@ -717,6 +718,7 @@ export const appRouter = router({
           beltLevel: input.beltLevel || null,
           birthDate: input.birthDate ? (input.birthDate as any) : null,
           coach: input.coach || '賴政堡教練',
+          joinDate: input.joinDate ? new Date(input.joinDate) : null,
           status: 'active',
         });
 
@@ -1005,6 +1007,7 @@ export const appRouter = router({
         beltLevel: z.string().optional(),
         coach: z.string().optional(),
         status: z.enum(['active', 'inactive']).optional(),
+        joinDate: z.string().nullable().optional(), // 入學日期（第一堂課日期）
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
@@ -1027,6 +1030,9 @@ export const appRouter = router({
         if (data.beltLevel !== undefined) updateData.beltLevel = data.beltLevel;
         if (data.coach !== undefined) updateData.coach = data.coach;
         if (data.status !== undefined) updateData.status = data.status;
+        if (data.joinDate !== undefined) {
+          updateData.joinDate = (data.joinDate ? new Date(data.joinDate) : null) as any;
+        }
         
         await updateStudent(id, updateData);
         return { success: true };
