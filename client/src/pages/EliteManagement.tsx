@@ -1098,7 +1098,7 @@ function EliteFinanceTab() {
   const { data: balances = [], isLoading } = trpc.elite.getAllBalances.useQuery();
   const { data: allPayments = [] } = trpc.elite.getPayments.useQuery({});
   const [showAddPayment, setShowAddPayment] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({ studentId: 0, classCount: "10", amount: "", notes: "" });
+  const [paymentForm, setPaymentForm] = useState({ studentId: 0, classCount: "12", amount: "", notes: "" });
   const [receiptFile, setReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
   const [deletePaymentTarget, setDeletePaymentTarget] = useState<any>(null);
   const [deletePassword, setDeletePassword] = useState("");
@@ -1219,7 +1219,7 @@ function EliteFinanceTab() {
             )}
           </Button>
         )}
-        <Button onClick={() => { setPaymentForm({ studentId: 0, classCount: "10", amount: "", notes: "" }); setShowAddPayment(true); }}>
+        <Button onClick={() => { setPaymentForm({ studentId: 0, classCount: "12", amount: "", notes: "" }); setShowAddPayment(true); }}>
           <Plus className="h-4 w-4 mr-1" />新增繳費
         </Button>
       </div>
@@ -1430,9 +1430,47 @@ function EliteFinanceTab() {
                 </div>
               );
             })()}
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>購買堂數 *</Label><Input type="number" value={paymentForm.classCount} onChange={(e) => handleClassCountChange(e.target.value)} /></div>
-              <div><Label>金額 ($)</Label><Input value={paymentForm.amount} onChange={(e) => setPaymentForm(p => ({ ...p, amount: e.target.value }))} /></div>
+            <div className="space-y-2">
+              <Label>購買堂數 *</Label>
+              <div className="flex gap-2">
+                {[12, 24, 36, 48].map(n => {
+                  const student = students.find((s: any) => s.id === paymentForm.studentId);
+                  const fpc = student ? parseFloat(student.feePerClass) || 0 : 0;
+                  const isSelected = parseInt(paymentForm.classCount) === n;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      className={`flex-1 py-2 px-2 rounded-lg border-2 text-center transition-all ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                      onClick={() => handleClassCountChange(String(n))}
+                    >
+                      <div className="text-lg font-bold">{n}堂</div>
+                      {fpc > 0 && <div className={`text-xs ${isSelected ? 'text-blue-600' : 'text-muted-foreground'}`}>${(fpc * n).toLocaleString()}</div>}
+                      {n > 12 && <div className={`text-[10px] ${isSelected ? 'text-blue-500' : 'text-muted-foreground'}`}>{n / 12}期</div>}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">自訂堂數</Label>
+                  <Input type="number" min="1" value={paymentForm.classCount} onChange={(e) => handleClassCountChange(e.target.value)} className="h-9" />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">金額 ($){paymentForm.studentId > 0 && (() => {
+                    const s = students.find((s: any) => s.id === paymentForm.studentId);
+                    const fpc = s ? parseFloat(s.feePerClass) || 0 : 0;
+                    const cc = parseInt(paymentForm.classCount) || 0;
+                    const calc = fpc * cc;
+                    return fpc > 0 && calc === parseFloat(paymentForm.amount) ? ` = ${cc} × $${fpc}` : '';
+                  })()}</Label>
+                  <Input value={paymentForm.amount} onChange={(e) => setPaymentForm(p => ({ ...p, amount: e.target.value }))} className="h-9" />
+                </div>
+              </div>
             </div>
             <div><Label>備註</Label><Input value={paymentForm.notes} onChange={(e) => setPaymentForm(p => ({ ...p, notes: e.target.value }))} /></div>
             {/* 收據上傳 */}
