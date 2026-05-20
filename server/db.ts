@@ -456,23 +456,78 @@ export async function getQuarterlyPaymentStatuses(year?: number): Promise<Quarte
     };
     
     // 檢查每個季度
+    const quarterMonthsMap: Record<string, number[]> = {
+      Q1: [1, 2, 3], Q2: [4, 5, 6], Q3: [7, 8, 9], Q4: [10, 11, 12],
+    };
+
+    // 建立月繳記錄的 map（用於檢查月繳覆蓋季度的情況）
+    const monthlyPaidMap = new Map<number, typeof studentPayments[0]>();
+    studentPayments.forEach(p => {
+      if (p.paymentPeriod === 'MONTHLY' && (p as any).paymentMonth) {
+        monthlyPaidMap.set((p as any).paymentMonth, p);
+      }
+      // CUSTOM 繳費也可能覆蓋某些月份
+      if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
+        const months = extractMonthNumbers(p.customMonths, targetYear);
+        months.forEach((m: number) => monthlyPaidMap.set(m, p));
+      }
+    });
+
     (['Q1', 'Q2', 'Q3', 'Q4'] as const).forEach(quarter => {
       // 只有查詢當前年份時才判斷是否到期，查詢歷史年份時全部視為已到期
       const isDue = targetYear < currentYear || (targetYear === currentYear && isQuarterDue(quarter));
       
       if (isDue) {
-        // 已到期,檢查是否已繳費
-        const payment = studentPayments.find(p => p.paymentPeriod === quarter);
-        if (payment) {
+        // 1. 先檢查是否有季度繳費記錄（paymentPeriod === 'Q1' 等）
+        const quarterPayment = studentPayments.find(p => p.paymentPeriod === quarter);
+        if (quarterPayment) {
           status[quarter] = 'paid';
-          status[`${quarter}PaymentDate`] = payment.paymentDate ? new Date(payment.paymentDate).toISOString().split('T')[0] : null;
-          status[`${quarter}ConfirmedBy`] = payment.confirmedBy || null;
-          status[`${quarter}ReceiptUrl`] = payment.receiptUrl || null;
-          status[`${quarter}PaymentRecordId`] = payment.id || null;
-          status[`${quarter}Bank`] = (payment as any).bank || null;
-          status[`${quarter}ReceivingBank`] = (payment as any).receivingBank || null;
+          status[`${quarter}PaymentDate`] = quarterPayment.paymentDate ? new Date(quarterPayment.paymentDate).toISOString().split('T')[0] : null;
+          status[`${quarter}ConfirmedBy`] = quarterPayment.confirmedBy || null;
+          status[`${quarter}ReceiptUrl`] = quarterPayment.receiptUrl || null;
+          status[`${quarter}PaymentRecordId`] = quarterPayment.id || null;
+          status[`${quarter}Bank`] = (quarterPayment as any).bank || null;
+          status[`${quarter}ReceivingBank`] = (quarterPayment as any).receivingBank || null;
         } else {
-          status[quarter] = 'unpaid';
+          // 2. 沒有季度記錄 → 檢查該季度的已到期月份是否全部有月繳/CUSTOM記錄
+          //    某些學生該季度只上2個月，排除了1個月後以月繳方式入帳
+          //    只要所有「已到期月份」都有繳費記錄就視為已繳
+          const qMonths = quarterMonthsMap[quarter];
+          const dueMonthsInQuarter = qMonths.filter(m => 
+            targetYear < currentYear || (targetYear === currentYear && m <= currentMonth)
+          );
+          
+          if (dueMonthsInQuarter.length > 0) {
+            const allDueMonthsPaid = dueMonthsInQuarter.every(m => monthlyPaidMap.has(m));
+            if (allDueMonthsPaid) {
+              // 用最後一筆月繳記錄的資訊
+              const lastMonthPayment = monthlyPaidMap.get(dueMonthsInQuarter[dueMonthsInQuarter.length - 1])!;
+              status[quarter] = 'paid';
+              status[`${quarter}PaymentDate`] = lastMonthPayment.paymentDate ? new Date(lastMonthPayment.paymentDate).toISOString().split('T')[0] : null;
+              status[`${quarter}ConfirmedBy`] = lastMonthPayment.confirmedBy || null;
+              status[`${quarter}ReceiptUrl`] = lastMonthPayment.receiptUrl || null;
+              status[`${quarter}PaymentRecordId`] = lastMonthPayment.id || null;
+              status[`${quarter}Bank`] = (lastMonthPayment as any).bank || null;
+              status[`${quarter}ReceivingBank`] = (lastMonthPayment as any).receivingBank || null;
+            } else {
+              // 檢查是否有部分月份已繳（部分付款狀態）
+              const somePaid = dueMonthsInQuarter.some(m => monthlyPaidMap.has(m));
+              status[quarter] = somePaid ? 'paid' : 'unpaid';
+              if (somePaid) {
+                // 取第一筆已繳月份的資訊
+                const firstPaidMonth = dueMonthsInQuarter.find(m => monthlyPaidMap.has(m))!;
+                const paidRecord = monthlyPaidMap.get(firstPaidMonth)!;
+                status[`${quarter}PaymentDate`] = paidRecord.paymentDate ? new Date(paidRecord.paymentDate).toISOString().split('T')[0] : null;
+                status[`${quarter}ConfirmedBy`] = paidRecord.confirmedBy || null;
+                status[`${quarter}ReceiptUrl`] = paidRecord.receiptUrl || null;
+                status[`${quarter}PaymentRecordId`] = paidRecord.id || null;
+                status[`${quarter}Bank`] = (paidRecord as any).bank || null;
+                status[`${quarter}ReceivingBank`] = (paidRecord as any).receivingBank || null;
+              }
+            }
+          } else {
+            status[quarter] = 'unpaid';
+          }
         }
       } else {
         // 未到期
