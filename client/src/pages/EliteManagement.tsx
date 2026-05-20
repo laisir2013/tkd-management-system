@@ -1462,11 +1462,11 @@ function EliteFinanceTab() {
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">金額 ($){paymentForm.studentId > 0 && (() => {
-                    const s = students.find((s: any) => s.id === paymentForm.studentId);
-                    const fpc = s ? parseFloat(s.feePerClass) || 0 : 0;
-                    const cc = parseInt(paymentForm.classCount) || 0;
-                    const calc = fpc * cc;
-                    return fpc > 0 && calc === parseFloat(paymentForm.amount) ? ` = ${cc} × $${fpc}` : '';
+                    const stu = students.find((st: any) => st.id === paymentForm.studentId);
+                    const fpc2 = stu ? parseFloat(stu.feePerClass) || 0 : 0;
+                    const cc2 = parseInt(paymentForm.classCount) || 0;
+                    const calc2 = fpc2 * cc2;
+                    return fpc2 > 0 && calc2 === parseFloat(paymentForm.amount) ? ` = ${cc2} × $${fpc2}` : '';
                   })()}</Label>
                   <Input value={paymentForm.amount} onChange={(e) => setPaymentForm(p => ({ ...p, amount: e.target.value }))} className="h-9" />
                 </div>
