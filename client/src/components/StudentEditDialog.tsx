@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Save, Loader2 } from "lucide-react";
+import { Save, Loader2, Calculator } from "lucide-react";
+import { calcNewStudentProRata, formatDateShort, WEEKDAY_NAMES } from "@/lib/newStudentCalc";
 
 // 跆拳道色帶順序
 const BELT_ORDER = [
@@ -167,17 +168,31 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
                 value={formData.joinDate}
                 onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
               />
-              {formData.joinDate && (() => {
-                const join = new Date(formData.joinDate);
-                const now = new Date();
-                const diffDays = Math.floor((now.getTime() - join.getTime()) / (1000 * 60 * 60 * 24));
-                const weeksElapsed = Math.floor(diffDays / 7);
-                const classesEstimate = Math.min(weeksElapsed, 12);
+              {formData.joinDate && formData.scheduleDay && parseFloat(formData.feePerQuarter) > 0 && (() => {
+                const calc = calcNewStudentProRata(formData.joinDate, formData.scheduleDay, parseFloat(formData.feePerQuarter));
+                if (!calc) return null;
                 return (
-                  <p className="text-xs text-muted-foreground">
-                    入學 {diffDays} 天，約 {classesEstimate}/12 堂
-                    {classesEstimate >= 12 && ' ✅ 已完成一期'}
-                  </p>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-2 space-y-1 text-xs mt-1">
+                    <div className="flex items-center gap-1 text-blue-800 font-medium">
+                      <Calculator className="w-3 h-3" />
+                      新生費用計算
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>12堂結束</span>
+                      <span>{formatDateShort(calc.class12Date)}</span>
+                    </div>
+                    {calc.isFullQuarter ? (
+                      <div className="flex justify-between text-green-700 font-medium">
+                        <span>下期（整季）</span>
+                        <span>${calc.proRataFee.toLocaleString()}</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between text-orange-700 font-bold">
+                        <span>下期（{calc.monthsCharged}個月）</span>
+                        <span>${calc.monthlyFee.toLocaleString()} × {calc.monthsCharged} = ${calc.proRataFee.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
                 );
               })()}
             </div>

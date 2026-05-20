@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { UserPlus, Loader2 } from "lucide-react";
+import { UserPlus, Loader2, Calculator } from "lucide-react";
+import { calcNewStudentProRata, formatDateShort, WEEKDAY_NAMES } from "@/lib/newStudentCalc";
 
 // 跆拳道色帶順序
 const BELT_ORDER = [
@@ -172,9 +173,67 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
                 value={formData.joinDate}
                 onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
               />
-              <p className="text-xs text-muted-foreground">用於計算12堂進度及下期按比例計費</p>
+              <p className="text-xs text-muted-foreground">新生入學日期，用於計算下一期按比例收費</p>
             </div>
           </div>
+
+          {/* 新生費用計算預覽 */}
+          {formData.joinDate && formData.scheduleDay && parseFloat(formData.feePerQuarter) > 0 && (() => {
+            const calc = calcNewStudentProRata(formData.joinDate, formData.scheduleDay, parseFloat(formData.feePerQuarter));
+            if (!calc) return null;
+            return (
+              <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-3 space-y-2">
+                <div className="flex items-center gap-2 text-blue-800 font-medium text-sm">
+                  <Calculator className="w-4 h-4" />
+                  新生費用計算
+                </div>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between text-gray-700">
+                    <span>第 1 堂課</span>
+                    <span className="font-medium">{formatDateShort(calc.firstClassDate)} (星期{WEEKDAY_NAMES[calc.firstClassDate.getDay()]})</span>
+                  </div>
+                  <div className="flex justify-between text-gray-700">
+                    <span>第 12 堂課（循環結束）</span>
+                    <span className="font-medium">{formatDateShort(calc.class12Date)} (星期{WEEKDAY_NAMES[calc.class12Date.getDay()]})</span>
+                  </div>
+                  <div className="border-t border-blue-200 my-1" />
+                  <div className="flex justify-between text-gray-700">
+                    <span>循環後第 1 堂</span>
+                    <span className="font-medium">{formatDateShort(calc.nextClassAfterCycle)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-700">
+                    <span>落入季度</span>
+                    <span className="font-medium">{calc.nextQuarterLabel}</span>
+                  </div>
+                  <div className="border-t border-blue-200 my-1" />
+                  {calc.isFullQuarter ? (
+                    <div className="flex justify-between items-center text-green-700 font-medium">
+                      <span>下期費用（整季）</span>
+                      <span className="text-base">${calc.proRataFee.toLocaleString()}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-between text-gray-700">
+                        <span>計費月份</span>
+                        <span className="font-medium">
+                          {calc.monthsCharged} 個月（{calc.nextQuarterMonths.slice(3 - calc.monthsCharged).map(m => `${m}月`).join('、')}）
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-orange-700 font-bold">
+                        <span>下期費用（按比例）</span>
+                        <span className="text-base">
+                          ${calc.monthlyFee.toLocaleString()} × {calc.monthsCharged} = ${calc.proRataFee.toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-blue-600 mt-1">
+                        * 新生首 12 堂為入門期，之後按剩餘月份收費，再下一期起正常按季繳 ${parseFloat(formData.feePerQuarter).toLocaleString()}
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* 色帶級數 */}
           <div className="grid grid-cols-2 gap-4">

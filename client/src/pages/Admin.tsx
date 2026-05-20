@@ -763,7 +763,6 @@ export default function Admin() {
                         <TableHead>教練</TableHead>
                         <TableHead>級數</TableHead>
                         <TableHead className="text-right">學費</TableHead>
-                        <TableHead className="text-center">12堂進度</TableHead>
                         <TableHead className="text-center">通知繳費</TableHead>
                         <TableHead className="text-center">操作</TableHead>
                       </TableRow>
@@ -809,30 +808,6 @@ export default function Admin() {
                             </TableCell>
                             <TableCell>{student.beltLevel}</TableCell>
                             <TableCell className="text-right">${student.feePerQuarter}</TableCell>
-                            <TableCell className="text-center">
-                              {(() => {
-                                if (!student.joinDate) return <span className="text-xs text-gray-400">未設定</span>;
-                                const join = new Date(student.joinDate);
-                                const now = new Date();
-                                const diffDays = Math.floor((now.getTime() - join.getTime()) / (1000 * 60 * 60 * 24));
-                                const weeksElapsed = Math.floor(diffDays / 7);
-                                const classes = Math.min(weeksElapsed, 12);
-                                const pct = Math.round((classes / 12) * 100);
-                                return (
-                                  <div className="flex flex-col items-center gap-0.5">
-                                    <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                      <div 
-                                        className={`h-full rounded-full ${classes >= 12 ? 'bg-green-500' : classes >= 8 ? 'bg-blue-500' : 'bg-amber-500'}`}
-                                        style={{ width: `${pct}%` }}
-                                      />
-                                    </div>
-                                    <span className={`text-[10px] ${classes >= 12 ? 'text-green-600 font-medium' : 'text-gray-500'}`}>
-                                      {classes}/12{classes >= 12 ? ' ✅' : ''}
-                                    </span>
-                                  </div>
-                                );
-                              })()}
-                            </TableCell>
                             <TableCell className="text-center">
                               {!isInactive && (
                                 <StudentWhatsAppButton
