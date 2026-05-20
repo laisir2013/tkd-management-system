@@ -1098,7 +1098,7 @@ function EliteFinanceTab() {
   const { data: balances = [], isLoading } = trpc.elite.getAllBalances.useQuery();
   const { data: allPayments = [] } = trpc.elite.getPayments.useQuery({});
   const [showAddPayment, setShowAddPayment] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({ studentId: 0, classCount: "12", amount: "", notes: "" });
+  const [paymentForm, setPaymentForm] = useState({ studentId: 0, classCount: "12", amount: "", notes: "", paymentDate: new Date().toISOString().slice(0, 10) });
   const [receiptFile, setReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
   const [deletePaymentTarget, setDeletePaymentTarget] = useState<any>(null);
   const [deletePassword, setDeletePassword] = useState("");
@@ -1219,7 +1219,7 @@ function EliteFinanceTab() {
             )}
           </Button>
         )}
-        <Button onClick={() => { setPaymentForm({ studentId: 0, classCount: "12", amount: "", notes: "" }); setShowAddPayment(true); }}>
+        <Button onClick={() => { setPaymentForm({ studentId: 0, classCount: "12", amount: "", notes: "", paymentDate: new Date().toISOString().slice(0, 10) }); setShowAddPayment(true); }}>
           <Plus className="h-4 w-4 mr-1" />新增繳費
         </Button>
       </div>
@@ -1305,7 +1305,7 @@ function EliteFinanceTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>日期</TableHead>
+                  <TableHead>付款日期</TableHead>
                   <TableHead>學生</TableHead>
                   <TableHead className="text-center">期數</TableHead>
                   <TableHead className="text-center">首堂日期</TableHead>
@@ -1472,7 +1472,17 @@ function EliteFinanceTab() {
                 </div>
               </div>
             </div>
-            <div><Label>備註</Label><Input value={paymentForm.notes} onChange={(e) => setPaymentForm(p => ({ ...p, notes: e.target.value }))} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>付款日期 *</Label>
+                <Input type="date" value={paymentForm.paymentDate} onChange={(e) => setPaymentForm(p => ({ ...p, paymentDate: e.target.value }))} className="h-9" />
+                <p className="text-xs text-muted-foreground mt-1">用於記帳及對帳</p>
+              </div>
+              <div>
+                <Label>備註</Label>
+                <Input value={paymentForm.notes} onChange={(e) => setPaymentForm(p => ({ ...p, notes: e.target.value }))} className="h-9" />
+              </div>
+            </div>
             {/* 收據上傳 */}
             <div>
               <Label>上傳收據（可選）</Label>
@@ -1526,7 +1536,7 @@ function EliteFinanceTab() {
                   studentId: paymentForm.studentId,
                   classCount: parseInt(paymentForm.classCount),
                   amount: paymentForm.amount,
-                  paymentDate: new Date(),
+                  paymentDate: paymentForm.paymentDate ? new Date(paymentForm.paymentDate + 'T00:00:00') : new Date(),
                   confirmedBy: "admin_approved",
                   notes: paymentForm.notes || undefined,
                   receiptBase64: receiptFile?.base64,
