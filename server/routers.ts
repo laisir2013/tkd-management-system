@@ -1234,6 +1234,21 @@ export const appRouter = router({
         }
         
         await updateStudent(id, updateData);
+
+        // 色帶同步：恆常班 → 精英班
+        if (data.beltLevel !== undefined) {
+          try {
+            const student = await getStudentById(id);
+            if (student) {
+              const eliteStudents = await getAllEliteStudents();
+              const matched = eliteStudents.find(e => e.name === student.name && e.phone === student.phone);
+              if (matched && matched.beltLevel !== data.beltLevel) {
+                await updateEliteStudent(matched.id, { beltLevel: data.beltLevel || undefined });
+              }
+            }
+          } catch (e) { console.error('Belt sync regular→elite failed:', e); }
+        }
+
         return { success: true };
       }),
 
@@ -3227,6 +3242,21 @@ export const appRouter = router({
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
         const { id, ...data } = input;
         await updateEliteStudent(id, data);
+
+        // 色帶同步：精英班 → 恆常班
+        if (data.beltLevel !== undefined) {
+          try {
+            const eliteStudent = await getEliteStudentById(id);
+            if (eliteStudent) {
+              const allStudents = await getAllStudents();
+              const matched = allStudents.find(s => s.name === eliteStudent.name && s.phone === eliteStudent.phone);
+              if (matched && matched.beltLevel !== data.beltLevel) {
+                await updateStudent(matched.id, { beltLevel: data.beltLevel || null } as any);
+              }
+            }
+          } catch (e) { console.error('Belt sync elite→regular failed:', e); }
+        }
+
         return { success: true };
       }),
     deleteStudent: protectedProcedure
