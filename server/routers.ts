@@ -700,6 +700,19 @@ export const appRouter = router({
         birthDate: z.string().nullable().optional(),
         coach: z.string().optional(),
         joinDate: z.string().nullable().optional(), // 入學日期（第一堂課日期）
+        // 首期費用（新生入學時繳交）
+        firstPayment: z.object({
+          includeTuition: z.boolean(),
+          tuitionAmount: z.number(),
+          includeDobok: z.boolean(),
+          dobokAmount: z.number(),
+          includeMitt: z.boolean(),
+          mittAmount: z.number(),
+          totalAmount: z.number(),
+          paymentDate: z.string(), // yyyy-mm-dd
+          receiptBase64: z.string().optional(),
+          receiptMimeType: z.string().optional(),
+        }).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
@@ -722,7 +735,119 @@ export const appRouter = router({
           status: 'active',
         });
 
-        return { success: true, id: result[0].insertId };
+        const studentId = result[0].insertId;
+
+        // 處理首期費用
+        if (input.firstPayment && input.firstPayment.totalAmount > 0) {
+          const fp = input.firstPayment;
+          const paymentDate = new Date(fp.paymentDate + 'T00:00:00');
+
+          // 上傳收據（如有）
+          let receiptUrl: string | null = null;
+          let receiptKey: string | null = null;
+          if (fp.receiptBase64 && fp.receiptMimeType) {
+            const receiptBuffer = Buffer.from(fp.receiptBase64, 'base64');
+            const fileExt = fp.receiptMimeType.split('/')[1] || 'jpg';
+            const rKey = `receipts/new-student-${studentId}-${Date.now()}.${fileExt}`;
+            const uploadResult = await storagePut(rKey, receiptBuffer, fp.receiptMimeType);
+            receiptUrl = uploadResult.url;
+            receiptKey = rKey;
+          }
+
+          // 1. 學費 → 繳費記錄 + 會計（tuition）
+          if (fp.includeTuition && fp.tuitionAmount > 0) {
+            // 根據付款日期判斷季度
+            const payMonth = paymentDate.getMonth() + 1; // 1-12
+            const quarter = payMonth <= 3 ? 'Q1' : payMonth <= 6 ? 'Q2' : payMonth <= 9 ? 'Q3' : 'Q4';
+            const payYear = paymentDate.getFullYear();
+
+            // 插入 paymentRecords
+            const paymentResult = await db.insert(schema.paymentRecords).values({
+              studentId: studentId,
+              year: payYear,
+              paymentPeriod: quarter as any,
+              amount: String(fp.tuitionAmount) as any,
+              paymentDate: paymentDate,
+              status: 'confirmed',
+              confirmedBy: 'admin_approved',
+              receiptUrl,
+              receiptKey,
+            });
+            const paymentRecordId = paymentResult[0].insertId;
+
+            // 同步到會計記錄
+            await insertAccountingRecord({
+              transactionDate: paymentDate,
+              amount: String(fp.tuitionAmount) as any,
+              type: 'income',
+              category: 'tuition',
+              description: `${input.name} 新生首期學費`,
+              receiptUrl,
+              receiptKey,
+              paymentRecordId,
+              elitePaymentRecordId: null,
+              studentName: input.name,
+              coachName: input.coach || '賴政堡教練',
+              dojoName: input.venue,
+              source: 'auto_sync',
+            });
+          }
+
+          // 2. 用品費（道袍+手把）→ 會計（equipment_fee）
+          const equipmentTotal = (fp.includeDobok ? fp.dobokAmount : 0) + (fp.includeMitt ? fp.mittAmount : 0);
+          if (equipmentTotal > 0) {
+            const items: string[] = [];
+            if (fp.includeDobok) items.push(`道袍$${fp.dobokAmount}`);
+            if (fp.includeMitt) items.push(`手把$${fp.mittAmount}`);
+
+            await insertAccountingRecord({
+              transactionDate: paymentDate,
+              amount: String(equipmentTotal) as any,
+              type: 'income',
+              category: 'equipment_fee',
+              description: `${input.name} 新生用品 (${items.join('、')})`,
+              receiptUrl,
+              receiptKey,
+              paymentRecordId: null,
+              elitePaymentRecordId: null,
+              studentName: input.name,
+              coachName: input.coach || '賴政堡教練',
+              dojoName: input.venue,
+              source: 'auto_sync',
+            });
+          }
+
+          // 3. 教練用品分成 → 會計支出（coach_fee）
+          const DOBOK_COACH_COMMISSION = 200;
+          const MITT_COACH_RATE = 0.65;
+          const dobokCommission = fp.includeDobok ? DOBOK_COACH_COMMISSION : 0;
+          const mittCommission = fp.includeMitt ? Math.round(fp.mittAmount * MITT_COACH_RATE * 10) / 10 : 0;
+          const totalCommission = dobokCommission + mittCommission;
+
+          if (totalCommission > 0) {
+            const commItems: string[] = [];
+            if (dobokCommission > 0) commItems.push(`道袍$${dobokCommission}`);
+            if (mittCommission > 0) commItems.push(`手把$${mittCommission}`);
+
+            await insertAccountingRecord({
+              transactionDate: paymentDate,
+              amount: String(totalCommission) as any,
+              type: 'expense',
+              category: 'coach_fee',
+              description: `${input.coach || '賴政堡教練'} 用品分成 - ${input.name} (${commItems.join('、')})`,
+              receiptUrl: null,
+              receiptKey: null,
+              paymentRecordId: null,
+              elitePaymentRecordId: null,
+              studentName: input.name,
+              coachName: input.coach || '賴政堡教練',
+              dojoName: input.venue,
+              source: 'auto_sync',
+            });
+          }
+        }
+
+        return { success: true, id: studentId };
       }),
 
     // 停用學生（標記為 inactive，保留歷史資料）
