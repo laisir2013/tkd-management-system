@@ -883,6 +883,80 @@ export const appRouter = router({
         await updateStudent(input.id, { status: 'active' } as any);
         return { success: true, message: `已重新啟用學生 ${student.name}` };
       }),
+
+    // 永久刪除學生及全系統相關資料
+    permanentDelete: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        adminPassword: z.string().min(1, '請輸入管理員密碼'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以刪除學生' });
+        }
+        // 驗證管理員密碼
+        // @ts-ignore
+        const userPassword = ctx.user.password;
+        if (!userPassword) throw new TRPCError({ code: 'BAD_REQUEST', message: '管理員帳號尚未設定密碼' });
+        const isPasswordValid = await verifyPassword(input.adminPassword, userPassword);
+        if (!isPasswordValid) throw new TRPCError({ code: 'UNAUTHORIZED', message: '密碼錯誤' });
+
+        const student = await getStudentById(input.id);
+        if (!student) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '找不到該學生' });
+        }
+
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+        // 刪除所有相關資料
+        // 1. 會計記錄（透過 paymentRecordId 關聯）
+        const studentPayments = await db.select({ id: schema.paymentRecords.id })
+          .from(schema.paymentRecords)
+          .where(eq(schema.paymentRecords.studentId, input.id));
+        
+        if (studentPayments.length > 0) {
+          const paymentIds = studentPayments.map(p => p.id);
+          for (const pid of paymentIds) {
+            await db.delete(schema.accountingRecords)
+              .where(eq(schema.accountingRecords.paymentRecordId, pid));
+          }
+        }
+
+        // 也刪除 studentName 匹配的會計記錄（用品費、教練分成等）
+        await db.delete(schema.accountingRecords)
+          .where(eq(schema.accountingRecords.studentName, student.name));
+
+        // 2. 繳費記錄
+        await db.delete(schema.paymentRecords)
+          .where(eq(schema.paymentRecords.studentId, input.id));
+
+        // 3. 出席記錄
+        await db.delete(schema.attendanceRecords)
+          .where(eq(schema.attendanceRecords.studentId, input.id));
+
+        // 4. 色帶歷史
+        await db.delete(schema.studentBeltHistory)
+          .where(eq(schema.studentBeltHistory.studentId, input.id));
+
+        // 5. 繳費提醒
+        await db.delete(schema.paymentReminders)
+          .where(eq(schema.paymentReminders.studentId, input.id));
+
+        // 6. 活動報名
+        await db.delete(schema.eventRegistrations)
+          .where(eq(schema.eventRegistrations.studentId, input.id));
+
+        // 7. 考試報名
+        await db.delete(schema.examCandidates)
+          .where(eq(schema.examCandidates.studentId, input.id));
+
+        // 8. 最後刪除學生本身
+        await db.delete(schema.students)
+          .where(eq(schema.students.id, input.id));
+
+        return { success: true, message: `已永久刪除學生 ${student.name} 及所有相關資料` };
+      }),
     
     getNextUnpaidQuarter: protectedProcedure
       .input(z.object({ studentId: z.number() }))

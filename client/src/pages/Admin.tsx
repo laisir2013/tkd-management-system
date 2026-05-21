@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Loader2, FileSpreadsheet, Users, Receipt, Filter, ChevronDown, ChevronRight, KeyRound, MoreHorizontal, Search, Pencil, UserPlus, UserMinus, UserCheck } from "lucide-react";
+import { Upload, Loader2, FileSpreadsheet, Users, Receipt, Filter, ChevronDown, ChevronRight, KeyRound, MoreHorizontal, Search, Pencil, UserPlus, UserMinus, UserCheck, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
@@ -91,6 +91,9 @@ export default function Admin() {
   const [showAddStudentDialog, setShowAddStudentDialog] = useState(false);
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   const [deactivatingStudent, setDeactivatingStudent] = useState<any>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletingStudent, setDeletingStudent] = useState<any>(null);
+  const [deletePassword, setDeletePassword] = useState("");
   const [showInactiveStudents, setShowInactiveStudents] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [expandedStudents, setExpandedStudents] = useState<Set<number>>(new Set());
@@ -151,6 +154,19 @@ export default function Admin() {
     },
     onError: (err) => {
       toast.error(`重新啟用失敗: ${err.message}`);
+    },
+  });
+
+  const permanentDeleteMutation = trpc.students.permanentDelete.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setShowDeleteDialog(false);
+      setDeletingStudent(null);
+      setDeletePassword("");
+      refetchStudents();
+    },
+    onError: (err) => {
+      toast.error(`刪除失敗: ${err.message}`);
     },
   });
 
@@ -877,6 +893,16 @@ export default function Admin() {
                                         停用 (退學)
                                       </DropdownMenuItem>
                                     )}
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setDeletingStudent(student);
+                                        setShowDeleteDialog(true);
+                                      }}
+                                      className="text-red-700 font-medium"
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-1" />
+                                      永久刪除
+                                    </DropdownMenuItem>
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
@@ -1219,6 +1245,61 @@ export default function Admin() {
                 <UserMinus className="w-4 h-4 mr-1" />
               )}
               確認停用
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 永久刪除學生確認對話框 */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={(open) => { setShowDeleteDialog(open); if (!open) { setDeletingStudent(null); setDeletePassword(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-700">⚠️ 永久刪除學生</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>確定要永久刪除學生 <strong className="text-red-600">{deletingStudent?.name}</strong> 嗎？</p>
+                <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+                  <p className="font-medium mb-1">以下資料將被一併刪除且無法恢復：</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-xs">
+                    <li>所有繳費記錄</li>
+                    <li>所有出席記錄</li>
+                    <li>色帶晉升歷史</li>
+                    <li>繳費提醒記錄</li>
+                    <li>活動報名記錄</li>
+                    <li>考試報名記錄</li>
+                    <li>相關會計記錄</li>
+                  </ul>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-6 pb-2">
+            <Label>管理員密碼 *</Label>
+            <Input
+              type="password"
+              placeholder="輸入管理員密碼確認刪除"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeletingStudent(null); setDeletePassword(""); }}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletingStudent && deletePassword) {
+                  permanentDeleteMutation.mutate({ id: deletingStudent.id, adminPassword: deletePassword });
+                }
+              }}
+              disabled={!deletePassword || permanentDeleteMutation.isPending}
+              className="bg-red-700 hover:bg-red-800"
+            >
+              {permanentDeleteMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-1" />
+              )}
+              確認永久刪除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
