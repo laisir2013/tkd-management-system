@@ -3408,6 +3408,7 @@ export const appRouter = router({
                 or(
                   eq(schema.eliteAttendanceRecords.status, 'present'),
                   eq(schema.eliteAttendanceRecords.status, 'late'),
+                  eq(schema.eliteAttendanceRecords.status, 'excused'),
                 )
               ))
               .orderBy(asc(schema.eliteTrainingSchedules.trainingDate));
@@ -3606,7 +3607,7 @@ export const appRouter = router({
           .orderBy(asc(eliteStudents.id));
         
         // ── 計算每個學生每堂的循環堂數（1-12，基於全歷史出席記錄）──
-        // 查詢所有學生的全歷史出席記錄（present 才算），按日期排序
+        // 查詢所有學生的全歷史出席記錄（出席/遲到/請假都算消耗堂數），按日期排序
         const cycleNumberMap: Record<string, number> = {}; // key: "scheduleId-studentId" → 循環內堂數
         const activeStudentIds = students.filter(s => s.status === 'active').map(s => s.id);
         
@@ -3622,10 +3623,10 @@ export const appRouter = router({
             .where(eq(eliteAttendanceRecords.studentId, studentId))
             .orderBy(asc(eliteTrainingSchedules.trainingDate));
           
-          // 只算 present（出席）的堂數，按日期順序累計
+          // 出席/遲到/請假都算消耗堂數（只有缺席不算），按日期順序累計
           let count = 0;
           for (const rec of allAttendance) {
-            if (rec.status === 'present') {
+            if (rec.status === 'present' || rec.status === 'late' || rec.status === 'excused') {
               count++;
               // 循環內堂數：1-12，完成 12 堂後重新從 1 開始
               const cycleNum = ((count - 1) % 12) + 1;

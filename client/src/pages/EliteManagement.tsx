@@ -906,7 +906,7 @@ function EliteAttendanceTab() {
                 for (const s of sortedSchedules) {
                   if (s.status === 'cancelled') continue;
                   const status = attendanceMap[`${s.id}-${student.id}`];
-                  if (status === 'present' || status === 'late') {
+                  if (status === 'present' || status === 'late' || status === 'excused') {
                     runningCount++;
                     cellNumbers[s.id] = runningCount;
                   }

@@ -1265,9 +1265,9 @@ export async function getEliteClassBalance(studentId: number) {
     .filter(p => p.status === 'confirmed' && p.classCount)
     .reduce((sum, p) => sum + (p.classCount || 0), 0);
   
-  // 計算已上堂數（使用精英班出席記錄，而非恆常班）
+  // 計算已消耗堂數（出席、遲到、請假都算消耗，只有缺席不算）
   const attendanceList = await getEliteAttendanceRecords({ studentId });
-  const attendedClasses = attendanceList.filter(a => a.status === 'present' || a.status === 'late').length;
+  const attendedClasses = attendanceList.filter(a => a.status === 'present' || a.status === 'late' || a.status === 'excused').length;
   
   // 計算剩餘堂數
   const remainingClasses = paidClasses - attendedClasses;
@@ -1558,9 +1558,9 @@ export async function getEliteStudentBalance(studentId: number) {
     .filter(p => p.status === 'confirmed')
     .reduce((sum, p) => sum + p.classCount, 0);
   
-  // 計算已上堂數
+  // 計算已消耗堂數（出席、遲到、請假都算消耗，只有缺席不算）
   const attendance = await getEliteAttendanceRecords({ studentId });
-  const attendedClasses = attendance.filter(a => a.status === 'present' || a.status === 'late').length;
+  const attendedClasses = attendance.filter(a => a.status === 'present' || a.status === 'late' || a.status === 'excused').length;
   
   // 計算應繳費用：當上到已繳費的第 10 堂時，要交下一期 $2400
   // 邏輯：每 12 堂為一期，當 remaining <= 2（即已用到第 10 堂或以上）就觸發
@@ -1915,8 +1915,8 @@ export async function getEliteCycleInfo(studentId: number) {
     .where(eq(eliteAttendanceRecords.studentId, studentId))
     .orderBy(asc(eliteTrainingSchedules.trainingDate));
   
-  // 只算 present 和 late
-  const attendedRecords = attendanceWithDates.filter(a => a.status === 'present' || a.status === 'late');
+  // 出席、遲到、請假都算消耗堂數（只有缺席不算）
+  const attendedRecords = attendanceWithDates.filter(a => a.status === 'present' || a.status === 'late' || a.status === 'excused');
   const attendedCount = attendedRecords.length;
   
   // 計算當前循環中的堂數 (1-12)
@@ -2077,9 +2077,9 @@ export async function getParentEliteInfo(phone: string) {
     .where(eq(eliteAttendanceRecords.studentId, student.id))
     .orderBy(asc(eliteTrainingSchedules.trainingDate));
 
-    // 只計算出席的（present）
-    const presentRecords = attendanceList.filter(a => a.status === 'present');
-    const totalAttended = presentRecords.length;
+    // 出席、遲到、請假都算消耗堂數（只有缺席不算）
+    const consumedRecords = attendanceList.filter(a => a.status === 'present' || a.status === 'late' || a.status === 'excused');
+    const totalAttended = consumedRecords.length;
     
     // 計算當前循環中的堂數 (1-12)
     const cycleNumber = totalAttended === 0 ? 0 : ((totalAttended - 1) % 12) + 1;
@@ -2099,9 +2099,10 @@ export async function getParentEliteInfo(phone: string) {
     const needPayment = remainingClasses <= 0;
 
     // 出席詳情列表：第1堂、第2堂...
-    const attendanceDetails = presentRecords.map((record, index) => ({
+    const attendanceDetails = consumedRecords.map((record, index) => ({
       classNumber: index + 1,
       date: record.trainingDate,
+      status: record.status,
       cycleNumber: ((index) % 12) + 1, // 在12堂循環中的位置
       cycleIndex: Math.floor(index / 12) + 1, // 第幾期
     }));
