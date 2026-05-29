@@ -214,6 +214,7 @@ import { sdk } from "./_core/sdk";
  */
 function resolvePaidQuarters(payments: any[]): Set<string> {
   const paidQuarters = new Set<string>();
+  const monthlyPaidMonths: { year: number; month: number }[] = [];
 
   // 月份 → 季度的映射
   const monthToQuarter = (m: number) => {
@@ -236,6 +237,10 @@ function resolvePaidQuarters(payments: any[]): Set<string> {
       paidQuarters.add(`${year}-Q3`);
     } else if (payment.paymentPeriod === 'Q4') {
       paidQuarters.add(`${year}-Q4`);
+    } else if (payment.paymentPeriod === 'MONTHLY' && payment.paymentMonth) {
+      // 單月繳費：收集到 monthlyPaidMonths 後面統一處理
+      const y = payment.year || year;
+      monthlyPaidMonths.push({ year: y, month: payment.paymentMonth });
     } else if (payment.paymentPeriod === 'CUSTOM' && payment.customMonths) {
       // 解析 CUSTOM 自訂月份，支援格式如：
       // ["2025年12月，2026年1-3月"] 或 ["2025年12月", "2026年1月", "2026年2月", "2026年3月"]
@@ -302,6 +307,24 @@ function resolvePaidQuarters(payments: any[]): Set<string> {
         if (q > 0) {
           paidQuarters.add(`${year}-Q${q}`);
         }
+      }
+    }
+  }
+
+  // MONTHLY 月繳判斷：只要該季度有任一月份已繳，就標記為已付
+  // （與 getQuarterlyPaymentStatuses 的邏輯一致：部分月份已繳也算 paid）
+  const quarterMonths: Record<number, number[]> = { 1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12] };
+  const monthlyByYear = new Map<number, Set<number>>();
+  for (const { year, month } of monthlyPaidMonths) {
+    if (!monthlyByYear.has(year)) monthlyByYear.set(year, new Set());
+    monthlyByYear.get(year)!.add(month);
+  }
+  for (const [y, months] of monthlyByYear) {
+    for (let q = 1; q <= 4; q++) {
+      const qMonths = quarterMonths[q];
+      const hasSome = qMonths.some(m => months.has(m));
+      if (hasSome) {
+        paidQuarters.add(`${y}-Q${q}`);
       }
     }
   }

@@ -463,8 +463,8 @@ export async function getQuarterlyPaymentStatuses(year?: number): Promise<Quarte
     // 建立月繳記錄的 map（用於檢查月繳覆蓋季度的情況）
     const monthlyPaidMap = new Map<number, typeof studentPayments[0]>();
     studentPayments.forEach(p => {
-      if (p.paymentPeriod === 'MONTHLY' && (p as any).paymentMonth) {
-        monthlyPaidMap.set((p as any).paymentMonth, p);
+      if (p.paymentPeriod === 'MONTHLY' && p.paymentMonth) {
+        monthlyPaidMap.set(p.paymentMonth, p);
       }
       // CUSTOM 繳費也可能覆蓋某些月份
       if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
@@ -600,9 +600,9 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
         const bank = (p as any).bank || null;
         const receivingBank = (p as any).receivingBank || null;
         
-        if (p.paymentPeriod === 'MONTHLY' && (p as any).paymentMonth) {
+        if (p.paymentPeriod === 'MONTHLY' && p.paymentMonth) {
           // 單月繳費
-          paidMonths.set((p as any).paymentMonth, { paymentDate, confirmedBy, receiptUrl, paymentType: 'monthly', isPending, amount, paymentRecordId, bank, receivingBank });
+          paidMonths.set(p.paymentMonth, { paymentDate, confirmedBy, receiptUrl, paymentType: 'monthly', isPending, amount, paymentRecordId, bank, receivingBank });
         } else if (p.paymentPeriod === 'Q1' || p.paymentPeriod === 'Q2' || p.paymentPeriod === 'Q3' || p.paymentPeriod === 'Q4') {
           // 季度繳費 → 覆蓋該季度的 3 個月
           const quarterMonths: Record<string, number[]> = {
@@ -880,8 +880,8 @@ export async function getQuarterlyFeeStatistics(year: number, quarter: 'Q1' | 'Q
       if (qm) qm.forEach(m => paid.add(m));
     }
     // 月繳：單月
-    else if (p.paymentPeriod === 'MONTHLY' && (p as any).paymentMonth) {
-      paid.add((p as any).paymentMonth);
+    else if (p.paymentPeriod === 'MONTHLY' && p.paymentMonth) {
+      paid.add(p.paymentMonth);
     }
     // 自選月份
     else if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
