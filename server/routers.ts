@@ -84,6 +84,7 @@ import {
   getParentAttendanceRecords,
   getEliteCycleInfo,
   getAllEliteCycleInfo,
+  getElitePeriodsBreakdown,
   getParentEliteInfo,
   getCoachStatsWithElite,
   // 會計記錄相關函數
@@ -3834,6 +3835,12 @@ export const appRouter = router({
     getAllCycleInfo: protectedProcedure.query(async () => {
       return getAllEliteCycleInfo();
     }),
+    // 取得學生完整期數明細（WhatsApp 詳細通知用）
+    getPeriodsBreakdown: protectedProcedure
+      .input(z.object({ studentId: z.number() }))
+      .query(async ({ input }) => {
+        return getElitePeriodsBreakdown(input.studentId);
+      }),
 
     // 歷史出席記錄（按年份查詢）
     getHistoryByYear: protectedProcedure

@@ -2075,6 +2075,110 @@ export async function getAllEliteCycleInfo() {
   return results.filter(r => r !== null);
 }
 
+/**
+ * 取得精英班學生的完整期數明細（WhatsApp 通知用）
+ * 回傳每一期的：出席日期、請假日期、是否已繳費
+ * 以及「當前進行中的期」的進度
+ */
+export async function getElitePeriodsBreakdown(studentId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const student = await getEliteStudentById(studentId);
+  if (!student) return null;
+
+  // 取得全部出席記錄（含 absent/excused），按日期排序
+  const allRecords = await db.select({
+    scheduleId: eliteAttendanceRecords.id,
+    status: eliteAttendanceRecords.status,
+    trainingDate: eliteTrainingSchedules.trainingDate,
+  })
+    .from(eliteAttendanceRecords)
+    .innerJoin(eliteTrainingSchedules, eq(eliteAttendanceRecords.scheduleId, eliteTrainingSchedules.id))
+    .where(eq(eliteAttendanceRecords.studentId, studentId))
+    .orderBy(asc(eliteTrainingSchedules.trainingDate));
+
+  // 取得已繳費記錄
+  const payments = await getElitePaymentRecords(studentId);
+  const confirmedPayments = payments
+    .filter(p => p.status === 'confirmed')
+    .sort((a, b) => new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime());
+  const totalPaidClasses = confirmedPayments.reduce((sum, p) => sum + p.classCount, 0);
+  const paidPeriods = Math.floor(totalPaidClasses / 12);
+
+  // 將所有記錄按「期」分組
+  // 每12堂出席（present/late）為一期，但期內也包含 absent/excused 記錄
+  type PeriodRecord = { date: string; status: string; isAttended: boolean };
+  type Period = {
+    periodNumber: number;
+    records: PeriodRecord[];
+    attendedCount: number;  // present/late 堂數
+    absentDates: string[];  // 請假日期
+    isPaid: boolean;
+    isComplete: boolean;    // 已滿 12 堂出席
+  };
+
+  const periods: Period[] = [];
+  let currentPeriod: Period = {
+    periodNumber: 1,
+    records: [],
+    attendedCount: 0,
+    absentDates: [],
+    isPaid: false,
+    isComplete: false,
+  };
+
+  for (const rec of allRecords) {
+    if (!rec.trainingDate) continue;
+    const d = rec.trainingDate;
+    const dateStr = `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
+    const isAttended = rec.status === 'present' || rec.status === 'late';
+
+    currentPeriod.records.push({ date: dateStr, status: rec.status as string, isAttended });
+    if (isAttended) {
+      currentPeriod.attendedCount++;
+    } else {
+      currentPeriod.absentDates.push(dateStr);
+    }
+
+    // 達到 12 堂出席，這期結束
+    if (currentPeriod.attendedCount === 12) {
+      currentPeriod.isComplete = true;
+      currentPeriod.isPaid = currentPeriod.periodNumber <= paidPeriods;
+      periods.push(currentPeriod);
+      // 開始新一期
+      currentPeriod = {
+        periodNumber: periods.length + 1,
+        records: [],
+        attendedCount: 0,
+        absentDates: [],
+        isPaid: false,
+        isComplete: false,
+      };
+    }
+  }
+
+  // 如果有進行中的期（未滿 12 堂）
+  if (currentPeriod.records.length > 0) {
+    currentPeriod.isPaid = currentPeriod.periodNumber <= paidPeriods;
+    periods.push(currentPeriod);
+  }
+
+  // 找出未繳費的期
+  const unpaidPeriods = periods.filter(p => !p.isPaid);
+
+  return {
+    studentId,
+    studentName: student.name,
+    phone: student.phone,
+    totalPeriods: periods.length,
+    paidPeriods,
+    periods,
+    unpaidPeriods,
+    feePerPeriod: 2400,
+  };
+}
+
 // ============ 家長出席查詢 ============
 export async function getParentAttendanceRecords(phone: string, year: number, month: number) {
   const db = await getDb();
