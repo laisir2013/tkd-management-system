@@ -1124,6 +1124,7 @@ export const appRouter = router({
           quarterName: string;
           adjustedFee?: number;
           feeNote?: string;
+          feeBreakdown?: string;  // 完整計算明細（供 WhatsApp 使用）
         } | null> = {};
         
         for (const student of allStudents) {
@@ -1225,12 +1226,62 @@ export const appRouter = router({
               if (adjustedFee < 0) adjustedFee = 0;
               const feeNote = notes.length > 0 ? notes.join('，') : undefined;
 
+              // 構建完整計算明細（給 WhatsApp 通知用）
+              let feeBreakdown: string | undefined;
+              if (feeNote && adjustedFee !== feePerQuarter) {
+                const lines: string[] = [];
+                lines.push(`季度學費：$${feePerQuarter.toLocaleString()}（$${monthlyFee.toLocaleString()}/月 × 3個月）`);
+                // 請假月扣減明細
+                if (studentLeaveMonths) {
+                  const leaveMonthsInQ = qMonths.filter(m => studentLeaveMonths.has(m));
+                  for (const lm of leaveMonthsInQ) {
+                    lines.push(`${lm}月請假：-$${monthlyFee.toLocaleString()}`);
+                  }
+                }
+                // 新生12堂覆蓋明細
+                const joinDateVal = student.joinDate || (student as any).join_date;
+                const scheduleDayVal = student.scheduleDay || (student as any).schedule_day;
+                if (joinDateVal && scheduleDayVal && feePerQuarter > 0) {
+                  const jdCalc = new Date(joinDateVal);
+                  const tdCalc = WEEKDAY_MAP[scheduleDayVal];
+                  if (tdCalc !== undefined && !isNaN(jdCalc.getTime())) {
+                    const fc = new Date(jdCalc);
+                    while (fc.getDay() !== tdCalc) fc.setDate(fc.getDate() + 1);
+                    const c12 = new Date(fc); c12.setDate(c12.getDate() + 11 * 7);
+                    const c13 = new Date(c12); c13.setDate(c13.getDate() + 7);
+                    const c13m = c13.getMonth() + 1;
+                    const c13y = c13.getFullYear();
+                    const c13q = Math.ceil(c13m / 3);
+                    if (c13y === currentYear && c13q === q && qMonths.includes(c13m)) {
+                      const qStart = qMonths[0];
+                      if (c13m > qStart) {
+                        for (let i = 0; i < c13m - qStart; i++) {
+                          lines.push(`${qStart + i}月仍在12堂週期內：-$${monthlyFee.toLocaleString()}`);
+                        }
+                      }
+                      // 重疊堂數
+                      const ms = new Date(c13y, c13m - 1, 1);
+                      let olc = 0;
+                      const cd = new Date(ms);
+                      while (cd < c13) { if (cd.getDay() === tdCalc) olc++; cd.setDate(cd.getDate() + 1); }
+                      if (olc > 0) {
+                        const ded = Math.round(perClassFee * olc);
+                        lines.push(`${c13m}月已含${olc}堂在週期內：-$${ded.toLocaleString()}`);
+                      }
+                    }
+                  }
+                }
+                lines.push(`應繳學費：$${adjustedFee.toLocaleString()}`);
+                feeBreakdown = lines.join('\n');
+              }
+
               result[student.id] = {
                 year: currentYear,
                 quarter: q,
                 quarterName,
                 adjustedFee: feeNote ? adjustedFee : undefined,
                 feeNote,
+                feeBreakdown,
               };
               found = true;
               break;

@@ -8,6 +8,7 @@ interface NextUnpaidQuarter {
   quarterName: string;
   adjustedFee?: number;
   feeNote?: string;
+  feeBreakdown?: string;
 }
 
 interface StudentWhatsAppButtonProps {
@@ -39,17 +40,18 @@ export function StudentWhatsAppButton({
   const handleWhatsAppClick = () => {
     if (!nextUnpaidQuarter) return;
 
-    const { year, quarterName, adjustedFee, feeNote } = nextUnpaidQuarter;
+    const { year, quarterName, adjustedFee, feeNote, feeBreakdown } = nextUnpaidQuarter;
     // 使用調整後金額（如有），否則使用原始季度學費
     const displayFee = adjustedFee !== undefined ? adjustedFee.toLocaleString() : feeAmount;
     
-    // 構建金額說明行
-    let feeDetail = '';
-    if (feeNote) {
-      feeDetail = `\n（${feeNote}，按比例調整）`;
+    // 構建金額說明區塊
+    let feeDetailBlock = '';
+    if (feeBreakdown) {
+      // 有完整計算明細
+      feeDetailBlock = `\n\n📊 *費用計算明細*\n${feeBreakdown}`;
     }
 
-    const message = `🥋 *${studentName}* 家長您好！\n\n📌 *${year}年 ${quarterName} 學費通知*\n應繳學費：*$${displayFee}*${feeDetail}\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
+    const message = `🥋 *${studentName}* 家長您好！\n\n📌 *${year}年 ${quarterName} 學費通知*\n應繳學費：*$${displayFee}*${feeDetailBlock}\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
     const whatsappUrl = `https://api.whatsapp.com/send?phone=852${studentPhone}&text=${encodeURIComponent(message)}`;
 
     // 記錄提醒時間到 localStorage

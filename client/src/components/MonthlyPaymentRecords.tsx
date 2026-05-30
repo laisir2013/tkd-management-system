@@ -249,14 +249,14 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     // 檢查是否有按比例調整費用
     const nq = allNextUnpaidQuarters?.[student.studentId];
     const adjustedFee = nq?.adjustedFee;
-    const feeNote = nq?.feeNote;
+    const feeBreakdown = nq?.feeBreakdown;
     const displayFee = adjustedFee !== undefined ? adjustedFee : standardFee;
     const feeStr = displayFee.toLocaleString();
-    let feeDetail = '';
-    if (feeNote && adjustedFee !== undefined && adjustedFee !== standardFee) {
-      feeDetail = `\n（${feeNote}，按比例調整）`;
+    let feeDetailBlock = '';
+    if (feeBreakdown) {
+      feeDetailBlock = `\n\n📊 *費用計算明細*\n${feeBreakdown}`;
     }
-    const message = `🥋 *${student.studentName}* 家長您好！\n\n📌 *${selectedYear}年 ${notifyQuarter} 學費通知*\n應繳學費：*$${feeStr}*${feeDetail}\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
+    const message = `🥋 *${student.studentName}* 家長您好！\n\n📌 *${selectedYear}年 ${notifyQuarter} 學費通知*\n應繳學費：*$${feeStr}*${feeDetailBlock}\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
 
     const whatsappUrl = `https://api.whatsapp.com/send?phone=852${student.phone}&text=${encodeURIComponent(message)}`;
     const newWindow = window.open(whatsappUrl, "_blank");
