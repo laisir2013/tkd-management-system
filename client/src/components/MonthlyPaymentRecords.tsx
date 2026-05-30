@@ -35,6 +35,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { data: statuses, isLoading, refetch } = trpc.payments.getMonthlyStatuses.useQuery({ year: selectedYear });
+  const { data: allNextUnpaidQuarters } = trpc.students.getAllNextUnpaidQuarters.useQuery();
   
   const yearOptions = [];
   for (let year = 2025; year <= currentYear + 1; year++) {
@@ -244,8 +245,18 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
 
     // 預設取第一個未繳季度發送通知（一次通知一季）
     const notifyQuarter = unpaidQuarterLabels[0] || '1-3月';
-    const fee = Number(student.feePerQuarter || 0).toFixed(2);
-    const message = `🥋 *${student.studentName}* 家長您好！\n\n📌 *${selectedYear}年 ${notifyQuarter} 學費通知*\n應繳學費：*$${fee}*\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
+    const standardFee = Number(student.feePerQuarter || 0);
+    // 檢查是否有按比例調整費用
+    const nq = allNextUnpaidQuarters?.[student.studentId];
+    const adjustedFee = nq?.adjustedFee;
+    const feeNote = nq?.feeNote;
+    const displayFee = adjustedFee !== undefined ? adjustedFee : standardFee;
+    const feeStr = displayFee.toLocaleString();
+    let feeDetail = '';
+    if (feeNote && adjustedFee !== undefined && adjustedFee !== standardFee) {
+      feeDetail = `\n（${feeNote}，按比例調整）`;
+    }
+    const message = `🥋 *${student.studentName}* 家長您好！\n\n📌 *${selectedYear}年 ${notifyQuarter} 學費通知*\n應繳學費：*$${feeStr}*${feeDetail}\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
 
     const whatsappUrl = `https://api.whatsapp.com/send?phone=852${student.phone}&text=${encodeURIComponent(message)}`;
     const newWindow = window.open(whatsappUrl, "_blank");

@@ -31,8 +31,8 @@ export function formatDateShort(d: Date) {
  * 1. 從入學日期找到第一個上課日（星期X）
  * 2. 數 12 週 = 第 12 堂課日期
  * 3. 第 13 堂開始落入哪個季度
- * 4. 從第 13 堂的月份到該季度結束 = 需繳費的月數
- * 5. 月費 × 月數 = 按比例費用
+ * 4. 計算該季度中需繳費的月份數和重疊堂數
+ * 5. 月費 × 月數 - 重疊堂數 × 每堂費用 = 按比例費用
  */
 export function calcNewStudentProRata(
   joinDateStr: string,
@@ -62,12 +62,42 @@ export function calcNewStudentProRata(
   // 找出 nextClassAfterCycle 落在哪個季度
   const nextMonth = nextClassAfterCycle.getMonth() + 1; // 1-12
   const nextQuarter = getQuarterForMonth(nextMonth);
+  const quarterStartMonth = nextQuarter.months[0];
   const quarterEndMonth = nextQuarter.months[nextQuarter.months.length - 1];
 
   // 計算該季度中，從 nextClassAfterCycle 的月份到季度結束有幾個月
   const monthsInQuarter = quarterEndMonth - nextMonth + 1;
   const monthlyFee = feePerQuarter / 3;
-  const proRataFee = monthlyFee * monthsInQuarter;
+  const perClassFee = monthlyFee / 4; // 每堂費用（假設每月4堂）
+
+  // 計算重疊堂數：第13堂所在月份中，第13堂之前的上課日數量
+  let overlapClasses = 0;
+  if (nextMonth > quarterStartMonth || nextClassAfterCycle.getDate() > 1) {
+    const monthStart = new Date(nextClassAfterCycle.getFullYear(), nextMonth - 1, 1);
+    const checkDate = new Date(monthStart);
+    while (checkDate < nextClassAfterCycle) {
+      if (checkDate.getDay() === targetDay) {
+        overlapClasses++;
+      }
+      checkDate.setDate(checkDate.getDate() + 1);
+    }
+  }
+
+  // 被12堂覆蓋的整月數量
+  const coveredWholeMonths = nextMonth - quarterStartMonth;
+
+  // 最終費用 = 需繳月份 × 月費 - 重疊堂數 × 每堂費用
+  const overlapDeduction = Math.round(perClassFee * overlapClasses);
+  const proRataFee = monthlyFee * monthsInQuarter - overlapDeduction;
+
+  // 構建說明
+  const notes: string[] = [];
+  if (coveredWholeMonths > 0) {
+    notes.push(`${coveredWholeMonths}月在12堂內`);
+  }
+  if (overlapClasses > 0) {
+    notes.push(`扣${overlapClasses}堂$${overlapDeduction}`);
+  }
 
   return {
     firstClassDate: firstClass,
@@ -78,7 +108,12 @@ export function calcNewStudentProRata(
     monthsCharged: monthsInQuarter,
     totalMonthsInQuarter: 3,
     monthlyFee,
-    proRataFee,
-    isFullQuarter: monthsInQuarter === 3,
+    perClassFee,
+    proRataFee: Math.round(proRataFee),
+    isFullQuarter: monthsInQuarter === 3 && overlapClasses === 0,
+    overlapClasses,
+    overlapDeduction,
+    coveredWholeMonths,
+    feeNote: notes.length > 0 ? notes.join('，') : undefined,
   };
 }

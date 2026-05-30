@@ -6,6 +6,8 @@ interface NextUnpaidQuarter {
   year: number;
   quarter: number;
   quarterName: string;
+  adjustedFee?: number;
+  feeNote?: string;
 }
 
 interface StudentWhatsAppButtonProps {
@@ -37,8 +39,17 @@ export function StudentWhatsAppButton({
   const handleWhatsAppClick = () => {
     if (!nextUnpaidQuarter) return;
 
-    const { year, quarterName } = nextUnpaidQuarter;
-    const message = `🥋 *${studentName}* 家長您好！\n\n📌 *${year}年 ${quarterName} 學費通知*\n應繳學費：*$${feeAmount}*\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
+    const { year, quarterName, adjustedFee, feeNote } = nextUnpaidQuarter;
+    // 使用調整後金額（如有），否則使用原始季度學費
+    const displayFee = adjustedFee !== undefined ? adjustedFee.toLocaleString() : feeAmount;
+    
+    // 構建金額說明行
+    let feeDetail = '';
+    if (feeNote) {
+      feeDetail = `\n（${feeNote}，按比例調整）`;
+    }
+
+    const message = `🥋 *${studentName}* 家長您好！\n\n📌 *${year}年 ${quarterName} 學費通知*\n應繳學費：*$${displayFee}*${feeDetail}\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
     const whatsappUrl = `https://api.whatsapp.com/send?phone=852${studentPhone}&text=${encodeURIComponent(message)}`;
 
     // 記錄提醒時間到 localStorage
@@ -111,9 +122,10 @@ export function StudentWhatsAppButton({
   };
 
   const quarterColor = getQuarterColor(nextUnpaidQuarter.quarterName);
+  const hasAdjustedFee = nextUnpaidQuarter.adjustedFee !== undefined;
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-0.5">
       <Button
         variant="ghost"
         size="sm"
@@ -124,6 +136,16 @@ export function StudentWhatsAppButton({
         <WhatsAppIcon className="w-4 h-4 mr-1" />
         {nextUnpaidQuarter.quarterName}
       </Button>
+      {hasAdjustedFee && (
+        <span className="text-[10px] text-orange-600 font-medium leading-tight text-center">
+          ${nextUnpaidQuarter.adjustedFee!.toLocaleString()}
+        </span>
+      )}
+      {nextUnpaidQuarter.feeNote && (
+        <span className="text-[9px] text-gray-400 leading-tight text-center max-w-[80px] truncate" title={nextUnpaidQuarter.feeNote}>
+          {nextUnpaidQuarter.feeNote}
+        </span>
+      )}
       {lastRemindedAt && (
         <span className="text-xs text-gray-500">
           {formatLastRemindedTime(lastRemindedAt)}

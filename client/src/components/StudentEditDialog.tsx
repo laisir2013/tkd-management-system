@@ -181,16 +181,30 @@ export function StudentEditDialog({ open, onOpenChange, student, onSuccess }: St
                       <span>12堂結束</span>
                       <span>{formatDateShort(calc.class12Date)}</span>
                     </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>循環後第1堂</span>
+                      <span>{formatDateShort(calc.nextClassAfterCycle)}（{calc.nextQuarterLabel}）</span>
+                    </div>
                     {calc.isFullQuarter ? (
                       <div className="flex justify-between text-green-700 font-medium">
                         <span>下期（整季）</span>
                         <span>${calc.proRataFee.toLocaleString()}</span>
                       </div>
                     ) : (
-                      <div className="flex justify-between text-orange-700 font-bold">
-                        <span>下期（{calc.monthsCharged}個月）</span>
-                        <span>${calc.monthlyFee.toLocaleString()} × {calc.monthsCharged} = ${calc.proRataFee.toLocaleString()}</span>
-                      </div>
+                      <>
+                        <div className="flex justify-between text-orange-700 font-bold">
+                          <span>下期（{calc.monthsCharged}個月）</span>
+                          <span>${calc.proRataFee.toLocaleString()}</span>
+                        </div>
+                        <div className="text-[10px] text-gray-500">
+                          ${calc.monthlyFee.toLocaleString()} × {calc.monthsCharged}月{calc.overlapClasses > 0 ? ` - ${calc.overlapClasses}堂$${calc.overlapDeduction}` : ''} = ${calc.proRataFee.toLocaleString()}
+                        </div>
+                        {calc.feeNote && (
+                          <div className="text-[10px] text-orange-600">
+                            {calc.feeNote}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );

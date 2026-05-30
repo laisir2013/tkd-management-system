@@ -823,7 +823,23 @@ export default function Admin() {
                               </Select>
                             </TableCell>
                             <TableCell>{student.beltLevel}</TableCell>
-                            <TableCell className="text-right">${student.feePerQuarter}</TableCell>
+                            <TableCell className="text-right">
+                              <div>${student.feePerQuarter}</div>
+                              {(() => {
+                                const nq = allNextUnpaidQuarters?.[student.id];
+                                if (nq?.adjustedFee !== undefined && nq.adjustedFee !== parseFloat(student.feePerQuarter)) {
+                                  return (
+                                    <div className="mt-0.5">
+                                      <span className="text-[10px] text-orange-600 font-medium">下期 ${nq.adjustedFee.toLocaleString()}</span>
+                                      {nq.feeNote && (
+                                        <div className="text-[9px] text-gray-400 leading-tight" title={nq.feeNote}>{nq.feeNote}</div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </TableCell>
                             <TableCell className="text-center">
                               {!isInactive && (
                                 <StudentWhatsAppButton

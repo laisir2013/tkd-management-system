@@ -266,10 +266,16 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
                       </div>
                       <div className="flex justify-between items-center text-orange-700 font-bold">
                         <span>下期費用（按比例）</span>
-                        <span className="text-base">
-                          ${calc.monthlyFee.toLocaleString()} × {calc.monthsCharged} = ${calc.proRataFee.toLocaleString()}
-                        </span>
+                        <span className="text-base">${calc.proRataFee.toLocaleString()}</span>
                       </div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">
+                        ${calc.monthlyFee.toLocaleString()} × {calc.monthsCharged}月{calc.overlapClasses > 0 ? ` - ${calc.overlapClasses}堂$${calc.overlapDeduction}` : ''} = ${calc.proRataFee.toLocaleString()}
+                      </div>
+                      {calc.feeNote && (
+                        <div className="text-[10px] text-orange-600 mt-0.5">
+                          {calc.feeNote}
+                        </div>
+                      )}
                       <p className="text-[10px] text-blue-600 mt-1">
                         * 新生首 12 堂為入門期，之後按剩餘月份收費，再下一期起正常按季繳 ${parseFloat(formData.feePerQuarter).toLocaleString()}
                       </p>

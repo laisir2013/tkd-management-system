@@ -1098,31 +1098,134 @@ export const appRouter = router({
         else if (currentMonth >= 7 && currentMonth <= 9) currentQuarter = 3;
         else if (currentMonth >= 10 && currentMonth <= 12) currentQuarter = 4;
         
-        const allStudents = await db.select({ id: schema.students.id }).from(schema.students);
+        // 載入完整學生資料（包含 join_date, scheduleDay, feePerQuarter）
+        const allStudents = await db.select().from(schema.students);
 
-        // 載入請假記錄，按學生分組
+        // 載入請假記錄，按學生分組（以 year-month 字串集合 for resolvePaidQuarters, 以 month 數字集合 for fee calc）
         const allLeaves = await getLeaveMonths(currentYear);
-        const leaveByStudent = new Map<number, Set<string>>();
+        const leaveByStudentStr = new Map<number, Set<string>>();
+        const leaveByStudentMonth = new Map<number, Set<number>>();
         for (const lv of allLeaves) {
-          if (!leaveByStudent.has(lv.studentId)) leaveByStudent.set(lv.studentId, new Set());
-          leaveByStudent.get(lv.studentId)!.add(`${lv.year}-${lv.month}`);
+          if (!leaveByStudentStr.has(lv.studentId)) leaveByStudentStr.set(lv.studentId, new Set());
+          leaveByStudentStr.get(lv.studentId)!.add(`${lv.year}-${lv.month}`);
+          if (!leaveByStudentMonth.has(lv.studentId)) leaveByStudentMonth.set(lv.studentId, new Set());
+          leaveByStudentMonth.get(lv.studentId)!.add(lv.month);
         }
         
-        const result: Record<number, { year: number; quarter: number; quarterName: string } | null> = {};
+        const QUARTER_MONTHS: Record<number, number[]> = { 1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12] };
+        const WEEKDAY_MAP: Record<string, number> = {
+          '星期日': 0, '星期一': 1, '星期二': 2, '星期三': 3,
+          '星期四': 4, '星期五': 5, '星期六': 6,
+        };
+        
+        const result: Record<number, {
+          year: number;
+          quarter: number;
+          quarterName: string;
+          adjustedFee?: number;
+          feeNote?: string;
+        } | null> = {};
         
         for (const student of allStudents) {
           const payments = paymentsByStudent.get(student.id) || [];
-          const studentLeaves = leaveByStudent.get(student.id);
-          const paidQuarters = resolvePaidQuarters(payments, studentLeaves);
+          const studentLeavesStr = leaveByStudentStr.get(student.id);
+          const paidQuarters = resolvePaidQuarters(payments, studentLeavesStr);
           
           let found = false;
           for (let q = currentQuarter; q <= 4; q++) {
             const quarterKey = `${currentYear}-Q${q}`;
             if (!paidQuarters.has(quarterKey)) {
+              const quarterName = `${q === 1 ? '1-3' : q === 2 ? '4-6' : q === 3 ? '7-9' : '10-12'}月`;
+              const feePerQuarter = parseFloat(String(student.feePerQuarter || '0'));
+              const monthlyFee = feePerQuarter / 3;
+              const perClassFee = monthlyFee / 4; // 每堂費用（假設每月4堂）
+
+              // ── 計算按比例費用 ──
+              let adjustedFee = feePerQuarter;
+              const notes: string[] = [];
+              const qMonths = QUARTER_MONTHS[q];
+
+              // 1. 請假月扣減
+              const studentLeaveMonths = leaveByStudentMonth.get(student.id);
+              let leaveCount = 0;
+              if (studentLeaveMonths) {
+                leaveCount = qMonths.filter(m => studentLeaveMonths.has(m)).length;
+                if (leaveCount > 0) {
+                  adjustedFee -= monthlyFee * leaveCount;
+                  notes.push(`${leaveCount}月請假`);
+                }
+              }
+
+              // 2. 新生12堂循環重疊扣減
+              //    只適用於：學生有 joinDate + scheduleDay，且下一個未繳季度
+              //    包含第13堂的月份（即12堂循環跨入下一季度的情況）
+              const joinDate = student.joinDate || (student as any).join_date;
+              const scheduleDay = student.scheduleDay || (student as any).schedule_day;
+              if (joinDate && scheduleDay && feePerQuarter > 0) {
+                const jd = new Date(joinDate);
+                const targetDay = WEEKDAY_MAP[scheduleDay];
+                if (targetDay !== undefined && !isNaN(jd.getTime())) {
+                  // 找第一堂課
+                  const firstClass = new Date(jd);
+                  while (firstClass.getDay() !== targetDay) {
+                    firstClass.setDate(firstClass.getDate() + 1);
+                  }
+                  // 第12堂 = firstClass + 11 weeks
+                  const class12Date = new Date(firstClass);
+                  class12Date.setDate(class12Date.getDate() + 11 * 7);
+                  // 第13堂
+                  const class13Date = new Date(class12Date);
+                  class13Date.setDate(class13Date.getDate() + 7);
+
+                  const class13Month = class13Date.getMonth() + 1;
+                  const class13Year = class13Date.getFullYear();
+
+                  // 檢查：第13堂所在季度就是當前計算的下一個未繳季度
+                  // 這確保只有真正的新生首期繳費才會觸發此邏輯
+                  const class13Quarter = Math.ceil(class13Month / 3);
+                  const isFirstCycleQuarter = class13Year === currentYear && class13Quarter === q;
+
+                  // 只有當下一季度包含第13堂開始的月份時才計算
+                  if (isFirstCycleQuarter && qMonths.includes(class13Month)) {
+                    // 第13堂不在季度首月第一天 → 需要按比例扣減
+                    const quarterStartMonth = qMonths[0];
+                    if (class13Month > quarterStartMonth) {
+                      // 整個前面的月份被12堂循環覆蓋
+                      const coveredMonths = class13Month - quarterStartMonth;
+                      adjustedFee -= monthlyFee * coveredMonths;
+                      notes.push(`${coveredMonths}月在12堂內`);
+                    }
+                    
+                    // 第13堂所在月份的重疊堂數計算
+                    // 計算第13堂月份中，第13堂之前有幾堂（已被12堂覆蓋）
+                    const monthStart = new Date(class13Year, class13Month - 1, 1);
+                    let overlapClasses = 0;
+                    const checkDate = new Date(monthStart);
+                    while (checkDate < class13Date) {
+                      if (checkDate.getDay() === targetDay) {
+                        overlapClasses++;
+                      }
+                      checkDate.setDate(checkDate.getDate() + 1);
+                    }
+                    if (overlapClasses > 0) {
+                      const deduction = Math.round(perClassFee * overlapClasses);
+                      adjustedFee -= deduction;
+                      notes.push(`扣${overlapClasses}堂$${deduction}`);
+                    }
+                  }
+                }
+              }
+
+              adjustedFee = Math.round(adjustedFee);
+              if (adjustedFee < 0) adjustedFee = 0;
+              const feeNote = notes.length > 0 ? notes.join('，') : undefined;
+
               result[student.id] = {
                 year: currentYear,
                 quarter: q,
-                quarterName: `${q === 1 ? '1-3' : q === 2 ? '4-6' : q === 3 ? '7-9' : '10-12'}月`,
+                quarterName,
+                adjustedFee: feeNote ? adjustedFee : undefined,
+                feeNote,
               };
               found = true;
               break;
