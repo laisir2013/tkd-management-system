@@ -1,7 +1,7 @@
 import { eq, and, inArray, gte, lte, sql, or, desc, asc, isNull, between } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig, bankStatements, InsertBankStatement, BankStatement, bankStatementTransactions, InsertBankStatementTransaction, BankStatementTransaction } from "../drizzle/schema";
+import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig, bankStatements, InsertBankStatement, BankStatement, bankStatementTransactions, InsertBankStatementTransaction, BankStatementTransaction, studentLeaveMonths } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 // 安全解析 customMonths JSON：防止 double-parse 和無效格式
@@ -421,6 +421,14 @@ export async function getQuarterlyPaymentStatuses(year?: number): Promise<Quarte
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1; // 1-12
   const targetYear = year || currentYear; // 使用指定年份或當前年份
+
+  // 載入該年份的請假記錄
+  const allLeaves = await getLeaveMonths(targetYear);
+  const leaveMap = new Map<number, Set<number>>();
+  for (const lv of allLeaves) {
+    if (!leaveMap.has(lv.studentId)) leaveMap.set(lv.studentId, new Set());
+    leaveMap.get(lv.studentId)!.add(lv.month);
+  }
   
   // 判斷季度是否到期
   const isQuarterDue = (quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4'): boolean => {
@@ -498,7 +506,9 @@ export async function getQuarterlyPaymentStatuses(year?: number): Promise<Quarte
           );
           
           if (dueMonthsInQuarter.length > 0) {
-            const allDueMonthsPaid = dueMonthsInQuarter.every(m => monthlyPaidMap.has(m));
+            const studentLeaves = leaveMap.get(student.id) || new Set<number>();
+            // 請假月視同已覆蓋（不算未繳）
+            const allDueMonthsPaid = dueMonthsInQuarter.every(m => monthlyPaidMap.has(m) || studentLeaves.has(m));
             if (allDueMonthsPaid) {
               // 用最後一筆月繳記錄的資訊
               const lastMonthPayment = monthlyPaidMap.get(dueMonthsInQuarter[dueMonthsInQuarter.length - 1])!;
@@ -510,10 +520,10 @@ export async function getQuarterlyPaymentStatuses(year?: number): Promise<Quarte
               status[`${quarter}Bank`] = (lastMonthPayment as any).bank || null;
               status[`${quarter}ReceivingBank`] = (lastMonthPayment as any).receivingBank || null;
             } else {
-              // 檢查是否有部分月份已繳（部分付款狀態）
-              const somePaid = dueMonthsInQuarter.some(m => monthlyPaidMap.has(m));
-              status[quarter] = somePaid ? 'paid' : 'unpaid';
-              if (somePaid) {
+              // 檢查是否有部分月份已繳或請假（部分付款狀態）
+              const somePaidOrLeave = dueMonthsInQuarter.some(m => monthlyPaidMap.has(m) || studentLeaves.has(m));
+              status[quarter] = somePaidOrLeave ? 'paid' : 'unpaid';
+              if (somePaidOrLeave) {
                 // 取第一筆已繳月份的資訊
                 const firstPaidMonth = dueMonthsInQuarter.find(m => monthlyPaidMap.has(m))!;
                 const paidRecord = monthlyPaidMap.get(firstPaidMonth)!;
@@ -552,7 +562,7 @@ export interface MonthlyPaymentStatus {
   feePerQuarter: string; // 季度學費（用於計算月費 = feePerQuarter / 3）
   months: {
     [key: number]: { // 1-12
-      status: 'paid' | 'unpaid' | 'not_due' | 'pending';
+      status: 'paid' | 'unpaid' | 'not_due' | 'pending' | 'leave';
       paymentDate?: string | null;
       confirmedBy?: string | null;
       receiptUrl?: string | null;
@@ -576,6 +586,14 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1; // 1-12
   const targetYear = year || currentYear;
+
+  // 載入該年份的請假記錄，建立 studentId → Set<month> 的快速查詢
+  const allLeaves = await getLeaveMonths(targetYear);
+  const leaveMap = new Map<number, Set<number>>();
+  for (const lv of allLeaves) {
+    if (!leaveMap.has(lv.studentId)) leaveMap.set(lv.studentId, new Set());
+    leaveMap.get(lv.studentId)!.add(lv.month);
+  }
   
   const statuses: MonthlyPaymentStatus[] = allStudents
     .filter(s => s.status === 'active' && s.venue !== '精英班道場')
@@ -643,8 +661,10 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
         } else {
           // 判斷是否到期：查過去年份全部到期；查當年只有當月或之前的到期
           const isDue = targetYear < currentYear || (targetYear === currentYear && m <= currentMonth);
+          // 檢查是否為請假月份
+          const isLeave = leaveMap.get(student.id)?.has(m) ?? false;
           months[m] = {
-            status: isDue ? 'unpaid' : 'not_due',
+            status: isLeave ? 'leave' : (isDue ? 'unpaid' : 'not_due'),
           };
         }
       }
@@ -661,6 +681,45 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
     });
   
   return statuses;
+}
+
+// ============ Student Leave Months (請假月份) ============
+
+/** 查詢指定年份的所有請假記錄 */
+export async function getLeaveMonths(year: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(studentLeaveMonths).where(eq(studentLeaveMonths.year, year));
+}
+
+/** 查詢某位學生指定年份的請假月份 */
+export async function getLeaveMonthsByStudent(studentId: number, year: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(studentLeaveMonths).where(
+    and(eq(studentLeaveMonths.studentId, studentId), eq(studentLeaveMonths.year, year))
+  );
+}
+
+/** 標記請假 */
+export async function insertLeaveMonth(studentId: number, year: number, month: number, notes?: string) {
+  const db = await getDb();
+  if (!db) return;
+  // upsert: ignore if already exists
+  await db.insert(studentLeaveMonths).values({ studentId, year, month, notes: notes || null }).onDuplicateKeyUpdate({ set: { notes: notes || null } });
+}
+
+/** 取消請假 */
+export async function deleteLeaveMonth(studentId: number, year: number, month: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(studentLeaveMonths).where(
+    and(
+      eq(studentLeaveMonths.studentId, studentId),
+      eq(studentLeaveMonths.year, year),
+      eq(studentLeaveMonths.month, month),
+    )
+  );
 }
 
 // ============ Dojo Management ============
@@ -849,14 +908,34 @@ export async function getQuarterlyFeeStatistics(year: number, quarter: 'Q1' | 'Q
     filteredStudents = filteredStudents.filter(s => s.coach === coachName);
   }
   
-  // 計算應收總額（該季度所有學生的季度學費總和）
-  const totalExpectedFee = filteredStudents.reduce((sum, s) => sum + parseFloat(s.feePerQuarter || '0'), 0);
-  
   // 該季度對應的月份
   const quarterMonths: Record<string, number[]> = {
     Q1: [1, 2, 3], Q2: [4, 5, 6], Q3: [7, 8, 9], Q4: [10, 11, 12],
   };
   const months = quarterMonths[quarter];
+
+  // 載入該年份的請假記錄
+  const allLeaves = await getLeaveMonths(year);
+  const studentLeaveSet = new Map<number, Set<number>>();
+  for (const lv of allLeaves) {
+    if (!studentLeaveSet.has(lv.studentId)) studentLeaveSet.set(lv.studentId, new Set());
+    studentLeaveSet.get(lv.studentId)!.add(lv.month);
+  }
+
+  // 計算應收總額（扣除請假月份）
+  let totalExpectedFee = 0;
+  filteredStudents.forEach(s => {
+    const feePerQuarter = parseFloat(s.feePerQuarter || '0');
+    const leaves = studentLeaveSet.get(s.id);
+    if (leaves) {
+      const leaveInQuarter = months.filter(m => leaves.has(m)).length;
+      const activeMonths = 3 - leaveInQuarter;
+      totalExpectedFee += (feePerQuarter / 3) * activeMonths;
+    } else {
+      totalExpectedFee += feePerQuarter;
+    }
+  });
+  totalExpectedFee = Math.round(totalExpectedFee * 100) / 100;
   
   // 篩選該年度已確認的繳費記錄
   const yearPayments = allPayments.filter(p =>
@@ -897,12 +976,24 @@ export async function getQuarterlyFeeStatistics(year: number, quarter: 'Q1' | 'Q
   
   filteredStudents.forEach(s => {
     const paid = studentPaidMonths.get(s.id);
+    const leaves = studentLeaveSet.get(s.id);
+    
+    // 該季度需要繳費的月份（排除請假月）
+    const activeMonths = months.filter(m => !(leaves?.has(m)));
+    
+    if (activeMonths.length === 0) {
+      // 整季都請假 → 視為已繳（無需付費）
+      paidStudentIds.add(s.id);
+      return;
+    }
+    
     if (!paid) return;
     
-    const paidInQuarter = months.filter(m => paid.has(m));
-    if (paidInQuarter.length === 3) {
-      // 該季度 3 個月都已繳 → 計整季學費
-      totalPaidFee += parseFloat(s.feePerQuarter || '0');
+    const paidInQuarter = activeMonths.filter(m => paid.has(m));
+    if (paidInQuarter.length === activeMonths.length) {
+      // 所有需繳費的月份都已繳 → 計已繳金額
+      const monthlyFee = parseFloat(s.feePerQuarter || '0') / 3;
+      totalPaidFee += monthlyFee * paidInQuarter.length;
       paidStudentIds.add(s.id);
     } else if (paidInQuarter.length > 0) {
       // 部分月份已繳 → 按比例計算

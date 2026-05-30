@@ -163,6 +163,21 @@ export type PaymentRecord = typeof paymentRecords.$inferSelect;
 export type InsertPaymentRecord = typeof paymentRecords.$inferInsert;
 
 /**
+ * 學生請假月份表 — 記錄恆常班學生某年某月請假（該月免繳，不影響季度已繳判斷）
+ */
+export const studentLeaveMonths = mysqlTable("student_leave_months", {
+  id: int("id").autoincrement().primaryKey(),
+  studentId: int("student_id").notNull(),
+  year: int("year").notNull().default(2026),
+  month: int("month").notNull(), // 1-12
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type StudentLeaveMonth = typeof studentLeaveMonths.$inferSelect;
+export type InsertStudentLeaveMonth = typeof studentLeaveMonths.$inferInsert;
+
+/**
  * 課程表
  */
 export const courses = mysqlTable("courses", {

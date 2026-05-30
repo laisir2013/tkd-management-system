@@ -777,14 +777,15 @@ function RegularPaymentTab({ phone, students }: { phone: string; students: any[]
                           key={m}
                           className={`h-10 rounded-md flex flex-col items-center justify-center text-xs font-medium ${
                             mStatus === 'paid' ? 'bg-green-100 text-green-700 border border-green-300' :
+                            mStatus === 'leave' ? 'bg-orange-100 text-orange-700 border border-orange-300' :
                             mStatus === 'unpaid' ? 'bg-red-100 text-red-700 border border-red-300' :
                             'bg-gray-100 text-gray-400 border border-gray-200'
                           } ${m === currentMonth ? 'ring-2 ring-blue-500' : ''}`}
-                          title={`${label}: ${mStatus === 'paid' ? '已繳' : mStatus === 'unpaid' ? '未繳' : '未到期'}`}
+                          title={`${label}: ${mStatus === 'paid' ? '已繳' : mStatus === 'leave' ? '請假' : mStatus === 'unpaid' ? '未繳' : '未到期'}`}
                         >
                           <span className="text-[10px] leading-none">{label}</span>
                           <span className="text-[9px] leading-none mt-0.5">
-                            {mStatus === 'paid' ? '✓' : mStatus === 'unpaid' ? '✗' : '—'}
+                            {mStatus === 'paid' ? '✓' : mStatus === 'leave' ? '假' : mStatus === 'unpaid' ? '✗' : '—'}
                           </span>
                         </div>
                       );

@@ -182,6 +182,11 @@ import {
   updateBankStatementTransactionStatus,
   updateBankStatementCounts,
   deleteBankStatement,
+  // 請假月份
+  getLeaveMonths,
+  getLeaveMonthsByStudent,
+  insertLeaveMonth,
+  deleteLeaveMonth,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -212,7 +217,7 @@ import { sdk } from "./_core/sdk";
  * 支援 Q1-Q4 標準季度 和 CUSTOM 自訂月份
  * 只應傳入 status='confirmed' 的記錄
  */
-function resolvePaidQuarters(payments: any[]): Set<string> {
+function resolvePaidQuarters(payments: any[], leaveMonthsSet?: Set<string>): Set<string> {
   const paidQuarters = new Set<string>();
   const monthlyPaidMonths: { year: number; month: number }[] = [];
 
@@ -325,6 +330,30 @@ function resolvePaidQuarters(payments: any[]): Set<string> {
       const hasSome = qMonths.some(m => months.has(m));
       if (hasSome) {
         paidQuarters.add(`${y}-Q${q}`);
+      }
+    }
+  }
+
+  // 請假月份也視為已覆蓋：如果該季度所有月份都是「已繳 or 請假」，則標記為已付
+  // leaveMonthsSet 格式: "YYYY-M" e.g. "2026-4"
+  if (leaveMonthsSet && leaveMonthsSet.size > 0) {
+    // 收集所有年份
+    const years = new Set<number>();
+    for (const key of leaveMonthsSet) {
+      years.add(parseInt(key.split('-')[0]));
+    }
+    for (const lmEntry of monthlyPaidMonths) years.add(lmEntry.year);
+    // 對每年每季度，如果尚未標記為 paid，檢查是否所有月份都被「已繳+請假」覆蓋
+    for (const y of years) {
+      const paidInYear = monthlyByYear.get(y) || new Set<number>();
+      for (let q = 1; q <= 4; q++) {
+        const qKey = `${y}-Q${q}`;
+        if (paidQuarters.has(qKey)) continue;
+        const qMonths2 = quarterMonths[q];
+        const allCovered = qMonths2.every(m => paidInYear.has(m) || leaveMonthsSet.has(`${y}-${m}`));
+        if (allCovered) {
+          paidQuarters.add(qKey);
+        }
       }
     }
   }
@@ -974,6 +1003,10 @@ export const appRouter = router({
         await db.delete(schema.examCandidates)
           .where(eq(schema.examCandidates.studentId, input.id));
 
+        // 7.5. 請假月份
+        await db.delete(schema.studentLeaveMonths)
+          .where(eq(schema.studentLeaveMonths.studentId, input.id));
+
         // 8. 最後刪除學生本身
         await db.delete(schema.students)
           .where(eq(schema.students.id, input.id));
@@ -1000,11 +1033,15 @@ export const appRouter = router({
             eq(schema.paymentRecords.status, 'confirmed')
           ));
         
-        const paidQuarters = resolvePaidQuarters(payments);
-        
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
+
+        // 載入該學生的請假記錄
+        const studentLeaves = await getLeaveMonthsByStudent(input.studentId, currentYear);
+        const leaveSet = new Set(studentLeaves.map(lv => `${lv.year}-${lv.month}`));
+        const paidQuarters = resolvePaidQuarters(payments, leaveSet.size > 0 ? leaveSet : undefined);
+        
         let currentQuarter = 1;
         if (currentMonth >= 4 && currentMonth <= 6) currentQuarter = 2;
         else if (currentMonth >= 7 && currentMonth <= 9) currentQuarter = 3;
@@ -1062,12 +1099,21 @@ export const appRouter = router({
         else if (currentMonth >= 10 && currentMonth <= 12) currentQuarter = 4;
         
         const allStudents = await db.select({ id: schema.students.id }).from(schema.students);
+
+        // 載入請假記錄，按學生分組
+        const allLeaves = await getLeaveMonths(currentYear);
+        const leaveByStudent = new Map<number, Set<string>>();
+        for (const lv of allLeaves) {
+          if (!leaveByStudent.has(lv.studentId)) leaveByStudent.set(lv.studentId, new Set());
+          leaveByStudent.get(lv.studentId)!.add(`${lv.year}-${lv.month}`);
+        }
         
         const result: Record<number, { year: number; quarter: number; quarterName: string } | null> = {};
         
         for (const student of allStudents) {
           const payments = paymentsByStudent.get(student.id) || [];
-          const paidQuarters = resolvePaidQuarters(payments);
+          const studentLeaves = leaveByStudent.get(student.id);
+          const paidQuarters = resolvePaidQuarters(payments, studentLeaves);
           
           let found = false;
           for (let q = currentQuarter; q <= 4; q++) {
@@ -2084,6 +2130,39 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const all = await getMonthlyPaymentStatuses(input.year);
         return all.filter(s => s.phone === input.phone);
+      }),
+
+    // ============ 請假月份 (Leave Months) ============
+
+    // 標記請假
+    markLeaveMonth: protectedProcedure
+      .input(z.object({
+        studentId: z.number(),
+        year: z.number(),
+        month: z.number().min(1).max(12),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await insertLeaveMonth(input.studentId, input.year, input.month, input.notes);
+        return { success: true };
+      }),
+
+    // 取消請假
+    cancelLeaveMonth: protectedProcedure
+      .input(z.object({
+        studentId: z.number(),
+        year: z.number(),
+        month: z.number().min(1).max(12),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await deleteLeaveMonth(input.studentId, input.year, input.month);
+        return { success: true };
       }),
 
     // 管理員批准待審核的家長上傳收據

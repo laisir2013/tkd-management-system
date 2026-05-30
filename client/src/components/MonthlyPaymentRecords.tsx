@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
-import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle, Search, Plus, X, Building2 } from "lucide-react";
+import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle, Search, Plus, X, Building2, PauseCircle } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -142,6 +142,27 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     },
     onError: (err: any) => {
       toast.error(`批准失敗: ${err.message}`);
+    },
+  });
+
+  // 請假 mutations
+  const markLeave = trpc.payments.markLeaveMonth.useMutation({
+    onSuccess: () => {
+      toast.success('已標記為請假');
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(`標記請假失敗: ${err.message}`);
+    },
+  });
+
+  const cancelLeave = trpc.payments.cancelLeaveMonth.useMutation({
+    onSuccess: () => {
+      toast.success('已取消請假');
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(`取消請假失敗: ${err.message}`);
     },
   });
 
@@ -417,6 +438,27 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
           )}
         </div>
       );
+    } else if (monthData.status === 'leave') {
+      // 請假月份
+      return (
+        <div className="text-center space-y-0.5">
+          <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-300">
+            <PauseCircle className="w-2.5 h-2.5 mr-0.5" />
+            請假
+          </div>
+          {/* 取消請假按鈕（僅管理員可見） */}
+          {!readOnly && (
+            <button
+              onClick={() => cancelLeave.mutate({ studentId, year: selectedYear, month })}
+              className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors border border-orange-300 mx-auto"
+              title="取消請假（轉為未繳）"
+            >
+              <Undo2 className="w-2.5 h-2.5" />
+              取消
+            </button>
+          )}
+        </div>
+      );
     } else if (monthData.status === 'unpaid') {
       return (
         <div className="text-center space-y-0.5">
@@ -441,6 +483,14 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               >
                 <CreditCard className="w-2.5 h-2.5" />
                 季繳
+              </button>
+              <button
+                onClick={() => markLeave.mutate({ studentId, year: selectedYear, month })}
+                className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-500 text-white hover:bg-orange-600 transition-colors"
+                title="標記為請假（免繳）"
+              >
+                <PauseCircle className="w-2.5 h-2.5" />
+                請假
               </button>
             </div>
           )}
