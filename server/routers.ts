@@ -1193,7 +1193,12 @@ export const appRouter = router({
                       // 整個前面的月份被12堂循環覆蓋
                       const coveredMonths = class13Month - quarterStartMonth;
                       adjustedFee -= monthlyFee * coveredMonths;
-                      notes.push(`${coveredMonths}月在12堂內`);
+                      // 列出被覆蓋的具體月份名稱
+                      const coveredMonthNames = [];
+                      for (let i = 0; i < coveredMonths; i++) {
+                        coveredMonthNames.push(`${quarterStartMonth + i}月`);
+                      }
+                      notes.push(`${coveredMonthNames.join('、')}仍在12堂週期內`);
                     }
                     
                     // 第13堂所在月份的重疊堂數計算
@@ -1210,7 +1215,7 @@ export const appRouter = router({
                     if (overlapClasses > 0) {
                       const deduction = Math.round(perClassFee * overlapClasses);
                       adjustedFee -= deduction;
-                      notes.push(`扣${overlapClasses}堂$${deduction}`);
+                      notes.push(`${class13Month}月已含${overlapClasses}堂在週期內，扣$${deduction}`);
                     }
                   }
                 }

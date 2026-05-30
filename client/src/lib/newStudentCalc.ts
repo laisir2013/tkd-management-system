@@ -90,13 +90,18 @@ export function calcNewStudentProRata(
   const overlapDeduction = Math.round(perClassFee * overlapClasses);
   const proRataFee = monthlyFee * monthsInQuarter - overlapDeduction;
 
-  // 構建說明
+  // 構建說明 — 使用具體月份名稱
   const notes: string[] = [];
   if (coveredWholeMonths > 0) {
-    notes.push(`${coveredWholeMonths}月在12堂內`);
+    // 列出被覆蓋的具體月份，例如「7月仍在12堂週期內」
+    const coveredMonthNames = [];
+    for (let i = 0; i < coveredWholeMonths; i++) {
+      coveredMonthNames.push(`${quarterStartMonth + i}月`);
+    }
+    notes.push(`${coveredMonthNames.join('、')}仍在12堂週期內`);
   }
   if (overlapClasses > 0) {
-    notes.push(`扣${overlapClasses}堂$${overlapDeduction}`);
+    notes.push(`${nextMonth}月已含${overlapClasses}堂在週期內，扣$${overlapDeduction}`);
   }
 
   return {
