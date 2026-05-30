@@ -2131,7 +2131,7 @@ export async function getElitePeriodsBreakdown(studentId: number) {
   for (const rec of allRecords) {
     if (!rec.trainingDate) continue;
     const d = rec.trainingDate;
-    const dateStr = `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
+    const dateStr = `${d.getUTCDate()}/${d.getUTCMonth() + 1}/${d.getUTCFullYear()}`;
     const isAttended = rec.status === 'present' || rec.status === 'late';
 
     currentPeriod.records.push({ date: dateStr, status: rec.status as string, isAttended });

@@ -62,12 +62,12 @@ function estimateClass12Date(
   lastRecordDate: string,
 ): string | null {
   if (currentCount >= 12) return null;
-  // lastRecordDate 格式: "d/m"，需要猜測年份（用當前年）
+  // lastRecordDate 格式: "d/m/yyyy"
   const parts = lastRecordDate.split('/');
   if (parts.length < 2) return null;
   const day = parseInt(parts[0]);
   const month = parseInt(parts[1]) - 1; // 0-based
-  const year = new Date().getFullYear();
+  const year = parts.length >= 3 ? parseInt(parts[2]) : new Date().getFullYear();
   const lastDate = new Date(year, month, day);
   if (isNaN(lastDate.getTime())) return null;
 
@@ -75,7 +75,7 @@ function estimateClass12Date(
   const remainingClasses = 12 - currentCount;
   const estimatedDate = new Date(lastDate);
   estimatedDate.setDate(estimatedDate.getDate() + remainingClasses * 7);
-  return `${estimatedDate.getDate()}/${estimatedDate.getMonth() + 1}`;
+  return `${estimatedDate.getDate()}/${estimatedDate.getMonth() + 1}/${estimatedDate.getFullYear()}`;
 }
 
 export function EliteWhatsAppButton({
@@ -298,15 +298,15 @@ function buildDetailedMessage(
         if (parts.length >= 2) {
           const day = parseInt(parts[0]);
           const month = parseInt(parts[1]) - 1;
-          const year = new Date().getFullYear();
+          const year = parts.length >= 3 ? parseInt(parts[2]) : new Date().getFullYear();
           const nextStart = new Date(year, month, day + 7);
-          const nextStartStr = `${nextStart.getDate()}/${nextStart.getMonth() + 1}`;
+          const nextStartStr = `${nextStart.getDate()}/${nextStart.getMonth() + 1}/${nextStart.getFullYear()}`;
           sections.push('');
           sections.push(`下一期開始日期：${nextStartStr}`);
           // 預計第12堂
           const est12 = new Date(nextStart);
           est12.setDate(est12.getDate() + 11 * 7);
-          sections.push(`（如一直不請假不停課，預計第12堂的日期是：${est12.getDate()}/${est12.getMonth() + 1}）`);
+          sections.push(`（如一直不請假不停課，預計第12堂的日期是：${est12.getDate()}/${est12.getMonth() + 1}/${est12.getFullYear()}）`);
         }
       }
     }
