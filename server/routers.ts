@@ -1147,14 +1147,35 @@ export const appRouter = router({
               const notes: string[] = [];
               const qMonths = QUARTER_MONTHS[q];
 
-              // 1. 請假月扣減
+              // 1. 請假月扣減（按堂數計算）
               const studentLeaveMonths = leaveByStudentMonth.get(student.id);
-              let leaveCount = 0;
+              const scheduleDay = student.scheduleDay || (student as any).schedule_day;
+              const targetDayForLeave = scheduleDay ? WEEKDAY_MAP[scheduleDay] : undefined;
+              let totalLeaveClasses = 0;
+              const leaveDetails: Array<{ month: number; classes: number; deduction: number }> = [];
               if (studentLeaveMonths) {
-                leaveCount = qMonths.filter(m => studentLeaveMonths.has(m)).length;
-                if (leaveCount > 0) {
-                  adjustedFee -= monthlyFee * leaveCount;
-                  notes.push(`${leaveCount}月請假`);
+                const leaveMonthsInQ = qMonths.filter(m => studentLeaveMonths.has(m));
+                for (const lm of leaveMonthsInQ) {
+                  // 計算該月實際有幾堂課
+                  let classesInMonth = 4; // 預設 4 堂
+                  if (targetDayForLeave !== undefined) {
+                    classesInMonth = 0;
+                    const monthStart = new Date(currentYear, lm - 1, 1);
+                    const monthEnd = new Date(currentYear, lm, 0); // 該月最後一天
+                    const d = new Date(monthStart);
+                    while (d <= monthEnd) {
+                      if (d.getDay() === targetDayForLeave) classesInMonth++;
+                      d.setDate(d.getDate() + 1);
+                    }
+                  }
+                  const deduction = Math.round(perClassFee * classesInMonth);
+                  totalLeaveClasses += classesInMonth;
+                  leaveDetails.push({ month: lm, classes: classesInMonth, deduction });
+                  adjustedFee -= deduction;
+                }
+                if (leaveDetails.length > 0) {
+                  const leaveNotesParts = leaveDetails.map(ld => `${ld.month}月請假${ld.classes}堂`);
+                  notes.push(leaveNotesParts.join('，'));
                 }
               }
 
@@ -1162,10 +1183,9 @@ export const appRouter = router({
               //    只適用於：學生有 joinDate + scheduleDay，且下一個未繳季度
               //    包含第13堂的月份（即12堂循環跨入下一季度的情況）
               const joinDate = student.joinDate || (student as any).join_date;
-              const scheduleDay = student.scheduleDay || (student as any).schedule_day;
               if (joinDate && scheduleDay && feePerQuarter > 0) {
                 const jd = new Date(joinDate);
-                const targetDay = WEEKDAY_MAP[scheduleDay];
+                const targetDay = scheduleDay ? WEEKDAY_MAP[scheduleDay] : undefined;
                 if (targetDay !== undefined && !isNaN(jd.getTime())) {
                   // 找第一堂課
                   const firstClass = new Date(jd);
@@ -1232,12 +1252,10 @@ export const appRouter = router({
               if (feeNote && adjustedFee !== feePerQuarter) {
                 const lines: string[] = [];
                 lines.push(`季度學費：$${feePerQuarter.toLocaleString()}（$${monthlyFee.toLocaleString()}/月 × 3個月）`);
-                // 請假月扣減明細
-                if (studentLeaveMonths) {
-                  const leaveMonthsInQ = qMonths.filter(m => studentLeaveMonths.has(m));
-                  for (const lm of leaveMonthsInQ) {
-                    lines.push(`${lm}月請假：-$${monthlyFee.toLocaleString()}`);
-                  }
+                lines.push(`每堂費用：$${Math.round(perClassFee).toLocaleString()}（$${monthlyFee.toLocaleString()} ÷ 4堂）`);
+                // 請假月扣減明細（按堂數計算）
+                for (const ld of leaveDetails) {
+                  lines.push(`${ld.month}月請假（${ld.classes}堂 × $${Math.round(perClassFee).toLocaleString()}）：-$${ld.deduction.toLocaleString()}`);
                 }
                 // 新生12堂覆蓋明細
                 const joinDateVal = student.joinDate || (student as any).join_date;
