@@ -1102,15 +1102,16 @@ export const appRouter = router({
         // 載入完整學生資料（包含 join_date, scheduleDay, feePerQuarter）
         const allStudents = await db.select().from(schema.students);
 
-        // 載入請假記錄，按學生分組（以 year-month 字串集合 for resolvePaidQuarters, 以 month 數字集合 for fee calc）
+        // 載入請假記錄，按學生分組
         const allLeaves = await getLeaveMonths(currentYear);
         const leaveByStudentStr = new Map<number, Set<string>>();
-        const leaveByStudentMonth = new Map<number, Set<number>>();
+        // leaveByStudentDetail: month → { leaveClasses, notes }
+        const leaveByStudentDetail = new Map<number, Map<number, { leaveClasses: number; notes: string | null }>>();
         for (const lv of allLeaves) {
           if (!leaveByStudentStr.has(lv.studentId)) leaveByStudentStr.set(lv.studentId, new Set());
           leaveByStudentStr.get(lv.studentId)!.add(`${lv.year}-${lv.month}`);
-          if (!leaveByStudentMonth.has(lv.studentId)) leaveByStudentMonth.set(lv.studentId, new Set());
-          leaveByStudentMonth.get(lv.studentId)!.add(lv.month);
+          if (!leaveByStudentDetail.has(lv.studentId)) leaveByStudentDetail.set(lv.studentId, new Map());
+          leaveByStudentDetail.get(lv.studentId)!.set(lv.month, { leaveClasses: lv.leaveClasses, notes: lv.notes });
         }
         
         const QUARTER_MONTHS: Record<number, number[]> = { 1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12] };
@@ -1148,33 +1149,45 @@ export const appRouter = router({
               const qMonths = QUARTER_MONTHS[q];
 
               // 1. 請假月扣減（按堂數計算）
-              const studentLeaveMonths = leaveByStudentMonth.get(student.id);
+              const studentLeaveMap = leaveByStudentDetail.get(student.id);
               const scheduleDay = student.scheduleDay || (student as any).schedule_day;
               const targetDayForLeave = scheduleDay ? WEEKDAY_MAP[scheduleDay] : undefined;
               let totalLeaveClasses = 0;
-              const leaveDetails: Array<{ month: number; classes: number; deduction: number }> = [];
-              if (studentLeaveMonths) {
-                const leaveMonthsInQ = qMonths.filter(m => studentLeaveMonths.has(m));
-                for (const lm of leaveMonthsInQ) {
+              const leaveDetails: Array<{ month: number; classes: number; deduction: number; totalInMonth: number }> = [];
+              if (studentLeaveMap) {
+                for (const lm of qMonths) {
+                  const leaveInfo = studentLeaveMap.get(lm);
+                  if (!leaveInfo) continue;
+
                   // 計算該月實際有幾堂課
-                  let classesInMonth = 4; // 預設 4 堂
+                  let totalClassesInMonth = 4; // 預設 4 堂
                   if (targetDayForLeave !== undefined) {
-                    classesInMonth = 0;
+                    totalClassesInMonth = 0;
                     const monthStart = new Date(currentYear, lm - 1, 1);
-                    const monthEnd = new Date(currentYear, lm, 0); // 該月最後一天
+                    const monthEnd = new Date(currentYear, lm, 0);
                     const d = new Date(monthStart);
                     while (d <= monthEnd) {
-                      if (d.getDay() === targetDayForLeave) classesInMonth++;
+                      if (d.getDay() === targetDayForLeave) totalClassesInMonth++;
                       d.setDate(d.getDate() + 1);
                     }
                   }
-                  const deduction = Math.round(perClassFee * classesInMonth);
-                  totalLeaveClasses += classesInMonth;
-                  leaveDetails.push({ month: lm, classes: classesInMonth, deduction });
+
+                  // leaveClasses=0 表示整月請假，用該月全部堂數；否則用指定堂數
+                  const actualLeaveClasses = leaveInfo.leaveClasses === 0
+                    ? totalClassesInMonth
+                    : Math.min(leaveInfo.leaveClasses, totalClassesInMonth);
+
+                  const deduction = Math.round(perClassFee * actualLeaveClasses);
+                  totalLeaveClasses += actualLeaveClasses;
+                  leaveDetails.push({ month: lm, classes: actualLeaveClasses, deduction, totalInMonth: totalClassesInMonth });
                   adjustedFee -= deduction;
                 }
                 if (leaveDetails.length > 0) {
-                  const leaveNotesParts = leaveDetails.map(ld => `${ld.month}月請假${ld.classes}堂`);
+                  const leaveNotesParts = leaveDetails.map(ld =>
+                    ld.classes === ld.totalInMonth
+                      ? `${ld.month}月整月請假${ld.classes}堂`
+                      : `${ld.month}月請假${ld.classes}堂`
+                  );
                   notes.push(leaveNotesParts.join('，'));
                 }
               }
@@ -1255,7 +1268,10 @@ export const appRouter = router({
                 lines.push(`每堂費用：$${Math.round(perClassFee).toLocaleString()}（$${monthlyFee.toLocaleString()} ÷ 4堂）`);
                 // 請假月扣減明細（按堂數計算）
                 for (const ld of leaveDetails) {
-                  lines.push(`${ld.month}月請假（${ld.classes}堂 × $${Math.round(perClassFee).toLocaleString()}）：-$${ld.deduction.toLocaleString()}`);
+                  const label = ld.classes === ld.totalInMonth
+                    ? `${ld.month}月整月請假（${ld.classes}堂 × $${Math.round(perClassFee).toLocaleString()}）`
+                    : `${ld.month}月請假${ld.classes}堂（${ld.classes}堂 × $${Math.round(perClassFee).toLocaleString()}）`;
+                  lines.push(`${label}：-$${ld.deduction.toLocaleString()}`);
                 }
                 // 新生12堂覆蓋明細
                 const joinDateVal = student.joinDate || (student as any).join_date;
@@ -2318,13 +2334,14 @@ export const appRouter = router({
         studentId: z.number(),
         year: z.number(),
         month: z.number().min(1).max(12),
+        leaveClasses: z.number().min(0).max(5).default(0), // 0=整月, 1-5=具體堂數
         notes: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
-        await insertLeaveMonth(input.studentId, input.year, input.month, input.notes);
+        await insertLeaveMonth(input.studentId, input.year, input.month, input.leaveClasses, input.notes);
         return { success: true };
       }),
 

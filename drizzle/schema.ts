@@ -170,6 +170,7 @@ export const studentLeaveMonths = mysqlTable("student_leave_months", {
   studentId: int("student_id").notNull(),
   year: int("year").notNull().default(2026),
   month: int("month").notNull(), // 1-12
+  leaveClasses: int("leave_classes").notNull().default(0), // 0=整月請假, 1-4=請假堂數
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

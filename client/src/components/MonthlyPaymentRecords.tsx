@@ -63,6 +63,14 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const [confirmReceiptFile, setConfirmReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
   // 請假月份排除（僅教練/管理員確認季繳時使用）
   const [confirmExcludedMonths, setConfirmExcludedMonths] = useState<number[]>([]);
+  // 請假對話框
+  const [leaveDialog, setLeaveDialog] = useState<{
+    studentId: number;
+    studentName: string;
+    month: number;
+  } | null>(null);
+  const [leaveClassesInput, setLeaveClassesInput] = useState<number>(0); // 0=整月
+
   // 付款銀行（教練/管理員確認時選擇）
   const [confirmBank, setConfirmBank] = useState<string>("");
   // 收款銀行（入數到哪間銀行，用於銀行月結單對帳）
@@ -451,11 +459,13 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       );
     } else if (monthData.status === 'leave') {
       // 請假月份
+      const lc = (monthData as any).leaveClasses;
+      const leaveLabel = lc && lc > 0 ? `請假${lc}堂` : '整月請假';
       return (
         <div className="text-center space-y-0.5">
           <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-300">
             <PauseCircle className="w-2.5 h-2.5 mr-0.5" />
-            請假
+            {leaveLabel}
           </div>
           {/* 取消請假按鈕（僅管理員可見） */}
           {!readOnly && (
@@ -496,9 +506,12 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                 季繳
               </button>
               <button
-                onClick={() => markLeave.mutate({ studentId, year: selectedYear, month })}
+                onClick={() => {
+                  setLeaveClassesInput(0);
+                  setLeaveDialog({ studentId, studentName, month });
+                }}
                 className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-500 text-white hover:bg-orange-600 transition-colors"
-                title="標記為請假（免繳）"
+                title="標記為請假"
               >
                 <PauseCircle className="w-2.5 h-2.5" />
                 請假
@@ -1292,6 +1305,60 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             >
               <Building2 className="w-4 h-4 mr-1" />
               {updatePaymentBank.isPending ? '處理中...' : '確認修改'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 請假對話框 — 選擇請假堂數 */}
+      <Dialog open={!!leaveDialog} onOpenChange={(open) => { if (!open) setLeaveDialog(null); }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>標記請假</DialogTitle>
+            <DialogDescription>
+              {leaveDialog?.studentName} — {selectedYear}年{leaveDialog?.month}月
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label>請假堂數</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {[0, 1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  onClick={() => setLeaveClassesInput(n)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    leaveClassesInput === n
+                      ? 'bg-orange-500 text-white border-orange-500'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-orange-50'
+                  }`}
+                >
+                  {n === 0 ? '整月' : `${n}堂`}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500">
+              {leaveClassesInput === 0
+                ? '整月請假：該月全部堂數將從學費中扣除'
+                : `請假${leaveClassesInput}堂：將按每堂費用扣除${leaveClassesInput}堂`}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLeaveDialog(null)}>取消</Button>
+            <Button
+              className="bg-orange-500 hover:bg-orange-600"
+              onClick={() => {
+                if (leaveDialog) {
+                  markLeave.mutate({
+                    studentId: leaveDialog.studentId,
+                    year: selectedYear,
+                    month: leaveDialog.month,
+                    leaveClasses: leaveClassesInput,
+                  });
+                  setLeaveDialog(null);
+                }
+              }}
+            >
+              確認請假
             </Button>
           </DialogFooter>
         </DialogContent>

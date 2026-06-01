@@ -571,6 +571,7 @@ export interface MonthlyPaymentStatus {
       paymentRecordId?: number | null; // 繳費記錄 ID（用於審核）
       bank?: string | null; // 付款銀行
       receivingBank?: string | null; // 收款銀行
+      leaveClasses?: number; // 請假堂數（0=整月, 1-5=具體堂數）
     };
   };
 }
@@ -589,10 +590,10 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
 
   // 載入該年份的請假記錄，建立 studentId → Set<month> 的快速查詢
   const allLeaves = await getLeaveMonths(targetYear);
-  const leaveMap = new Map<number, Set<number>>();
+  const leaveMap = new Map<number, Map<number, number>>(); // studentId → month → leaveClasses
   for (const lv of allLeaves) {
-    if (!leaveMap.has(lv.studentId)) leaveMap.set(lv.studentId, new Set());
-    leaveMap.get(lv.studentId)!.add(lv.month);
+    if (!leaveMap.has(lv.studentId)) leaveMap.set(lv.studentId, new Map());
+    leaveMap.get(lv.studentId)!.set(lv.month, lv.leaveClasses);
   }
   
   const statuses: MonthlyPaymentStatus[] = allStudents
@@ -662,9 +663,11 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
           // 判斷是否到期：查過去年份全部到期；查當年只有當月或之前的到期
           const isDue = targetYear < currentYear || (targetYear === currentYear && m <= currentMonth);
           // 檢查是否為請假月份
-          const isLeave = leaveMap.get(student.id)?.has(m) ?? false;
+          const leaveClassesVal = leaveMap.get(student.id)?.get(m);
+          const isLeave = leaveClassesVal !== undefined;
           months[m] = {
             status: isLeave ? 'leave' : (isDue ? 'unpaid' : 'not_due'),
+            ...(isLeave ? { leaveClasses: leaveClassesVal } : {}),
           };
         }
       }
@@ -701,12 +704,13 @@ export async function getLeaveMonthsByStudent(studentId: number, year: number) {
   );
 }
 
-/** 標記請假 */
-export async function insertLeaveMonth(studentId: number, year: number, month: number, notes?: string) {
+/** 標記請假（leaveClasses: 0=整月, 1-4=具體堂數） */
+export async function insertLeaveMonth(studentId: number, year: number, month: number, leaveClasses: number = 0, notes?: string) {
   const db = await getDb();
   if (!db) return;
   // upsert: ignore if already exists
-  await db.insert(studentLeaveMonths).values({ studentId, year, month, notes: notes || null }).onDuplicateKeyUpdate({ set: { notes: notes || null } });
+  await db.insert(studentLeaveMonths).values({ studentId, year, month, leaveClasses, notes: notes || null })
+    .onDuplicateKeyUpdate({ set: { leaveClasses, notes: notes || null } });
 }
 
 /** 取消請假 */
