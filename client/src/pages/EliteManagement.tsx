@@ -17,7 +17,7 @@ import { getLoginUrl } from "@/const";
 import { addMonths, subMonths } from "date-fns";
 import { formatDayMonthYear } from "@/lib/dateFormat";
 import { zhTW } from "date-fns/locale";
-import { Users, Calendar, DollarSign, ChevronLeft, ChevronRight, Plus, MoreHorizontal, ArrowLeft, Loader2, Ban, RotateCcw, ArrowRightLeft, Phone, RefreshCw, Pencil, Check, X, Trash2, ChevronsUpDown } from "lucide-react";
+import { Users, Calendar, DollarSign, ChevronLeft, ChevronRight, Plus, MoreHorizontal, ArrowLeft, Loader2, Ban, RotateCcw, ArrowRightLeft, Phone, RefreshCw, Pencil, Check, X, Trash2, ChevronsUpDown, UserX } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
@@ -698,6 +698,7 @@ function EliteAttendanceTab() {
   });
   // Optimistic update state
   const [optimisticUpdates, setOptimisticUpdates] = useState<Record<string, string>>({});
+  const [markingAbsentScheduleId, setMarkingAbsentScheduleId] = useState<number | null>(null);
 
   // Track in-flight mutations to avoid premature clearing
   const inflightCount = useRef(0);
@@ -718,6 +719,25 @@ function EliteAttendanceTab() {
       });
     }, 800);
   }, [utils]);
+
+  // 批量點名 mutation（用於「未點到的視作請假」）
+  const batchUpsertMutation = trpc.elite.batchUpsertAttendance.useMutation({
+    onMutate: () => {
+      inflightCount.current++;
+    },
+    onSuccess: (data) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      toast.success(`已將 ${data.count} 位未點到學生標記為請假`);
+      setMarkingAbsentScheduleId(null);
+      scheduleInvalidate();
+    },
+    onError: (err: any) => {
+      inflightCount.current = Math.max(0, inflightCount.current - 1);
+      toast.error(`批量標記失敗: ${err.message}`);
+      setMarkingAbsentScheduleId(null);
+      scheduleInvalidate();
+    },
+  });
 
   const upsertAttendanceMutation = trpc.elite.upsertAttendance.useMutation({
     onMutate: () => {
@@ -801,6 +821,28 @@ function EliteAttendanceTab() {
 
   const statusEmoji: Record<string, string> = { present: "✅", absent: "❌", late: "⏰", excused: "🗕" };
 
+  // 「未點到的視作請假」：找出某堂課所有未記錄的學生，批量標記為 absent
+  function handleMarkUnmarkedAbsent(scheduleId: number) {
+    const unmarkedStudents = classStudents.filter((s: any) => {
+      const key = `${scheduleId}-${s.id}`;
+      return !attendanceMap[key]; // 沒有任何記錄的學生
+    });
+    if (unmarkedStudents.length === 0) {
+      toast.info('所有學生都已點名，無需操作');
+      return;
+    }
+    // Optimistic update: 立即在 UI 上顯示
+    const newOptimistic: Record<string, string> = {};
+    const entries = unmarkedStudents.map((s: any) => {
+      const key = `${scheduleId}-${s.id}`;
+      newOptimistic[key] = 'absent';
+      return { scheduleId, studentId: s.id, status: 'absent' };
+    });
+    setOptimisticUpdates(prev => ({ ...prev, ...newOptimistic }));
+    setMarkingAbsentScheduleId(scheduleId);
+    batchUpsertMutation.mutate({ entries });
+  }
+
   return (
     <div className="space-y-4">
       {/* A/B 班切換 */}
@@ -878,9 +920,24 @@ function EliteAttendanceTab() {
                             【恢復】
                           </button>
                         ) : (
-                          <button onClick={() => cancelScheduleMutation.mutate({ id: s.id })} className="text-red-500 hover:text-red-700 text-[10px] font-bold px-1 py-0.5 rounded hover:bg-red-50 border border-red-300" title="取消課堂">
-                            【取消】
-                          </button>
+                          <>
+                            <button onClick={() => cancelScheduleMutation.mutate({ id: s.id })} className="text-red-500 hover:text-red-700 text-[10px] font-bold px-1 py-0.5 rounded hover:bg-red-50 border border-red-300" title="取消課堂">
+                              【取消】
+                            </button>
+                            <button
+                              onClick={() => handleMarkUnmarkedAbsent(s.id)}
+                              disabled={markingAbsentScheduleId === s.id}
+                              className="text-purple-600 hover:text-purple-800 text-[10px] font-bold px-1 py-0.5 rounded hover:bg-purple-50 border border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-0.5 mx-auto"
+                              title="將所有未點到的學生標記為請假"
+                            >
+                              {markingAbsentScheduleId === s.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <UserX className="h-3 w-3" />
+                              )}
+                              未到=假
+                            </button>
+                          </>
                         )}
                         {isCancelled && <span className="text-[10px] text-red-400 font-medium">休息</span>}
                       </div>
@@ -990,6 +1047,7 @@ function EliteAttendanceTab() {
         <span className="text-gray-400">· 未記錄（點擊切換）</span>
         <span className="text-red-500 font-bold">【取消】</span><span className="text-sm"> 取消課堂</span>
         <span className="text-green-600 font-bold">【恢復】</span><span className="text-sm"> 恢復課堂</span>
+        <span className="text-purple-600"><UserX className="h-3 w-3 inline" /> 未到=假</span><span className="text-sm"> 一鍵標記未點到為請假</span>
       </div>
       <div className="flex gap-4 text-sm flex-wrap">
         <span className="text-muted-foreground">堂數顏色：</span>
