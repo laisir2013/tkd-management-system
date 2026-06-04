@@ -110,3 +110,6 @@ temp/
 .webdev/
 uploads/
 core
+core
+*.heapsnapshot
+backup_db_*.sql
