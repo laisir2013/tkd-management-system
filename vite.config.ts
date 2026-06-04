@@ -166,6 +166,11 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    reportCompressedSize: false,
+    minify: false,
+    sourcemap: false,
+    chunkSizeWarningLimit: 5000,
+    target: 'es2020',
   },
   server: {
     host: true,

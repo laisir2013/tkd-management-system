@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X, CheckSquare, Square, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X, CheckSquare, Square, Users, UserX, Loader2 } from "lucide-react";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
 import { EliteAttendanceWhatsAppButton } from "@/components/EliteAttendanceWhatsAppButton";
 
@@ -38,19 +38,22 @@ export default function EliteHistory() {
   const [batchMode, setBatchMode] = useState(false);
   // selectedCells: Set of "scheduleId-studentId" keys
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
+  // 「未到=假」loading 狀態
+  const [markingAbsentScheduleId, setMarkingAbsentScheduleId] = useState<number | null>(null);
 
   const batchMutation = trpc.elite.batchUpsertAttendance.useMutation({
     onSuccess: (data) => {
       toast.success(`已批量更新 ${data.count} 條記錄`);
       setSelectedCells(new Set());
       setBatchMode(false);
+      setMarkingAbsentScheduleId(null);
       Promise.all([
         utils.elite.getHistoryByYear.invalidate(),
         utils.elite.getAllCycleInfo.invalidate(),
         utils.elite.getAllBalances.invalidate(),
       ]);
     },
-    onError: (err: any) => toast.error(`批量更新失敗：${err.message}`),
+    onError: (err: any) => { toast.error(`批量更新失敗：${err.message}`); setMarkingAbsentScheduleId(null); },
   });
 
   const toggleCellSelection = useCallback((scheduleId: number, studentId: number) => {
@@ -629,13 +632,36 @@ export default function EliteHistory() {
                                     <CheckSquare className="h-3 w-3" />
                                   </button>
                                 ) : !isCancelled ? (
-                                  <button
-                                    className="text-red-400 hover:text-red-600 opacity-30 hover:opacity-100"
-                                    title="取消課堂"
-                                    onClick={() => cancelScheduleMutation.mutate({ id: schedule.id })}
-                                  >
-                                    <Ban className="h-2.5 w-2.5" />
-                                  </button>
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <button
+                                      className="text-red-400 hover:text-red-600 opacity-30 hover:opacity-100"
+                                      title="取消課堂"
+                                      onClick={() => cancelScheduleMutation.mutate({ id: schedule.id })}
+                                    >
+                                      <Ban className="h-2.5 w-2.5" />
+                                    </button>
+                                    <button
+                                      className="text-purple-500 hover:text-purple-700 opacity-40 hover:opacity-100 disabled:opacity-30"
+                                      title="未點到的視作請假（一鍵標記所有未記錄學生為缺席）"
+                                      disabled={markingAbsentScheduleId === schedule.id}
+                                      onClick={() => {
+                                        const eligibleStudents = students.filter((s: any) => s.status === 'active' && isStudentJoined(s, schedule.trainingDate));
+                                        const unmarked = eligibleStudents.filter((s: any) => !attendanceMap.get(`${schedule.id}-${s.id}`));
+                                        if (unmarked.length === 0) { toast.info('所有學生都已點名，無需操作'); return; }
+                                        const entries = unmarked.map((s: any) => ({ scheduleId: schedule.id, studentId: s.id, status: 'absent' }));
+                                        // Optimistic update
+                                        setOptimisticUpdates(prev => {
+                                          const updated = new Map(prev);
+                                          unmarked.forEach((s: any) => updated.set(`${schedule.id}-${s.id}`, 'absent'));
+                                          return updated;
+                                        });
+                                        setMarkingAbsentScheduleId(schedule.id);
+                                        batchMutation.mutate({ entries });
+                                      }}
+                                    >
+                                      {markingAbsentScheduleId === schedule.id ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <UserX className="h-2.5 w-2.5" />}
+                                    </button>
+                                  </div>
                                 ) : (
                                   <button
                                     className="text-green-500 hover:text-green-700 opacity-60 hover:opacity-100"
