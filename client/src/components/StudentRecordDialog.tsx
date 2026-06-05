@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, GraduationCap, DollarSign, Calendar } from "lucide-react";
+import { FileText, GraduationCap, DollarSign, Calendar, Trophy, CheckCircle, XCircle } from "lucide-react";
 
 interface StudentRecordDialogProps {
   open: boolean;
@@ -44,11 +44,36 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
   const examResults = studentPhone ? examByPhone : examByStudentId;
   const examsLoading = studentPhone ? examsByPhoneLoading : examsByIdLoading;
 
+  // 查詢是否為精英班學生
+  const { data: eliteStudents = [], isLoading: eliteStudentLoading } = trpc.elite.getStudentsByPhone.useQuery(
+    { phone: studentPhone || '' },
+    { enabled: open && !!studentPhone }
+  );
+  const eliteStudent = eliteStudents.length > 0 ? eliteStudents[0] : null;
+  const eliteStudentId = eliteStudent?.id;
+
+  // 查詢精英班期數明細
+  const { data: periodsBreakdown, isLoading: periodsLoading } = trpc.elite.getPeriodsBreakdown.useQuery(
+    { studentId: eliteStudentId! },
+    { enabled: open && !!eliteStudentId }
+  );
+
+  // 查詢精英班付款記錄
+  const { data: elitePayments = [], isLoading: elitePaymentsLoading } = trpc.elite.getPayments.useQuery(
+    { studentId: eliteStudentId! },
+    { enabled: open && !!eliteStudentId }
+  );
+
+  const isEliteStudent = !eliteStudentLoading && eliteStudent !== null;
+  const eliteLoading = eliteStudentLoading || periodsLoading || elitePaymentsLoading;
+
   const formatDate = (d: string | Date | null) => {
     if (!d) return "-";
     const date = new Date(d);
     return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
   };
+
+  const tabCount = isEliteStudent ? 3 : 2;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -61,7 +86,7 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-2">
-          <TabsList className="grid grid-cols-2 w-full">
+          <TabsList className={`grid w-full ${tabCount === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger value="payments" className="flex items-center gap-1 text-xs">
               <DollarSign className="h-3.5 w-3.5" />
               付款紀錄
@@ -70,6 +95,12 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
               <GraduationCap className="h-3.5 w-3.5" />
               考試成績
             </TabsTrigger>
+            {isEliteStudent && (
+              <TabsTrigger value="elite" className="flex items-center gap-1 text-xs">
+                <Trophy className="h-3.5 w-3.5" />
+                精英班
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* 付款紀錄 */}
@@ -208,6 +239,170 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
               </div>
             )}
           </TabsContent>
+
+          {/* 精英班紀錄 */}
+          {isEliteStudent && (
+            <TabsContent value="elite" className="mt-3 space-y-4">
+              {eliteLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : (
+                <>
+                  {/* 基本資訊摘要 */}
+                  {periodsBreakdown && (
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Trophy className="h-4 w-4 text-purple-600" />
+                        <span className="font-semibold text-sm text-purple-800">週期概覽</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">總期數：</span>
+                          <span className="font-medium">{periodsBreakdown.totalPeriods} 期</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">已繳費：</span>
+                          <span className="font-medium text-green-700">{periodsBreakdown.paidPeriods} 期</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">每期費用：</span>
+                          <span className="font-medium">${periodsBreakdown.feePerPeriod?.toLocaleString()}</span>
+                        </div>
+                        {periodsBreakdown.unpaidPeriods && periodsBreakdown.unpaidPeriods.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">欠費：</span>
+                            <span className="font-medium text-red-600">{periodsBreakdown.unpaidPeriods.length} 期</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 精英班付款記錄 */}
+                  <div>
+                    <h4 className="text-sm font-semibold mb-2 flex items-center gap-1">
+                      <DollarSign className="h-3.5 w-3.5 text-green-600" />
+                      精英班繳費紀錄
+                    </h4>
+                    {elitePayments.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-3 text-xs">暫無繳費紀錄</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {[...elitePayments]
+                          .sort((a: any, b: any) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
+                          .map((payment: any) => (
+                            <div key={payment.id} className="border rounded-lg p-2.5 hover:bg-muted/30 transition-colors">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {payment.periodNumber && (
+                                    <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-300">
+                                      第{payment.periodNumber}期
+                                    </Badge>
+                                  )}
+                                  <Badge
+                                    className={`text-[10px] ${
+                                      payment.status === "confirmed"
+                                        ? "bg-green-100 text-green-700 border-green-300"
+                                        : "bg-yellow-100 text-yellow-700 border-yellow-300"
+                                    }`}
+                                    variant="outline"
+                                  >
+                                    {payment.status === "confirmed" ? "已確認" : "待確認"}
+                                  </Badge>
+                                </div>
+                                <span className="font-bold text-sm text-green-700">${Number(payment.amount).toLocaleString()}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1.5">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  付款：{formatDate(payment.paymentDate)}
+                                </span>
+                                <span>{payment.classCount} 堂</span>
+                              </div>
+                              {payment.periodStartDate && (
+                                <div className="text-[10px] text-purple-500 mt-0.5">
+                                  期數起始：{formatDate(payment.periodStartDate)}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 各期出席明細 */}
+                  {periodsBreakdown && periodsBreakdown.periods && periodsBreakdown.periods.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2 flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                        各期出席明細
+                      </h4>
+                      <div className="space-y-2">
+                        {[...periodsBreakdown.periods].reverse().map((period: any) => (
+                          <div key={period.periodNumber} className="border rounded-lg p-2.5">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold">第{period.periodNumber}期</span>
+                                {period.isComplete ? (
+                                  <Badge className="text-[9px] bg-blue-100 text-blue-700 border-blue-300" variant="outline">
+                                    已完成
+                                  </Badge>
+                                ) : (
+                                  <Badge className="text-[9px] bg-amber-100 text-amber-700 border-amber-300" variant="outline">
+                                    進行中
+                                  </Badge>
+                                )}
+                                {period.isPaid ? (
+                                  <Badge className="text-[9px] bg-green-100 text-green-700 border-green-300" variant="outline">
+                                    已繳費
+                                  </Badge>
+                                ) : (
+                                  <Badge className="text-[9px] bg-red-100 text-red-700 border-red-300" variant="outline">
+                                    未繳費
+                                  </Badge>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {period.attendedCount}/12 堂
+                              </span>
+                            </div>
+                            {/* 出席日期詳細列表 */}
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {period.records.map((rec: any, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded ${
+                                    rec.isAttended
+                                      ? "bg-green-50 text-green-700 border border-green-200"
+                                      : "bg-orange-50 text-orange-700 border border-orange-200"
+                                  }`}
+                                >
+                                  {rec.isAttended ? (
+                                    <CheckCircle className="h-2.5 w-2.5" />
+                                  ) : (
+                                    <XCircle className="h-2.5 w-2.5" />
+                                  )}
+                                  {rec.date}
+                                </span>
+                              ))}
+                            </div>
+                            {period.absentDates.length > 0 && (
+                              <div className="text-[10px] text-orange-600 mt-1">
+                                請假/缺席：{period.absentDates.join("、")}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </TabsContent>
+          )}
         </Tabs>
       </DialogContent>
     </Dialog>
