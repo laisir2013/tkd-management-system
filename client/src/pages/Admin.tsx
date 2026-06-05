@@ -780,16 +780,16 @@ export default function Admin() {
                   <Table>
                      <TableHeader className="sticky top-0 z-10 bg-background">
                        <TableRow>
-                         <TableHead className="w-16">編號</TableHead>
-                         <TableHead>姓名</TableHead>
-                        <TableHead>電話</TableHead>
-                        <TableHead>道場</TableHead>
-                        <TableHead>時段</TableHead>
-                        <TableHead>教練</TableHead>
-                        <TableHead>級數</TableHead>
-                        <TableHead className="text-right">學費</TableHead>
-                        <TableHead className="text-center">通知繳費</TableHead>
-                        <TableHead className="text-center">操作</TableHead>
+                         <TableHead className="w-8 sm:w-16 px-1 sm:px-4">編號</TableHead>
+                         <TableHead className="px-1 sm:px-4">姓名</TableHead>
+                        <TableHead className="hidden sm:table-cell">電話</TableHead>
+                        <TableHead className="hidden md:table-cell">道場</TableHead>
+                        <TableHead className="hidden lg:table-cell">時段</TableHead>
+                        <TableHead className="hidden md:table-cell">教練</TableHead>
+                        <TableHead className="px-1 sm:px-4">級數</TableHead>
+                        <TableHead className="text-right px-1 sm:px-4">學費</TableHead>
+                        <TableHead className="hidden sm:table-cell text-center">通知繳費</TableHead>
+                        <TableHead className="text-center px-1 sm:px-4">操作</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -799,8 +799,8 @@ export default function Admin() {
                         
                          return (
                            <TableRow key={student.id} className={`${venueColor} ${isInactive ? 'opacity-50 bg-gray-100' : ''}`}>
-                             <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
-                             <TableCell className="font-medium">
+                             <TableCell className="font-medium text-muted-foreground px-1 sm:px-4 text-xs">{index + 1}</TableCell>
+                             <TableCell className="font-medium px-1 sm:px-4">
                                <div className="flex items-center gap-1">
                                  <span>{student.name}</span>
                                  {isInactive && (
@@ -817,12 +817,12 @@ export default function Admin() {
                                  </button>
                                </div>
                              </TableCell>
-                            <TableCell>{student.phone}</TableCell>
-                            <TableCell>{student.venue}</TableCell>
-                            <TableCell>
+                            <TableCell className="hidden sm:table-cell">{student.phone}</TableCell>
+                            <TableCell className="hidden md:table-cell">{student.venue}</TableCell>
+                            <TableCell className="hidden lg:table-cell">
                               {student.scheduleDay} {student.scheduleTime}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="hidden md:table-cell">
                               <Select
                                 value={student.coach || ''}
                                 onValueChange={(val) => {
@@ -840,8 +840,8 @@ export default function Admin() {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            <TableCell>{student.beltLevel}</TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="px-1 sm:px-4 text-xs sm:text-sm">{student.beltLevel}</TableCell>
+                            <TableCell className="text-right px-1 sm:px-4 text-xs sm:text-sm">
                               <div>${student.feePerQuarter}</div>
                               {(() => {
                                 const nq = allNextUnpaidQuarters?.[student.id];
@@ -858,7 +858,7 @@ export default function Admin() {
                                 return null;
                               })()}
                             </TableCell>
-                            <TableCell className="text-center">
+                            <TableCell className="hidden sm:table-cell text-center">
                               {!isInactive && (
                                 <StudentWhatsAppButton
                                   studentId={student.id}
@@ -869,21 +869,21 @@ export default function Admin() {
                                 />
                               )}
                             </TableCell>
-                            <TableCell className="text-center">
+                            <TableCell className="text-center px-1 sm:px-4">
                               <div className="flex items-center justify-center gap-1">
                                 {!isInactive && (
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                                    className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700 px-1.5 sm:px-3"
                                     onClick={() => {
                                       setEditingStudent(student);
                                       setShowEditDialog(true);
                                     }}
                                     title="編輯學生資料"
                                   >
-                                    <Pencil className="w-3.5 h-3.5 mr-1" />
-                                    編輯
+                                    <Pencil className="w-3.5 h-3.5 sm:mr-1" />
+                                    <span className="hidden sm:inline">編輯</span>
                                   </Button>
                                 )}
                                 <DropdownMenu>
