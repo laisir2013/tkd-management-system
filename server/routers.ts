@@ -2222,6 +2222,7 @@ export const appRouter = router({
         classCount: z.number().optional(), // 精英班堂數
         bank: z.string().optional(), // 付款銀行
         receivingBank: z.string().optional(), // 收款銀行（入數到哪間銀行）
+        paymentDate: z.date().optional(), // 管理員輸入的付款日期（會計記帳用）
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
@@ -2229,8 +2230,8 @@ export const appRouter = router({
         }
         
         // 創建繳費記錄,不需要收據圖片
-        // 管理員手動標記：以當前日期作為入帳日期
-        const markTxDate = new Date();
+        // 管理員手動標記：使用管理員輸入的付款日期，若無則以當前日期
+        const markTxDate = input.paymentDate || new Date();
         const newPaymentId2 = await insertPaymentRecord({
           studentId: input.studentId,
           paymentPeriod: "CUSTOM",
@@ -2458,6 +2459,7 @@ export const appRouter = router({
         quarter: z.enum(['Q1', 'Q2', 'Q3', 'Q4']),
         bank: z.string().optional(), // 付款銀行
         receivingBank: z.string().optional(), // 收款銀行（入數到哪間銀行）
+        paymentDate: z.date().optional(), // 管理員輸入的付款日期（會計記帳用）
       }))
       .mutation(async ({ input, ctx }) => {
         // 只有管理員可以確認繳費
@@ -2468,8 +2470,8 @@ export const appRouter = router({
         const student = await getStudentById(input.studentId);
         if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: '學生不存在' });
 
-        // 管理員確認繳費：以當前日期作為入帳日期（因沒有收據轉帳日期）
-        const confirmTxDate = new Date();
+        // 管理員確認繳費：使用管理員輸入的付款日期，若無則以當前日期
+        const confirmTxDate = input.paymentDate || new Date();
         const confirmPmtId = await insertPaymentRecord({
           studentId: input.studentId,
           year: input.year,
@@ -2517,6 +2519,7 @@ export const appRouter = router({
         paymentType: z.enum(['monthly', 'quarterly']), // monthly=單月, quarterly=季繳
         bank: z.string().optional(), // 付款銀行
         receivingBank: z.string().optional(), // 收款銀行（入數到哪間銀行）
+        paymentDate: z.date().optional(), // 管理員輸入的付款日期（會計記帳用）
         // 收據上傳（可選）
         receiptBase64: z.string().optional(),
         receiptMimeType: z.string().optional(),
@@ -2577,7 +2580,7 @@ export const appRouter = router({
 
             // 為每個季度建立繳費記錄
             for (const [quarter, _months] of Object.entries(quarterGroups)) {
-              const qtrTxDate = new Date();
+              const qtrTxDate = input.paymentDate || new Date();
               const qtrPmtId = await insertPaymentRecord({
                 studentId: student.id,
                 year: input.year,
@@ -2618,7 +2621,7 @@ export const appRouter = router({
             // 單月繳費：為每個月建立一筆記錄
             const monthlyFee = Math.round((feePerQuarter / 3) * 100) / 100;
             for (const month of input.months) {
-              const monthTxDate = new Date();
+              const monthTxDate = input.paymentDate || new Date();
               const monthPmtId = await insertPaymentRecord({
                 studentId: student.id,
                 year: input.year,

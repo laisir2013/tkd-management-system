@@ -75,6 +75,8 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const [confirmBank, setConfirmBank] = useState<string>("");
   // 收款銀行（入數到哪間銀行，用於銀行月結單對帳）
   const [confirmReceivingBank, setConfirmReceivingBank] = useState<string>("");
+  // 付款日期（管理員輸入，會計記帳用）
+  const [confirmPaymentDate, setConfirmPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Approve payment dialog state (待審核→批准)
   const [approveDialog, setApproveDialog] = useState<{
@@ -113,6 +115,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       refetch();
       setConfirmDialog(null);
       setConfirmReceiptFile(null);
+      setConfirmPaymentDate(new Date().toISOString().split('T')[0]);
     },
     onError: (err: any) => {
       toast.error(`確認失敗: ${err.message}`);
@@ -752,7 +755,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmReceivingBank(""); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); } }}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmReceivingBank(""); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -985,6 +988,17 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               )}
             </div>
           )}
+          {/* 付款日期（管理員輸入，會計記帳用） */}
+          <div className="px-0">
+            <Label className="text-sm font-medium">付款日期 *</Label>
+            <input
+              type="date"
+              value={confirmPaymentDate}
+              onChange={(e) => setConfirmPaymentDate(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">學生實際付款的日期，用於會計記帳</p>
+          </div>
           {/* 轉入銀行選擇（入數到哪間銀行） */}
           <div className="px-0">
             <Label className="text-sm font-medium">轉入銀行（入數到哪間公司帳戶）*</Label>
@@ -1038,7 +1052,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             <p className="text-xs text-muted-foreground mt-1">管理員/教練上傳收據直接確認，無需額外審批</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmReceivingBank(""); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); setConfirmExcludedMonths([]); }}>取消</Button>
+            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmReceivingBank(""); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); setConfirmExcludedMonths([]); }}>取消</Button>
             <Button
               className={confirmDialog?.paymentType === 'quarterly' ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
               disabled={confirmMonthlyPayment.isPending}
@@ -1067,11 +1081,13 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                     months: actualMonths,
                     paymentType: confirmExcludedMonths.length > 0 ? 'monthly' : confirmDialog.paymentType,
                     receivingBank: confirmReceivingBank || undefined,
+                    paymentDate: confirmPaymentDate ? new Date(confirmPaymentDate) : undefined,
                     receiptBase64: confirmReceiptFile?.base64,
                     receiptMimeType: confirmReceiptFile?.mimeType,
                   });
                   setConfirmExcludedMonths([]);
                   setConfirmReceivingBank("");
+                  setConfirmPaymentDate(new Date().toISOString().split('T')[0]);
                   setConfirmExtraStudentIds([]);
                   setConfirmExtraQuarters([]);
                 }

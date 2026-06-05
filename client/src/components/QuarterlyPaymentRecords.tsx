@@ -30,6 +30,7 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
   const [confirmDialog, setConfirmDialog] = useState<{ studentId: number; studentName: string; quarter: string; quarterLabel: string } | null>(null);
   const [confirmBank, setConfirmBank] = useState<string>("");
   const [confirmReceivingBank, setConfirmReceivingBank] = useState<string>("");
+  const [confirmPaymentDate, setConfirmPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const confirmPayment = trpc.payments.confirmPayment.useMutation({
     onSuccess: () => {
       toast.success('已確認繳費');
@@ -398,7 +399,7 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmBank(""); setConfirmReceivingBank(""); } }}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmBank(""); setConfirmReceivingBank(""); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>確認繳費</DialogTitle>
@@ -408,6 +409,17 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
               <span className="text-xs text-gray-500 mt-1 block">此操作由管理員/教練批准，無需上傳收據。</span>
             </DialogDescription>
           </DialogHeader>
+          {/* 付款日期（管理員輸入，會計記帳用） */}
+          <div>
+            <Label className="text-sm font-medium">付款日期 *</Label>
+            <input
+              type="date"
+              value={confirmPaymentDate}
+              onChange={(e) => setConfirmPaymentDate(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">學生實際付款的日期，用於會計記帳</p>
+          </div>
           {/* 轉入銀行（公司只有 BOC 和 HSBC） */}
           <div>
             <Label className="text-sm font-medium">轉入銀行（入數到哪間公司帳戶）*</Label>
@@ -423,10 +435,10 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
             <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmBank(""); setConfirmReceivingBank(""); }}>取消</Button>
+            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmBank(""); setConfirmReceivingBank(""); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); }}>取消</Button>
             <Button
               className="bg-green-600 hover:bg-green-700"
-              disabled={confirmPayment.isPending}
+              disabled={confirmPayment.isPending || !confirmPaymentDate}
               onClick={() => {
                 if (confirmDialog) {
                   confirmPayment.mutate({
@@ -435,6 +447,7 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
                     quarter: confirmDialog.quarter as 'Q1' | 'Q2' | 'Q3' | 'Q4',
                     bank: confirmBank || undefined,
                     receivingBank: confirmReceivingBank || undefined,
+                    paymentDate: new Date(confirmPaymentDate),
                   });
                 }
               }}

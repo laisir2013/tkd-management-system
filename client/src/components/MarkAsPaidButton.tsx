@@ -26,6 +26,7 @@ export function MarkAsPaidButton({
   const [showDialog, setShowDialog] = useState(false);
   const [bank, setBank] = useState<string>("");
   const [receivingBank, setReceivingBank] = useState<string>("");
+  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
   const markAsPaid = trpc.payments.markAsPaid.useMutation({
     onSuccess: () => {
@@ -34,6 +35,7 @@ export function MarkAsPaidButton({
       setShowDialog(false);
       setBank("");
       setReceivingBank("");
+      setPaymentDate(new Date().toISOString().split('T')[0]);
       onSuccess?.();
     },
     onError: (error) => {
@@ -51,6 +53,7 @@ export function MarkAsPaidButton({
       amount,
       bank: bank || undefined,
       receivingBank: receivingBank || undefined,
+      paymentDate: new Date(paymentDate),
     });
   };
 
@@ -66,7 +69,7 @@ export function MarkAsPaidButton({
         {isMarking ? "處理中..." : "標記已繳"}
       </Button>
 
-      <Dialog open={showDialog} onOpenChange={(open) => { if (!open) { setShowDialog(false); setBank(""); setReceivingBank(""); } }}>
+      <Dialog open={showDialog} onOpenChange={(open) => { if (!open) { setShowDialog(false); setBank(""); setReceivingBank(""); setPaymentDate(new Date().toISOString().split('T')[0]); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>標記已繳</DialogTitle>
@@ -74,6 +77,17 @@ export function MarkAsPaidButton({
               確認 <strong>{studentName}</strong> 的 {year}年{month}月 學費 ${amount} 為已繳付
             </DialogDescription>
           </DialogHeader>
+          {/* 付款日期 */}
+          <div>
+            <Label className="text-sm font-medium">付款日期 *</Label>
+            <input
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">學生實際付款的日期，用於會計記帳</p>
+          </div>
           {/* 轉入銀行（公司只有 BOC 和 HSBC） */}
           <div>
             <Label className="text-sm font-medium">轉入銀行（入數到哪間公司帳戶）*</Label>
