@@ -646,7 +646,11 @@ export default function EliteHistory() {
                                       disabled={markingAbsentScheduleId === schedule.id}
                                       onClick={() => {
                                         const eligibleStudents = students.filter((s: any) => s.status === 'active' && isStudentJoined(s, schedule.trainingDate));
-                                        const unmarked = eligibleStudents.filter((s: any) => !attendanceMap.get(`${schedule.id}-${s.id}`));
+                                        const unmarked = eligibleStudents.filter((s: any) => {
+                                          const status = attendanceMap.get(`${schedule.id}-${s.id}`);
+                                          // 只要不是 present/late/excused，都視為「未點到」
+                                          return !status || status === 'absent';
+                                        });
                                         if (unmarked.length === 0) { toast.info('所有學生都已點名，無需操作'); return; }
                                         const entries = unmarked.map((s: any) => ({ scheduleId: schedule.id, studentId: s.id, status: 'absent' }));
                                         // Optimistic update
@@ -763,10 +767,11 @@ export default function EliteHistory() {
                                   className={`px-1 py-1.5 text-center transition-colors ${monthBorderClass} border-b select-none ${
                                     status === 'present' ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer'
                                     : status === 'excused' ? 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer'
+                                    : status === 'absent' ? 'bg-orange-50 text-orange-600 hover:bg-orange-100 cursor-pointer'
                                     : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100 cursor-pointer'
                                   }`}
                                   title={`${student.name} - ${formatFullDate(schedule.trainingDate)}: ${
-                                    status === 'present' ? `第${cellNumbers[schedule.id] || '?'}堂（右鍵或長按修改）` : status === 'excused' ? '請假（右鍵或長按修改）' : '未記錄（點擊選擇）'
+                                    status === 'present' ? `第${cellNumbers[schedule.id] || '?'}堂（右鍵或長按修改）` : status === 'excused' ? '請假（右鍵或長按修改）' : status === 'absent' ? '缺席（右鍵或長按修改）' : '未記錄（點擊選擇）'
                                   }`}
                                   onClick={(e) => handleCellClick(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
                                   onMouseDown={(e) => handleLongPressStart(e, schedule.id, student.id, student.name, formatFullDate(schedule.trainingDate))}
@@ -783,6 +788,8 @@ export default function EliteHistory() {
                                   }`}>{cellNumbers[schedule.id]}</span>
                                 ) : status === 'excused' ? (
                                   <span className="text-red-400 text-sm">✗</span>
+                                ) : status === 'absent' ? (
+                                  <span className="text-orange-400 text-sm">✗</span>
                                 ) : (
                                   <span className="text-gray-300 text-lg">·</span>
                                 )}
