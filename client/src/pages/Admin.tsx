@@ -786,10 +786,10 @@ export default function Admin() {
                         <TableHead className="hidden md:table-cell">道場</TableHead>
                         <TableHead className="hidden lg:table-cell">時段</TableHead>
                         <TableHead className="hidden md:table-cell">教練</TableHead>
-                        <TableHead className="px-1 sm:px-4">級數</TableHead>
-                        <TableHead className="text-right px-1 sm:px-4">學費</TableHead>
+                        <TableHead className="px-0.5 sm:px-4 w-[1%] whitespace-nowrap">級數</TableHead>
+                        <TableHead className="text-right px-0.5 sm:px-4 w-[1%] whitespace-nowrap">學費</TableHead>
                         <TableHead className="hidden sm:table-cell text-center">通知繳費</TableHead>
-                        <TableHead className="text-center px-1 sm:px-4">操作</TableHead>
+                        <TableHead className="text-center px-1 sm:px-4 w-[1%] whitespace-nowrap">操作</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -840,8 +840,8 @@ export default function Admin() {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            <TableCell className="px-1 sm:px-4 text-xs sm:text-sm">{student.beltLevel}</TableCell>
-                            <TableCell className="text-right px-1 sm:px-4 text-xs sm:text-sm">
+                            <TableCell className="px-0.5 sm:px-4 text-xs sm:text-sm whitespace-nowrap">{student.beltLevel}</TableCell>
+                            <TableCell className="text-right px-0.5 sm:px-4 text-xs sm:text-sm whitespace-nowrap">
                               <div>${student.feePerQuarter}</div>
                               {(() => {
                                 const nq = allNextUnpaidQuarters?.[student.id];
@@ -869,7 +869,7 @@ export default function Admin() {
                                 />
                               )}
                             </TableCell>
-                            <TableCell className="text-center px-1 sm:px-4">
+                            <TableCell className="text-center px-0.5 sm:px-4 whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1">
                                 {!isInactive && (
                                   <Button
