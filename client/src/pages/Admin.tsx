@@ -953,51 +953,18 @@ export default function Admin() {
             {/* 未繳費名單 */}
             <Card className="mt-6">
               <CardHeader>
-                <CardTitle className="text-red-600">未繳費名單</CardTitle>
+                <CardTitle className="text-red-600">未繳費統計</CardTitle>
                 <CardDescription>
-                  {new Date().getFullYear()}年 第{Math.ceil((new Date().getMonth() + 1) / 3)}季（{['1-3月','4-6月','7-9月','10-12月'][Math.ceil((new Date().getMonth() + 1) / 3) - 1]}）或更早未繳的學生
+                  {new Date().getFullYear()}年 第{Math.ceil((new Date().getMonth() + 1) / 3)}季（{['1-3月','4-6月','7-9月','10-12月'][Math.ceil((new Date().getMonth() + 1) / 3) - 1]}）或更早未繳
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {studentsWithoutPayment.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">所有學生都已繳費</p>
+                  <p className="text-green-600 text-center py-4 font-medium">✓ 所有學生都已繳費</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <p className="text-sm text-muted-foreground mb-2">共 {studentsWithoutPayment.length} 人未繳</p>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-8">#</TableHead>
-                          <TableHead>姓名</TableHead>
-                          <TableHead>電話</TableHead>
-                          <TableHead>道場</TableHead>
-                          <TableHead>欠繳起始</TableHead>
-                          <TableHead className="text-right">學費/季</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {studentsWithoutPayment.map((student, idx) => {
-                          const unpaid = allNextUnpaidQuarters?.[student.id];
-                          const quarterLabels = ['1-3月','4-6月','7-9月','10-12月'];
-                          const unpaidLabel = unpaid ? `${unpaid.year}年 ${quarterLabels[unpaid.quarter - 1]}` : '未知';
-                          return (
-                            <TableRow key={student.id}>
-                              <TableCell className="text-muted-foreground text-xs">{idx + 1}</TableCell>
-                              <TableCell className="font-medium">{student.name}</TableCell>
-                              <TableCell>{student.phone}</TableCell>
-                              <TableCell>{student.venue}</TableCell>
-                              <TableCell>
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
-                                  {unpaidLabel}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-right">${student.feePerQuarter}</TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
+                  <p className="text-center py-4 text-2xl font-bold text-red-600">
+                    {studentsWithoutPayment.length} 人未繳
+                  </p>
                 )}
               </CardContent>
             </Card>
