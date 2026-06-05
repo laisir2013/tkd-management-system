@@ -545,19 +545,25 @@ export default function Admin() {
     return s.name?.toLowerCase().includes(q) || s.phone?.includes(q);
   });
 
-  const studentsWithoutPayment = filteredStudents?.filter(student => {
-    const hasPayment = paymentsData?.some(p => {
-      if (!p.payments || p.payments === 'null') return false;
-      try {
-        const payments = typeof p.payments === 'string' ? JSON.parse(p.payments) : p.payments;
-        return Array.isArray(payments) && payments.some((payment: any) => payment.id !== null);
-      } catch (e) {
-        console.error('Failed to parse payments:', e, p.payments);
-        return false;
-      }
+  // 未繳費名單：根據當前日期計算當季未繳的學生
+  // 例如 6月 → Q2 (4-6月)，列出 Q2 或更早未繳的學生
+  const studentsWithoutPayment = (() => {
+    if (!filteredStudents || !allNextUnpaidQuarters) return [];
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const currentQuarter = Math.ceil(currentMonth / 3); // 1-4
+
+    return filteredStudents.filter(student => {
+      if (student.status === 'inactive') return false;
+      const unpaid = allNextUnpaidQuarters[student.id];
+      if (!unpaid) return true; // 無資料視為未繳
+      // 如果下一未繳季度 <= 當前季度（同年），表示當季未繳
+      if (unpaid.year < currentYear) return true;
+      if (unpaid.year === currentYear && unpaid.quarter <= currentQuarter) return true;
+      return false;
     });
-    return !hasPayment;
-  }) || [];
+  })();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 sm:py-12 overflow-x-hidden">
@@ -948,31 +954,47 @@ export default function Admin() {
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle className="text-red-600">未繳費名單</CardTitle>
-                <CardDescription>尚未有任何繳費記錄的學生</CardDescription>
+                <CardDescription>
+                  {new Date().getFullYear()}年 第{Math.ceil((new Date().getMonth() + 1) / 3)}季（{['1-3月','4-6月','7-9月','10-12月'][Math.ceil((new Date().getMonth() + 1) / 3) - 1]}）或更早未繳的學生
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {studentsWithoutPayment.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">所有學生都已繳費</p>
                 ) : (
                   <div className="overflow-x-auto">
+                    <p className="text-sm text-muted-foreground mb-2">共 {studentsWithoutPayment.length} 人未繳</p>
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-8">#</TableHead>
                           <TableHead>姓名</TableHead>
                           <TableHead>電話</TableHead>
                           <TableHead>道場</TableHead>
-                          <TableHead className="text-right">學費</TableHead>
+                          <TableHead>欠繳起始</TableHead>
+                          <TableHead className="text-right">學費/季</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {studentsWithoutPayment.map((student) => (
-                          <TableRow key={student.id}>
-                            <TableCell className="font-medium">{student.name}</TableCell>
-                            <TableCell>{student.phone}</TableCell>
-                            <TableCell>{student.venue}</TableCell>
-                            <TableCell className="text-right">${student.feePerQuarter}</TableCell>
-                          </TableRow>
-                        ))}
+                        {studentsWithoutPayment.map((student, idx) => {
+                          const unpaid = allNextUnpaidQuarters?.[student.id];
+                          const quarterLabels = ['1-3月','4-6月','7-9月','10-12月'];
+                          const unpaidLabel = unpaid ? `${unpaid.year}年 ${quarterLabels[unpaid.quarter - 1]}` : '未知';
+                          return (
+                            <TableRow key={student.id}>
+                              <TableCell className="text-muted-foreground text-xs">{idx + 1}</TableCell>
+                              <TableCell className="font-medium">{student.name}</TableCell>
+                              <TableCell>{student.phone}</TableCell>
+                              <TableCell>{student.venue}</TableCell>
+                              <TableCell>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                                  {unpaidLabel}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">${student.feePerQuarter}</TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
