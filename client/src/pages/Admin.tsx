@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Loader2, FileSpreadsheet, Users, Receipt, Filter, ChevronDown, ChevronRight, KeyRound, MoreHorizontal, Search, Pencil, UserPlus, UserMinus, UserCheck, Trash2 } from "lucide-react";
+import { Upload, Loader2, FileSpreadsheet, Users, Receipt, Filter, ChevronDown, ChevronRight, KeyRound, MoreHorizontal, Search, Pencil, UserPlus, UserMinus, UserCheck, Trash2, FileText } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
@@ -37,6 +37,7 @@ import AccountingReports from "@/components/AccountingReports";
 import BankStatementReconciliation from "@/components/BankStatementReconciliation";
 import ReceiptReviewContent from "@/components/ReceiptReviewContent";
 import PushQueueReviewContent from "@/components/PushQueueReviewContent";
+import { StudentRecordDialog } from "@/components/StudentRecordDialog";
 
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -85,6 +86,8 @@ export default function Admin() {
   const [showPendingOnly, setShowPendingOnly] = useState<boolean>(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingStudent, setEditingStudent] = useState<any>(null);
+  const [showRecordDialog, setShowRecordDialog] = useState(false);
+  const [recordDialogStudent, setRecordDialogStudent] = useState<any>(null);
   const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
   const [resetPasswordStudent, setResetPasswordStudent] = useState<any>(null);
   const [showAdminChangePassword, setShowAdminChangePassword] = useState(false);
@@ -792,12 +795,21 @@ export default function Admin() {
                            <TableRow key={student.id} className={`${venueColor} ${isInactive ? 'opacity-50 bg-gray-100' : ''}`}>
                              <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
                              <TableCell className="font-medium">
-                               {student.name}
-                               {isInactive && (
-                                 <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">
-                                   已退學
-                                 </span>
-                               )}
+                               <div className="flex items-center gap-1">
+                                 <span>{student.name}</span>
+                                 {isInactive && (
+                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">
+                                     已退學
+                                   </span>
+                                 )}
+                                 <button
+                                   onClick={() => { setRecordDialogStudent(student); setShowRecordDialog(true); }}
+                                   className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded p-0.5 transition-colors"
+                                   title="查看學生紀錄"
+                                 >
+                                   <FileText className="h-3.5 w-3.5" />
+                                 </button>
+                               </div>
                              </TableCell>
                             <TableCell>{student.phone}</TableCell>
                             <TableCell>{student.venue}</TableCell>
@@ -1222,6 +1234,16 @@ export default function Admin() {
         student={editingStudent}
         onSuccess={refetchStudents}
       />
+
+      {/* 學生紀錄對話框 */}
+      {recordDialogStudent && (
+        <StudentRecordDialog
+          open={showRecordDialog}
+          onOpenChange={setShowRecordDialog}
+          studentId={recordDialogStudent.id}
+          studentName={recordDialogStudent.name}
+        />
+      )}
 
       {/* 新增學生對話框 */}
       <StudentAddDialog
