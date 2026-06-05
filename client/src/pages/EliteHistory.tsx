@@ -652,6 +652,8 @@ export default function EliteHistory() {
                                           return !status || status === 'absent';
                                         });
                                         if (unmarked.length === 0) { toast.info('所有學生都已點名，無需操作'); return; }
+                                        const names = unmarked.map((s: any) => s.name).join('、');
+                                        if (!window.confirm(`確定將以下 ${unmarked.length} 位未點名學生標記為缺席？\n\n${names}`)) return;
                                         const entries = unmarked.map((s: any) => ({ scheduleId: schedule.id, studentId: s.id, status: 'absent' }));
                                         // Optimistic update
                                         setOptimisticUpdates(prev => {
