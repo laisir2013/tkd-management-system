@@ -1242,6 +1242,7 @@ export default function Admin() {
           onOpenChange={setShowRecordDialog}
           studentId={recordDialogStudent.id}
           studentName={recordDialogStudent.name}
+          studentPhone={recordDialogStudent.phone}
         />
       )}
 

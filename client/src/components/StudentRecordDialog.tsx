@@ -11,6 +11,7 @@ interface StudentRecordDialogProps {
   onOpenChange: (open: boolean) => void;
   studentId: number;
   studentName: string;
+  studentPhone?: string;
 }
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -22,7 +23,7 @@ const PERIOD_LABELS: Record<string, string> = {
   MONTHLY: "單月",
 };
 
-export function StudentRecordDialog({ open, onOpenChange, studentId, studentName }: StudentRecordDialogProps) {
+export function StudentRecordDialog({ open, onOpenChange, studentId, studentName, studentPhone }: StudentRecordDialogProps) {
   const [activeTab, setActiveTab] = useState("payments");
 
   // 查詢付款紀錄
@@ -31,11 +32,17 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
     { enabled: open }
   );
 
-  // 查詢考試成績
-  const { data: examResults = [], isLoading: examsLoading } = trpc.exams.resultsByStudent.useQuery(
-    { studentId },
-    { enabled: open }
+  // 查詢考試成績（優先用 phone 匹配，因為 exam_candidates.student_id 可能為 NULL）
+  const { data: examByPhone = [], isLoading: examsByPhoneLoading } = trpc.exams.resultsByPhone.useQuery(
+    { phone: studentPhone || '' },
+    { enabled: open && !!studentPhone }
   );
+  const { data: examByStudentId = [], isLoading: examsByIdLoading } = trpc.exams.resultsByStudent.useQuery(
+    { studentId },
+    { enabled: open && !studentPhone }
+  );
+  const examResults = studentPhone ? examByPhone : examByStudentId;
+  const examsLoading = studentPhone ? examsByPhoneLoading : examsByIdLoading;
 
   const formatDate = (d: string | Date | null) => {
     if (!d) return "-";
