@@ -286,8 +286,11 @@ export default function EliteHistory() {
           // 被選中 → 出席
           entries.push({ scheduleId, studentId: student.id, status: 'present' });
         } else {
-          // 未被選中 → 缺席
-          entries.push({ scheduleId, studentId: student.id, status: 'absent' });
+          // 未被選中：只有完全沒紀錄才標缺席，已有紀錄的不動
+          const existing = attendanceMap.get(key);
+          if (!existing) {
+            entries.push({ scheduleId, studentId: student.id, status: 'absent' });
+          }
         }
       }
     }
@@ -297,7 +300,7 @@ export default function EliteHistory() {
     const absentCount = entries.filter(e => e.status === 'absent').length;
     toast.info(`點名中：${presentCount} 位出席，${absentCount} 位缺席`);
     batchMutation.mutate({ entries });
-  }, [selectedCells, batchMutation, allSchedules, allActiveStudents, isStudentJoined]);
+  }, [selectedCells, batchMutation, allSchedules, allActiveStudents, isStudentJoined, attendanceMap]);
 
   // ---- Undo stack for accidental changes ----
   const [undoStack, setUndoStack] = useState<Array<{ scheduleId: number; studentId: number; prevStatus: string | undefined; studentName: string; date: string }>>([]);
