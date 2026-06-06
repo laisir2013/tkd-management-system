@@ -777,19 +777,19 @@ export default function Admin() {
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="!w-auto">
                      <TableHeader className="sticky top-0 z-10 bg-background">
                        <TableRow>
-                         <TableHead className="w-8 sm:w-16 px-1 sm:px-4">編號</TableHead>
-                         <TableHead className="px-1 sm:px-4">姓名</TableHead>
-                        <TableHead className="hidden sm:table-cell">電話</TableHead>
-                        <TableHead className="hidden md:table-cell">道場</TableHead>
-                        <TableHead className="hidden lg:table-cell">時段</TableHead>
-                        <TableHead className="hidden md:table-cell">教練</TableHead>
-                        <TableHead className="px-0.5 sm:px-4 w-[1%] whitespace-nowrap">級數</TableHead>
-                        <TableHead className="text-right px-0.5 sm:px-4 w-[1%] whitespace-nowrap">學費</TableHead>
-                        <TableHead className="hidden sm:table-cell text-center">通知繳費</TableHead>
-                        <TableHead className="text-center px-1 sm:px-4 w-[1%] whitespace-nowrap">操作</TableHead>
+                         <TableHead className="w-[1%] whitespace-nowrap px-1 sm:px-3">編號</TableHead>
+                         <TableHead className="px-1 sm:px-3">姓名</TableHead>
+                        <TableHead className="hidden sm:table-cell w-[1%] whitespace-nowrap px-2">電話</TableHead>
+                        <TableHead className="hidden md:table-cell w-[1%] whitespace-nowrap px-2">道場</TableHead>
+                        <TableHead className="hidden lg:table-cell w-[1%] whitespace-nowrap px-2">時段</TableHead>
+                        <TableHead className="hidden md:table-cell w-[1%] whitespace-nowrap px-2">教練</TableHead>
+                        <TableHead className="w-[1%] whitespace-nowrap px-0.5 sm:px-2">級數</TableHead>
+                        <TableHead className="text-right w-[1%] whitespace-nowrap px-0.5 sm:px-2">學費</TableHead>
+                        <TableHead className="hidden sm:table-cell text-center w-[1%] whitespace-nowrap px-2">通知繳費</TableHead>
+                        <TableHead className="text-center w-[1%] whitespace-nowrap px-0.5 sm:px-2">操作</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -799,8 +799,8 @@ export default function Admin() {
                         
                          return (
                            <TableRow key={student.id} className={`${venueColor} ${isInactive ? 'opacity-50 bg-gray-100' : ''}`}>
-                             <TableCell className="font-medium text-muted-foreground px-1 sm:px-4 text-xs">{index + 1}</TableCell>
-                             <TableCell className="font-medium px-1 sm:px-4">
+                             <TableCell className="font-medium text-muted-foreground px-1 sm:px-3 text-xs whitespace-nowrap">{index + 1}</TableCell>
+                             <TableCell className="font-medium px-1 sm:px-3">
                                <div className="flex items-center gap-1">
                                  <span>{student.name}</span>
                                  {isInactive && (
@@ -817,12 +817,12 @@ export default function Admin() {
                                  </button>
                                </div>
                              </TableCell>
-                            <TableCell className="hidden sm:table-cell">{student.phone}</TableCell>
-                            <TableCell className="hidden md:table-cell">{student.venue}</TableCell>
-                            <TableCell className="hidden lg:table-cell">
+                            <TableCell className="hidden sm:table-cell whitespace-nowrap px-2">{student.phone}</TableCell>
+                            <TableCell className="hidden md:table-cell whitespace-nowrap px-2">{student.venue}</TableCell>
+                            <TableCell className="hidden lg:table-cell whitespace-nowrap px-2">
                               {student.scheduleDay} {student.scheduleTime}
                             </TableCell>
-                            <TableCell className="hidden md:table-cell">
+                            <TableCell className="hidden md:table-cell whitespace-nowrap px-2">
                               <Select
                                 value={student.coach || ''}
                                 onValueChange={(val) => {
@@ -830,7 +830,7 @@ export default function Admin() {
                                 }}
                                 disabled={isInactive}
                               >
-                                <SelectTrigger className="h-8 w-[130px] text-xs">
+                                <SelectTrigger className="h-8 w-[110px] text-xs">
                                   <SelectValue placeholder="選擇教練" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -840,8 +840,8 @@ export default function Admin() {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            <TableCell className="px-0.5 sm:px-4 text-xs sm:text-sm whitespace-nowrap">{student.beltLevel}</TableCell>
-                            <TableCell className="text-right px-0.5 sm:px-4 text-xs sm:text-sm whitespace-nowrap">
+                            <TableCell className="px-0.5 sm:px-2 text-xs sm:text-sm whitespace-nowrap">{student.beltLevel}</TableCell>
+                            <TableCell className="text-right px-0.5 sm:px-2 text-xs sm:text-sm whitespace-nowrap">
                               <div>${student.feePerQuarter}</div>
                               {(() => {
                                 const nq = allNextUnpaidQuarters?.[student.id];
@@ -858,7 +858,7 @@ export default function Admin() {
                                 return null;
                               })()}
                             </TableCell>
-                            <TableCell className="hidden sm:table-cell text-center">
+                            <TableCell className="hidden sm:table-cell text-center whitespace-nowrap px-2">
                               {!isInactive && (
                                 <StudentWhatsAppButton
                                   studentId={student.id}
@@ -869,7 +869,7 @@ export default function Admin() {
                                 />
                               )}
                             </TableCell>
-                            <TableCell className="text-center px-0.5 sm:px-4 whitespace-nowrap">
+                            <TableCell className="text-center px-0.5 sm:px-2 whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1">
                                 {!isInactive && (
                                   <Button
