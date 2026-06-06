@@ -777,7 +777,7 @@ export default function Admin() {
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <Table className="!w-auto">
+                  <Table style={{ width: 'auto', tableLayout: 'auto' }}>
                      <TableHeader className="sticky top-0 z-10 bg-background">
                        <TableRow>
                          <TableHead className="w-[1%] whitespace-nowrap px-1 sm:px-3">編號</TableHead>
