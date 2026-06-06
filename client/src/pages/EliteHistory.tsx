@@ -642,7 +642,7 @@ export default function EliteHistory() {
                                     </button>
                                     <button
                                       className="text-purple-500 hover:text-purple-700 opacity-40 hover:opacity-100 disabled:opacity-30"
-                                      title="一鍵將未點名學生標記為請假"
+                                      title="一鍵將該日未點名學生標記為缺席"
                                       disabled={markingAbsentScheduleId === schedule.id}
                                       onClick={() => {
                                         const eligibleStudents = students.filter((s: any) => s.status === 'active' && isStudentJoined(s, schedule.trainingDate));
@@ -653,13 +653,14 @@ export default function EliteHistory() {
                                           return !status;
                                         });
                                         if (unmarked.length === 0) { toast.info('所有學生都已點名，無需操作'); return; }
+                                        const dateStr = new Date(schedule.trainingDate).toLocaleDateString('zh-HK');
                                         const names = unmarked.map((s: any) => s.name).join('、');
-                                        if (!window.confirm(`確定將以下 ${unmarked.length} 位未點名學生標記為請假(excused)？\n\n${names}`)) return;
-                                        const entries = unmarked.map((s: any) => ({ scheduleId: schedule.id, studentId: s.id, status: 'excused' }));
+                                        if (!window.confirm(`確定將 ${dateStr} 以下 ${unmarked.length} 位未點名學生標記為缺席？\n\n${names}`)) return;
+                                        const entries = unmarked.map((s: any) => ({ scheduleId: schedule.id, studentId: s.id, status: 'absent' }));
                                         // Optimistic update
                                         setOptimisticUpdates(prev => {
                                           const updated = new Map(prev);
-                                          unmarked.forEach((s: any) => updated.set(`${schedule.id}-${s.id}`, 'excused'));
+                                          unmarked.forEach((s: any) => updated.set(`${schedule.id}-${s.id}`, 'absent'));
                                           return updated;
                                         });
                                         setMarkingAbsentScheduleId(schedule.id);
