@@ -3678,6 +3678,46 @@ export const appRouter = router({
         return { count: results.length };
       }),
 
+    // 批量還原點名（上一步）
+    batchUndoAttendance: protectedProcedure
+      .input(z.object({
+        actions: z.array(z.object({
+          scheduleId: z.number(),
+          studentId: z.number(),
+          action: z.enum(['delete', 'restore']),
+          restoreStatus: z.string().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+        const { eliteAttendanceRecords } = await import('../drizzle/schema');
+        const { and, eq } = await import('drizzle-orm');
+        let count = 0;
+        for (const act of input.actions) {
+          if (act.action === 'delete') {
+            await db.delete(eliteAttendanceRecords).where(
+              and(
+                eq(eliteAttendanceRecords.scheduleId, act.scheduleId),
+                eq(eliteAttendanceRecords.studentId, act.studentId),
+              )
+            );
+            count++;
+          } else if (act.action === 'restore' && act.restoreStatus) {
+            await db.update(eliteAttendanceRecords)
+              .set({ status: act.restoreStatus as any })
+              .where(
+                and(
+                  eq(eliteAttendanceRecords.scheduleId, act.scheduleId),
+                  eq(eliteAttendanceRecords.studentId, act.studentId),
+                )
+              );
+            count++;
+          }
+        }
+        return { count };
+      }),
+
     // 繳費記錄（含期數和該期第1堂日期）
     getPayments: protectedProcedure
       .input(z.object({ studentId: z.number().optional() }).optional())

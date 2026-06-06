@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X, CheckSquare, Square, Users, UserX, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X, CheckSquare, Square, Users, UserX, Loader2, Undo2 } from "lucide-react";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
 import { EliteAttendanceWhatsAppButton } from "@/components/EliteAttendanceWhatsAppButton";
 
@@ -41,6 +41,12 @@ export default function EliteHistory() {
   // 「未到=假」loading 狀態
   const [markingAbsentScheduleId, setMarkingAbsentScheduleId] = useState<number | null>(null);
 
+  // ── 批量操作「上一步」(undo) ──
+  // 記錄最後一次批量操作的前狀態，以便一鍵還原
+  type BatchUndoEntry = { scheduleId: number; studentId: number; previousStatus: string | null };
+  type LastBatchAction = { entries: BatchUndoEntry[]; description: string; timestamp: number };
+  const [lastBatchAction, setLastBatchAction] = useState<LastBatchAction | null>(null);
+
   const batchMutation = trpc.elite.batchUpsertAttendance.useMutation({
     onSuccess: (data) => {
       toast.success(`已批量更新 ${data.count} 條記錄`);
@@ -53,8 +59,59 @@ export default function EliteHistory() {
         utils.elite.getAllBalances.invalidate(),
       ]);
     },
-    onError: (err: any) => { toast.error(`批量更新失敗：${err.message}`); setMarkingAbsentScheduleId(null); },
+    onError: (err: any) => {
+      toast.error(`批量更新失敗：${err.message}`);
+      setMarkingAbsentScheduleId(null);
+      // 失敗時清除 undo 快照（操作沒成功，不需還原）
+      setLastBatchAction(null);
+    },
   });
+
+  // 批量還原 mutation
+  const batchUndoMutation = trpc.elite.batchUndoAttendance.useMutation({
+    onSuccess: (data) => {
+      toast.success(`已還原 ${data.count} 條記錄`);
+      setLastBatchAction(null);
+      Promise.all([
+        utils.elite.getHistoryByYear.invalidate(),
+        utils.elite.getAllCycleInfo.invalidate(),
+        utils.elite.getAllBalances.invalidate(),
+      ]).then(() => {
+        setOptimisticUpdates(new Map());
+      });
+    },
+    onError: (err: any) => { toast.error(`還原失敗：${err.message}`); },
+  });
+
+  // 執行批量「上一步」
+  const handleBatchUndo = useCallback(() => {
+    if (!lastBatchAction) return;
+    const { entries, description } = lastBatchAction;
+    if (!window.confirm(`確定要還原「${description}」的操作嗎？\n\n將還原 ${entries.length} 條記錄`)) return;
+    const actions = entries.map(e => {
+      if (e.previousStatus === null) {
+        // 之前沒有紀錄 → 刪除新增的記錄
+        return { scheduleId: e.scheduleId, studentId: e.studentId, action: 'delete' as const };
+      } else {
+        // 之前有紀錄 → 恢復原本狀態
+        return { scheduleId: e.scheduleId, studentId: e.studentId, action: 'restore' as const, restoreStatus: e.previousStatus };
+      }
+    });
+    // Optimistic update: 把 UI 先恢復
+    setOptimisticUpdates(prev => {
+      const updated = new Map(prev);
+      entries.forEach(e => {
+        const key = `${e.scheduleId}-${e.studentId}`;
+        if (e.previousStatus === null) {
+          updated.delete(key);
+        } else {
+          updated.set(key, e.previousStatus);
+        }
+      });
+      return updated;
+    });
+    batchUndoMutation.mutate({ actions });
+  }, [lastBatchAction, batchUndoMutation]);
 
   const toggleCellSelection = useCallback((scheduleId: number, studentId: number) => {
     const key = `${scheduleId}-${studentId}`;
@@ -298,6 +355,19 @@ export default function EliteHistory() {
     if (entries.length === 0) { toast.warning("沒有需要更新的記錄"); return; }
     const presentCount = entries.filter(e => e.status === 'present').length;
     const absentCount = entries.filter(e => e.status === 'absent').length;
+
+    // 快照：記錄操作前的狀態，以便「上一步」還原
+    const undoEntries = entries.map(e => ({
+      scheduleId: e.scheduleId,
+      studentId: e.studentId,
+      previousStatus: attendanceMap.get(`${e.scheduleId}-${e.studentId}`) || null,
+    }));
+    setLastBatchAction({
+      entries: undoEntries,
+      description: `確認點名（${presentCount} 出席 + ${absentCount} 缺席）`,
+      timestamp: Date.now(),
+    });
+
     toast.info(`點名中：${presentCount} 位出席，${absentCount} 位缺席`);
     batchMutation.mutate({ entries });
   }, [selectedCells, batchMutation, allSchedules, allActiveStudents, isStudentJoined, attendanceMap]);
@@ -660,6 +730,17 @@ export default function EliteHistory() {
                                         const names = unmarked.map((s: any) => s.name).join('、');
                                         if (!window.confirm(`確定將 ${dateStr} 以下 ${unmarked.length} 位未點名學生標記為缺席？\n\n${names}`)) return;
                                         const entries = unmarked.map((s: any) => ({ scheduleId: schedule.id, studentId: s.id, status: 'absent' }));
+                                        // 快照：記錄操作前的狀態，以便「上一步」還原
+                                        const undoEntries = unmarked.map((s: any) => ({
+                                          scheduleId: schedule.id,
+                                          studentId: s.id,
+                                          previousStatus: attendanceMap.get(`${schedule.id}-${s.id}`) || null,
+                                        }));
+                                        setLastBatchAction({
+                                          entries: undoEntries,
+                                          description: `${dateStr} 一鍵標記 ${unmarked.length} 位缺席`,
+                                          timestamp: Date.now(),
+                                        });
                                         // Optimistic update
                                         setOptimisticUpdates(prev => {
                                           const updated = new Map(prev);
@@ -1059,8 +1140,8 @@ export default function EliteHistory() {
         </div>
       )}
 
-      {/* 撤回按鈕 - 浮動顯示 */}
-      {undoStack.length > 0 && (
+      {/* 撤回按鈕 - 浮動顯示（單一格子） */}
+      {undoStack.length > 0 && !lastBatchAction && (
         <div className="fixed bottom-6 right-6 z-50">
           <Button
             variant="outline"
@@ -1071,6 +1152,40 @@ export default function EliteHistory() {
             <RotateCcw className="h-3.5 w-3.5" />
             撤回上一步 ({undoStack.length})
           </Button>
+        </div>
+      )}
+
+      {/* 批量操作「上一步」按鈕 - 浮動顯示 */}
+      {lastBatchAction && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="flex flex-col items-end gap-1.5">
+            <Button
+              size="sm"
+              className="shadow-2xl bg-red-600 hover:bg-red-700 text-white gap-2 h-10 px-5 text-sm font-bold animate-pulse"
+              disabled={batchUndoMutation.isPending}
+              onClick={handleBatchUndo}
+            >
+              {batchUndoMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Undo2 className="h-4 w-4" />
+              )}
+              ⏪ 上一步
+            </Button>
+            <div className="bg-white/95 rounded-md shadow-lg border border-gray-200 px-3 py-1.5 max-w-[260px]">
+              <p className="text-[11px] text-gray-600 leading-tight">{lastBatchAction.description}</p>
+              <p className="text-[10px] text-gray-400">{lastBatchAction.entries.length} 條記錄可還原</p>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-[10px] text-gray-400 hover:text-gray-600 px-2"
+              onClick={() => setLastBatchAction(null)}
+            >
+              <X className="h-3 w-3 mr-0.5" />
+              關閉
+            </Button>
+          </div>
         </div>
       )}
 
