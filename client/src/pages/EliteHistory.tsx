@@ -16,24 +16,14 @@ function StudentPaymentPopup({ studentId, studentName, onClose }: { studentId: n
     { enabled: true }
   );
 
-  // 按付款日期正序排列
+  // 按期數（periodNumber）正序排列，若無期數則按付款日期
   const sortedPayments = useMemo(() => {
     if (!payments) return [];
-    return [...payments].sort((a, b) => new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime());
+    return [...payments].sort((a, b) => {
+      if (a.periodNumber && b.periodNumber) return a.periodNumber - b.periodNumber;
+      return new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime();
+    });
   }, [payments]);
-
-  // 計算每期的結束日期 = 下一期的開始日期前一天，或「進行中」
-  const getEndDate = (index: number) => {
-    if (index < sortedPayments.length - 1) {
-      const nextStart = sortedPayments[index + 1].periodStartDate;
-      if (nextStart) {
-        const d = new Date(nextStart);
-        d.setDate(d.getDate() - 1);
-        return formatDate(d);
-      }
-    }
-    return null; // 最後一期或無法計算
-  };
 
   const formatDate = (dateInput: string | Date) => {
     const d = new Date(dateInput);
@@ -79,7 +69,7 @@ function StudentPaymentPopup({ studentId, studentName, onClose }: { studentId: n
             <div className="space-y-3">
               {sortedPayments.map((p, idx) => {
                 const startDate = p.periodStartDate ? formatDate(p.periodStartDate) : null;
-                const endDate = getEndDate(idx);
+                const endDate = p.periodEndDate ? formatDate(p.periodEndDate) : null;
                 const isLastPeriod = idx === sortedPayments.length - 1;
                 const isPendingReview = p.reviewStatus === 'pending_review';
 
@@ -114,11 +104,11 @@ function StudentPaymentPopup({ studentId, studentName, onClose }: { studentId: n
                       {startDate ? (
                         <span>
                           📅 {startDate}
-                          {endDate ? ` → ${endDate}` : isLastPeriod ? ' → 進行中' : ''}
+                          {endDate ? ` → ${endDate}` : ' → 進行中'}
                           <span className="text-gray-400 ml-1">({p.classCount}堂)</span>
                         </span>
                       ) : (
-                        <span className="text-gray-400">📅 出席記錄尚未開始 ({p.classCount}堂)</span>
+                        <span className="text-gray-400">📅 尚未開始上課 ({p.classCount}堂)</span>
                       )}
                     </div>
                     {/* 備註 & 狀態 */}

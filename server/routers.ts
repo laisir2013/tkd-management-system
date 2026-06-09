@@ -3757,8 +3757,8 @@ export const appRouter = router({
           }
         }
 
-        // 為每筆繳費計算期數和該期第1堂日期
-        const cycleInfoMap = new Map<number, { periodNumber: number; periodStartDate: string | null }>();
+        // 為每筆繳費計算期數、該期第1堂日期、該期最後一堂日期
+        const cycleInfoMap = new Map<number, { periodNumber: number; periodStartDate: string | null; periodEndDate: string | null }>();
         for (const [sid, sPayments] of studentPaymentsMap.entries()) {
           // 只計算 confirmed 的繳費，按付款日期正序排列
           const confirmedPayments = sPayments
@@ -3772,13 +3772,18 @@ export const appRouter = router({
             const cp = confirmedPayments[i];
             // 該期第1堂的日期：就是出席記錄中第 accumulatedClasses+1 堂的日期
             const firstClassIndex = accumulatedClasses; // 0-based
+            const lastClassIndex = accumulatedClasses + cp.classCount - 1; // 該期最後一堂 (0-based)
             const periodStartDate = firstClassIndex < attendedDates.length
               ? attendedDates[firstClassIndex].date
+              : null;
+            const periodEndDate = lastClassIndex < attendedDates.length
+              ? attendedDates[lastClassIndex].date
               : null;
 
             cycleInfoMap.set(cp.id, {
               periodNumber: i + 1,
               periodStartDate,
+              periodEndDate,
             });
             accumulatedClasses += cp.classCount;
           }
@@ -3789,6 +3794,7 @@ export const appRouter = router({
           ...p,
           periodNumber: cycleInfoMap.get(p.id)?.periodNumber || null,
           periodStartDate: cycleInfoMap.get(p.id)?.periodStartDate || null,
+          periodEndDate: cycleInfoMap.get(p.id)?.periodEndDate || null,
         }));
       }),
     createPayment: protectedProcedure
