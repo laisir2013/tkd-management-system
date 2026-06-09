@@ -777,11 +777,11 @@ export default function Admin() {
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <Table className="w-full md:w-auto" style={{ tableLayout: 'auto' }}>
+                  <Table>
                      <TableHeader className="sticky top-0 z-10 bg-background">
                        <TableRow>
                          <TableHead className="w-[1%] whitespace-nowrap px-1 sm:px-3">編號</TableHead>
-                         <TableHead className="px-1 sm:px-3">姓名</TableHead>
+                         <TableHead className="px-1 sm:px-3 max-w-[100px] sm:max-w-none">姓名</TableHead>
                         <TableHead className="hidden sm:table-cell w-[1%] whitespace-nowrap px-2">電話</TableHead>
                         <TableHead className="hidden md:table-cell w-[1%] whitespace-nowrap px-2">道場</TableHead>
                         <TableHead className="hidden lg:table-cell w-[1%] whitespace-nowrap px-2">時段</TableHead>
@@ -800,7 +800,7 @@ export default function Admin() {
                          return (
                            <TableRow key={student.id} className={`${venueColor} ${isInactive ? 'opacity-50 bg-gray-100' : ''}`}>
                              <TableCell className="font-medium text-muted-foreground px-1 sm:px-3 text-xs whitespace-nowrap">{index + 1}</TableCell>
-                             <TableCell className="font-medium px-1 sm:px-3">
+                             <TableCell className="font-medium px-1 sm:px-3 max-w-[100px] sm:max-w-none">
                                <div className="flex items-center gap-1">
                                  <span>{student.name}</span>
                                  {isInactive && (

@@ -5,9 +5,153 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X, CheckSquare, Square, Users, UserX, Loader2, Undo2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X, CheckSquare, Square, Users, UserX, Loader2, Undo2, DollarSign } from "lucide-react";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
 import { EliteAttendanceWhatsAppButton } from "@/components/EliteAttendanceWhatsAppButton";
+
+// ============ 學生付款記錄彈窗 ============
+function StudentPaymentPopup({ studentId, studentName, onClose }: { studentId: number; studentName: string; onClose: () => void }) {
+  const { data: payments, isLoading } = trpc.elite.getPayments.useQuery(
+    { studentId },
+    { enabled: true }
+  );
+
+  // 按付款日期正序排列
+  const sortedPayments = useMemo(() => {
+    if (!payments) return [];
+    return [...payments].sort((a, b) => new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime());
+  }, [payments]);
+
+  // 計算每期的結束日期 = 下一期的開始日期前一天，或「進行中」
+  const getEndDate = (index: number) => {
+    if (index < sortedPayments.length - 1) {
+      const nextStart = sortedPayments[index + 1].periodStartDate;
+      if (nextStart) {
+        const d = new Date(nextStart);
+        d.setDate(d.getDate() - 1);
+        return formatDate(d);
+      }
+    }
+    return null; // 最後一期或無法計算
+  };
+
+  const formatDate = (dateInput: string | Date) => {
+    const d = new Date(dateInput);
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  };
+
+  const totalPaid = sortedPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <div
+        className="relative bg-white rounded-xl shadow-2xl border max-w-md w-[95vw] max-h-[80vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            <div>
+              <h3 className="font-bold text-base">{studentName}</h3>
+              <p className="text-xs text-white/80">精英班付款記錄</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-md transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="overflow-y-auto flex-1 p-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+              <span className="ml-2 text-sm text-gray-500">載入中...</span>
+            </div>
+          ) : sortedPayments.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <DollarSign className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">尚無付款記錄</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sortedPayments.map((p, idx) => {
+                const startDate = p.periodStartDate ? formatDate(p.periodStartDate) : null;
+                const endDate = getEndDate(idx);
+                const isLastPeriod = idx === sortedPayments.length - 1;
+                const isPendingReview = p.reviewStatus === 'pending_review';
+
+                return (
+                  <div
+                    key={p.id}
+                    className={`rounded-lg border p-3 ${
+                      isPendingReview
+                        ? 'border-amber-300 bg-amber-50'
+                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                    } transition-colors`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          className={`text-xs font-bold px-2 py-0.5 ${
+                            isPendingReview
+                              ? 'bg-amber-500 text-white border-amber-500'
+                              : 'bg-purple-600 text-white border-purple-600'
+                          }`}
+                        >
+                          第{p.periodNumber || (idx + 1)}期
+                        </Badge>
+                        <span className="text-sm font-bold text-gray-800">${Number(p.amount).toLocaleString()}</span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        付款: {formatDate(p.paymentDate)}
+                      </span>
+                    </div>
+                    {/* 日期範圍 */}
+                    <div className="text-xs text-gray-600">
+                      {startDate ? (
+                        <span>
+                          📅 {startDate}
+                          {endDate ? ` → ${endDate}` : isLastPeriod ? ' → 進行中' : ''}
+                          <span className="text-gray-400 ml-1">({p.classCount}堂)</span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">📅 出席記錄尚未開始 ({p.classCount}堂)</span>
+                      )}
+                    </div>
+                    {/* 備註 & 狀態 */}
+                    {(p.notes || isPendingReview) && (
+                      <div className="mt-1.5 flex flex-wrap gap-1 items-center">
+                        {isPendingReview && (
+                          <Badge variant="outline" className="text-[10px] bg-amber-100 text-amber-700 border-amber-400">
+                            ⚠️ 待核實
+                          </Badge>
+                        )}
+                        {p.notes && (
+                          <span className="text-[10px] text-gray-500 leading-tight">{p.notes}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer summary */}
+        {sortedPayments.length > 0 && (
+          <div className="px-4 py-3 bg-gray-50 border-t flex items-center justify-between text-sm">
+            <span className="text-gray-600">共 <strong>{sortedPayments.length}</strong> 期</span>
+            <span className="font-bold text-purple-700">合計 ${totalPaid.toLocaleString()}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // 教練顏色映射
 const COACH_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
@@ -33,6 +177,9 @@ export default function EliteHistory() {
   const { data: historyData, isLoading: historyLoading } = trpc.elite.getHistoryByYear.useQuery({ year: selectedYear });
   const { data: cycleInfoList = [] } = trpc.elite.getAllCycleInfo.useQuery();
   const { data: balances = [] } = trpc.elite.getAllBalances.useQuery();
+
+  // ── 付款記錄彈窗 ──
+  const [paymentPopupStudent, setPaymentPopupStudent] = useState<{ id: number; name: string } | null>(null);
 
   // ── 批量點名模式 ──
   const [batchMode, setBatchMode] = useState(false);
@@ -798,9 +945,18 @@ export default function EliteHistory() {
                             {index + 1}
                           </td>
                           <td className={`sticky left-[32px] z-10 px-2 py-1.5 font-medium whitespace-nowrap border-r border-b ${amountDue > 0 ? 'bg-orange-50' : 'bg-background'}`}>
-                            <div className="flex flex-col">
-                              <span className="truncate max-w-[65px]">{student.name}</span>
-                              <span className={`text-[9px] ${coachColor.text}`}>{student.coach || '-'}</span>
+                            <div className="flex items-start gap-0.5">
+                              <div className="flex flex-col min-w-0">
+                                <span className="truncate max-w-[55px]">{student.name}</span>
+                                <span className={`text-[9px] ${coachColor.text}`}>{student.coach || '-'}</span>
+                              </div>
+                              <button
+                                className="flex-shrink-0 mt-0.5 p-0.5 rounded hover:bg-purple-100 text-purple-400 hover:text-purple-700 transition-colors"
+                                title={`${student.name} 付款記錄`}
+                                onClick={(e) => { e.stopPropagation(); setPaymentPopupStudent({ id: student.id, name: student.name }); }}
+                              >
+                                <DollarSign className="h-3 w-3" />
+                              </button>
                             </div>
                           </td>
                           {monthGroups.map((group) =>
@@ -1237,6 +1393,15 @@ export default function EliteHistory() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* 付款記錄彈窗 */}
+      {paymentPopupStudent && (
+        <StudentPaymentPopup
+          studentId={paymentPopupStudent.id}
+          studentName={paymentPopupStudent.name}
+          onClose={() => setPaymentPopupStudent(null)}
+        />
       )}
 
       {/* 圖例 */}
