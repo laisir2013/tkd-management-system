@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X, CheckSquare, Square, Users, UserX, Loader2, Undo2, DollarSign } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Ban, RotateCcw, X, CheckSquare, Square, Users, UserX, Loader2, Undo2, DollarSign, LogOut } from "lucide-react";
 import { EliteWhatsAppButton } from "@/components/EliteWhatsAppButton";
 import { EliteAttendanceWhatsAppButton } from "@/components/EliteAttendanceWhatsAppButton";
 
@@ -170,6 +170,19 @@ export default function EliteHistory() {
 
   // ── 付款記錄彈窗 ──
   const [paymentPopupStudent, setPaymentPopupStudent] = useState<{ id: number; name: string } | null>(null);
+
+  // ── 退出精英班 ──
+  const withdrawMutation = trpc.elite.withdrawStudent.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.name} 已退出精英班（恆常班不受影響）`);
+      Promise.all([
+        utils.elite.getHistoryByYear.invalidate(),
+        utils.elite.getAllCycleInfo.invalidate(),
+        utils.elite.getAllBalances.invalidate(),
+      ]);
+    },
+    onError: (err: any) => { toast.error(`退出失敗：${err.message}`); },
+  });
 
   // ── 批量點名模式 ──
   const [batchMode, setBatchMode] = useState(false);
@@ -930,7 +943,7 @@ export default function EliteHistory() {
                       }
 
                       return (
-                        <tr key={student.id} className={`${amountDue > 0 ? 'bg-orange-50/40' : 'hover:bg-muted/30'} border-l-[3px] ${coachColor.border}`}>
+                        <tr key={student.id} className={`group ${amountDue > 0 ? 'bg-orange-50/40' : 'hover:bg-muted/30'} border-l-[3px] ${coachColor.border}`}>
                           <td className={`sticky left-0 z-10 px-1 py-1.5 text-center font-medium text-muted-foreground border-r border-b ${amountDue > 0 ? 'bg-orange-50' : 'bg-background'}`}>
                             {index + 1}
                           </td>
@@ -946,6 +959,18 @@ export default function EliteHistory() {
                                 onClick={(e) => { e.stopPropagation(); setPaymentPopupStudent({ id: student.id, name: student.name }); }}
                               >
                                 <DollarSign className="h-3 w-3" />
+                              </button>
+                              <button
+                                className="flex-shrink-0 mt-0.5 p-0.5 rounded hover:bg-red-100 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                title={`${student.name} 退出精英班`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm(`確定讓「${student.name}」退出精英班嗎？\n\n• 精英班狀態將設為 inactive\n• 恆常班記錄不受影響\n• 出席及付款記錄會保留`)) {
+                                    withdrawMutation.mutate({ id: student.id });
+                                  }
+                                }}
+                              >
+                                <LogOut className="h-3 w-3" />
                               </button>
                             </div>
                           </td>

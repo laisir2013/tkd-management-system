@@ -3576,6 +3576,18 @@ export const appRouter = router({
         await updateEliteStudent(input.id, { password });
         return { success: true };
       }),
+    // 退出精英班（只改 elite_students.status，不影響恆常班 students 表）
+    withdrawStudent: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const student = await getEliteStudentById(input.id);
+        if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: '精英班學生不存在' });
+        if (student.status === 'inactive') throw new TRPCError({ code: 'BAD_REQUEST', message: `${student.name} 已退出精英班` });
+        await updateEliteStudent(input.id, { status: 'inactive' });
+        return { success: true, name: student.name };
+      }),
+
     // 轉班：在 A/B 班之間切換
     switchClass: protectedProcedure
       .input(z.object({ id: z.number(), targetClass: z.enum(['A', 'B']) }))
