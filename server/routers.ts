@@ -1153,21 +1153,25 @@ export const appRouter = router({
               const scheduleDay = student.scheduleDay || (student as any).schedule_day;
               const targetDayForLeave = scheduleDay ? WEEKDAY_MAP[scheduleDay] : undefined;
               let totalLeaveClasses = 0;
-              const leaveDetails: Array<{ month: number; classes: number; deduction: number; totalInMonth: number }> = [];
+              const leaveDetails: Array<{ month: number; classes: number; deduction: number; totalInMonth: number; leaveDates: string[] }> = [];
               if (studentLeaveMap) {
                 for (const lm of qMonths) {
                   const leaveInfo = studentLeaveMap.get(lm);
                   if (!leaveInfo) continue;
 
-                  // 計算該月實際有幾堂課
+                  // 計算該月實際有幾堂課及具體日期
                   let totalClassesInMonth = 4; // 預設 4 堂
+                  const classDatesInMonth: Date[] = [];
                   if (targetDayForLeave !== undefined) {
                     totalClassesInMonth = 0;
                     const monthStart = new Date(currentYear, lm - 1, 1);
                     const monthEnd = new Date(currentYear, lm, 0);
                     const d = new Date(monthStart);
                     while (d <= monthEnd) {
-                      if (d.getDay() === targetDayForLeave) totalClassesInMonth++;
+                      if (d.getDay() === targetDayForLeave) {
+                        classDatesInMonth.push(new Date(d));
+                        totalClassesInMonth++;
+                      }
                       d.setDate(d.getDate() + 1);
                     }
                   }
@@ -1179,15 +1183,29 @@ export const appRouter = router({
 
                   const deduction = Math.round(perClassFee * actualLeaveClasses);
                   totalLeaveClasses += actualLeaveClasses;
-                  leaveDetails.push({ month: lm, classes: actualLeaveClasses, deduction, totalInMonth: totalClassesInMonth });
+
+                  // 生成請假日期列表
+                  let leaveDateStrs: string[] = [];
+                  if (classDatesInMonth.length > 0) {
+                    if (leaveInfo.leaveClasses === 0) {
+                      // 整月：全部日期
+                      leaveDateStrs = classDatesInMonth.map(dd => `${dd.getDate()}號`);
+                    } else {
+                      // 部分堂：取最後 N 堂
+                      leaveDateStrs = classDatesInMonth.slice(-actualLeaveClasses).map(dd => `${dd.getDate()}號`);
+                    }
+                  }
+
+                  leaveDetails.push({ month: lm, classes: actualLeaveClasses, deduction, totalInMonth: totalClassesInMonth, leaveDates: leaveDateStrs });
                   adjustedFee -= deduction;
                 }
                 if (leaveDetails.length > 0) {
-                  const leaveNotesParts = leaveDetails.map(ld =>
-                    ld.classes === ld.totalInMonth
-                      ? `${ld.month}月整月請假${ld.classes}堂`
-                      : `${ld.month}月請假${ld.classes}堂`
-                  );
+                  const leaveNotesParts = leaveDetails.map(ld => {
+                    const dateInfo = ld.leaveDates.length > 0 ? `(${ld.leaveDates.join('、')})` : '';
+                    return ld.classes === ld.totalInMonth
+                      ? `${ld.month}月整月請假${ld.classes}堂${dateInfo}`
+                      : `${ld.month}月請假${ld.classes}堂${dateInfo}`;
+                  });
                   notes.push(leaveNotesParts.join('，'));
                 }
               }
@@ -1266,12 +1284,13 @@ export const appRouter = router({
                 const lines: string[] = [];
                 lines.push(`季度學費：$${feePerQuarter.toLocaleString()}（$${monthlyFee.toLocaleString()}/月 × 3個月）`);
                 lines.push(`每堂費用：$${Math.round(perClassFee).toLocaleString()}（$${monthlyFee.toLocaleString()} ÷ 4堂）`);
-                // 請假月扣減明細（按堂數計算）
+                // 請假月扣減明細（按堂數計算，含具體日期）
                 for (const ld of leaveDetails) {
+                  const dateInfo = ld.leaveDates.length > 0 ? `\n  📅 請假日期：${ld.leaveDates.join('、')}` : '';
                   const label = ld.classes === ld.totalInMonth
                     ? `${ld.month}月整月請假（${ld.classes}堂 × $${Math.round(perClassFee).toLocaleString()}）`
                     : `${ld.month}月請假${ld.classes}堂（${ld.classes}堂 × $${Math.round(perClassFee).toLocaleString()}）`;
-                  lines.push(`${label}：-$${ld.deduction.toLocaleString()}`);
+                  lines.push(`${label}：-$${ld.deduction.toLocaleString()}${dateInfo}`);
                 }
                 // 新生12堂覆蓋明細
                 const joinDateVal = student.joinDate || (student as any).join_date;

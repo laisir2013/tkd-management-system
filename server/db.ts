@@ -704,19 +704,208 @@ export async function getLeaveMonthsByStudent(studentId: number, year: number) {
   );
 }
 
-/** 標記請假（leaveClasses: 0=整月, 1-4=具體堂數） */
+/** 星期對照表 */
+const WEEKDAY_MAP_DB: Record<string, number> = {
+  '星期日': 0, '星期一': 1, '星期二': 2, '星期三': 3,
+  '星期四': 4, '星期五': 5, '星期六': 6,
+};
+
+/** 計算某月某星期幾的所有日期 */
+function getDatesForWeekdayInMonth(year: number, month: number, weekday: number): Date[] {
+  const dates: Date[] = [];
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 0);
+  const d = new Date(monthStart);
+  while (d <= monthEnd) {
+    if (d.getDay() === weekday) dates.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return dates;
+}
+
+/** 計算請假扣減金額和描述 */
+function calculateLeaveDeduction(
+  feePerQuarter: number,
+  scheduleDay: string | null | undefined,
+  year: number,
+  month: number,
+  leaveClasses: number,
+): { deduction: number; actualClasses: number; totalClasses: number; leaveDates: string[]; description: string } {
+  const monthlyFee = feePerQuarter / 3;
+  const perClassFee = monthlyFee / 4;
+
+  // 計算該月實際有幾堂課及日期
+  const weekday = scheduleDay ? WEEKDAY_MAP_DB[scheduleDay] : undefined;
+  let totalClasses = 4;
+  let classDates: Date[] = [];
+  if (weekday !== undefined) {
+    classDates = getDatesForWeekdayInMonth(year, month, weekday);
+    totalClasses = classDates.length;
+  }
+
+  // leaveClasses=0 = 整月請假
+  const actualClasses = leaveClasses === 0
+    ? totalClasses
+    : Math.min(leaveClasses, totalClasses);
+
+  const deduction = Math.round(perClassFee * actualClasses);
+
+  // 生成日期字串
+  let leaveDates: string[] = [];
+  if (classDates.length > 0) {
+    // 取最後 N 個日期作為請假日（假設從月底往前請假）
+    // 整月則全部日期
+    if (leaveClasses === 0) {
+      leaveDates = classDates.map(d => `${d.getMonth() + 1}/${d.getDate()}`);
+    } else {
+      // 取最後 N 堂
+      leaveDates = classDates.slice(-actualClasses).map(d => `${d.getMonth() + 1}/${d.getDate()}`);
+    }
+  }
+
+  const dateStr = leaveDates.length > 0 ? ` (${leaveDates.join(', ')})` : '';
+  const description = leaveClasses === 0
+    ? `${month}月整月請假${actualClasses}堂${dateStr}，扣$${deduction}`
+    : `${month}月請假${actualClasses}堂${dateStr}，扣$${deduction}`;
+
+  return { deduction, actualClasses, totalClasses, leaveDates, description };
+}
+
+/** 標記請假（leaveClasses: 0=整月, 1-4=具體堂數）+ 自動同步會計紀錄 */
 export async function insertLeaveMonth(studentId: number, year: number, month: number, leaveClasses: number = 0, notes?: string) {
   const db = await getDb();
   if (!db) return;
-  // upsert: ignore if already exists
+
+  // 1. upsert leave record
   await db.insert(studentLeaveMonths).values({ studentId, year, month, leaveClasses, notes: notes || null })
     .onDuplicateKeyUpdate({ set: { leaveClasses, notes: notes || null } });
+
+  // 2. 同步會計紀錄 (accounting_records + journal_entries)
+  try {
+    const student = await getStudentById(studentId);
+    if (!student) return;
+
+    const feePerQuarter = parseFloat(String(student.feePerQuarter || '0'));
+    if (feePerQuarter <= 0) return; // 無學費設定，跳過
+
+    const scheduleDay = (student as any).scheduleDay || (student as any).schedule_day;
+    const { deduction, actualClasses, totalClasses, leaveDates, description: leaveDesc } = calculateLeaveDeduction(
+      feePerQuarter, scheduleDay, year, month, leaveClasses
+    );
+
+    if (deduction <= 0) return;
+
+    const studentName = student.name;
+    const dateStr = leaveDates.length > 0 ? ` (${leaveDates.join(', ')})` : '';
+    const arDescription = `${studentName} ${year}年${month}月請假扣減 — ${leaveClasses === 0 ? '整月' : `${actualClasses}堂`}${dateStr}`;
+
+    // 先刪除舊的同步紀錄（如果有）— 避免重複
+    const existingAr = await db.select().from(accountingRecords)
+      .where(and(
+        eq(accountingRecords.studentName, studentName),
+        eq(accountingRecords.category, 'leave_deduction'),
+        sql`YEAR(${accountingRecords.transactionDate}) = ${year}`,
+        sql`MONTH(${accountingRecords.transactionDate}) = ${month}`,
+      )).limit(1);
+
+    if (existingAr.length > 0) {
+      const oldAr = existingAr[0];
+      // 刪除舊的 JE 和 JEL
+      if (oldAr.journalEntryId) {
+        await db.delete(journalEntryLines).where(eq(journalEntryLines.journalEntryId, oldAr.journalEntryId));
+        await db.delete(journalEntries).where(eq(journalEntries.id, oldAr.journalEntryId));
+      }
+      await db.delete(accountingRecords).where(eq(accountingRecords.id, oldAr.id));
+    }
+
+    // 插入 AR（type=expense, category=leave_deduction）
+    const transactionDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const arResult = await db.insert(accountingRecords).values({
+      transactionDate,
+      amount: deduction.toString(),
+      type: 'expense',
+      category: 'leave_deduction',
+      description: arDescription,
+      studentName,
+      source: 'auto_sync',
+    } as any);
+    const arId = Number((arResult as any)[0].insertId);
+
+    // 插入 JE + JEL：Dr. 4001 (沖銷學費收入) / Cr. 2003 (應付請假扣減)
+    const fiscalYear = year;
+    const fiscalMonth = month;
+
+    const jeId = await db.transaction(async (tx: any) => {
+      // 生成 entry number
+      const yearMonth = `${fiscalYear}${fiscalMonth.toString().padStart(2, '0')}`;
+      const result = await tx.execute(sql`
+        SELECT entry_number FROM journal_entries
+        WHERE fiscal_year = ${fiscalYear} AND fiscal_month = ${fiscalMonth}
+        ORDER BY id DESC
+        LIMIT 1
+        FOR UPDATE
+      `);
+      let seq = 1;
+      const rows = (result[0] as Array<{ entry_number: string }>);
+      if (rows.length > 0) {
+        const parts = rows[0].entry_number.split('-');
+        const lastSeq = parseInt(parts[2], 10);
+        if (!isNaN(lastSeq)) seq = lastSeq + 1;
+      }
+      const entryNumber = `JE-${yearMonth}-${seq.toString().padStart(4, '0')}`;
+
+      const insertResult = await tx.insert(journalEntries).values({
+        entryNumber,
+        entryDate: transactionDate,
+        description: arDescription,
+        sourceType: 'auto_sync',
+        sourceId: arId,
+        sourceTable: 'accounting_records',
+        fiscalYear,
+        fiscalMonth,
+        isPosted: true,
+        postedAt: new Date(),
+        postedBy: 'system',
+      });
+      const newJeId = Number(insertResult[0].insertId);
+
+      // Dr. 4001 學費收入（沖銷）/ Cr. 1001 銀行（未來少收）
+      await tx.insert(journalEntryLines).values([
+        {
+          journalEntryId: newJeId,
+          accountCode: '4001',
+          debit: deduction.toString(),
+          credit: '0.00',
+          description: `請假扣減 — ${studentName} ${year}年${month}月`,
+        },
+        {
+          journalEntryId: newJeId,
+          accountCode: '1001',
+          debit: '0.00',
+          credit: deduction.toString(),
+          description: `請假扣減 — ${studentName} ${year}年${month}月`,
+        },
+      ]);
+
+      return newJeId;
+    });
+
+    // 連結 AR → JE
+    await db.update(accountingRecords).set({ journalEntryId: jeId } as any).where(eq(accountingRecords.id, arId));
+
+    console.log(`[LeaveSync] ${studentName} ${year}年${month}月請假 → AR#${arId} + JE#${jeId}，扣$${deduction}`);
+  } catch (err) {
+    console.error('[LeaveSync] 同步會計紀錄失敗:', err);
+    // 不阻擋請假紀錄本身的儲存
+  }
 }
 
-/** 取消請假 */
+/** 取消請假 + 自動刪除對應會計紀錄 */
 export async function deleteLeaveMonth(studentId: number, year: number, month: number) {
   const db = await getDb();
   if (!db) return;
+
+  // 1. 刪除 leave record
   await db.delete(studentLeaveMonths).where(
     and(
       eq(studentLeaveMonths.studentId, studentId),
@@ -724,6 +913,34 @@ export async function deleteLeaveMonth(studentId: number, year: number, month: n
       eq(studentLeaveMonths.month, month),
     )
   );
+
+  // 2. 刪除對應的會計紀錄
+  try {
+    const student = await getStudentById(studentId);
+    if (!student) return;
+
+    const existingAr = await db.select().from(accountingRecords)
+      .where(and(
+        eq(accountingRecords.studentName, student.name),
+        eq(accountingRecords.category, 'leave_deduction'),
+        sql`YEAR(${accountingRecords.transactionDate}) = ${year}`,
+        sql`MONTH(${accountingRecords.transactionDate}) = ${month}`,
+      )).limit(1);
+
+    if (existingAr.length > 0) {
+      const ar = existingAr[0];
+      // 刪除 JE + JEL
+      if (ar.journalEntryId) {
+        await db.delete(journalEntryLines).where(eq(journalEntryLines.journalEntryId, ar.journalEntryId));
+        await db.delete(journalEntries).where(eq(journalEntries.id, ar.journalEntryId));
+      }
+      // 刪除 AR
+      await db.delete(accountingRecords).where(eq(accountingRecords.id, ar.id));
+      console.log(`[LeaveSync] 取消 ${student.name} ${year}年${month}月請假 → 已刪除 AR#${ar.id}`);
+    }
+  } catch (err) {
+    console.error('[LeaveSync] 刪除會計紀錄失敗:', err);
+  }
 }
 
 // ============ Dojo Management ============
