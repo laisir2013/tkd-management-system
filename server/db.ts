@@ -2274,6 +2274,15 @@ export async function getEliteCycleInfo(studentId: number) {
     }
   }
 
+  // 取得最近一次繳費日期
+  const payments = await getElitePaymentRecords(studentId);
+  const confirmedPayments = payments
+    .filter(p => p.status === 'confirmed')
+    .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+  const lastPaymentDate = confirmedPayments.length > 0
+    ? new Date(confirmedPayments[0].paymentDate).toISOString()
+    : null;
+
   return {
     studentId,
     studentName: student.name,
@@ -2284,6 +2293,7 @@ export async function getEliteCycleInfo(studentId: number) {
     needPaymentReminder,
     cycleStartDate,
     lastAttendedDate,
+    lastPaymentDate,
     cycleDetails,
     feePerCycle: 2400, // 每 12 堂 $2,400
   };

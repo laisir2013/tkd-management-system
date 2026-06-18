@@ -23,65 +23,77 @@ function buildWhatsAppMessage(
   studentName: string,
   cycleNum: number,
   details: CycleDetail[],
+  lastPaymentDate?: string | null,
 ): string {
-  // 分類出席/遲到/缺席日期
-  const presentDates = details.filter(d => d.status === 'present').map(d => d.date);
-  const lateDates = details.filter(d => d.status === 'late').map(d => d.date);
-  const absentDates = details.filter(d => d.status === 'absent').map(d => d.date);
+  const sections: string[] = [];
 
-  // 構建詳細訊息
-  let detailLines = '';
+  sections.push(`🥋 ${studentName} 家長您好！`);
+  sections.push('');
+  sections.push(`📌 *【精英班上課詳情】*`);
+  sections.push('');
 
-  // 出席日期（含遲到）
-  if (presentDates.length > 0 || lateDates.length > 0) {
-    const allAttendedDates = details
-      .filter(d => d.status === 'present' || d.status === 'late')
-      .map((d, i) => `  ${i + 1}. ${d.date}${d.status === 'late' ? '(遲到)' : ''}`)
-      .join('\n');
-    detailLines += `\n✅ *已出席 ${cycleNum} 堂：*\n${allAttendedDates}`;
+  // 最近1次繳費日期
+  if (lastPaymentDate) {
+    const d = new Date(lastPaymentDate);
+    const dateStr = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+    sections.push(`最近1次繳費日期：${dateStr}`);
+  } else {
+    sections.push(`最近1次繳費日期：（無紀錄）`);
+  }
+  sections.push('');
+
+  // 本期出席詳情
+  sections.push(`*今期出席（第 ${cycleNum}/12 堂）：*`);
+
+  // 列出每堂出席日期（present/late）
+  let attendIdx = 0;
+  const absentDates: string[] = [];
+  for (const rec of details) {
+    if (rec.status === 'present' || rec.status === 'late') {
+      attendIdx++;
+      const lateTag = rec.status === 'late' ? '（遲到）' : '';
+      sections.push(`第${attendIdx}堂：${rec.date}${lateTag}`);
+    } else {
+      // absent / excused
+      absentDates.push(rec.date);
+    }
   }
 
-  // 缺席日期
+  // 請假日期
   if (absentDates.length > 0) {
-    detailLines += `\n\n❌ *請假/缺席 ${absentDates.length} 堂：*\n${absentDates.map(d => `  • ${d}`).join('\n')}`;
+    sections.push('');
+    sections.push(`請假日期：${absentDates.join('、')}`);
   }
 
   // 第10堂或以上需繳費提醒
-  let paymentSection = '';
   if (cycleNum >= 10) {
-    paymentSection = `
-
-⚠️ *已上到第 ${cycleNum} 堂，需繳交下一期精英班學費 $2,400*
-
-💳 *繳費方式*
-
-銀行轉帳：
-• 銀行：中國銀行
-• 帳戶號碼：012-692-2-0114816
-• 帳戶名稱：Chong Mo Company Limited
-
-轉數快 (FPS)：
-• ID：164577132`;
+    sections.push('');
+    sections.push(`⚠️ *已上到第 ${cycleNum} 堂，需繳交下一期精英班學費 $2,400*`);
+    sections.push('');
+    sections.push(`💳 *繳費方式*`);
+    sections.push('');
+    sections.push(`銀行轉帳：`);
+    sections.push(`• 銀行：中國銀行`);
+    sections.push(`• 帳戶號碼：012-692-2-0114816`);
+    sections.push(`• 帳戶名稱：Chong Mo Company Limited`);
+    sections.push('');
+    sections.push(`轉數快 (FPS)：`);
+    sections.push(`• ID：164577132`);
   }
 
-  const footerSection = cycleNum >= 10
-    ? `───────────────
-ℹ️ 如有任何疑問，歡迎隨時聯絡我們！
+  sections.push('');
+  sections.push(`───────────────`);
+  if (cycleNum >= 10) {
+    sections.push(`ℹ️ 如有任何疑問，歡迎隨時聯絡我們！`);
+    sections.push('');
+    sections.push(`✅ *已繳費者請忽略此訊息*`);
+    sections.push(`謝謝您的配合！🙏`);
+  } else {
+    sections.push(`方便大家紀錄番堂數`);
+    sections.push(`如有錯誤，可即時通知我地 🙏`);
+  }
 
-✅ *已繳費者請忽略此訊息*
-謝謝您的配合！🙏`
-    : `───────────────
-方便大家紀錄番堂數
-如有錯誤，可即時通知我地 🙏`;
-
-  return `🥋 ${studentName} 家長您好！
-
-📌 *【精英班堂數通知】*
-
-您的學生 *${studentName}* 目前今期已上到第 *${cycleNum} 堂*（共 12 堂）
-${detailLines}${paymentSection}
-
-${footerSection}`;
+  return sections.join('\n');
 }
 
 export function EliteAttendanceWhatsAppButton({
@@ -124,8 +136,9 @@ export function EliteAttendanceWhatsAppButton({
 
       const finalCycleNumber = freshCycleInfo?.cycleNumber ?? cycleNumber;
       const finalDetails: CycleDetail[] = freshCycleInfo?.cycleDetails ?? cycleDetails;
+      const lastPaymentDate = freshCycleInfo?.lastPaymentDate ?? null;
 
-      const message = buildWhatsAppMessage(studentName, finalCycleNumber, finalDetails);
+      const message = buildWhatsAppMessage(studentName, finalCycleNumber, finalDetails, lastPaymentDate);
       const whatsappUrl = `https://api.whatsapp.com/send?phone=852${studentPhone}&text=${encodeURIComponent(message)}`;
 
       // 記錄發送時間到 localStorage
@@ -138,7 +151,7 @@ export function EliteAttendanceWhatsAppButton({
     } catch (err) {
       console.error('[WhatsApp] Failed to fetch cycleInfo, using props fallback:', err);
       // Fallback: 使用 prop 傳入的資料
-      const message = buildWhatsAppMessage(studentName, cycleNumber, cycleDetails);
+      const message = buildWhatsAppMessage(studentName, cycleNumber, cycleDetails, null);
       const whatsappUrl = `https://api.whatsapp.com/send?phone=852${studentPhone}&text=${encodeURIComponent(message)}`;
 
       const now = Date.now();
