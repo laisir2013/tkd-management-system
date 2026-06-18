@@ -2398,6 +2398,17 @@ export async function getElitePeriodsBreakdown(studentId: number) {
   // 找出未繳費的期
   const unpaidPeriods = periods.filter(p => !p.isPaid);
 
+  // 每期的付款日期（按時間順序第N筆付款對應第N期）
+  const paymentDatesPerPeriod: (string | null)[] = [];
+  for (let i = 0; i < paidPeriods; i++) {
+    if (i < confirmedPayments.length) {
+      const d = new Date(confirmedPayments[i].paymentDate);
+      paymentDatesPerPeriod.push(d.toISOString());
+    } else {
+      paymentDatesPerPeriod.push(null);
+    }
+  }
+
   return {
     studentId,
     studentName: student.name,
@@ -2406,6 +2417,7 @@ export async function getElitePeriodsBreakdown(studentId: number) {
     paidPeriods,
     periods,
     unpaidPeriods,
+    paymentDatesPerPeriod,
     feePerPeriod: 2400,
   };
 }

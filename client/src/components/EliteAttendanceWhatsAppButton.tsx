@@ -35,58 +35,89 @@ interface EliteAttendanceWhatsAppButtonProps {
 }
 
 /**
- * 用 getPeriodsBreakdown 的「最新一期」資料構建訊息
- * 邏輯：以繳費為基準，顯示「最近繳費對應的那期」的上課狀態
- * - 如果最新繳費對應的期尚未開始上堂 → 顯示「尚未開始」
- * - 如果已上了幾堂 → 第1堂: date, 第2堂: date...
+ * 用 getPeriodsBreakdown 構建訊息，包含「上期」和「今期」兩段
+ * - 上期：上期付款日期 + 完整出席明細
+ * - 今期：今期付款日期 + 已上堂數明細（可能尚未開始）
  */
 function buildWhatsAppMessageFromBreakdown(
   studentName: string,
-  lastPaymentDate: string | null,
-  latestPaidPeriod: Period | null,
+  paidPeriods: number,
+  periods: Period[],
+  paymentDatesPerPeriod: (string | null)[],
 ): string {
   const sections: string[] = [];
 
   sections.push(`🥋 ${studentName} 家長您好！`);
   sections.push('');
   sections.push(`📌 *【精英班上課詳情】*`);
-  sections.push('');
 
-  // 最近1次繳費日期
-  if (lastPaymentDate) {
-    const d = new Date(lastPaymentDate);
-    const dateStr = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-    sections.push(`最近1次繳費日期：${dateStr}`);
-  } else {
-    sections.push(`最近1次繳費日期：（無紀錄）`);
-  }
-  sections.push('');
+  // 上期（倒數第二期，即 paidPeriods - 1）
+  const prevPeriodNum = paidPeriods - 1;
+  if (prevPeriodNum >= 1) {
+    const prevPeriod = periods.find((p: Period) => p.periodNumber === prevPeriodNum) || null;
+    const prevPaymentDate = paymentDatesPerPeriod[prevPeriodNum - 1] || null;
 
-  if (!latestPaidPeriod || latestPaidPeriod.records.length === 0) {
-    // 這期還沒有任何上課記錄
-    sections.push(`*這期出席（第 0/12 堂）：*`);
-    sections.push(`（尚未開始上堂）`);
-  } else {
-    const cycleNum = latestPaidPeriod.attendedCount;
-    sections.push(`*這期出席（第 ${cycleNum}/12 堂）：*`);
-
-    // 列出每堂出席日期（present/late）
-    let attendIdx = 0;
-    const absentDates: string[] = [];
-    for (const rec of latestPaidPeriod.records) {
-      if (rec.isAttended) {
-        attendIdx++;
-        const lateTag = rec.status === 'late' ? '（遲到）' : '';
-        sections.push(`第${attendIdx}堂：${rec.date}${lateTag}`);
-      } else {
-        absentDates.push(rec.date);
-      }
+    sections.push('');
+    sections.push(`━━━━━━━━━━━━━━━`);
+    sections.push(`📋 *上期（第${prevPeriodNum}期）：*`);
+    if (prevPaymentDate) {
+      const d = new Date(prevPaymentDate);
+      sections.push(`繳費日期：${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`);
     }
 
-    // 請假日期
-    if (absentDates.length > 0) {
-      sections.push('');
-      sections.push(`請假日期：${absentDates.join('、')}`);
+    if (prevPeriod && prevPeriod.records.length > 0) {
+      let attendIdx = 0;
+      const absentDates: string[] = [];
+      for (const rec of prevPeriod.records) {
+        if (rec.isAttended) {
+          attendIdx++;
+          const lateTag = rec.status === 'late' ? '（遲到）' : '';
+          sections.push(`第${attendIdx}堂：${rec.date}${lateTag}`);
+        } else {
+          absentDates.push(rec.date);
+        }
+      }
+      if (absentDates.length > 0) {
+        sections.push(`請假日期：${absentDates.join('、')}`);
+      }
+    } else {
+      sections.push(`（無上課記錄）`);
+    }
+  }
+
+  // 今期（paidPeriods 對應的期）
+  const currentPeriodNum = paidPeriods;
+  if (currentPeriodNum >= 1) {
+    const currentPeriod = periods.find((p: Period) => p.periodNumber === currentPeriodNum) || null;
+    const currentPaymentDate = paymentDatesPerPeriod[currentPeriodNum - 1] || null;
+
+    sections.push('');
+    sections.push(`━━━━━━━━━━━━━━━`);
+    sections.push(`📋 *今期（第${currentPeriodNum}期）：*`);
+    if (currentPaymentDate) {
+      const d = new Date(currentPaymentDate);
+      sections.push(`繳費日期：${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`);
+    }
+
+    if (currentPeriod && currentPeriod.records.length > 0) {
+      const cycleNum = currentPeriod.attendedCount;
+      sections.push(`已上堂數：第 ${cycleNum}/12 堂`);
+      let attendIdx = 0;
+      const absentDates: string[] = [];
+      for (const rec of currentPeriod.records) {
+        if (rec.isAttended) {
+          attendIdx++;
+          const lateTag = rec.status === 'late' ? '（遲到）' : '';
+          sections.push(`第${attendIdx}堂：${rec.date}${lateTag}`);
+        } else {
+          absentDates.push(rec.date);
+        }
+      }
+      if (absentDates.length > 0) {
+        sections.push(`請假日期：${absentDates.join('、')}`);
+      }
+    } else {
+      sections.push(`（尚未開始上堂）`);
     }
   }
 
@@ -137,42 +168,22 @@ export function EliteAttendanceWhatsAppButton({
       const breakdown = await utils.elite.getPeriodsBreakdown.fetch({ studentId });
 
       if (!breakdown) {
-        const message = buildWhatsAppMessageFromBreakdown(studentName, null, null);
+        const message = buildWhatsAppMessageFromBreakdown(studentName, 0, [], []);
         openWhatsApp(studentPhone, message);
         return;
       }
 
-      // 取最近繳費日期
-      const cycleInfo = await utils.elite.getCycleInfo.fetch({ studentId });
-      const lastPaymentDate = cycleInfo?.lastPaymentDate ?? null;
-
-      // 找到「最近繳費對應的那一期」
-      // paidPeriods = 已付期數
-      const paidPeriods = breakdown.paidPeriods;
-      let latestPaidPeriod: Period | null = null;
-      
-      if (paidPeriods > 0) {
-        // 找到最後付費對應的期
-        latestPaidPeriod = breakdown.periods.find(
-          (p: Period) => p.periodNumber === paidPeriods
-        ) || null;
-        
-        // 如果這期在數據中不存在（還沒上任何堂），
-        // 代表付了但還沒開始，回傳 null 讓訊息顯示「尚未開始」
-      }
-
-      // 如果沒有付款記錄，顯示當前最新一期
-      if (paidPeriods === 0 && breakdown.periods.length > 0) {
-        latestPaidPeriod = breakdown.periods[breakdown.periods.length - 1] as Period;
-      }
-
-      const message = buildWhatsAppMessageFromBreakdown(studentName, lastPaymentDate, latestPaidPeriod);
+      const message = buildWhatsAppMessageFromBreakdown(
+        studentName,
+        breakdown.paidPeriods,
+        breakdown.periods as Period[],
+        (breakdown as any).paymentDatesPerPeriod || [],
+      );
       openWhatsApp(studentPhone, message);
 
     } catch (err) {
       console.error('[WhatsApp] Failed to fetch breakdown, using fallback:', err);
-      // Fallback: 簡單訊息
-      const message = buildWhatsAppMessageFromBreakdown(studentName, null, null);
+      const message = buildWhatsAppMessageFromBreakdown(studentName, 0, [], []);
       openWhatsApp(studentPhone, message);
     } finally {
       setLoading(false);
