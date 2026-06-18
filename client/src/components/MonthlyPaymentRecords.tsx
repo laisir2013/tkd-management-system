@@ -263,9 +263,16 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     const feeBreakdown = nq?.feeBreakdown;
     const displayFee = adjustedFee !== undefined ? adjustedFee : standardFee;
     const feeStr = displayFee.toLocaleString();
+    const isAlignmentNote = nq?.isAlignmentNote;
     let feeDetailBlock = '';
     if (feeBreakdown) {
-      feeDetailBlock = `\n\n📊 *費用計算明細*\n${feeBreakdown}`;
+      if (isAlignmentNote) {
+        // 插班對齊：口語化友善解釋，不需要「費用計算明細」前綴
+        feeDetailBlock = `\n\n${feeBreakdown}`;
+      } else {
+        // 請假/12堂覆蓋等：格式化計算明細
+        feeDetailBlock = `\n\n📊 *費用計算明細*\n${feeBreakdown}`;
+      }
     }
     const message = `🥋 *${student.studentName}* 家長您好！\n\n📌 *${selectedYear}年 ${notifyQuarter} 學費通知*\n應繳學費：*$${feeStr}*${feeDetailBlock}\n\n───────────────\n💳 *繳費方式*\n\n銀行轉帳：\n• 銀行：中國銀行\n• 帳戶號碼：012-692-2-0114816\n• 帳戶名稱：Chong Mo Company Limited\n\n轉數快 (FPS)：\n• ID：164577132\n\n───────────────\nℹ️ 如有任何疑問，歡迎隨時聯絡我們！\n\n✅ *已繳費者請忽略此訊息*\n謝謝您的配合！🙏`;
 

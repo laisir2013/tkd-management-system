@@ -1139,6 +1139,7 @@ export const appRouter = router({
           adjustedFee?: number;
           feeNote?: string;
           feeBreakdown?: string;  // 完整計算明細（供 WhatsApp 使用）
+          isAlignmentNote?: boolean;  // 插班對齊通知（使用口語化模板，不需加「費用計算明細」前綴）
         } | null> = {};
         
         for (const student of allStudents) {
@@ -1305,16 +1306,33 @@ export const appRouter = router({
 
               // 構建完整計算明細（給 WhatsApp 通知用）
               let feeBreakdown: string | undefined;
-              if (feeNote && adjustedFee !== feePerQuarter) {
+              const isAlignmentCase = alreadyPaidInQuarter.length > 0 && alreadyPaidInQuarter.length < 3;
+
+              if (isAlignmentCase) {
+                // ── 插班對齊：使用口語化友善解釋模板 ──
+                const paidMonthNames = alreadyPaidInQuarter.map(m => `${m}月`).join('、');
+                const unpaidMonths = qMonths.filter(m => !paidMonthsThisYear.has(m));
+                const unpaidMonthNames = unpaidMonths.map(m => `${m}月`).join('、');
+                const unpaidCount = unpaidMonths.length;
+                // 找出下一個完整季度
+                const nextQ = q < 4 ? q + 1 : 1;
+                const nextQMonths = QUARTER_MONTHS[nextQ];
+                const nextQName = `${nextQMonths[0]}-${nextQMonths[2]}月`;
+                const nextQYear = q < 4 ? currentYear : currentYear + 1;
+
+                const alignLines: string[] = [];
+                alignLines.push(`( 因為我們的繳費期是 1-3月, 4-6月, 7-9月, 10-12月，每年分為4期。由於你們不是期初插班，為了對齊道館的標準期數，今次交學費將會有以下微調，之後就可以跟回我們的期數 )`);
+                alignLines.push('');
+                // 動態生成已付/未付說明
+                const prevPaidDesc = alreadyPaidInQuarter.map(m => `${m}月`).join('、');
+                alignLines.push(`${prevPaidDesc}你已付，所以今期${quarterName}你只需要交${unpaidMonthNames}就可以了。之後下一次就係${nextQYear}年${nextQName}呢一期，到時再通知你。`);
+
+                feeBreakdown = alignLines.join('\n');
+              } else if (feeNote && adjustedFee !== feePerQuarter) {
+                // ── 請假 / 12堂覆蓋等其他情況：保留原有格式化明細 ──
                 const lines: string[] = [];
                 lines.push(`季度學費：$${feePerQuarter.toLocaleString()}（$${monthlyFee.toLocaleString()}/月 × 3個月）`);
                 lines.push(`每堂費用：$${Math.round(perClassFee).toLocaleString()}（$${monthlyFee.toLocaleString()} ÷ 4堂）`);
-                // 插班對齊扣減明細
-                if (alreadyPaidInQuarter.length > 0 && alreadyPaidInQuarter.length < 3) {
-                  const paidNames = alreadyPaidInQuarter.map(m => `${m}月`).join('、');
-                  const ded = monthlyFee * alreadyPaidInQuarter.length;
-                  lines.push(`${paidNames}已繳（插班對齊）：-$${Math.round(ded).toLocaleString()}`);
-                }
                 // 請假月扣減明細（按堂數計算，含具體日期）
                 for (const ld of leaveDetails) {
                   const dateInfo = ld.leaveDates.length > 0 ? `\n  📅 請假日期：${ld.leaveDates.join('、')}` : '';
@@ -1364,9 +1382,10 @@ export const appRouter = router({
                 year: currentYear,
                 quarter: q,
                 quarterName,
-                adjustedFee: feeNote ? adjustedFee : undefined,
+                adjustedFee: (feeNote || isAlignmentCase) ? adjustedFee : undefined,
                 feeNote,
                 feeBreakdown,
+                isAlignmentNote: isAlignmentCase || undefined,
               };
               found = true;
               break;
