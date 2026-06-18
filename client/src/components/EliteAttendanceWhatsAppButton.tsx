@@ -8,6 +8,21 @@ interface CycleDetail {
   status: string; // 'present' | 'absent' | 'late'
 }
 
+interface PeriodRecord {
+  date: string;
+  status: string;
+  isAttended: boolean;
+}
+
+interface Period {
+  periodNumber: number;
+  records: PeriodRecord[];
+  attendedCount: number;
+  absentDates: string[];
+  isPaid: boolean;
+  isComplete: boolean;
+}
+
 interface EliteAttendanceWhatsAppButtonProps {
   studentId: number;
   studentName: string;
@@ -19,11 +34,16 @@ interface EliteAttendanceWhatsAppButtonProps {
   cycleDetails?: CycleDetail[]; // 當期各堂日期和狀態（備用，優先用 API 即時查詢）
 }
 
-function buildWhatsAppMessage(
+/**
+ * 用 getPeriodsBreakdown 的「最新一期」資料構建訊息
+ * 邏輯：以繳費為基準，顯示「最近繳費對應的那期」的上課狀態
+ * - 如果最新繳費對應的期尚未開始上堂 → 顯示「尚未開始」
+ * - 如果已上了幾堂 → 第1堂: date, 第2堂: date...
+ */
+function buildWhatsAppMessageFromBreakdown(
   studentName: string,
-  cycleNum: number,
-  details: CycleDetail[],
-  lastPaymentDate?: string | null,
+  lastPaymentDate: string | null,
+  latestPaidPeriod: Period | null,
 ): string {
   const sections: string[] = [];
 
@@ -42,56 +62,38 @@ function buildWhatsAppMessage(
   }
   sections.push('');
 
-  // 本期出席詳情
-  sections.push(`*今期出席（第 ${cycleNum}/12 堂）：*`);
+  if (!latestPaidPeriod || latestPaidPeriod.records.length === 0) {
+    // 這期還沒有任何上課記錄
+    sections.push(`*這期出席（第 0/12 堂）：*`);
+    sections.push(`（尚未開始上堂）`);
+  } else {
+    const cycleNum = latestPaidPeriod.attendedCount;
+    sections.push(`*這期出席（第 ${cycleNum}/12 堂）：*`);
 
-  // 列出每堂出席日期（present/late）
-  let attendIdx = 0;
-  const absentDates: string[] = [];
-  for (const rec of details) {
-    if (rec.status === 'present' || rec.status === 'late') {
-      attendIdx++;
-      const lateTag = rec.status === 'late' ? '（遲到）' : '';
-      sections.push(`第${attendIdx}堂：${rec.date}${lateTag}`);
-    } else {
-      // absent / excused
-      absentDates.push(rec.date);
+    // 列出每堂出席日期（present/late）
+    let attendIdx = 0;
+    const absentDates: string[] = [];
+    for (const rec of latestPaidPeriod.records) {
+      if (rec.isAttended) {
+        attendIdx++;
+        const lateTag = rec.status === 'late' ? '（遲到）' : '';
+        sections.push(`第${attendIdx}堂：${rec.date}${lateTag}`);
+      } else {
+        absentDates.push(rec.date);
+      }
     }
-  }
 
-  // 請假日期
-  if (absentDates.length > 0) {
-    sections.push('');
-    sections.push(`請假日期：${absentDates.join('、')}`);
-  }
-
-  // 第10堂或以上需繳費提醒
-  if (cycleNum >= 10) {
-    sections.push('');
-    sections.push(`⚠️ *已上到第 ${cycleNum} 堂，需繳交下一期精英班學費 $2,400*`);
-    sections.push('');
-    sections.push(`💳 *繳費方式*`);
-    sections.push('');
-    sections.push(`銀行轉帳：`);
-    sections.push(`• 銀行：中國銀行`);
-    sections.push(`• 帳戶號碼：012-692-2-0114816`);
-    sections.push(`• 帳戶名稱：Chong Mo Company Limited`);
-    sections.push('');
-    sections.push(`轉數快 (FPS)：`);
-    sections.push(`• ID：164577132`);
+    // 請假日期
+    if (absentDates.length > 0) {
+      sections.push('');
+      sections.push(`請假日期：${absentDates.join('、')}`);
+    }
   }
 
   sections.push('');
   sections.push(`───────────────`);
-  if (cycleNum >= 10) {
-    sections.push(`ℹ️ 如有任何疑問，歡迎隨時聯絡我們！`);
-    sections.push('');
-    sections.push(`✅ *已繳費者請忽略此訊息*`);
-    sections.push(`謝謝您的配合！🙏`);
-  } else {
-    sections.push(`方便大家紀錄番堂數`);
-    sections.push(`如有錯誤，可即時通知我地 🙏`);
-  }
+  sections.push(`方便大家紀錄番堂數`);
+  sections.push(`如有錯誤，可即時通知我地 🙏`);
 
   return sections.join('\n');
 }
@@ -131,38 +133,59 @@ export function EliteAttendanceWhatsAppButton({
     setLoading(true);
 
     try {
-      // 即時從 API 獲取最新 cycleInfo（不依賴 prop，確保數據最新）
-      const freshCycleInfo = await utils.elite.getCycleInfo.fetch({ studentId });
+      // 使用 getPeriodsBreakdown 取得完整期數明細（以繳費為基準分期）
+      const breakdown = await utils.elite.getPeriodsBreakdown.fetch({ studentId });
 
-      const finalCycleNumber = freshCycleInfo?.cycleNumber ?? cycleNumber;
-      const finalDetails: CycleDetail[] = freshCycleInfo?.cycleDetails ?? cycleDetails;
-      const lastPaymentDate = freshCycleInfo?.lastPaymentDate ?? null;
+      if (!breakdown) {
+        const message = buildWhatsAppMessageFromBreakdown(studentName, null, null);
+        openWhatsApp(studentPhone, message);
+        return;
+      }
 
-      const message = buildWhatsAppMessage(studentName, finalCycleNumber, finalDetails, lastPaymentDate);
-      const whatsappUrl = `https://api.whatsapp.com/send?phone=852${studentPhone}&text=${encodeURIComponent(message)}`;
+      // 取最近繳費日期
+      const cycleInfo = await utils.elite.getCycleInfo.fetch({ studentId });
+      const lastPaymentDate = cycleInfo?.lastPaymentDate ?? null;
 
-      // 記錄發送時間到 localStorage
-      const now = Date.now();
-      const key = `elite_wa_attendance_${studentId}`;
-      localStorage.setItem(key, now.toString());
-      setLastSentAt(now);
+      // 找到「最近繳費對應的那一期」
+      // paidPeriods = 已付期數
+      const paidPeriods = breakdown.paidPeriods;
+      let latestPaidPeriod: Period | null = null;
+      
+      if (paidPeriods > 0) {
+        // 找到最後付費對應的期
+        latestPaidPeriod = breakdown.periods.find(
+          (p: Period) => p.periodNumber === paidPeriods
+        ) || null;
+        
+        // 如果這期在數據中不存在（還沒上任何堂），
+        // 代表付了但還沒開始，回傳 null 讓訊息顯示「尚未開始」
+      }
 
-      window.open(whatsappUrl, "_blank");
+      // 如果沒有付款記錄，顯示當前最新一期
+      if (paidPeriods === 0 && breakdown.periods.length > 0) {
+        latestPaidPeriod = breakdown.periods[breakdown.periods.length - 1] as Period;
+      }
+
+      const message = buildWhatsAppMessageFromBreakdown(studentName, lastPaymentDate, latestPaidPeriod);
+      openWhatsApp(studentPhone, message);
+
     } catch (err) {
-      console.error('[WhatsApp] Failed to fetch cycleInfo, using props fallback:', err);
-      // Fallback: 使用 prop 傳入的資料
-      const message = buildWhatsAppMessage(studentName, cycleNumber, cycleDetails, null);
-      const whatsappUrl = `https://api.whatsapp.com/send?phone=852${studentPhone}&text=${encodeURIComponent(message)}`;
-
-      const now = Date.now();
-      const key = `elite_wa_attendance_${studentId}`;
-      localStorage.setItem(key, now.toString());
-      setLastSentAt(now);
-
-      window.open(whatsappUrl, "_blank");
+      console.error('[WhatsApp] Failed to fetch breakdown, using fallback:', err);
+      // Fallback: 簡單訊息
+      const message = buildWhatsAppMessageFromBreakdown(studentName, null, null);
+      openWhatsApp(studentPhone, message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const openWhatsApp = (phone: string, message: string) => {
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=852${phone}&text=${encodeURIComponent(message)}`;
+    const now = Date.now();
+    const key = `elite_wa_attendance_${studentId}`;
+    localStorage.setItem(key, now.toString());
+    setLastSentAt(now);
+    window.open(whatsappUrl, "_blank");
   };
 
   const formatLastSentTime = (timestamp: number): string => {
