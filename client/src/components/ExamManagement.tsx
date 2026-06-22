@@ -213,6 +213,7 @@ function OverviewPage({ examId }: { examId: number }) {
   const { data: exam, refetch: refetchExam } = trpc.exam.get.useQuery({ id: examId });
   const { data: stats } = trpc.exam.statistics.useQuery({ examId });
   const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: allScores } = trpc.exam.scores.listByExam.useQuery({ examId });
   const updateExam = trpc.exam.update.useMutation({ onSuccess: () => { refetchExam(); toast.success('已更新'); } });
 
   const [sseConnected, setSseConnected] = useState(false);
@@ -276,6 +277,210 @@ function OverviewPage({ examId }: { examId: number }) {
           </div>
         </div>
       )}
+
+      {/* 詳細統計分析 */}
+      {candidates && (candidates as any[]).some(c => c.status === 'passed' || c.status === 'failed') && (
+        <ExamDetailedStats candidates={candidates as any[]} allScores={allScores as any[] || []} />
+      )}
+    </div>
+  );
+}
+
+// ==================== 詳細統計分析組件 ====================
+function ExamDetailedStats({ candidates, allScores }: { candidates: any[]; allScores: any[] }) {
+  const judged = candidates.filter(c => c.status === 'passed' || c.status === 'failed');
+  const passed = judged.filter(c => c.status === 'passed');
+  const failed = judged.filter(c => c.status === 'failed');
+
+  if (judged.length === 0) return null;
+
+  // 1. 各帶級合格率
+  const beltStats = BELT_ORDER_KEYS.map(key => {
+    const beltCandidates = judged.filter(c => c.currentBelt === key);
+    const beltPassed = beltCandidates.filter(c => c.status === 'passed').length;
+    const beltFailed = beltCandidates.filter(c => c.status === 'failed').length;
+    return { key, name: getBeltName(key), total: beltCandidates.length, passed: beltPassed, failed: beltFailed };
+  }).filter(b => b.total > 0);
+
+  // 2. 各評分項目分析 — 找出最多人不合格的項目
+  const itemStats: Record<number, { name: string; category: string; total: number; fail: number; gradeA: number; gradeB: number; gradeC: number }> = {};
+  for (const s of allScores) {
+    const itemId = s.item.id;
+    if (!itemStats[itemId]) {
+      itemStats[itemId] = { name: s.item.name, category: s.item.category || '', total: 0, fail: 0, gradeA: 0, gradeB: 0, gradeC: 0 };
+    }
+    itemStats[itemId].total++;
+    const score = s.score.score;
+    if (score === 'fail' || score === 'false' || score === 'F') itemStats[itemId].fail++;
+    else if (score === 'A') itemStats[itemId].gradeA++;
+    else if (score === 'B') itemStats[itemId].gradeB++;
+    else if (score === 'C') itemStats[itemId].gradeC++;
+  }
+  const itemStatsArr = Object.values(itemStats).sort((a, b) => (b.fail / b.total) - (a.fail / a.total));
+  const problemItems = itemStatsArr.filter(i => i.fail > 0);
+
+  // 3. 道場分析
+  const dojoStats: Record<string, { total: number; passed: number; failed: number }> = {};
+  for (const c of judged) {
+    const dojo = c.dojoName || '未知道場';
+    if (!dojoStats[dojo]) dojoStats[dojo] = { total: 0, passed: 0, failed: 0 };
+    dojoStats[dojo].total++;
+    if (c.status === 'passed') dojoStats[dojo].passed++;
+    else dojoStats[dojo].failed++;
+  }
+  const dojoArr = Object.entries(dojoStats).map(([name, d]) => ({ name, ...d, rate: Math.round((d.passed / d.total) * 100) })).sort((a, b) => b.total - a.total);
+
+  // 4. 整體成績分佈
+  const totalScores = allScores.length;
+  const gradeDistribution = { A: 0, B: 0, C: 0, pass: 0, fail: 0 };
+  for (const s of allScores) {
+    const score = s.score.score;
+    if (score === 'A') gradeDistribution.A++;
+    else if (score === 'B') gradeDistribution.B++;
+    else if (score === 'C') gradeDistribution.C++;
+    else if (score === 'pass' || score === 'true') gradeDistribution.pass++;
+    else if (score === 'fail' || score === 'false' || score === 'F') gradeDistribution.fail++;
+  }
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-bold flex items-center gap-2">
+        <BarChart3 className="w-5 h-5 text-indigo-600" /> 詳細統計分析
+      </h3>
+
+      {/* 整體成績分佈 */}
+      <div className="bg-white rounded-lg border p-4">
+        <h4 className="font-medium mb-3 text-gray-700">📊 整體成績分佈</h4>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <GradeCard label="A（優秀）" count={gradeDistribution.A} total={totalScores} color="bg-green-500" />
+          <GradeCard label="B（良好）" count={gradeDistribution.B} total={totalScores} color="bg-blue-500" />
+          <GradeCard label="C（合格）" count={gradeDistribution.C} total={totalScores} color="bg-yellow-500" />
+          <GradeCard label="Pass" count={gradeDistribution.pass} total={totalScores} color="bg-emerald-500" />
+          <GradeCard label="Fail" count={gradeDistribution.fail} total={totalScores} color="bg-red-500" />
+        </div>
+      </div>
+
+      {/* 各帶級合格率 */}
+      <div className="bg-white rounded-lg border p-4">
+        <h4 className="font-medium mb-3 text-gray-700">🥋 各帶級合格率</h4>
+        <div className="space-y-2">
+          {beltStats.map(b => (
+            <div key={b.key} className="flex items-center gap-3">
+              <div className="w-20 shrink-0">{getBeltBadge(b.key)}</div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden flex">
+                    <div className="h-full bg-green-500 transition-all" style={{ width: `${(b.passed / b.total) * 100}%` }} />
+                    <div className="h-full bg-red-400 transition-all" style={{ width: `${(b.failed / b.total) * 100}%` }} />
+                  </div>
+                  <span className="text-xs text-gray-500 w-24 text-right">
+                    {b.passed}/{b.total} ({Math.round((b.passed / b.total) * 100)}%)
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 最多人不合格的項目 */}
+      {problemItems.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h4 className="font-medium mb-3 text-gray-700">⚠️ 不合格項目排名（需加強訓練）</h4>
+          <div className="space-y-2">
+            {problemItems.slice(0, 10).map((item, idx) => {
+              const failRate = Math.round((item.fail / item.total) * 100);
+              const categoryLabel = CATEGORY_NAMES[item.category] || item.category;
+              return (
+                <div key={idx} className="flex items-center gap-3">
+                  <span className="w-6 text-center text-sm font-bold text-red-500">#{idx + 1}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">
+                        {categoryLabel && <span className="text-gray-400 mr-1">[{categoryLabel}]</span>}
+                        {item.name}
+                      </span>
+                      <span className="text-xs text-red-600 font-medium">{item.fail}/{item.total} 人不合格 ({failRate}%)</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-red-400 rounded-full" style={{ width: `${failRate}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 道場分析 */}
+      {dojoArr.length > 1 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h4 className="font-medium mb-3 text-gray-700">🏠 道場表現</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">道場</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">應考</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">合格</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">不合格</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">合格率</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600 w-40">比較</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {dojoArr.map(d => (
+                  <tr key={d.name} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 font-medium">{d.name}</td>
+                    <td className="px-3 py-2 text-center">{d.total}</td>
+                    <td className="px-3 py-2 text-center text-green-600 font-medium">{d.passed}</td>
+                    <td className="px-3 py-2 text-center text-red-600 font-medium">{d.failed}</td>
+                    <td className="px-3 py-2 text-center font-bold">{d.rate}%</td>
+                    <td className="px-3 py-2">
+                      <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
+                        <div className="h-full bg-green-500" style={{ width: `${d.rate}%` }} />
+                        <div className="h-full bg-red-400" style={{ width: `${100 - d.rate}%` }} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 叻叻獎名單 */}
+      {passed.filter(c => c.hasLakLakAward).length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h4 className="font-medium mb-3 text-gray-700">⭐ 叻叻獎名單（全 A 考生）</h4>
+          <div className="flex flex-wrap gap-2">
+            {passed.filter(c => c.hasLakLakAward).map(c => (
+              <div key={c.id} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                <span className="text-sm font-medium text-amber-800">{c.name}</span>
+                {getBeltBadge(c.currentBelt)}
+                <span className="text-xs text-amber-600">→</span>
+                {getBeltBadge(c.targetBelt)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GradeCard({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <div className="bg-gray-50 rounded-lg p-3 text-center">
+      <div className="text-xl font-bold">{count}</div>
+      <div className="text-xs text-gray-500 mb-1">{label}</div>
+      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="text-xs text-gray-400 mt-0.5">{pct}%</div>
     </div>
   );
 }
