@@ -1155,6 +1155,7 @@ function ResultsPage({ examId }: { examId: number }) {
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: stats } = trpc.exam.statistics.useQuery({ examId });
   const { data: candidates, refetch } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: allScores } = trpc.exam.scores.listByExam.useQuery({ examId });
   const promoteAll = trpc.exam.promoteAll.useMutation({
     onSuccess: (data: any) => { refetch(); toast.success(`已升帶 ${data.promoted} 人`); },
     onError: (err) => toast.error(err.message),
@@ -1180,6 +1181,20 @@ function ResultsPage({ examId }: { examId: number }) {
   const examData = exam as any;
 
   // WhatsApp 成績通知
+  function getFailedItems(candidateId: number): string[] {
+    if (!allScores) return [];
+    const scores = (allScores as any[]).filter(s => s.score.candidateId === candidateId);
+    const failedItems: string[] = [];
+    for (const s of scores) {
+      const score = s.score.score;
+      if (score === 'fail' || score === 'false' || score === 'F') {
+        const category = CATEGORY_NAMES[s.item.category] || s.item.category || '';
+        failedItems.push(category ? `${category} - ${s.item.name}` : s.item.name);
+      }
+    }
+    return failedItems;
+  }
+
   function generateResultMessage(candidate: any, examName: string) {
     const beltFrom = getBeltName(candidate.currentBelt);
     const beltTo = getBeltName(candidate.targetBelt);
@@ -1195,11 +1210,15 @@ function ResultsPage({ examId }: { examId: number }) {
         `恭喜通過升級試！繼續努力練習！💪\n\n` +
         `— 創武跆拳道`;
     } else if (isFailed) {
+      const failedItems = getFailedItems(candidate.id);
+      const failedSection = failedItems.length > 0
+        ? `\n\n不合格項目:\n${failedItems.map(item => `  ❌ ${item}`).join('\n')}\n`
+        : '';
       return `📋 ${examName} 成績通知\n\n` +
         `${candidate.name} 同學\n` +
         `報考: ${beltFrom} → ${beltTo}\n` +
-        `結果: 未通過\n\n` +
-        `請繼續努力練習，下次再接再厲！加油！💪\n\n` +
+        `結果: 未通過${failedSection}\n` +
+        `請針對以上項目加強練習，下次再接再厲！加油！💪\n\n` +
         `— 創武跆拳道`;
     } else {
       return `📋 ${examName} 成績通知\n\n` +
