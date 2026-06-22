@@ -1179,6 +1179,74 @@ function ResultsPage({ examId }: { examId: number }) {
 
   const examData = exam as any;
 
+  // WhatsApp 成績通知
+  function generateResultMessage(candidate: any, examName: string) {
+    const beltFrom = getBeltName(candidate.currentBelt);
+    const beltTo = getBeltName(candidate.targetBelt);
+    const isPassed = candidate.status === 'passed';
+    const isFailed = candidate.status === 'failed';
+    const lakLak = candidate.hasLakLakAward ? '\n🌟 恭喜獲得「叻叻獎」！' : '';
+
+    if (isPassed) {
+      return `🎉 ${examName} 成績通知\n\n` +
+        `✅ ${candidate.name} 同學\n` +
+        `報考: ${beltFrom} → ${beltTo}\n` +
+        `結果: 合格 🎊${lakLak}\n\n` +
+        `恭喜通過升級試！繼續努力練習！💪\n\n` +
+        `— 創武跆拳道`;
+    } else if (isFailed) {
+      return `📋 ${examName} 成績通知\n\n` +
+        `${candidate.name} 同學\n` +
+        `報考: ${beltFrom} → ${beltTo}\n` +
+        `結果: 未通過\n\n` +
+        `請繼續努力練習，下次再接再厲！加油！💪\n\n` +
+        `— 創武跆拳道`;
+    } else {
+      return `📋 ${examName} 成績通知\n\n` +
+        `${candidate.name} 同學\n` +
+        `報考: ${beltFrom} → ${beltTo}\n` +
+        `狀態: ${STATUS_CONFIG[candidate.status]?.label || candidate.status}\n\n` +
+        `— 創武跆拳道`;
+    }
+  }
+
+  function sendWhatsAppResult(candidate: any) {
+    if (!candidate.phone) {
+      toast.error(`${candidate.name} 沒有電話號碼`);
+      return;
+    }
+    const msg = generateResultMessage(candidate, examData?.name || '升級試');
+    const phone = candidate.phone.startsWith('852') ? candidate.phone : `852${candidate.phone}`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  }
+
+  function sendBulkWhatsAppResults() {
+    const withPhone = filteredList.filter(c => c.phone);
+    if (withPhone.length === 0) {
+      toast.error('沒有考生有電話號碼');
+      return;
+    }
+    // 逐個開啟（瀏覽器可能會擋，建議用複製方式）
+    if (withPhone.length > 5) {
+      // 太多人，改為複製全部訊息
+      const msgs = withPhone.map(c => {
+        const beltFrom = getBeltName(c.currentBelt);
+        const beltTo = getBeltName(c.targetBelt);
+        const result = c.status === 'passed' ? '✅合格' : c.status === 'failed' ? '❌未通過' : c.status;
+        const lakLak = c.hasLakLakAward ? ' 🌟叻叻獎' : '';
+        return `${c.name} (${c.phone}) | ${beltFrom}→${beltTo} | ${result}${lakLak}`;
+      }).join('\n');
+      const header = `📋 ${examData?.name || '升級試'} — ${activeTab === 'passed' ? '合格' : activeTab === 'failed' ? '不合格' : '缺席'}名單\n${'─'.repeat(20)}\n`;
+      navigator.clipboard.writeText(header + msgs);
+      toast.success(`已複製 ${withPhone.length} 位考生成績到剪貼板`);
+    } else {
+      // 5人以下逐個開 WhatsApp
+      withPhone.forEach((c, i) => {
+        setTimeout(() => sendWhatsAppResult(c), i * 500);
+      });
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1222,6 +1290,10 @@ function ResultsPage({ examId }: { examId: number }) {
             <option value="all">全部級別</option>
             {BELT_ORDER_KEYS.map(b => <option key={b} value={b}>{getBeltName(b)}</option>)}
           </select>
+          <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50"
+            onClick={sendBulkWhatsAppResults}>
+            <Send className="w-4 h-4 mr-1" /> WhatsApp 通知成績
+          </Button>
           {activeTab === 'passed' && (
             <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white"
               onClick={() => { if (confirm('確定將所有合格考生升帶？')) promoteAll.mutate({ examId }); }}
@@ -1245,7 +1317,7 @@ function ResultsPage({ examId }: { examId: number }) {
               <th className="px-3 py-2 text-left font-medium text-gray-600">道場</th>
               <th className="px-3 py-2 text-left font-medium text-gray-600">現時級別</th>
               <th className="px-3 py-2 text-left font-medium text-gray-600">報考級別</th>
-              {activeTab === 'passed' && <th className="px-3 py-2 text-center font-medium text-gray-600">操作</th>}
+              <th className="px-3 py-2 text-center font-medium text-gray-600">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -1263,14 +1335,20 @@ function ResultsPage({ examId }: { examId: number }) {
                   <td className="px-3 py-2 text-gray-500">{c.dojoName || '-'}</td>
                   <td className="px-3 py-2">{getBeltBadge(c.currentBelt)}</td>
                   <td className="px-3 py-2">{getBeltBadge(c.targetBelt)}</td>
-                  {activeTab === 'passed' && (
-                    <td className="px-3 py-2 text-center">
-                      <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50"
-                        onClick={() => promoteSingle.mutate({ candidateId: c.id })} disabled={promoteSingle.isPending}>
-                        <ArrowUpCircle className="w-3 h-3 mr-1" /> 升帶
+                  <td className="px-3 py-2 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      {activeTab === 'passed' && (
+                        <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50"
+                          onClick={() => promoteSingle.mutate({ candidateId: c.id })} disabled={promoteSingle.isPending}>
+                          <ArrowUpCircle className="w-3 h-3 mr-1" /> 升帶
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="text-green-600 hover:bg-green-50"
+                        onClick={() => sendWhatsAppResult(c)} title="WhatsApp 通知家長">
+                        <Send className="w-3 h-3" />
                       </Button>
-                    </td>
-                  )}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
