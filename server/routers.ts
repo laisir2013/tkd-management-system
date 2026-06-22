@@ -5974,16 +5974,17 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         name: z.string().min(1),
-        examDate: z.date(),
+        examDate: z.coerce.date(),
         location: z.string().optional(),
         description: z.string().optional(),
         eventId: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const dateStr = input.examDate.toISOString().split('T')[0]; // "YYYY-MM-DD"
         const result = await insertExamSession({
           name: input.name,
-          examDate: input.examDate,
+          examDate: dateStr,
           location: input.location || null,
           description: input.description || null,
           eventId: input.eventId || null,
@@ -5996,15 +5997,17 @@ export const appRouter = router({
       .input(z.object({
         id: z.number(),
         name: z.string().optional(),
-        examDate: z.date().optional(),
+        examDate: z.coerce.date().optional(),
         location: z.string().optional(),
         description: z.string().optional(),
         status: z.enum(['draft', 'scheduled', 'in_progress', 'completed']).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
-        const { id, ...data } = input;
-        await updateExamSession(id, data as any);
+        const { id, examDate, ...rest } = input;
+        const data: any = { ...rest };
+        if (examDate) data.examDate = examDate.toISOString().split('T')[0];
+        await updateExamSession(id, data);
         return { success: true };
       }),
 

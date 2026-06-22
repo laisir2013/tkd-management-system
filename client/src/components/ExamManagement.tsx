@@ -132,7 +132,7 @@ export default function ExamManagement() {
 // ==================== 考試列表 ====================
 function ExamList({ onSelectExam }: { onSelectExam: (id: number) => void }) {
   const { data: exams, refetch } = trpc.exam.list.useQuery();
-  const createExam = trpc.exam.create.useMutation({ onSuccess: () => { refetch(); setShowCreate(false); toast.success('考試已建立'); } });
+  const createExam = trpc.exam.create.useMutation({ onSuccess: () => { refetch(); setShowCreate(false); setName(''); setExamDate(''); setLocation(''); toast.success('考試已建立'); }, onError: (err) => { toast.error(err.message || '建立失敗'); } });
   const deleteExam = trpc.exam.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
 
   const [showCreate, setShowCreate] = useState(false);
@@ -142,7 +142,7 @@ function ExamList({ onSelectExam }: { onSelectExam: (id: number) => void }) {
 
   const handleCreate = () => {
     if (!name || !examDate) { toast.error('請填寫名稱和日期'); return; }
-    createExam.mutate({ name, examDate, location: location || undefined });
+    createExam.mutate({ name, examDate: new Date(examDate + 'T00:00:00'), location: location || undefined });
   };
 
   return (
