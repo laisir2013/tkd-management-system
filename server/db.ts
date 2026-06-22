@@ -3367,8 +3367,9 @@ export async function promotePassedCandidate(candidateId: number): Promise<{ suc
   if (matchedStudentId) {
     const studentList = await db.select().from(students).where(eq(students.id, matchedStudentId)).limit(1);
     if (studentList.length > 0) {
-      await db.update(students).set({ beltLevel: candidate.targetBelt } as any).where(eq(students.id, matchedStudentId));
-      return { success: true, newBelt: candidate.targetBelt, studentId: matchedStudentId };
+      const chineseBelt = beltKeyToChinese(candidate.targetBelt);
+      await db.update(students).set({ beltLevel: chineseBelt } as any).where(eq(students.id, matchedStudentId));
+      return { success: true, newBelt: chineseBelt, studentId: matchedStudentId };
     }
   }
   
@@ -3454,8 +3455,27 @@ function getNextBelt(currentBelt: string): string {
   return UPGRADE_MAP[currentBelt] || 'yellow';
 }
 
-// --- 批量計算並更新考試結果 ---
-export async function calculateExamResult(candidateId: number): Promise<{ passed: boolean, hasLakLakAward: boolean, gradeAPercentage: number, incomplete?: boolean }> {
+// 英文帶級 key → 中文帶級名（students.beltLevel 存中文）
+function beltKeyToChinese(key: string): string {
+  const MAP: Record<string, string> = {
+    'white': '白帶',
+    'yellow': '黃帶',
+    'yellow_green': '黃綠帶',
+    'green': '綠帶',
+    'green_blue': '綠藍帶',
+    'blue': '藍帶',
+    'blue_red': '藍紅帶',
+    'red': '紅帶',
+    'red_black': '紅黑帶',
+    'black': '黑帶',
+    'black_2dan': '黑帶2段',
+    'black_3dan': '黑帶3段',
+  };
+  return MAP[key] || key;
+}
+
+// --- 批量計算並更新考試結果（全自動升帶/回退） ---
+export async function calculateExamResult(candidateId: number): Promise<{ passed: boolean, hasLakLakAward: boolean, gradeAPercentage: number, incomplete?: boolean, promoted?: boolean, reverted?: boolean }> {
   const scoresWithItems = await getExamScoresWithItemsByCandidate(candidateId);
   
   if (scoresWithItems.length === 0) {
@@ -3472,10 +3492,8 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
   const expectedCount = expectedItems.length;
   const scoredCount = scoresWithItems.length;
   
-  // 如果評分項目不完整（已評分數 < 應評數的 80%），不自動判定結果
-  // 但仍然允許部分評分（例如考官正在逐項評分中）
+  // 如果評分項目不完整（已評分數 < 應評數），不自動判定結果
   if (expectedCount > 0 && scoredCount < expectedCount) {
-    // 評分未完成，不更新狀態
     return { passed: false, hasLakLakAward: false, gradeAPercentage: 0, incomplete: true };
   }
   
@@ -3506,13 +3524,68 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
   const gradeAPercentage = totalGradableItems > 0 ? (gradeACount / totalGradableItems) * 100 : 0;
   const hasLakLakAward = passed && gradeAPercentage >= 80;
   
+  // 取得之前的狀態（用來判斷是否需要升帶或回退）
+  const previousStatus = candidate.status;
+  
   // 更新考生狀態
   await updateExamCandidate(candidateId, {
     status: passed ? 'passed' : 'failed',
     hasLakLakAward,
   } as any);
   
-  return { passed, hasLakLakAward, gradeAPercentage, incomplete: false };
+  // === 全自動升帶/回退邏輯 ===
+  let promoted = false;
+  let reverted = false;
+  
+  if (passed && previousStatus !== 'passed') {
+    // 新判定為 passed → 自動升帶
+    const promoteResult = await promotePassedCandidate(candidateId);
+    promoted = promoteResult.success;
+  } else if (!passed && previousStatus === 'passed') {
+    // 原本 passed 現在改為 failed → 自動回退帶級
+    const revertResult = await revertCandidateBelt(candidateId);
+    reverted = revertResult.success;
+  }
+  
+  return { passed, hasLakLakAward, gradeAPercentage, incomplete: false, promoted, reverted };
+}
+
+// --- 回退考生帶級（改分後從 passed 變 failed 時調用）---
+async function revertCandidateBelt(candidateId: number): Promise<{ success: boolean }> {
+  const db = await getDb();
+  if (!db) return { success: false };
+  
+  const candidate = await getExamCandidateById(candidateId);
+  if (!candidate) return { success: false };
+  
+  let matchedStudentId = candidate.studentId;
+  
+  // 如果沒有 student_id，嘗試匹配
+  if (!matchedStudentId) {
+    let matchedStudents: any[] = [];
+    if (candidate.name && candidate.phone) {
+      matchedStudents = await db.select().from(students)
+        .where(and(eq(students.name, candidate.name), eq(students.phone, candidate.phone)))
+        .limit(1);
+    }
+    if (matchedStudents.length === 0 && candidate.name) {
+      matchedStudents = await db.select().from(students)
+        .where(eq(students.name, candidate.name));
+      if (matchedStudents.length !== 1) matchedStudents = [];
+    }
+    if (matchedStudents.length > 0) {
+      matchedStudentId = matchedStudents[0].id;
+    }
+  }
+  
+  if (matchedStudentId) {
+    // 回退到考前帶級 (candidate.currentBelt)
+    const chineseBelt = beltKeyToChinese(candidate.currentBelt);
+    await db.update(students).set({ beltLevel: chineseBelt } as any).where(eq(students.id, matchedStudentId));
+    return { success: true };
+  }
+  
+  return { success: false };
 }
 
 // --- 批量升帶 (考試完成後) ---
