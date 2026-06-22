@@ -575,6 +575,103 @@ function ScoringPage({ examId }: { examId: number }) {
   );
 }
 
+// ==================== 匯出/列印工具函數 ====================
+function exportScoringToCSV(
+  beltCandidates: any[],
+  categorizedItems: { category: string; name: string; items: any[] }[],
+  scoreMap: Map<number, Map<number, string>>,
+  groupCode: string,
+  beltName: string,
+) {
+  const headers = ['編號', '姓名', '色帶', '狀態', ...categorizedItems.flatMap(cat => cat.items.map(item => item.name))];
+  const rows = beltCandidates.map((c: any, idx: number) => {
+    const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : `${idx + 1}`;
+    const candidateScores = scoreMap.get(c.id) || new Map<number, string>();
+    const STATUS_LABELS: Record<string, string> = { passed: '合格', failed: '不合格', absent: '缺席', checked_in: '已報到', registered: '已報名' };
+    return [
+      code, c.name, beltName, STATUS_LABELS[c.status] || c.status,
+      ...categorizedItems.flatMap(cat => cat.items.map(item => candidateScores.get(item.id) || ''))
+    ];
+  });
+  
+  // BOM for Chinese characters in Excel
+  const BOM = '\uFEFF';
+  const csvContent = BOM + [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `評分表_${groupCode.toUpperCase()}組_${beltName}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function printScoringTable(
+  beltCandidates: any[],
+  categorizedItems: { category: string; name: string; items: any[] }[],
+  scoreMap: Map<number, Map<number, string>>,
+  groupCode: string,
+  beltName: string,
+) {
+  const headerCells = categorizedItems.flatMap(cat => cat.items.map(item => `<th style="border:1px solid #ccc;padding:4px;font-size:10px;">${item.name}</th>`)).join('');
+  const bodyRows = beltCandidates.map((c: any, idx: number) => {
+    const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : `${idx + 1}`;
+    const candidateScores = scoreMap.get(c.id) || new Map<number, string>();
+    const STATUS_LABELS: Record<string, string> = { passed: '合格', failed: '不合格', absent: '缺席', checked_in: '已報到', registered: '已報名' };
+    const scoreCells = categorizedItems.flatMap(cat => cat.items.map(item => {
+      const score = candidateScores.get(item.id) || '';
+      const color = score === 'A' ? '#16a34a' : score === 'B' ? '#2563eb' : score === 'C' ? '#ea580c' : score === 'pass' ? '#16a34a' : score === 'fail' ? '#dc2626' : '#000';
+      return `<td style="border:1px solid #ccc;padding:4px;text-align:center;font-size:11px;color:${color};font-weight:bold;">${score}</td>`;
+    })).join('');
+    return `<tr><td style="border:1px solid #ccc;padding:4px;text-align:center;">${code}</td><td style="border:1px solid #ccc;padding:4px;">${c.name}</td><td style="border:1px solid #ccc;padding:4px;text-align:center;">${STATUS_LABELS[c.status] || c.status}</td>${scoreCells}</tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><title>評分表 ${groupCode.toUpperCase()}組 ${beltName}</title><style>@media print{body{margin:0;}table{width:100%;border-collapse:collapse;}}</style></head><body>
+    <h2 style="text-align:center;margin-bottom:8px;">${groupCode.toUpperCase()} 組 評分表 - ${beltName}</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <thead><tr style="background:#f3f4f6;"><th style="border:1px solid #ccc;padding:4px;">編號</th><th style="border:1px solid #ccc;padding:4px;">姓名</th><th style="border:1px solid #ccc;padding:4px;">狀態</th>${headerCells}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table></body></html>`;
+  const win = window.open('', '_blank');
+  if (win) { win.document.write(html); win.document.close(); win.print(); }
+}
+
+function exportCandidateListToCSV(candidates: any[], examName: string, filterLabel: string) {
+  const GENDER_MAP: Record<string, string> = { male: '男', female: '女' };
+  const headers = ['編號', '姓名', '性別', '年齡', '道場', '現時級別', '報考級別', '狀態'];
+  const rows = candidates.map((c: any) => {
+    const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : '-';
+    const STATUS_LABELS: Record<string, string> = { passed: '合格', failed: '不合格', absent: '缺席', checked_in: '已報到', registered: '已報名' };
+    return [code, c.name, GENDER_MAP[c.gender] || '-', c.age ?? '-', c.dojoName || '-', getBeltName(c.currentBelt), getBeltName(c.targetBelt), STATUS_LABELS[c.status] || c.status];
+  });
+  const BOM = '\uFEFF';
+  const csvContent = BOM + [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${examName}_${filterLabel}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function generateTimetableWhatsAppMessage(exam: any, schedules: any[], candidates: any[]) {
+  let msg = `📋 ${exam.name}\n`;
+  msg += `📅 ${new Date(exam.examDate + 'T00:00:00').toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}\n`;
+  if (exam.location) msg += `📍 ${exam.location}\n`;
+  msg += `\n`;
+  
+  const sorted = [...schedules].sort((a: any, b: any) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+  for (const sch of sorted) {
+    const groupCandidates = candidates.filter((c: any) => c.groupCode === sch.groupCode);
+    if (groupCandidates.length === 0) continue;
+    msg += `【${sch.groupCode?.toUpperCase() || '-'} 組】${getBeltName(sch.beltLevel)} | ${sch.timeSlot || `${sch.startTime}-${sch.endTime}`}\n`;
+    msg += groupCandidates.map((c: any) => `  ${c.orderNumber || '-'}. ${c.name}`).join('\n');
+    msg += '\n\n';
+  }
+  return msg;
+}
+
 // ==================== 批量評分表格 (A/B/C 矩陣) ====================
 function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; groupCode: string; onBack: () => void }) {
   const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
@@ -673,8 +770,8 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline"><Download className="w-4 h-4 mr-1" /> 匯出 Excel</Button>
-          <Button size="sm" variant="outline"><Printer className="w-4 h-4 mr-1" /> 列印評分表</Button>
+          <Button size="sm" variant="outline" onClick={() => exportScoringToCSV(beltCandidates, categorizedItems, scoreMap, groupCode, getBeltName(currentBelt))}><Download className="w-4 h-4 mr-1" /> 匯出 Excel</Button>
+          <Button size="sm" variant="outline" onClick={() => printScoringTable(beltCandidates, categorizedItems, scoreMap, groupCode, getBeltName(currentBelt))}><Printer className="w-4 h-4 mr-1" /> 列印評分表</Button>
           {currentBelt && items.length === 0 && (
             <Button size="sm" variant="outline" onClick={() => initForBelt.mutate({ beltLevel: currentBelt })} disabled={initForBelt.isPending}>
               {initForBelt.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null} 初始化評分項目
@@ -911,8 +1008,18 @@ function TimetablePage({ examId }: { examId: number }) {
           {examData && <p className="text-sm text-gray-500">{examData.name}</p>}
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline"><Mail className="w-4 h-4 mr-1" /> Email 通知家長</Button>
-          <Button size="sm" variant="outline"><Send className="w-4 h-4 mr-1" /> WhatsApp 通知</Button>
+          <Button size="sm" variant="outline" onClick={() => {
+            if (!examData || !candidates) return;
+            const msg = generateTimetableWhatsAppMessage(examData, sortedSchedules, candidates as any[]);
+            navigator.clipboard.writeText(msg);
+            toast.success('時間表已複製到剪貼板，可貼上 WhatsApp');
+          }}><Mail className="w-4 h-4 mr-1" /> 複製通知</Button>
+          <Button size="sm" variant="outline" onClick={() => {
+            if (!examData || !candidates) return;
+            const msg = generateTimetableWhatsAppMessage(examData, sortedSchedules, candidates as any[]);
+            const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+            window.open(url, '_blank');
+          }}><Send className="w-4 h-4 mr-1" /> WhatsApp 通知</Button>
           <Button size="sm" onClick={() => setShowCreate(!showCreate)} className="bg-blue-600 hover:bg-blue-700 text-white">
             <Plus className="w-4 h-4 mr-1" /> 新增時間表
           </Button>
@@ -1079,7 +1186,10 @@ function ResultsPage({ examId }: { examId: number }) {
           <h1 className="text-xl font-bold">考試結果</h1>
           {examData && <p className="text-sm text-gray-500">{examData.name}</p>}
         </div>
-        <Button size="sm" variant="outline"><Download className="w-4 h-4 mr-1" /> 匯出名單</Button>
+        <Button size="sm" variant="outline" onClick={() => {
+          const TAB_LABELS: Record<string, string> = { passed: '合格名單', failed: '不合格名單', absent: '缺席名單' };
+          exportCandidateListToCSV(filteredList, examData?.name || '考試', TAB_LABELS[activeTab] || activeTab);
+        }}><Download className="w-4 h-4 mr-1" /> 匯出名單</Button>
       </div>
 
       {/* Statistics Cards */}

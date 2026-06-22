@@ -3322,19 +3322,53 @@ export async function getExamStatistics(examId: number) {
 }
 
 // --- 考試結果自動升帶 ---
-export async function promotePassedCandidate(candidateId: number): Promise<{ success: boolean, newBelt?: string }> {
+export async function promotePassedCandidate(candidateId: number): Promise<{ success: boolean, newBelt?: string, studentId?: number }> {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   
   const candidate = await getExamCandidateById(candidateId);
   if (!candidate || candidate.status !== 'passed') return { success: false };
   
-  // 如果有關聯的 student_id，更新主系統學生帶級
-  if (candidate.studentId) {
-    const studentList = await db.select().from(students).where(eq(students.id, candidate.studentId)).limit(1);
+  let matchedStudentId = candidate.studentId;
+  
+  // 如果沒有 student_id，嘗試用姓名+電話匹配
+  if (!matchedStudentId) {
+    let matchedStudents: any[] = [];
+    
+    // 優先用 姓名+電話 精確匹配
+    if (candidate.name && candidate.phone) {
+      matchedStudents = await db.select().from(students)
+        .where(and(
+          eq(students.name, candidate.name),
+          eq(students.phone, candidate.phone)
+        )).limit(1);
+    }
+    
+    // 如果電話匹配失敗，嘗試只用姓名（但要小心重名）
+    if (matchedStudents.length === 0 && candidate.name) {
+      matchedStudents = await db.select().from(students)
+        .where(eq(students.name, candidate.name));
+      // 只有唯一匹配才使用（避免重名誤判）
+      if (matchedStudents.length !== 1) {
+        matchedStudents = [];
+      }
+    }
+    
+    if (matchedStudents.length > 0) {
+      matchedStudentId = matchedStudents[0].id;
+      // 回寫 student_id 到 exam_candidates，方便日後查詢
+      await db.update(examCandidates)
+        .set({ studentId: matchedStudentId } as any)
+        .where(eq(examCandidates.id, candidateId));
+    }
+  }
+  
+  // 更新學生帶級
+  if (matchedStudentId) {
+    const studentList = await db.select().from(students).where(eq(students.id, matchedStudentId)).limit(1);
     if (studentList.length > 0) {
-      await db.update(students).set({ beltLevel: candidate.targetBelt } as any).where(eq(students.id, candidate.studentId));
-      return { success: true, newBelt: candidate.targetBelt };
+      await db.update(students).set({ beltLevel: candidate.targetBelt } as any).where(eq(students.id, matchedStudentId));
+      return { success: true, newBelt: candidate.targetBelt, studentId: matchedStudentId };
     }
   }
   
@@ -3421,11 +3455,28 @@ function getNextBelt(currentBelt: string): string {
 }
 
 // --- 批量計算並更新考試結果 ---
-export async function calculateExamResult(candidateId: number): Promise<{ passed: boolean, hasLakLakAward: boolean, gradeAPercentage: number }> {
+export async function calculateExamResult(candidateId: number): Promise<{ passed: boolean, hasLakLakAward: boolean, gradeAPercentage: number, incomplete?: boolean }> {
   const scoresWithItems = await getExamScoresWithItemsByCandidate(candidateId);
   
   if (scoresWithItems.length === 0) {
+    return { passed: false, hasLakLakAward: false, gradeAPercentage: 0, incomplete: true };
+  }
+  
+  // 取得考生的帶級，檢查應有評分項目數
+  const candidate = await getExamCandidateById(candidateId);
+  if (!candidate) {
     return { passed: false, hasLakLakAward: false, gradeAPercentage: 0 };
+  }
+  
+  const expectedItems = await getExamScoringItemsByBelt(candidate.currentBelt);
+  const expectedCount = expectedItems.length;
+  const scoredCount = scoresWithItems.length;
+  
+  // 如果評分項目不完整（已評分數 < 應評數的 80%），不自動判定結果
+  // 但仍然允許部分評分（例如考官正在逐項評分中）
+  if (expectedCount > 0 && scoredCount < expectedCount) {
+    // 評分未完成，不更新狀態
+    return { passed: false, hasLakLakAward: false, gradeAPercentage: 0, incomplete: true };
   }
   
   const isItemFailed = (scoreValue: string | null): boolean => {
@@ -3461,7 +3512,7 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
     hasLakLakAward,
   } as any);
   
-  return { passed, hasLakLakAward, gradeAPercentage };
+  return { passed, hasLakLakAward, gradeAPercentage, incomplete: false };
 }
 
 // --- 批量升帶 (考試完成後) ---
