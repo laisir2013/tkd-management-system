@@ -925,6 +925,27 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
     },
   });
 
+  const clearScore = trpc.exam.scores.clearScore.useMutation({
+    onSuccess: () => { refetchScores(); refetchCandidates(); toast.success('已取消該項評分'); },
+    onError: (err) => toast.error(err.message),
+  });
+  const clearAllScores = trpc.exam.scores.clearAllScores.useMutation({
+    onSuccess: () => { refetchScores(); refetchCandidates(); toast.success('已取消該考生全部評分'); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleClearScore = (candidateId: number, scoringItemId: number, itemName: string) => {
+    const pw = prompt(`取消「${itemName}」的評分\n\n請輸入管理密碼以確認：`);
+    if (!pw) return;
+    clearScore.mutate({ candidateId, scoringItemId, password: pw });
+  };
+
+  const handleClearAllScores = (candidateId: number, candidateName: string) => {
+    const pw = prompt(`⚠️ 取消「${candidateName}」的全部評分\n\n此操作會清除所有項目的評分並重置狀態為「已報名」。\n\n請輸入管理密碼以確認：`);
+    if (!pw) return;
+    clearAllScores.mutate({ candidateId, password: pw });
+  };
+
   // Organize scores by candidate
   const scoreMap = useMemo(() => {
     if (!allScores) return new Map<number, Map<number, string>>();
@@ -1016,6 +1037,9 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
                 <th className="px-2 py-1 border-r bg-gray-50 min-w-[60px]" rowSpan={2}>姓名</th>
                 <th className="px-2 py-1 border-r bg-gray-50 min-w-[50px]" rowSpan={2}>色帶</th>
                 <th className="px-2 py-1 border-r bg-gray-50 min-w-[60px]" rowSpan={2}>狀態</th>
+                <th className="px-1 py-1 border-r bg-red-50 min-w-[32px]" rowSpan={2} title="清除全部評分">
+                  <Trash2 className="w-3 h-3 text-red-400 mx-auto" />
+                </th>
                 {categorizedItems.map(cat => (
                   <th key={cat.category} colSpan={cat.items.length}
                     className={`px-2 py-1.5 text-center text-white text-xs font-bold ${
@@ -1079,6 +1103,18 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
                         )}
                       </div>
                     </td>
+                    <td className="px-1 py-1 border-r text-center">
+                      {!isAbsent && candidateScores.size > 0 && (
+                        <button
+                          onClick={() => handleClearAllScores(c.id, c.name)}
+                          disabled={clearAllScores.isPending}
+                          className="p-0.5 rounded text-red-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          title={`清除 ${c.name} 全部評分`}
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
                     {categorizedItems.flatMap(cat => cat.items.map(item => {
                       const currentScore = candidateScores.get(item.id) || '';
                       const isGrade = item.type === 'grade';
@@ -1094,7 +1130,7 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
                       }
 
                       return (
-                        <td key={item.id} className="px-1 py-1 border-r text-center">
+                        <td key={item.id} className="px-1 py-1 border-r text-center relative group/cell">
                           {isGrade ? (
                             <div className="flex items-center justify-center gap-1">
                               {['A', 'B', 'C'].map(grade => (
@@ -1134,6 +1170,13 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
                                 }`}>否</button>
                             </div>
                           ) : null}
+                          {currentScore && (
+                            <button
+                              onClick={() => handleClearScore(c.id, item.id, item.name)}
+                              className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-100 text-red-500 hover:bg-red-500 hover:text-white opacity-0 group-hover/cell:opacity-100 transition-opacity flex items-center justify-center text-[8px] leading-none shadow-sm"
+                              title={`取消「${item.name}」評分`}
+                            >✕</button>
+                          )}
                         </td>
                       );
                     }))}
@@ -1177,42 +1220,59 @@ function TimetablePage({ examId }: { examId: number }) {
 
   // Drag & Drop state
   const [dragCandidate, setDragCandidate] = useState<{ id: number; name: string; groupCode: string } | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ groupCode: string; position: number } | null>(null);
+  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null); // "groupCode:position"
+  const dragCounterRef = React.useRef<Map<string, number>>(new Map());
 
   const handleDragStart = useCallback((e: React.DragEvent, candidate: { id: number; name: string; groupCode: string }) => {
     setDragCandidate(candidate);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(candidate.id));
-    // Make the drag image semi-transparent
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '0.5';
-    }
+    // Delay opacity so the drag image captures the full element
+    requestAnimationFrame(() => {
+      if (e.target instanceof HTMLElement) e.target.style.opacity = '0.4';
+    });
   }, []);
 
   const handleDragEnd = useCallback((e: React.DragEvent) => {
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '1';
-    }
+    if (e.target instanceof HTMLElement) e.target.style.opacity = '1';
     setDragCandidate(null);
-    setDropTarget(null);
+    setDropTargetKey(null);
+    dragCounterRef.current.clear();
   }, []);
 
-  const handleDragOver = useCallback((e: React.DragEvent, groupCode: string, position: number) => {
+  const makeCellKey = (groupCode: string, position: number) => `${groupCode}:${position}`;
+
+  const handleCellDragEnter = useCallback((e: React.DragEvent, key: string) => {
+    e.preventDefault();
+    const map = dragCounterRef.current;
+    map.set(key, (map.get(key) || 0) + 1);
+    setDropTargetKey(key);
+  }, []);
+
+  const handleCellDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setDropTarget({ groupCode, position });
   }, []);
 
-  const handleDragLeave = useCallback(() => {
-    setDropTarget(null);
+  const handleCellDragLeave = useCallback((key: string) => {
+    const map = dragCounterRef.current;
+    const count = (map.get(key) || 1) - 1;
+    if (count <= 0) {
+      map.delete(key);
+      setDropTargetKey(prev => prev === key ? null : prev);
+    } else {
+      map.set(key, count);
+    }
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent, targetGroupCode: string, targetPosition: number) => {
+  const handleCellDrop = useCallback((e: React.DragEvent, targetGroupCode: string, targetPosition: number) => {
     e.preventDefault();
+    e.stopPropagation();
     const candidateId = parseInt(e.dataTransfer.getData('text/plain'));
     if (!candidateId || isNaN(candidateId)) return;
-    setDropTarget(null);
+    setDropTargetKey(null);
     setDragCandidate(null);
+    dragCounterRef.current.clear();
     moveCandidate.mutate({ candidateId, targetGroupCode, targetPosition });
   }, [moveCandidate]);
 
@@ -1455,28 +1515,30 @@ function TimetablePage({ examId }: { examId: number }) {
                   <td className="px-2 py-2 border-r text-center font-bold">{row.groupCode?.toUpperCase() || '-'}</td>
                   {Array.from({ length: Math.min(maxPositions, 9) }, (_, i) => {
                     const c = row.candidates[i];
-                    const isDropHere = dropTarget?.groupCode === row.groupCode && dropTarget?.position === i + 1;
+                    const cellKey = makeCellKey(row.groupCode, i + 1);
+                    const isDropHere = dropTargetKey === cellKey && dragCandidate != null;
                     return (
                       <td key={i}
-                        className={`px-1 py-1 border-r text-center transition-colors ${isDropHere ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''}`}
-                        onDragOver={(e) => handleDragOver(e, row.groupCode, i + 1)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, row.groupCode, i + 1)}
+                        className={`px-1 py-1 border-r text-center transition-colors min-h-[40px] ${isDropHere ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''}`}
+                        onDragEnter={(e) => handleCellDragEnter(e, cellKey)}
+                        onDragOver={handleCellDragOver}
+                        onDragLeave={() => handleCellDragLeave(cellKey)}
+                        onDrop={(e) => handleCellDrop(e, row.groupCode, i + 1)}
                       >
                         {c ? (
-                          <span
+                          <div
                             draggable
-                            onDragStart={(e) => handleDragStart(e, { id: c.id, name: c.name, groupCode: row.groupCode })}
+                            onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, { id: c.id, name: c.name, groupCode: row.groupCode }); }}
                             onDragEnd={handleDragEnd}
                             className={`inline-flex flex-col items-center px-1.5 py-0.5 rounded text-xs cursor-grab active:cursor-grabbing select-none
-                              ${dragCandidate?.id === c.id ? 'opacity-50 bg-blue-200' : 'bg-gray-50 hover:bg-blue-50 hover:shadow-sm border border-transparent hover:border-blue-200'}`}
+                              ${dragCandidate?.id === c.id ? 'opacity-40 bg-blue-200 scale-95' : 'bg-gray-50 hover:bg-blue-50 hover:shadow border border-transparent hover:border-blue-300'}`}
                             title={`拖拉移動 ${c.name} 到其他組別/位置`}
                           >
-                            <span>{c.name}</span>
-                            <span className={`text-[9px] leading-tight ${BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
-                          </span>
+                            <span className="pointer-events-none">{c.name}</span>
+                            <span className={`pointer-events-none text-[9px] leading-tight ${BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
+                          </div>
                         ) : (
-                          <span className={`inline-block w-full h-5 rounded ${isDropHere ? 'bg-blue-200' : ''}`} />
+                          <div className={`w-full h-8 rounded ${isDropHere ? 'bg-blue-200 border-2 border-dashed border-blue-400' : ''}`} />
                         )}
                       </td>
                     );
@@ -1503,15 +1565,17 @@ function TimetablePage({ examId }: { examId: number }) {
             const groupCandidates = candidates
               ? (candidates as any[]).filter(c => c.groupCode === sch.groupCode).sort((a, b) => (a.orderNumber || 0) - (b.orderNumber || 0))
               : [];
-            const isGroupDropTarget = dropTarget?.groupCode === sch.groupCode;
+            const grpDropKey = makeCellKey(sch.groupCode, groupCandidates.length + 1);
+            const isGroupDropTarget = dropTargetKey?.startsWith(sch.groupCode + ':') && dragCandidate != null;
             const grpTargetBelts = [...new Set(groupCandidates.map(c => c.targetBelt))]
               .sort((a, b) => (BELT_LEVELS[a]?.order ?? 99) - (BELT_LEVELS[b]?.order ?? 99));
             return (
               <div key={sch.id}
                 className={`bg-white rounded-lg border p-4 transition-colors ${isGroupDropTarget ? 'border-blue-400 bg-blue-50' : ''}`}
-                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget({ groupCode: sch.groupCode, position: groupCandidates.length + 1 }); }}
-                onDragLeave={() => setDropTarget(null)}
-                onDrop={(e) => handleDrop(e, sch.groupCode, groupCandidates.length + 1)}
+                onDragEnter={(e) => handleCellDragEnter(e, grpDropKey)}
+                onDragOver={handleCellDragOver}
+                onDragLeave={() => handleCellDragLeave(grpDropKey)}
+                onDrop={(e) => handleCellDrop(e, sch.groupCode, groupCandidates.length + 1)}
               >
                 <div className="flex items-center gap-3 mb-3 flex-wrap">
                   <span className="text-lg font-bold">{sch.groupCode?.toUpperCase() || '-'} 組</span>
@@ -1527,26 +1591,31 @@ function TimetablePage({ examId }: { examId: number }) {
                   {sch.timeSlot && <span className={`px-2 py-0.5 rounded text-xs ${getTimeSlotColor(sch.beltLevel)}`}>{sch.timeSlot}</span>}
                 </div>
                 <div className="flex flex-wrap gap-2 min-h-[32px]">
-                  {groupCandidates.map((c: any, idx: number) => (
-                    <span key={c.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, { id: c.id, name: c.name, groupCode: sch.groupCode })}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={(e) => handleDragOver(e, sch.groupCode, idx + 1)}
-                      onDrop={(e) => handleDrop(e, sch.groupCode, idx + 1)}
-                      className={`inline-flex flex-col items-center border rounded px-2 py-1 text-sm cursor-grab active:cursor-grabbing select-none transition-all
-                        ${dragCandidate?.id === c.id ? 'opacity-50 bg-blue-200 border-blue-300' : 'bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm'}`}
-                      title={`拖拉移動 ${c.name}`}
-                    >
-                      <span>{c.name}</span>
-                      <span className={`text-[9px] leading-tight ${BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
-                    </span>
-                  ))}
+                  {groupCandidates.map((c: any, idx: number) => {
+                    const itemKey = makeCellKey(sch.groupCode, idx + 1);
+                    return (
+                      <div key={c.id}
+                        draggable
+                        onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, { id: c.id, name: c.name, groupCode: sch.groupCode }); }}
+                        onDragEnd={handleDragEnd}
+                        onDragEnter={(e) => handleCellDragEnter(e, itemKey)}
+                        onDragOver={handleCellDragOver}
+                        onDragLeave={() => handleCellDragLeave(itemKey)}
+                        onDrop={(e) => handleCellDrop(e, sch.groupCode, idx + 1)}
+                        className={`inline-flex flex-col items-center border rounded px-2 py-1 text-sm cursor-grab active:cursor-grabbing select-none transition-all
+                          ${dragCandidate?.id === c.id ? 'opacity-40 bg-blue-200 border-blue-300 scale-95' : 'bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm'}`}
+                        title={`拖拉移動 ${c.name}`}
+                      >
+                        <span className="pointer-events-none">{c.name}</span>
+                        <span className={`pointer-events-none text-[9px] leading-tight ${BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
+                      </div>
+                    );
+                  })}
                   {groupCandidates.length === 0 && !isGroupDropTarget && <span className="text-sm text-gray-400">尚無考生</span>}
                   {isGroupDropTarget && dragCandidate && (
-                    <span className="inline-flex items-center bg-blue-100 border-2 border-dashed border-blue-400 rounded px-2 py-1 text-sm text-blue-600">
+                    <div className="inline-flex items-center bg-blue-100 border-2 border-dashed border-blue-400 rounded px-2 py-1 text-sm text-blue-600">
                       放置 {dragCandidate.name} 到此
-                    </span>
+                    </div>
                   )}
                 </div>
               </div>

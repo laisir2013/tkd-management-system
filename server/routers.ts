@@ -6491,6 +6491,53 @@ export const appRouter = router({
           await deleteExamScoresByCandidate(input.candidateId);
           return { success: true };
         }),
+
+      // 帶密碼驗證的單項取消評分
+      clearScore: protectedProcedure
+        .input(z.object({
+          candidateId: z.number(),
+          scoringItemId: z.number(),
+          password: z.string(),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (input.password !== 'tkd2026') throw new TRPCError({ code: 'FORBIDDEN', message: '密碼錯誤' });
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+          await db.delete(schema.examScores).where(
+            and(
+              eq(schema.examScores.candidateId, input.candidateId),
+              eq(schema.examScores.scoringItemId, input.scoringItemId),
+            )
+          );
+          // Recalculate result after clearing
+          await calculateExamResult(input.candidateId);
+          broadcastScoreUpdate(input.candidateId, input.scoringItemId, '');
+          return { success: true };
+        }),
+
+      // 帶密碼驗證的全部取消評分（整個學生）
+      clearAllScores: protectedProcedure
+        .input(z.object({
+          candidateId: z.number(),
+          password: z.string(),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (input.password !== 'tkd2026') throw new TRPCError({ code: 'FORBIDDEN', message: '密碼錯誤' });
+          await deleteExamScoresByCandidate(input.candidateId);
+          // Reset candidate status to registered
+          const db = await getDb();
+          if (db) {
+            await db.update(schema.examCandidates)
+              .set({ status: 'registered' })
+              .where(eq(schema.examCandidates.id, input.candidateId));
+          }
+          broadcastCandidateUpdate(
+            (await getExamCandidateById(input.candidateId) as any)?.examId || 0,
+            input.candidateId,
+            { status: 'registered' }
+          );
+          return { success: true };
+        }),
     }),
 
     // --- 升帶 ---
