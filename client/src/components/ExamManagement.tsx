@@ -1436,6 +1436,9 @@ function TimetablePage({ examId }: { examId: number }) {
     onError: (err) => toast.error(err.message),
   });
 
+  // SSE: auto-refresh when check-in / score updates happen
+  useExamSSE({ examId, enabled: true, autoInvalidate: true });
+
   // Tap-to-move state (works on both mobile & desktop)
   const [selectedCandidate, setSelectedCandidate] = useState<{ id: number; name: string; groupCode: string } | null>(null);
 
@@ -1765,6 +1768,14 @@ function TimetablePage({ examId }: { examId: number }) {
                           >
                             <span>{c.name}</span>
                             <span className={`text-[9px] leading-tight ${isSelected ? 'text-blue-100' : BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
+                            {/* Check-in status indicator */}
+                            {!isSelected && (
+                              ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)
+                                ? <span className="text-[8px] leading-tight text-green-600 font-medium">✓ 已到</span>
+                                : c.status === 'absent'
+                                  ? <span className="text-[8px] leading-tight text-red-500 font-medium">✗ 缺席</span>
+                                  : <span className="text-[8px] leading-tight text-gray-400">未到</span>
+                            )}
                             {!selectedCandidate && (
                               <button
                                 onClick={(ev) => { ev.stopPropagation(); sendScheduleWhatsApp(c); }}
@@ -1822,6 +1833,15 @@ function TimetablePage({ examId }: { examId: number }) {
                     : getBeltBadge(sch.beltLevel)
                   }
                   <span className="text-sm text-gray-500">{groupCandidates.length} 人</span>
+                  {/* Check-in count */}
+                  {(() => {
+                    const arrived = groupCandidates.filter((gc: any) => ['checked_in', 'examining', 'passed', 'failed'].includes(gc.status)).length;
+                    return arrived > 0 ? (
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${arrived === groupCandidates.length ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                        {arrived}/{groupCandidates.length} 已到
+                      </span>
+                    ) : null;
+                  })()}
                   {sch.timeSlot && <span className={`px-2 py-0.5 rounded text-xs ${getTimeSlotColor(sch.beltLevel)}`}>{sch.timeSlot}</span>}
                   {/* Add-to-group button when a student is selected */}
                   {selectedCandidate && (
@@ -1856,6 +1876,14 @@ function TimetablePage({ examId }: { examId: number }) {
                       >
                         <span>{c.name}</span>
                         <span className={`text-[9px] leading-tight ${isSelected ? 'text-blue-100' : BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
+                        {/* Check-in status indicator */}
+                        {!isSelected && (
+                          ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)
+                            ? <span className="text-[8px] leading-tight text-green-600 font-medium">✓ 已到</span>
+                            : c.status === 'absent'
+                              ? <span className="text-[8px] leading-tight text-red-500 font-medium">✗ 缺席</span>
+                              : <span className="text-[8px] leading-tight text-gray-400">未到</span>
+                        )}
                         {!selectedCandidate && (
                           <button
                             onClick={(ev) => { ev.stopPropagation(); sendScheduleWhatsApp(c); }}
