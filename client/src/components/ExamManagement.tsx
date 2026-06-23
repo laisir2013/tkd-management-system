@@ -10,7 +10,7 @@ import {
   XCircle, AlertCircle, FileText, Upload, UserPlus, Calendar,
   Download, Search, ExternalLink, Copy, UserCheck, ArrowLeft,
   Eye, Clock, RefreshCw, LayoutDashboard, MessageSquare, Printer,
-  Mail, Send, ChevronRight, BarChart3
+  Mail, Send, ChevronRight, BarChart3, Zap
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1153,13 +1153,24 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
 function TimetablePage({ examId }: { examId: number }) {
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: schedules, refetch } = trpc.exam.schedules.list.useQuery({ examId });
-  const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
   const [viewMode, setViewMode] = useState<'timetable' | 'groups'>('timetable');
 
   const createSchedule = trpc.exam.schedules.create.useMutation({ onSuccess: () => { refetch(); toast.success('已新增'); } });
   const deleteSchedule = trpc.exam.schedules.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
+  const autoGroup = trpc.exam.candidates.autoGroup.useMutation({
+    onSuccess: (data: any) => { refetch(); refetchCandidates(); toast.success(`已自動分為 ${data.groupCount} 組（${data.candidateCount} 人）`); setShowAutoGroup(false); },
+    onError: (err) => toast.error(err.message),
+  });
 
   const [showCreate, setShowCreate] = useState(false);
+  const [showAutoGroup, setShowAutoGroup] = useState(false);
+  const [agStartTime, setAgStartTime] = useState('10:00');
+  const [agMinutes, setAgMinutes] = useState(30);
+  const [agMaxPerGroup, setAgMaxPerGroup] = useState(10);
+  const [agBreakAfter, setAgBreakAfter] = useState(4);
+  const [agBreakMins, setAgBreakMins] = useState(15);
+  const [agVenue, setAgVenue] = useState('');
   const [newBelt, setNewBelt] = useState('white');
   const [newGroup, setNewGroup] = useState('');
   const [newStart, setNewStart] = useState('');
@@ -1225,11 +1236,76 @@ function TimetablePage({ examId }: { examId: number }) {
             const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
             window.open(url, '_blank');
           }}><Send className="w-4 h-4 mr-1" /> WhatsApp 通知</Button>
-          <Button size="sm" onClick={() => setShowCreate(!showCreate)} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button size="sm" onClick={() => { setShowAutoGroup(!showAutoGroup); setShowCreate(false); }} className="bg-amber-600 hover:bg-amber-700 text-white">
+            <Zap className="w-4 h-4 mr-1" /> 自動分組
+          </Button>
+          <Button size="sm" onClick={() => { setShowCreate(!showCreate); setShowAutoGroup(false); }} className="bg-blue-600 hover:bg-blue-700 text-white">
             <Plus className="w-4 h-4 mr-1" /> 新增時間表
           </Button>
         </div>
       </div>
+
+      {/* Auto-group configuration form */}
+      {showAutoGroup && (
+        <div className="bg-amber-50 rounded-lg border border-amber-200 p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <Zap className="w-5 h-5 text-amber-600" />
+            <h3 className="font-semibold text-amber-800">自動分組設定</h3>
+            <span className="text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded">根據帶級自動分組並產生時間表</span>
+          </div>
+          <p className="text-xs text-amber-700">系統會將考生依帶級排序，每組最多指定人數。同一帶級超過上限時自動拆分。分組後自動產生對應的時間表。</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">開始時間</label>
+              <Input type="time" value={agStartTime} onChange={e => setAgStartTime(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">每組時間（分鐘）</label>
+              <Input type="number" min={15} max={60} value={agMinutes} onChange={e => setAgMinutes(Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">每組最多人數</label>
+              <Input type="number" min={4} max={20} value={agMaxPerGroup} onChange={e => setAgMaxPerGroup(Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">每幾組休息</label>
+              <Input type="number" min={0} max={10} value={agBreakAfter} onChange={e => setAgBreakAfter(Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">休息時間（分鐘）</label>
+              <Input type="number" min={0} max={30} value={agBreakMins} onChange={e => setAgBreakMins(Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">場地（選填）</label>
+              <Input placeholder="如：A道場" value={agVenue} onChange={e => setAgVenue(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              onClick={() => autoGroup.mutate({
+                examId,
+                startTime: agStartTime,
+                minutesPerGroup: agMinutes,
+                maxPerGroup: agMaxPerGroup,
+                breakAfterGroups: agBreakAfter,
+                breakMinutes: agBreakMins,
+                venue: agVenue || undefined,
+              })}
+              disabled={autoGroup.isPending}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {autoGroup.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Zap className="w-4 h-4 mr-1" />}
+              {autoGroup.isPending ? '分組中...' : '執行自動分組'}
+            </Button>
+            <Button variant="outline" onClick={() => setShowAutoGroup(false)}>取消</Button>
+            {sortedSchedules.length > 0 && (
+              <span className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> 執行後將清除現有分組和時間表
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* View mode tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">

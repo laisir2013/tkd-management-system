@@ -6156,6 +6156,107 @@ export const appRouter = router({
           const count = await createCandidatesFromEventRegistrations(input.examId, input.eventId);
           return { success: true, imported: count };
         }),
+
+      // 一鍵自動分組 + 生成時間表
+      autoGroup: protectedProcedure
+        .input(z.object({
+          examId: z.number(),
+          maxPerGroup: z.number().min(4).max(20).default(10),
+          startTime: z.string().default('10:00'),
+          minutesPerGroup: z.number().min(15).max(60).default(30),
+          breakAfterGroups: z.number().min(0).max(10).default(4),
+          breakMinutes: z.number().min(0).max(30).default(15),
+          venue: z.string().optional(),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+
+          const allCandidates = await getExamCandidatesByExam(input.examId);
+          if (allCandidates.length === 0) throw new TRPCError({ code: 'BAD_REQUEST', message: '沒有考生可分組' });
+
+          // 按帶級順序分組
+          const beltOrder = ['white','yellow','yellow_green','green','green_blue','blue','blue_red','red','red_black','black','black_2dan','black_3dan'];
+          const byBelt: Record<string, typeof allCandidates> = {};
+          for (const c of allCandidates) {
+            const belt = (c as any).currentBelt || 'unknown';
+            if (!byBelt[belt]) byBelt[belt] = [];
+            byBelt[belt].push(c);
+          }
+
+          const groups: { code: string; belt: string; candidateIds: number[] }[] = [];
+          let groupIdx = 0;
+          const groupLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+          for (const belt of beltOrder) {
+            const beltCandidates = byBelt[belt];
+            if (!beltCandidates || beltCandidates.length === 0) continue;
+
+            // 決定分幾組
+            const numGroups = Math.ceil(beltCandidates.length / input.maxPerGroup);
+            const perGroup = Math.ceil(beltCandidates.length / numGroups);
+
+            for (let g = 0; g < numGroups; g++) {
+              if (groupIdx >= groupLetters.length) break;
+              const start = g * perGroup;
+              const slice = beltCandidates.slice(start, start + perGroup);
+              const code = groupLetters[groupIdx];
+              groups.push({ code, belt, candidateIds: slice.map((c: any) => c.id) });
+              groupIdx++;
+            }
+          }
+
+          // 更新考生 group_code + order_number
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+
+          for (const group of groups) {
+            for (let i = 0; i < group.candidateIds.length; i++) {
+              await db.update(schema.examCandidates)
+                .set({ groupCode: group.code, orderNumber: i + 1 })
+                .where(eq(schema.examCandidates.id, group.candidateIds[i]));
+            }
+          }
+
+          // 刪除舊時間表，生成新時間表
+          await db.delete(schema.examSchedules).where(eq(schema.examSchedules.examId, input.examId));
+
+          // 計算時間
+          const parseTime = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+          const formatTime = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+
+          let currentMinutes = parseTime(input.startTime);
+
+          for (let i = 0; i < groups.length; i++) {
+            const g = groups[i];
+            const startStr = formatTime(currentMinutes);
+            const endMinutes = currentMinutes + input.minutesPerGroup;
+            const endStr = formatTime(endMinutes);
+
+            await db.insert(schema.examSchedules).values({
+              examId: input.examId,
+              beltLevel: g.belt,
+              groupCode: g.code,
+              startTime: startStr,
+              endTime: endStr,
+              timeSlot: `${startStr}-${endStr}`,
+              venue: input.venue || null,
+            });
+
+            currentMinutes = endMinutes;
+
+            // 休息時間
+            if (input.breakAfterGroups > 0 && (i + 1) % input.breakAfterGroups === 0 && i < groups.length - 1) {
+              currentMinutes += input.breakMinutes;
+            }
+          }
+
+          return {
+            success: true,
+            groupCount: groups.length,
+            candidateCount: allCandidates.length,
+            groups: groups.map(g => ({ code: g.code, belt: g.belt, count: g.candidateIds.length })),
+          };
+        }),
     }),
 
     // --- 評分項目 ---
