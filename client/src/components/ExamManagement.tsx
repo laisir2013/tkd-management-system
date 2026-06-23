@@ -10,7 +10,8 @@ import {
   XCircle, AlertCircle, FileText, Upload, UserPlus, Calendar,
   Download, Search, ExternalLink, Copy, UserCheck, ArrowLeft,
   Eye, Clock, RefreshCw, LayoutDashboard, MessageSquare, Printer,
-  Mail, Send, ChevronRight, BarChart3, Zap, ListChecks, Phone
+  Mail, Send, ChevronRight, BarChart3, Zap, ListChecks, Phone,
+  Menu, X
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -91,15 +92,69 @@ export default function ExamManagement() {
   const [activeTab, setActiveTab] = useState<'list' | 'detail'>('list');
   const [selectedExamId, setSelectedExamId] = useState<number | null>(null);
   const [navPage, setNavPage] = useState<NavPage>('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (activeTab === 'list' || !selectedExamId) {
     return <ExamList onSelectExam={(id) => { setSelectedExamId(id); setActiveTab('detail'); setNavPage('overview'); }} />;
   }
 
+  const currentNavItem = NAV_ITEMS.find(item => item.key === navPage);
+
   return (
-    <div className="flex h-full min-h-[calc(100vh-64px)]">
-      {/* Left Sidebar */}
-      <div className="w-48 bg-white border-r flex flex-col shrink-0">
+    <div className="flex flex-col md:flex-row h-full min-h-[calc(100vh-64px)]">
+      {/* Mobile Top Bar */}
+      <div className="md:hidden flex items-center justify-between bg-white border-b px-3 py-2 sticky top-0 z-30">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-gray-100">
+            <Menu className="w-5 h-5 text-gray-700" />
+          </button>
+          <div className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
+            {currentNavItem && <currentNavItem.icon className="w-4 h-4 text-blue-600" />}
+            {currentNavItem?.label || '考試管理'}
+          </div>
+        </div>
+        <button onClick={() => { setActiveTab('list'); setSelectedExamId(null); }}
+          className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+          <ArrowLeft className="w-3.5 h-3.5" /> 返回
+        </button>
+      </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 md:hidden" onClick={() => setSidebarOpen(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="absolute left-0 top-0 bottom-0 w-56 bg-white shadow-xl flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-2 text-sm font-bold">
+                <Award className="w-4 h-4 text-red-600" />
+                <span>創武考試管理</span>
+              </div>
+              <button onClick={() => setSidebarOpen(false)} className="p-1 rounded hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <button onClick={() => { setActiveTab('list'); setSelectedExamId(null); setSidebarOpen(false); }}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 border-b">
+              <ArrowLeft className="w-4 h-4" /> 返回儀表板
+            </button>
+            <nav className="flex-1 py-2">
+              {NAV_ITEMS.map(item => (
+                <button key={item.key}
+                  onClick={() => { setNavPage(item.key); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm transition-colors ${
+                    navPage === item.key ? 'bg-blue-50 text-blue-700 font-medium border-r-2 border-blue-600' : 'text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  <item.icon className="w-4 h-4" />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Left Sidebar */}
+      <div className="hidden md:flex w-48 bg-white border-r flex-col shrink-0">
         <div className="p-4 border-b">
           <div className="flex items-center gap-2 text-sm font-bold">
             <Award className="w-4 h-4 text-red-600" />
@@ -125,7 +180,7 @@ export default function ExamManagement() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto bg-gray-50 p-4 sm:p-6">
+      <div className="flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 md:p-6">
         {navPage === 'overview' && <OverviewPage examId={selectedExamId} />}
         {navPage === 'candidates' && <CandidatesPage examId={selectedExamId} />}
         {navPage === 'checkin' && <CheckInPage examId={selectedExamId} />}
