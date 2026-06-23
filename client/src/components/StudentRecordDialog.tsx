@@ -182,7 +182,7 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
                   <div key={idx} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
                     <div className="flex items-center justify-between mb-2">
                       <div>
-                        <span className="font-semibold text-sm">{result.exam?.title || "考試"}</span>
+                        <span className="font-semibold text-sm">{result.exam?.name || "考試"}</span>
                         {result.exam?.examDate && (
                           <span className="text-xs text-muted-foreground ml-2">
                             {formatDate(result.exam.examDate)}
@@ -190,23 +190,37 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
                         )}
                       </div>
                       <Badge variant="outline" className="text-[10px]">
-                        {result.candidate?.beltLevel || "-"}
+                        {result.candidate?.currentBelt || "-"} → {result.candidate?.targetBelt || "-"}
                       </Badge>
                     </div>
                     {result.candidate?.status && (
-                      <div className="mb-2">
+                      <div className="mb-2 flex items-center gap-1.5">
                         <Badge
                           className={`text-[10px] ${
-                            result.candidate.status === "checked_in"
-                              ? "bg-green-100 text-green-700"
+                            result.candidate.status === "passed"
+                              ? "bg-green-100 text-green-700 border-green-300"
+                              : result.candidate.status === "failed"
+                              ? "bg-red-100 text-red-700 border-red-300"
+                              : result.candidate.status === "checked_in"
+                              ? "bg-blue-100 text-blue-700 border-blue-300"
+                              : result.candidate.status === "examining"
+                              ? "bg-yellow-100 text-yellow-700 border-yellow-300"
                               : result.candidate.status === "absent"
-                              ? "bg-red-100 text-red-700"
+                              ? "bg-gray-100 text-red-600 border-red-200"
                               : "bg-gray-100 text-gray-700"
                           }`}
                           variant="outline"
                         >
-                          {result.candidate.status === "checked_in" ? "已簽到" : result.candidate.status === "absent" ? "缺席" : result.candidate.status}
+                          {result.candidate.status === "passed" ? "✓ 合格" : result.candidate.status === "failed" ? "✗ 不合格" : result.candidate.status === "checked_in" ? "已報到" : result.candidate.status === "examining" ? "評分中" : result.candidate.status === "absent" ? "缺席" : result.candidate.status === "registered" ? "已報名" : result.candidate.status}
                         </Badge>
+                        {result.candidate.hasLakLakAward && (
+                          <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-300" variant="outline">⭐ 叻叻獎</Badge>
+                        )}
+                        {result.candidate.groupCode && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {result.candidate.groupCode.toUpperCase()}組{result.candidate.orderNumber ? ` 第${result.candidate.orderNumber}位` : ''}
+                          </span>
+                        )}
                       </div>
                     )}
                     {result.scores && result.scores.length > 0 ? (
@@ -216,20 +230,31 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
                             <div key={sIdx} className="contents">
                               <span className="text-muted-foreground truncate">{score.itemName}</span>
                               <span className="font-medium text-right">
-                                {score.score !== null && score.score !== undefined ? score.score : "-"}
+                                {score.score === 'pass' ? (
+                                  <span className="text-green-600">✓ 通過</span>
+                                ) : score.score === 'fail' ? (
+                                  <span className="text-red-500">✗ 不通過</span>
+                                ) : score.score === 'true' || score.score === 'yes' ? (
+                                  <span className="text-green-600">✓</span>
+                                ) : score.score === 'false' || score.score === 'no' ? (
+                                  <span className="text-red-500">✗</span>
+                                ) : score.score === 'A' ? (
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-500 text-white text-[10px] font-bold">A</span>
+                                ) : score.score === 'B' ? (
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-yellow-900 text-[10px] font-bold">B</span>
+                                ) : score.score === 'C' ? (
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-400 text-white text-[10px] font-bold">C</span>
+                                ) : score.score === 'F' ? (
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold">F</span>
+                                ) : score.score !== null && score.score !== undefined ? (
+                                  <span>{score.score}</span>
+                                ) : (
+                                  <span className="text-gray-300">-</span>
+                                )}
                               </span>
                             </div>
                           ))}
                         </div>
-                        {/* 總分 */}
-                        {result.scores.some((s: any) => s.score !== null) && (
-                          <div className="flex justify-between items-center pt-1 border-t mt-1">
-                            <span className="text-xs font-medium">總分</span>
-                            <span className="font-bold text-sm">
-                              {result.scores.reduce((sum: number, s: any) => sum + (Number(s.score) || 0), 0)}
-                            </span>
-                          </div>
-                        )}
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground">尚無評分</p>
