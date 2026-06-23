@@ -52,6 +52,11 @@ function getBeltName(key: string) {
   return BELT_LEVELS[key]?.name || key;
 }
 
+function getBeltShort(key: string) {
+  const name = BELT_LEVELS[key]?.name || key;
+  return name.replace('帶', '');
+}
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   registered: { label: '已報名', color: 'text-gray-500', icon: FileText },
   confirmed: { label: '已確認', color: 'text-green-600', icon: CheckCircle2 },
@@ -1242,11 +1247,16 @@ function TimetablePage({ examId }: { examId: number }) {
         .filter(c => c.groupCode === sch.groupCode)
         .sort((a, b) => (a.orderNumber || 0) - (b.orderNumber || 0));
       
+      // Collect all unique target belts in this group
+      const targetBelts = [...new Set(groupCandidates.map(c => c.targetBelt))]
+        .sort((a, b) => (BELT_LEVELS[a]?.order ?? 99) - (BELT_LEVELS[b]?.order ?? 99));
+
       return {
         ...sch,
         beltName: getBeltName(sch.beltLevel),
         candidateCount: groupCandidates.length,
         candidates: groupCandidates,
+        targetBelts,
       };
     });
   }, [sortedSchedules, candidates]);
@@ -1421,7 +1431,15 @@ function TimetablePage({ examId }: { examId: number }) {
               {timetableRows.map((row: any) => (
                 <tr key={row.id} className="hover:bg-gray-50">
                   <td className="px-2 py-2 border-r">
-                    {getBeltBadge(row.beltLevel)}
+                    {row.targetBelts && row.targetBelts.length > 1 ? (
+                      <div className="flex flex-col gap-0.5">
+                        {row.targetBelts.map((b: string) => (
+                          <span key={b} className={`inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium border ${BELT_LEVELS[b]?.color || 'bg-gray-100 border-gray-300'} ${BELT_LEVELS[b]?.textColor || 'text-gray-700'}`}>
+                            考{getBeltShort(b)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : getBeltBadge(row.beltLevel)}
                   </td>
                   <td className="px-2 py-2 border-r text-center font-medium">{row.candidateCount}</td>
                   <td className="px-2 py-2 border-r text-center text-gray-600">-</td>
@@ -1450,11 +1468,12 @@ function TimetablePage({ examId }: { examId: number }) {
                             draggable
                             onDragStart={(e) => handleDragStart(e, { id: c.id, name: c.name, groupCode: row.groupCode })}
                             onDragEnd={handleDragEnd}
-                            className={`inline-block px-1.5 py-0.5 rounded text-xs cursor-grab active:cursor-grabbing select-none
+                            className={`inline-flex flex-col items-center px-1.5 py-0.5 rounded text-xs cursor-grab active:cursor-grabbing select-none
                               ${dragCandidate?.id === c.id ? 'opacity-50 bg-blue-200' : 'bg-gray-50 hover:bg-blue-50 hover:shadow-sm border border-transparent hover:border-blue-200'}`}
                             title={`拖拉移動 ${c.name} 到其他組別/位置`}
                           >
-                            {c.name}
+                            <span>{c.name}</span>
+                            <span className={`text-[9px] leading-tight ${BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
                           </span>
                         ) : (
                           <span className={`inline-block w-full h-5 rounded ${isDropHere ? 'bg-blue-200' : ''}`} />
@@ -1485,6 +1504,8 @@ function TimetablePage({ examId }: { examId: number }) {
               ? (candidates as any[]).filter(c => c.groupCode === sch.groupCode).sort((a, b) => (a.orderNumber || 0) - (b.orderNumber || 0))
               : [];
             const isGroupDropTarget = dropTarget?.groupCode === sch.groupCode;
+            const grpTargetBelts = [...new Set(groupCandidates.map(c => c.targetBelt))]
+              .sort((a, b) => (BELT_LEVELS[a]?.order ?? 99) - (BELT_LEVELS[b]?.order ?? 99));
             return (
               <div key={sch.id}
                 className={`bg-white rounded-lg border p-4 transition-colors ${isGroupDropTarget ? 'border-blue-400 bg-blue-50' : ''}`}
@@ -1492,9 +1513,16 @@ function TimetablePage({ examId }: { examId: number }) {
                 onDragLeave={() => setDropTarget(null)}
                 onDrop={(e) => handleDrop(e, sch.groupCode, groupCandidates.length + 1)}
               >
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
                   <span className="text-lg font-bold">{sch.groupCode?.toUpperCase() || '-'} 組</span>
-                  {getBeltBadge(sch.beltLevel)}
+                  {grpTargetBelts.length > 1
+                    ? grpTargetBelts.map(b => (
+                        <span key={b} className={`inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium border ${BELT_LEVELS[b]?.color || 'bg-gray-100 border-gray-300'} ${BELT_LEVELS[b]?.textColor || 'text-gray-700'}`}>
+                          考{getBeltShort(b)}
+                        </span>
+                      ))
+                    : getBeltBadge(sch.beltLevel)
+                  }
                   <span className="text-sm text-gray-500">{groupCandidates.length} 人</span>
                   {sch.timeSlot && <span className={`px-2 py-0.5 rounded text-xs ${getTimeSlotColor(sch.beltLevel)}`}>{sch.timeSlot}</span>}
                 </div>
@@ -1506,11 +1534,12 @@ function TimetablePage({ examId }: { examId: number }) {
                       onDragEnd={handleDragEnd}
                       onDragOver={(e) => handleDragOver(e, sch.groupCode, idx + 1)}
                       onDrop={(e) => handleDrop(e, sch.groupCode, idx + 1)}
-                      className={`inline-flex items-center border rounded px-2 py-1 text-sm cursor-grab active:cursor-grabbing select-none transition-all
+                      className={`inline-flex flex-col items-center border rounded px-2 py-1 text-sm cursor-grab active:cursor-grabbing select-none transition-all
                         ${dragCandidate?.id === c.id ? 'opacity-50 bg-blue-200 border-blue-300' : 'bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm'}`}
                       title={`拖拉移動 ${c.name}`}
                     >
-                      {c.name}
+                      <span>{c.name}</span>
+                      <span className={`text-[9px] leading-tight ${BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
                     </span>
                   ))}
                   {groupCandidates.length === 0 && !isGroupDropTarget && <span className="text-sm text-gray-400">尚無考生</span>}
