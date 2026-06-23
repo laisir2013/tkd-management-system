@@ -1162,6 +1162,54 @@ function TimetablePage({ examId }: { examId: number }) {
     onSuccess: (data: any) => { refetch(); refetchCandidates(); toast.success(`已自動分為 ${data.groupCount} 組（${data.candidateCount} 人）`); setShowAutoGroup(false); },
     onError: (err) => toast.error(err.message),
   });
+  const moveCandidate = trpc.exam.candidates.moveCandidate.useMutation({
+    onSuccess: (data: any) => {
+      refetch(); refetchCandidates();
+      toast.success(`已移動到 ${data.newGroup} 組`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // Drag & Drop state
+  const [dragCandidate, setDragCandidate] = useState<{ id: number; name: string; groupCode: string } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ groupCode: string; position: number } | null>(null);
+
+  const handleDragStart = useCallback((e: React.DragEvent, candidate: { id: number; name: string; groupCode: string }) => {
+    setDragCandidate(candidate);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(candidate.id));
+    // Make the drag image semi-transparent
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5';
+    }
+  }, []);
+
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1';
+    }
+    setDragCandidate(null);
+    setDropTarget(null);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, groupCode: string, position: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDropTarget({ groupCode, position });
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDropTarget(null);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, targetGroupCode: string, targetPosition: number) => {
+    e.preventDefault();
+    const candidateId = parseInt(e.dataTransfer.getData('text/plain'));
+    if (!candidateId || isNaN(candidateId)) return;
+    setDropTarget(null);
+    setDragCandidate(null);
+    moveCandidate.mutate({ candidateId, targetGroupCode, targetPosition });
+  }, [moveCandidate]);
 
   const [showCreate, setShowCreate] = useState(false);
   const [showAutoGroup, setShowAutoGroup] = useState(false);
@@ -1342,6 +1390,14 @@ function TimetablePage({ examId }: { examId: number }) {
         </div>
       )}
 
+      {/* Drag indicator */}
+      {dragCandidate && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2 text-sm text-blue-700">
+          <Users className="w-4 h-4" />
+          正在移動 <strong>{dragCandidate.name}</strong>（從 {dragCandidate.groupCode.toUpperCase()} 組） — 拖到目標位置放開
+        </div>
+      )}
+
       {/* Timetable view */}
       {viewMode === 'timetable' && (
         <div className="bg-white rounded-lg border overflow-x-auto">
@@ -1379,13 +1435,33 @@ function TimetablePage({ examId }: { examId: number }) {
                     ) : '-'}
                   </td>
                   <td className="px-2 py-2 border-r text-center font-bold">{row.groupCode?.toUpperCase() || '-'}</td>
-                  {Array.from({ length: Math.min(maxPositions, 9) }, (_, i) => (
-                    <td key={i} className="px-2 py-2 border-r text-center">
-                      {row.candidates[i] ? (
-                        <span className="text-xs">{row.candidates[i].name}</span>
-                      ) : null}
-                    </td>
-                  ))}
+                  {Array.from({ length: Math.min(maxPositions, 9) }, (_, i) => {
+                    const c = row.candidates[i];
+                    const isDropHere = dropTarget?.groupCode === row.groupCode && dropTarget?.position === i + 1;
+                    return (
+                      <td key={i}
+                        className={`px-1 py-1 border-r text-center transition-colors ${isDropHere ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''}`}
+                        onDragOver={(e) => handleDragOver(e, row.groupCode, i + 1)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, row.groupCode, i + 1)}
+                      >
+                        {c ? (
+                          <span
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, { id: c.id, name: c.name, groupCode: row.groupCode })}
+                            onDragEnd={handleDragEnd}
+                            className={`inline-block px-1.5 py-0.5 rounded text-xs cursor-grab active:cursor-grabbing select-none
+                              ${dragCandidate?.id === c.id ? 'opacity-50 bg-blue-200' : 'bg-gray-50 hover:bg-blue-50 hover:shadow-sm border border-transparent hover:border-blue-200'}`}
+                            title={`拖拉移動 ${c.name} 到其他組別/位置`}
+                          >
+                            {c.name}
+                          </span>
+                        ) : (
+                          <span className={`inline-block w-full h-5 rounded ${isDropHere ? 'bg-blue-200' : ''}`} />
+                        )}
+                      </td>
+                    );
+                  })}
                   <td className="px-2 py-2 text-center">
                     <button onClick={() => deleteSchedule.mutate({ id: row.id })} className="text-red-400 hover:text-red-600">
                       <Trash2 className="w-3.5 h-3.5" />
@@ -1405,22 +1481,44 @@ function TimetablePage({ examId }: { examId: number }) {
       {viewMode === 'groups' && (
         <div className="space-y-3">
           {sortedSchedules.map((sch: any) => {
-            const groupCandidates = candidates ? (candidates as any[]).filter(c => c.groupCode === sch.groupCode) : [];
+            const groupCandidates = candidates
+              ? (candidates as any[]).filter(c => c.groupCode === sch.groupCode).sort((a, b) => (a.orderNumber || 0) - (b.orderNumber || 0))
+              : [];
+            const isGroupDropTarget = dropTarget?.groupCode === sch.groupCode;
             return (
-              <div key={sch.id} className="bg-white rounded-lg border p-4">
+              <div key={sch.id}
+                className={`bg-white rounded-lg border p-4 transition-colors ${isGroupDropTarget ? 'border-blue-400 bg-blue-50' : ''}`}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget({ groupCode: sch.groupCode, position: groupCandidates.length + 1 }); }}
+                onDragLeave={() => setDropTarget(null)}
+                onDrop={(e) => handleDrop(e, sch.groupCode, groupCandidates.length + 1)}
+              >
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-lg font-bold">{sch.groupCode?.toUpperCase() || '-'} 組</span>
                   {getBeltBadge(sch.beltLevel)}
                   <span className="text-sm text-gray-500">{groupCandidates.length} 人</span>
                   {sch.timeSlot && <span className={`px-2 py-0.5 rounded text-xs ${getTimeSlotColor(sch.beltLevel)}`}>{sch.timeSlot}</span>}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {groupCandidates.map((c: any) => (
-                    <span key={c.id} className="inline-flex items-center bg-gray-50 border rounded px-2 py-1 text-sm">
+                <div className="flex flex-wrap gap-2 min-h-[32px]">
+                  {groupCandidates.map((c: any, idx: number) => (
+                    <span key={c.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, { id: c.id, name: c.name, groupCode: sch.groupCode })}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e) => handleDragOver(e, sch.groupCode, idx + 1)}
+                      onDrop={(e) => handleDrop(e, sch.groupCode, idx + 1)}
+                      className={`inline-flex items-center border rounded px-2 py-1 text-sm cursor-grab active:cursor-grabbing select-none transition-all
+                        ${dragCandidate?.id === c.id ? 'opacity-50 bg-blue-200 border-blue-300' : 'bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm'}`}
+                      title={`拖拉移動 ${c.name}`}
+                    >
                       {c.name}
                     </span>
                   ))}
-                  {groupCandidates.length === 0 && <span className="text-sm text-gray-400">尚無考生</span>}
+                  {groupCandidates.length === 0 && !isGroupDropTarget && <span className="text-sm text-gray-400">尚無考生</span>}
+                  {isGroupDropTarget && dragCandidate && (
+                    <span className="inline-flex items-center bg-blue-100 border-2 border-dashed border-blue-400 rounded px-2 py-1 text-sm text-blue-600">
+                      放置 {dragCandidate.name} 到此
+                    </span>
+                  )}
                 </div>
               </div>
             );

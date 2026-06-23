@@ -6257,6 +6257,78 @@ export const appRouter = router({
             groups: groups.map(g => ({ code: g.code, belt: g.belt, count: g.candidateIds.length })),
           };
         }),
+
+      // 拖拉移動考生到另一組的指定位置
+      moveCandidate: protectedProcedure
+        .input(z.object({
+          candidateId: z.number(),
+          targetGroupCode: z.string(),
+          targetPosition: z.number().min(1), // 1-based position in the target group
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+
+          // Get the candidate being moved
+          const candidate = await getExamCandidateById(input.candidateId);
+          if (!candidate) throw new TRPCError({ code: 'NOT_FOUND', message: '找不到考生' });
+          const c = candidate as any;
+          const oldGroup = c.groupCode;
+          const examId = c.examId;
+
+          // Update the moved candidate's group and position
+          await db.update(schema.examCandidates)
+            .set({ groupCode: input.targetGroupCode, orderNumber: input.targetPosition })
+            .where(eq(schema.examCandidates.id, input.candidateId));
+
+          // Re-number the OLD group (fill the gap)
+          if (oldGroup && oldGroup !== input.targetGroupCode) {
+            const oldGroupCandidates = await db.select()
+              .from(schema.examCandidates)
+              .where(and(
+                eq(schema.examCandidates.examId, examId),
+                eq(schema.examCandidates.groupCode, oldGroup),
+              ))
+              .orderBy(asc(schema.examCandidates.orderNumber));
+            for (let i = 0; i < oldGroupCandidates.length; i++) {
+              await db.update(schema.examCandidates)
+                .set({ orderNumber: i + 1 })
+                .where(eq(schema.examCandidates.id, oldGroupCandidates[i].id));
+            }
+          }
+
+          // Re-number the TARGET group (make room and re-sequence)
+          const targetCandidates = await db.select()
+            .from(schema.examCandidates)
+            .where(and(
+              eq(schema.examCandidates.examId, examId),
+              eq(schema.examCandidates.groupCode, input.targetGroupCode),
+            ))
+            .orderBy(asc(schema.examCandidates.orderNumber));
+          // Sort: the moved candidate should be at targetPosition, others shift
+          const sorted = targetCandidates.sort((a, b) => {
+            if (a.id === input.candidateId) return -0.5; // will be repositioned below
+            if (b.id === input.candidateId) return 0.5;
+            return (a.orderNumber || 0) - (b.orderNumber || 0);
+          });
+          // Remove the moved candidate, insert at correct position
+          const others = sorted.filter(c => c.id !== input.candidateId);
+          const movedOne = sorted.find(c => c.id === input.candidateId)!;
+          const pos = Math.min(input.targetPosition - 1, others.length);
+          others.splice(pos, 0, movedOne);
+          for (let i = 0; i < others.length; i++) {
+            await db.update(schema.examCandidates)
+              .set({ orderNumber: i + 1 })
+              .where(eq(schema.examCandidates.id, others[i].id));
+          }
+
+          // Broadcast SSE update so scoring pages refresh
+          broadcastCandidateUpdate(examId, input.candidateId, { groupCode: input.targetGroupCode, orderNumber: input.targetPosition });
+
+          return { success: true, oldGroup, newGroup: input.targetGroupCode };
+        }),
     }),
 
     // --- 評分項目 ---
