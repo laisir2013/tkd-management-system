@@ -482,6 +482,9 @@ export const examCandidates = mysqlTable("exam_candidates", {
   orderNumber: int("order_number"),
   status: mysqlEnum("status", ["registered", "checked_in", "examining", "passed", "failed", "absent"]).default("registered").notNull(),
   hasLakLakAward: boolean("has_lak_lak_award").default(false).notNull(),
+  certificateIssued: mysqlEnum("certificate_issued", ["not_issued", "issued", "out_of_stock"]).default("not_issued").notNull(),
+  reportCardIssued: mysqlEnum("report_card_issued", ["not_issued", "issued", "out_of_stock"]).default("not_issued").notNull(),
+  lakLakAwardIssued: mysqlEnum("lak_lak_award_issued", ["not_issued", "issued", "out_of_stock"]).default("not_issued").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });

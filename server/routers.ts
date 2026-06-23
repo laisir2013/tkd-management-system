@@ -6761,6 +6761,37 @@ export const appRouter = router({
         }),
     }),
 
+    // --- 派發記錄 (證書/成績表/叻叻獎) ---
+    updateIssuance: publicProcedure
+      .input(z.object({
+        candidateId: z.number(),
+        field: z.enum(['certificateIssued', 'reportCardIssued', 'lakLakAwardIssued']),
+        value: z.enum(['not_issued', 'issued', 'out_of_stock']),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+        const fieldMap: Record<string, string> = {
+          certificateIssued: 'certificate_issued',
+          reportCardIssued: 'report_card_issued',
+          lakLakAwardIssued: 'lak_lak_award_issued',
+        };
+        const col = fieldMap[input.field];
+        await db.execute(sql`UPDATE exam_candidates SET ${sql.raw(col)} = ${input.value} WHERE id = ${input.candidateId}`);
+        // SSE broadcast so other clients see the change
+        try {
+          const candidate = await getExamCandidateById(input.candidateId);
+          if (candidate) {
+            broadcastCandidateUpdate(candidate.examId, {
+              candidateId: input.candidateId,
+              status: candidate.status,
+              name: candidate.name,
+            });
+          }
+        } catch (e) { console.warn('[SSE] updateIssuance broadcast failed:', e); }
+        return { success: true };
+      }),
+
     // --- 搜尋考生 ---
     search: publicProcedure
       .input(z.object({ examId: z.number(), query: z.string() }))

@@ -1917,15 +1917,22 @@ function TimetablePage({ examId }: { examId: number }) {
 
 // ==================== 成績記錄頁（唯讀） ====================
 function ScoreViewPage({ examId }: { examId: number }) {
-  const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
   const { data: allScores } = trpc.exam.scores.listByExam.useQuery({ examId });
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
 
   // SSE: real-time score updates auto-invalidate queries
   useExamSSE({ examId, enabled: true, autoInvalidate: true });
 
+  // Issuance mutation
+  const updateIssuance = trpc.exam.updateIssuance.useMutation({
+    onSuccess: () => { refetchCandidates(); },
+    onError: (err) => toast.error(err.message || '更新失敗'),
+  });
+
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [activeBelt, setActiveBelt] = useState<string>('');
+  const [viewTab, setViewTab] = useState<'scores' | 'issuance'>('scores');
 
   const allCandidates = (candidates || []) as any[];
 
@@ -2096,7 +2103,7 @@ function ScoreViewPage({ examId }: { examId: number }) {
 
       {/* Info bar */}
       {selectedGroup && currentBelt && (
-        <div className="flex items-center gap-4 text-sm text-gray-600 bg-white rounded-lg border px-4 py-2">
+        <div className="flex items-center gap-4 text-sm text-gray-600 bg-white rounded-lg border px-4 py-2 flex-wrap">
           <span>組別：<strong>{selectedGroup.toUpperCase()}</strong></span>
           <span>帶級：<strong>{getBeltName(currentBelt)}</strong></span>
           <span>人數：<strong>{beltCandidates.length}</strong></span>
@@ -2105,6 +2112,20 @@ function ScoreViewPage({ examId }: { examId: number }) {
         </div>
       )}
 
+      {/* View tabs: scores vs issuance */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+        <button onClick={() => setViewTab('scores')}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${viewTab === 'scores' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+          📋 成績表
+        </button>
+        <button onClick={() => setViewTab('issuance')}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${viewTab === 'issuance' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+          📦 派發記錄
+        </button>
+      </div>
+
+      {/* === SCORES TAB === */}
+      {viewTab === 'scores' && (<>
       {/* Scoring Matrix - READ ONLY */}
       {items.length > 0 ? (
         <div className="bg-white rounded-lg border overflow-x-auto">
@@ -2238,6 +2259,159 @@ function ScoreViewPage({ examId }: { examId: number }) {
           </span>
         </div>
       </div>
+      </>)}
+
+      {/* === ISSUANCE TAB === */}
+      {viewTab === 'issuance' && (
+        <div className="space-y-3">
+          <div className="bg-white rounded-lg border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">編號</th>
+                  <th className="px-3 py-2 text-left font-medium">姓名</th>
+                  <th className="px-3 py-2 text-center font-medium">結果</th>
+                  <th className="px-3 py-2 text-center font-medium">📄 成績表</th>
+                  <th className="px-3 py-2 text-center font-medium">🏅 證書</th>
+                  <th className="px-3 py-2 text-center font-medium">⭐ 叻叻獎</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {beltCandidates.map((c: any, idx: number) => {
+                  const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : `${idx + 1}`;
+                  const isAbsent = c.status === 'absent';
+                  const isPassed = c.status === 'passed';
+                  const isFailed = c.status === 'failed';
+                  const isDone = isPassed || isFailed;
+
+                  const IssuanceButton = ({ field, value }: { field: 'certificateIssued' | 'reportCardIssued' | 'lakLakAwardIssued'; value: string }) => {
+                    const states: { key: string; label: string; color: string }[] = [
+                      { key: 'not_issued', label: '未派', color: 'bg-gray-100 text-gray-600 border-gray-300' },
+                      { key: 'issued', label: '已派', color: 'bg-green-100 text-green-700 border-green-300' },
+                      { key: 'out_of_stock', label: '缺貨', color: 'bg-red-100 text-red-600 border-red-300' },
+                    ];
+                    const current = states.find(s => s.key === value) || states[0];
+                    const nextIdx = (states.findIndex(s => s.key === value) + 1) % states.length;
+                    const next = states[nextIdx];
+
+                    return (
+                      <button
+                        onClick={() => updateIssuance.mutate({ candidateId: c.id, field, value: next.key as any })}
+                        disabled={updateIssuance.isPending}
+                        className={`px-2 py-1 text-[11px] font-medium rounded border transition-colors ${current.color} hover:opacity-80 active:scale-95`}
+                        title={`點擊切換為「${next.label}」`}
+                      >
+                        {current.label}
+                      </button>
+                    );
+                  };
+
+                  if (isAbsent) {
+                    return (
+                      <tr key={c.id} className="bg-gray-50/50 opacity-60">
+                        <td className="px-3 py-2 font-mono">{code}</td>
+                        <td className="px-3 py-2 line-through text-gray-400">{c.name}</td>
+                        <td className="px-3 py-2 text-center text-gray-400">缺席</td>
+                        <td className="px-3 py-2 text-center text-gray-300">—</td>
+                        <td className="px-3 py-2 text-center text-gray-300">—</td>
+                        <td className="px-3 py-2 text-center text-gray-300">—</td>
+                      </tr>
+                    );
+                  }
+
+                  return (
+                    <tr key={c.id} className={isPassed ? 'bg-green-50/30' : isFailed ? 'bg-red-50/20' : ''}>
+                      <td className="px-3 py-2.5 font-mono font-bold">{code}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-medium">{c.name}</div>
+                        <div className="text-[10px] text-gray-400">{c.dojoName || ''}</div>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {isPassed && <span className="text-green-600 font-bold text-xs">合格</span>}
+                        {isFailed && <span className="text-red-600 font-bold text-xs">不合格</span>}
+                        {!isDone && <span className="text-gray-400 text-xs">未完成</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {isDone ? (
+                          <IssuanceButton field="reportCardIssued" value={c.reportCardIssued || 'not_issued'} />
+                        ) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {isPassed ? (
+                          <IssuanceButton field="certificateIssued" value={c.certificateIssued || 'not_issued'} />
+                        ) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {c.hasLakLakAward ? (
+                          <IssuanceButton field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'not_issued'} />
+                        ) : <span className="text-gray-300">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Issuance summary */}
+          {beltCandidates.length > 0 && (() => {
+            const done = beltCandidates.filter(c => ['passed', 'failed'].includes(c.status));
+            const passed = beltCandidates.filter(c => c.status === 'passed');
+            const withAward = beltCandidates.filter(c => c.hasLakLakAward);
+            const reportIssued = done.filter(c => c.reportCardIssued === 'issued').length;
+            const reportOOS = done.filter(c => c.reportCardIssued === 'out_of_stock').length;
+            const certIssued = passed.filter(c => c.certificateIssued === 'issued').length;
+            const certOOS = passed.filter(c => c.certificateIssued === 'out_of_stock').length;
+            const awardIssued = withAward.filter(c => c.lakLakAwardIssued === 'issued').length;
+            const awardOOS = withAward.filter(c => c.lakLakAwardIssued === 'out_of_stock').length;
+            return (
+              <div className="bg-white rounded-lg border p-4">
+                <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-purple-600" />
+                  派發統計
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="border rounded-lg p-2.5">
+                    <div className="font-medium text-gray-700 mb-1">📄 成績表</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">已派: {reportIssued}/{done.length}</span>
+                      {reportOOS > 0 && <span className="text-red-500">缺貨: {reportOOS}</span>}
+                    </div>
+                  </div>
+                  <div className="border rounded-lg p-2.5">
+                    <div className="font-medium text-gray-700 mb-1">🏅 證書</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">已派: {certIssued}/{passed.length}</span>
+                      {certOOS > 0 && <span className="text-red-500">缺貨: {certOOS}</span>}
+                    </div>
+                  </div>
+                  <div className="border rounded-lg p-2.5">
+                    <div className="font-medium text-gray-700 mb-1">⭐ 叻叻獎</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">已派: {awardIssued}/{withAward.length}</span>
+                      {awardOOS > 0 && <span className="text-red-500">缺貨: {awardOOS}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Legend for issuance */}
+          <div className="bg-white rounded-lg border px-4 py-3">
+            <div className="text-xs text-gray-500 flex flex-wrap items-center gap-4">
+              <span className="font-medium text-gray-700">操作說明：</span>
+              <span>點擊按鈕可循環切換狀態：</span>
+              <span className="px-2 py-0.5 rounded border bg-gray-100 text-gray-600 border-gray-300 text-[11px]">未派</span>
+              <span>→</span>
+              <span className="px-2 py-0.5 rounded border bg-green-100 text-green-700 border-green-300 text-[11px]">已派</span>
+              <span>→</span>
+              <span className="px-2 py-0.5 rounded border bg-red-100 text-red-600 border-red-300 text-[11px]">缺貨</span>
+              <span>→ 循環</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
