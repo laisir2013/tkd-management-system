@@ -6492,7 +6492,7 @@ export const appRouter = router({
           return { success: true };
         }),
 
-      // 帶密碼驗證的單項取消評分
+      // 帶密碼驗證的單項取消評分（用登入者密碼驗證）
       clearScore: protectedProcedure
         .input(z.object({
           candidateId: z.number(),
@@ -6500,7 +6500,11 @@ export const appRouter = router({
           password: z.string(),
         }))
         .mutation(async ({ input, ctx }) => {
-          if (input.password !== 'tkd2026') throw new TRPCError({ code: 'FORBIDDEN', message: '密碼錯誤' });
+          // 驗證登入用戶的密碼
+          const userPassword = ctx.user.password;
+          if (!userPassword) throw new TRPCError({ code: 'BAD_REQUEST', message: '您的帳號尚未設定密碼，無法執行此操作' });
+          const isValid = await verifyPassword(input.password, userPassword);
+          if (!isValid) throw new TRPCError({ code: 'FORBIDDEN', message: '密碼錯誤' });
           const db = await getDb();
           if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
           await db.delete(schema.examScores).where(
@@ -6515,14 +6519,18 @@ export const appRouter = router({
           return { success: true };
         }),
 
-      // 帶密碼驗證的全部取消評分（整個學生）
+      // 帶密碼驗證的全部取消評分（整個學生，用登入者密碼驗證）
       clearAllScores: protectedProcedure
         .input(z.object({
           candidateId: z.number(),
           password: z.string(),
         }))
         .mutation(async ({ input, ctx }) => {
-          if (input.password !== 'tkd2026') throw new TRPCError({ code: 'FORBIDDEN', message: '密碼錯誤' });
+          // 驗證登入用戶的密碼
+          const userPassword = ctx.user.password;
+          if (!userPassword) throw new TRPCError({ code: 'BAD_REQUEST', message: '您的帳號尚未設定密碼，無法執行此操作' });
+          const isValid = await verifyPassword(input.password, userPassword);
+          if (!isValid) throw new TRPCError({ code: 'FORBIDDEN', message: '密碼錯誤' });
           await deleteExamScoresByCandidate(input.candidateId);
           // Reset candidate status to registered
           const db = await getDb();

@@ -935,13 +935,13 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
   });
 
   const handleClearScore = (candidateId: number, scoringItemId: number, itemName: string) => {
-    const pw = prompt(`取消「${itemName}」的評分\n\n請輸入管理密碼以確認：`);
+    const pw = prompt(`取消「${itemName}」的評分\n\n請輸入您的登入密碼以確認：`);
     if (!pw) return;
     clearScore.mutate({ candidateId, scoringItemId, password: pw });
   };
 
   const handleClearAllScores = (candidateId: number, candidateName: string) => {
-    const pw = prompt(`⚠️ 取消「${candidateName}」的全部評分\n\n此操作會清除所有項目的評分並重置狀態為「已報名」。\n\n請輸入管理密碼以確認：`);
+    const pw = prompt(`⚠️ 取消「${candidateName}」的全部評分\n\n此操作會清除所有項目的評分並重置狀態為「已報名」。\n\n請輸入您的登入密碼以確認：`);
     if (!pw) return;
     clearAllScores.mutate({ candidateId, password: pw });
   };
