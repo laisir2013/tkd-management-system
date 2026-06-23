@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { trpc } from "../lib/trpc";
 import { useExamSSE } from "../lib/useExamSSE";
 import type { SSEEvent } from "../lib/useExamSSE";
@@ -1221,7 +1221,7 @@ function TimetablePage({ examId }: { examId: number }) {
   // Drag & Drop state
   const [dragCandidate, setDragCandidate] = useState<{ id: number; name: string; groupCode: string } | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null); // "groupCode:position"
-  const dragCounterRef = React.useRef<Map<string, number>>(new Map());
+  const dragCounterRef = useRef<Map<string, number>>(new Map());
 
   const handleDragStart = useCallback((e: React.DragEvent, candidate: { id: number; name: string; groupCode: string }) => {
     setDragCandidate(candidate);
