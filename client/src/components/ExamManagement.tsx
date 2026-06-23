@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { trpc } from "../lib/trpc";
 import { useExamSSE } from "../lib/useExamSSE";
 import type { SSEEvent } from "../lib/useExamSSE";
@@ -1218,63 +1218,27 @@ function TimetablePage({ examId }: { examId: number }) {
     onError: (err) => toast.error(err.message),
   });
 
-  // Drag & Drop state
-  const [dragCandidate, setDragCandidate] = useState<{ id: number; name: string; groupCode: string } | null>(null);
-  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null); // "groupCode:position"
-  const dragCounterRef = useRef<Map<string, number>>(new Map());
+  // Tap-to-move state (works on both mobile & desktop)
+  const [selectedCandidate, setSelectedCandidate] = useState<{ id: number; name: string; groupCode: string } | null>(null);
 
-  const handleDragStart = useCallback((e: React.DragEvent, candidate: { id: number; name: string; groupCode: string }) => {
-    setDragCandidate(candidate);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(candidate.id));
-    // Delay opacity so the drag image captures the full element
-    requestAnimationFrame(() => {
-      if (e.target instanceof HTMLElement) e.target.style.opacity = '0.4';
-    });
+  // Click a student to select; click again to deselect
+  const handleSelectCandidate = useCallback((candidate: { id: number; name: string; groupCode: string }) => {
+    setSelectedCandidate(prev => prev?.id === candidate.id ? null : candidate);
   }, []);
 
-  const handleDragEnd = useCallback((e: React.DragEvent) => {
-    if (e.target instanceof HTMLElement) e.target.style.opacity = '1';
-    setDragCandidate(null);
-    setDropTargetKey(null);
-    dragCounterRef.current.clear();
-  }, []);
-
-  const makeCellKey = (groupCode: string, position: number) => `${groupCode}:${position}`;
-
-  const handleCellDragEnter = useCallback((e: React.DragEvent, key: string) => {
-    e.preventDefault();
-    const map = dragCounterRef.current;
-    map.set(key, (map.get(key) || 0) + 1);
-    setDropTargetKey(key);
-  }, []);
-
-  const handleCellDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  }, []);
-
-  const handleCellDragLeave = useCallback((key: string) => {
-    const map = dragCounterRef.current;
-    const count = (map.get(key) || 1) - 1;
-    if (count <= 0) {
-      map.delete(key);
-      setDropTargetKey(prev => prev === key ? null : prev);
-    } else {
-      map.set(key, count);
+  // Click a cell to place the selected student there
+  const handlePlaceCandidate = useCallback((targetGroupCode: string, targetPosition: number) => {
+    if (!selectedCandidate) return;
+    // Don't move to same position
+    const cands = (candidates as any[] || []).filter((c: any) => c.groupCode === targetGroupCode).sort((a: any, b: any) => (a.orderNumber || 0) - (b.orderNumber || 0));
+    const existingAtPos = cands[targetPosition - 1];
+    if (existingAtPos?.id === selectedCandidate.id) {
+      setSelectedCandidate(null);
+      return;
     }
-  }, []);
-
-  const handleCellDrop = useCallback((e: React.DragEvent, targetGroupCode: string, targetPosition: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const candidateId = parseInt(e.dataTransfer.getData('text/plain'));
-    if (!candidateId || isNaN(candidateId)) return;
-    setDropTargetKey(null);
-    setDragCandidate(null);
-    dragCounterRef.current.clear();
-    moveCandidate.mutate({ candidateId, targetGroupCode, targetPosition });
-  }, [moveCandidate]);
+    moveCandidate.mutate({ candidateId: selectedCandidate.id, targetGroupCode, targetPosition });
+    setSelectedCandidate(null);
+  }, [selectedCandidate, moveCandidate, candidates]);
 
   const [showCreate, setShowCreate] = useState(false);
   const [showAutoGroup, setShowAutoGroup] = useState(false);
@@ -1460,11 +1424,14 @@ function TimetablePage({ examId }: { examId: number }) {
         </div>
       )}
 
-      {/* Drag indicator */}
-      {dragCandidate && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2 text-sm text-blue-700">
-          <Users className="w-4 h-4" />
-          正在移動 <strong>{dragCandidate.name}</strong>（從 {dragCandidate.groupCode.toUpperCase()} 組） — 拖到目標位置放開
+      {/* Move indicator */}
+      {selectedCandidate && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center justify-between text-sm text-blue-700 sticky top-0 z-10">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            正在移動 <strong>{selectedCandidate.name}</strong>（從 {selectedCandidate.groupCode.toUpperCase()} 組） — 點擊目標位置放置
+          </div>
+          <button onClick={() => setSelectedCandidate(null)} className="text-blue-500 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-100">✕ 取消</button>
         </div>
       )}
 
@@ -1515,30 +1482,38 @@ function TimetablePage({ examId }: { examId: number }) {
                   <td className="px-2 py-2 border-r text-center font-bold">{row.groupCode?.toUpperCase() || '-'}</td>
                   {Array.from({ length: Math.min(maxPositions, 9) }, (_, i) => {
                     const c = row.candidates[i];
-                    const cellKey = makeCellKey(row.groupCode, i + 1);
-                    const isDropHere = dropTargetKey === cellKey && dragCandidate != null;
+                    const isSelected = selectedCandidate && c && selectedCandidate.id === c.id;
+                    const isPlaceTarget = selectedCandidate && !isSelected;
                     return (
                       <td key={i}
-                        className={`px-1 py-1 border-r text-center transition-colors min-h-[40px] ${isDropHere ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''}`}
-                        onDragEnter={(e) => handleCellDragEnter(e, cellKey)}
-                        onDragOver={handleCellDragOver}
-                        onDragLeave={() => handleCellDragLeave(cellKey)}
-                        onDrop={(e) => handleCellDrop(e, row.groupCode, i + 1)}
+                        className={`px-1 py-1 border-r text-center transition-colors min-h-[40px] cursor-pointer
+                          ${isPlaceTarget ? 'hover:bg-blue-100 hover:ring-2 hover:ring-blue-400 hover:ring-inset' : ''}`}
+                        onClick={() => {
+                          if (selectedCandidate && !(c && c.id === selectedCandidate.id)) {
+                            handlePlaceCandidate(row.groupCode, i + 1);
+                          }
+                        }}
                       >
                         {c ? (
                           <div
-                            draggable
-                            onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, { id: c.id, name: c.name, groupCode: row.groupCode }); }}
-                            onDragEnd={handleDragEnd}
-                            className={`inline-flex flex-col items-center px-1.5 py-0.5 rounded text-xs cursor-grab active:cursor-grabbing select-none
-                              ${dragCandidate?.id === c.id ? 'opacity-40 bg-blue-200 scale-95' : 'bg-gray-50 hover:bg-blue-50 hover:shadow border border-transparent hover:border-blue-300'}`}
-                            title={`拖拉移動 ${c.name} 到其他組別/位置`}
+                            onClick={(e) => { e.stopPropagation(); handleSelectCandidate({ id: c.id, name: c.name, groupCode: row.groupCode }); }}
+                            className={`inline-flex flex-col items-center px-1.5 py-0.5 rounded text-xs cursor-pointer select-none transition-all
+                              ${isSelected
+                                ? 'bg-blue-500 text-white shadow-lg scale-105 ring-2 ring-blue-300'
+                                : selectedCandidate
+                                  ? 'bg-green-50 hover:bg-green-100 border border-green-300 hover:border-green-500'
+                                  : 'bg-gray-50 hover:bg-blue-50 hover:shadow border border-transparent hover:border-blue-300'}`}
+                            title={isSelected ? `點擊取消選擇` : selectedCandidate ? `點擊此處放置 ${selectedCandidate.name}` : `點擊選擇 ${c.name} 進行移動`}
                           >
-                            <span className="pointer-events-none">{c.name}</span>
-                            <span className={`pointer-events-none text-[9px] leading-tight ${BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
+                            <span>{c.name}</span>
+                            <span className={`text-[9px] leading-tight ${isSelected ? 'text-blue-100' : BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
+                          </div>
+                        ) : selectedCandidate ? (
+                          <div className="w-full h-8 rounded border-2 border-dashed border-green-300 bg-green-50 hover:bg-green-100 hover:border-green-500 flex items-center justify-center text-[10px] text-green-600 transition-colors">
+                            放這裡
                           </div>
                         ) : (
-                          <div className={`w-full h-8 rounded ${isDropHere ? 'bg-blue-200 border-2 border-dashed border-blue-400' : ''}`} />
+                          <div className="w-full h-8 rounded" />
                         )}
                       </td>
                     );
@@ -1565,17 +1540,11 @@ function TimetablePage({ examId }: { examId: number }) {
             const groupCandidates = candidates
               ? (candidates as any[]).filter(c => c.groupCode === sch.groupCode).sort((a, b) => (a.orderNumber || 0) - (b.orderNumber || 0))
               : [];
-            const grpDropKey = makeCellKey(sch.groupCode, groupCandidates.length + 1);
-            const isGroupDropTarget = dropTargetKey?.startsWith(sch.groupCode + ':') && dragCandidate != null;
             const grpTargetBelts = [...new Set(groupCandidates.map(c => c.targetBelt))]
               .sort((a, b) => (BELT_LEVELS[a]?.order ?? 99) - (BELT_LEVELS[b]?.order ?? 99));
             return (
               <div key={sch.id}
-                className={`bg-white rounded-lg border p-4 transition-colors ${isGroupDropTarget ? 'border-blue-400 bg-blue-50' : ''}`}
-                onDragEnter={(e) => handleCellDragEnter(e, grpDropKey)}
-                onDragOver={handleCellDragOver}
-                onDragLeave={() => handleCellDragLeave(grpDropKey)}
-                onDrop={(e) => handleCellDrop(e, sch.groupCode, groupCandidates.length + 1)}
+                className={`bg-white rounded-lg border p-4 transition-colors ${selectedCandidate && selectedCandidate.groupCode !== sch.groupCode ? 'border-green-300 bg-green-50/30' : ''}`}
               >
                 <div className="flex items-center gap-3 mb-3 flex-wrap">
                   <span className="text-lg font-bold">{sch.groupCode?.toUpperCase() || '-'} 組</span>
@@ -1589,32 +1558,49 @@ function TimetablePage({ examId }: { examId: number }) {
                   }
                   <span className="text-sm text-gray-500">{groupCandidates.length} 人</span>
                   {sch.timeSlot && <span className={`px-2 py-0.5 rounded text-xs ${getTimeSlotColor(sch.beltLevel)}`}>{sch.timeSlot}</span>}
+                  {/* Add-to-group button when a student is selected */}
+                  {selectedCandidate && (
+                    <button
+                      onClick={() => handlePlaceCandidate(sch.groupCode, groupCandidates.length + 1)}
+                      className="ml-auto inline-flex items-center gap-1 px-3 py-1 bg-green-500 text-white text-xs rounded-full hover:bg-green-600 transition-colors shadow-sm"
+                    >
+                      <Plus className="w-3 h-3" /> 放到此組末尾
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2 min-h-[32px]">
                   {groupCandidates.map((c: any, idx: number) => {
-                    const itemKey = makeCellKey(sch.groupCode, idx + 1);
+                    const isSelected = selectedCandidate?.id === c.id;
                     return (
                       <div key={c.id}
-                        draggable
-                        onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, { id: c.id, name: c.name, groupCode: sch.groupCode }); }}
-                        onDragEnd={handleDragEnd}
-                        onDragEnter={(e) => handleCellDragEnter(e, itemKey)}
-                        onDragOver={handleCellDragOver}
-                        onDragLeave={() => handleCellDragLeave(itemKey)}
-                        onDrop={(e) => handleCellDrop(e, sch.groupCode, idx + 1)}
-                        className={`inline-flex flex-col items-center border rounded px-2 py-1 text-sm cursor-grab active:cursor-grabbing select-none transition-all
-                          ${dragCandidate?.id === c.id ? 'opacity-40 bg-blue-200 border-blue-300 scale-95' : 'bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm'}`}
-                        title={`拖拉移動 ${c.name}`}
+                        onClick={() => {
+                          if (selectedCandidate && selectedCandidate.id !== c.id) {
+                            // Place before this student
+                            handlePlaceCandidate(sch.groupCode, idx + 1);
+                          } else {
+                            handleSelectCandidate({ id: c.id, name: c.name, groupCode: sch.groupCode });
+                          }
+                        }}
+                        className={`inline-flex flex-col items-center border rounded px-2 py-1 text-sm cursor-pointer select-none transition-all
+                          ${isSelected
+                            ? 'bg-blue-500 text-white border-blue-600 shadow-lg scale-105 ring-2 ring-blue-300'
+                            : selectedCandidate
+                              ? 'bg-green-50 hover:bg-green-100 border-green-300 hover:border-green-500 hover:shadow-sm'
+                              : 'bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm'}`}
+                        title={isSelected ? '點擊取消選擇' : selectedCandidate ? `點擊此處：將 ${selectedCandidate.name} 放到 ${c.name} 前面` : `點擊選擇 ${c.name} 進行移動`}
                       >
-                        <span className="pointer-events-none">{c.name}</span>
-                        <span className={`pointer-events-none text-[9px] leading-tight ${BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
+                        <span>{c.name}</span>
+                        <span className={`text-[9px] leading-tight ${isSelected ? 'text-blue-100' : BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
                       </div>
                     );
                   })}
-                  {groupCandidates.length === 0 && !isGroupDropTarget && <span className="text-sm text-gray-400">尚無考生</span>}
-                  {isGroupDropTarget && dragCandidate && (
-                    <div className="inline-flex items-center bg-blue-100 border-2 border-dashed border-blue-400 rounded px-2 py-1 text-sm text-blue-600">
-                      放置 {dragCandidate.name} 到此
+                  {groupCandidates.length === 0 && !selectedCandidate && <span className="text-sm text-gray-400">尚無考生</span>}
+                  {groupCandidates.length === 0 && selectedCandidate && (
+                    <div
+                      onClick={() => handlePlaceCandidate(sch.groupCode, 1)}
+                      className="inline-flex items-center bg-green-50 border-2 border-dashed border-green-400 rounded px-3 py-1.5 text-sm text-green-600 cursor-pointer hover:bg-green-100 hover:border-green-500 transition-colors"
+                    >
+                      放置 {selectedCandidate.name} 到此組
                     </div>
                   )}
                 </div>
