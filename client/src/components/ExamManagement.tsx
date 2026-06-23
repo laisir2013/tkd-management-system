@@ -884,6 +884,7 @@ function generateTimetableWhatsAppMessage(exam: any, schedules: any[], candidate
 
 // ==================== 批量評分表格 (A/B/C 矩陣) ====================
 function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; groupCode: string; onBack: () => void }) {
+  const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
   const [activeBelt, setActiveBelt] = useState<string>('');
 
@@ -988,6 +989,93 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
   const scoredCount = beltCandidates.filter(c => ['passed', 'failed'].includes(c.status)).length;
   const absentCount = beltCandidates.filter(c => c.status === 'absent').length;
 
+  // --- WhatsApp 成績通知 ---
+  const examData = exam as any;
+  const examName = examData?.name || '升級試';
+
+  function getFailedItemsForCandidate(candidateId: number): string[] {
+    if (!allScores) return [];
+    const failedItems: string[] = [];
+    for (const entry of allScores as any[]) {
+      const s = entry.score || entry;
+      if (s.candidateId !== candidateId) continue;
+      const score = s.score;
+      if (score === 'fail' || score === 'false' || score === 'F') {
+        const item = entry.item;
+        if (item) {
+          const category = CATEGORY_NAMES[item.category] || item.category || '';
+          failedItems.push(category ? `${category} - ${item.name}` : item.name);
+        }
+      }
+    }
+    return failedItems;
+  }
+
+  function generateScoringResultMessage(candidate: any) {
+    const beltFrom = getBeltName(candidate.currentBelt);
+    const beltTo = getBeltName(candidate.targetBelt);
+    const isPassed = candidate.status === 'passed';
+    const isFailed = candidate.status === 'failed';
+    const lakLak = candidate.hasLakLakAward ? '\n🌟 恭喜獲得「叻叻獎」！' : '';
+
+    if (isPassed) {
+      return `🎉 ${examName} 成績通知\n\n` +
+        `✅ ${candidate.name} 同學\n` +
+        `報考: ${beltFrom} → ${beltTo}\n` +
+        `結果: 合格 🎊${lakLak}\n\n` +
+        `恭喜通過升級試！繼續努力練習！💪\n\n` +
+        `— 創武跆拳道`;
+    } else if (isFailed) {
+      const failedItems = getFailedItemsForCandidate(candidate.id);
+      const failedSection = failedItems.length > 0
+        ? `\n\n不合格項目:\n${failedItems.map(item => `  ❌ ${item}`).join('\n')}\n`
+        : '';
+      return `📋 ${examName} 成績通知\n\n` +
+        `${candidate.name} 同學\n` +
+        `報考: ${beltFrom} → ${beltTo}\n` +
+        `結果: 未通過${failedSection}\n` +
+        `請針對以上項目加強練習，下次再接再厲！加油！💪\n\n` +
+        `— 創武跆拳道`;
+    }
+    return '';
+  }
+
+  function sendWhatsAppScoringResult(candidate: any) {
+    if (!candidate.phone) {
+      toast.error(`${candidate.name} 沒有電話號碼`);
+      return;
+    }
+    const msg = generateScoringResultMessage(candidate);
+    if (!msg) {
+      toast.error(`${candidate.name} 尚未評分完成`);
+      return;
+    }
+    const phone = candidate.phone.startsWith('852') ? candidate.phone : `852${candidate.phone}`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  }
+
+  function sendBulkScoringResults() {
+    const scoredCandidates = beltCandidates.filter(c => ['passed', 'failed'].includes(c.status) && c.phone);
+    if (scoredCandidates.length === 0) {
+      toast.error('沒有已評分且有電話號碼的考生');
+      return;
+    }
+    if (scoredCandidates.length > 5) {
+      const msgs = scoredCandidates.map(c => {
+        const result = c.status === 'passed' ? '✅合格' : '❌未通過';
+        const lakLak = c.hasLakLakAward ? ' 🌟叻叻獎' : '';
+        return `${c.name} (${c.phone}) | ${getBeltName(c.currentBelt)}→${getBeltName(c.targetBelt)} | ${result}${lakLak}`;
+      }).join('\n');
+      const header = `📋 ${examName} — ${groupCode.toUpperCase()}組 成績\n${'─'.repeat(20)}\n`;
+      navigator.clipboard.writeText(header + msgs);
+      toast.success(`已複製 ${scoredCandidates.length} 位考生成績到剪貼板`);
+    } else {
+      scoredCandidates.forEach((c, i) => {
+        setTimeout(() => sendWhatsAppScoringResult(c), i * 500);
+      });
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1001,6 +1089,9 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50" onClick={sendBulkScoringResults}>
+            <Send className="w-4 h-4 mr-1" /> WhatsApp 通知成績
+          </Button>
           <Button size="sm" variant="outline" onClick={() => exportScoringToCSV(beltCandidates, categorizedItems, scoreMap, groupCode, getBeltName(currentBelt))}><Download className="w-4 h-4 mr-1" /> 匯出 Excel</Button>
           <Button size="sm" variant="outline" onClick={() => printScoringTable(beltCandidates, categorizedItems, scoreMap, groupCode, getBeltName(currentBelt))}><Printer className="w-4 h-4 mr-1" /> 列印評分表</Button>
           {currentBelt && items.length === 0 && (
@@ -1086,6 +1177,15 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
                           <statusCfg.icon className="w-3 h-3" /> {statusCfg.label}
                         </span>
                         {c.hasLakLakAward && <div className="text-[10px] text-amber-500 font-medium">⭐叻叻獎</div>}
+                        {['passed', 'failed'].includes(c.status) && (
+                          <button
+                            onClick={() => sendWhatsAppScoringResult(c)}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors flex items-center gap-0.5"
+                            title={`WhatsApp 通知 ${c.name} 家長成績`}
+                          >
+                            <Send className="w-2.5 h-2.5" /> 通知
+                          </button>
+                        )}
                         {isAbsent ? (
                           <button
                             onClick={() => markAbsent.mutate({ candidateId: c.id, absent: false })}
@@ -1298,6 +1398,37 @@ function TimetablePage({ examId }: { examId: number }) {
     return 'bg-purple-100 text-purple-700';
   };
 
+  // WhatsApp 通知考試時間
+  function sendScheduleWhatsApp(candidate: any) {
+    if (!candidate.phone) {
+      toast.error(`${candidate.name} 沒有電話號碼`);
+      return;
+    }
+    // Find the schedule for this candidate's group
+    const sch = sortedSchedules.find((s: any) => s.groupCode === candidate.groupCode);
+    const timeStr = sch?.timeSlot || (sch?.startTime && sch?.endTime ? `${sch.startTime}-${sch.endTime}` : '待定');
+    const dateStr = examData?.examDate
+      ? new Date(examData.examDate + 'T00:00:00').toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+      : '待定';
+    const location = examData?.location || '';
+    const beltFrom = getBeltName(candidate.currentBelt);
+    const beltTo = getBeltName(candidate.targetBelt);
+
+    let msg = `📋 ${examData?.name || '升級試'} — 考試通知\n\n`;
+    msg += `👤 ${candidate.name} 同學\n`;
+    msg += `🥋 報考: ${beltFrom} → ${beltTo}\n`;
+    msg += `📅 日期: ${dateStr}\n`;
+    msg += `⏰ 時間: ${timeStr}\n`;
+    if (location) msg += `📍 地點: ${location}\n`;
+    msg += `📌 組別: ${(candidate.groupCode || '').toUpperCase()} 組 第${candidate.orderNumber || '-'}位\n`;
+    msg += `\n請準時到場，遲到者可能會被安排到較後組別。\n`;
+    msg += `如有任何查詢，請聯絡我們。\n\n`;
+    msg += `— 創武跆拳道`;
+
+    const phone = candidate.phone.startsWith('852') ? candidate.phone : `852${candidate.phone}`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1507,6 +1638,13 @@ function TimetablePage({ examId }: { examId: number }) {
                           >
                             <span>{c.name}</span>
                             <span className={`text-[9px] leading-tight ${isSelected ? 'text-blue-100' : BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
+                            {!selectedCandidate && (
+                              <button
+                                onClick={(ev) => { ev.stopPropagation(); sendScheduleWhatsApp(c); }}
+                                className="mt-0.5 px-1 py-0 rounded text-[8px] bg-green-100 text-green-700 hover:bg-green-300 transition-colors leading-tight"
+                                title={`WhatsApp 通知 ${c.name} 考試時間`}
+                              >📨通知</button>
+                            )}
                           </div>
                         ) : selectedCandidate ? (
                           <div className="w-full h-8 rounded border-2 border-dashed border-green-300 bg-green-50 hover:bg-green-100 hover:border-green-500 flex items-center justify-center text-[10px] text-green-600 transition-colors">
@@ -1591,6 +1729,15 @@ function TimetablePage({ examId }: { examId: number }) {
                       >
                         <span>{c.name}</span>
                         <span className={`text-[9px] leading-tight ${isSelected ? 'text-blue-100' : BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
+                        {!selectedCandidate && (
+                          <button
+                            onClick={(ev) => { ev.stopPropagation(); sendScheduleWhatsApp(c); }}
+                            className="mt-0.5 px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 hover:bg-green-300 transition-colors flex items-center gap-0.5"
+                            title={`WhatsApp 通知 ${c.name} 考試時間`}
+                          >
+                            <Send className="w-2.5 h-2.5" /> 通知
+                          </button>
+                        )}
                       </div>
                     );
                   })}

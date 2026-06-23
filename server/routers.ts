@@ -6532,17 +6532,17 @@ export const appRouter = router({
           const isValid = await verifyPassword(input.password, userPassword);
           if (!isValid) throw new TRPCError({ code: 'FORBIDDEN', message: '密碼錯誤' });
           await deleteExamScoresByCandidate(input.candidateId);
-          // Reset candidate status to registered
+          // Reset candidate status to registered + clear lakLak award
           const db = await getDb();
           if (db) {
             await db.update(schema.examCandidates)
-              .set({ status: 'registered' })
+              .set({ status: 'registered', hasLakLakAward: false })
               .where(eq(schema.examCandidates.id, input.candidateId));
           }
           broadcastCandidateUpdate(
             (await getExamCandidateById(input.candidateId) as any)?.examId || 0,
             input.candidateId,
-            { status: 'registered' }
+            { status: 'registered', hasLakLakAward: false }
           );
           return { success: true };
         }),
