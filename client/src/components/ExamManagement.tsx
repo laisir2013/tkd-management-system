@@ -75,12 +75,13 @@ const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 // ==================== NAV ITEMS ====================
-type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'timetable' | 'results';
+type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results';
 const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'overview', label: '考試概覽', icon: LayoutDashboard },
   { key: 'candidates', label: '考生管理', icon: Users },
   { key: 'checkin', label: '點名', icon: ListChecks },
   { key: 'scoring', label: '評分', icon: ClipboardCheck },
+  { key: 'scoreview', label: '成績記錄', icon: Eye },
   { key: 'timetable', label: '時間表', icon: Calendar },
   { key: 'results', label: '合格名單', icon: Trophy },
 ];
@@ -129,6 +130,7 @@ export default function ExamManagement() {
         {navPage === 'candidates' && <CandidatesPage examId={selectedExamId} />}
         {navPage === 'checkin' && <CheckInPage examId={selectedExamId} />}
         {navPage === 'scoring' && <ScoringPage examId={selectedExamId} />}
+        {navPage === 'scoreview' && <ScoreViewPage examId={selectedExamId} />}
         {navPage === 'timetable' && <TimetablePage examId={selectedExamId} />}
         {navPage === 'results' && <ResultsPage examId={selectedExamId} />}
       </div>
@@ -1826,6 +1828,333 @@ function TimetablePage({ examId }: { examId: number }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ==================== 成績記錄頁（唯讀） ====================
+function ScoreViewPage({ examId }: { examId: number }) {
+  const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: allScores } = trpc.exam.scores.listByExam.useQuery({ examId });
+  const { data: exam } = trpc.exam.get.useQuery({ id: examId });
+
+  // SSE: real-time score updates auto-invalidate queries
+  useExamSSE({ examId, enabled: true, autoInvalidate: true });
+
+  const [selectedGroup, setSelectedGroup] = useState<string>('');
+  const [activeBelt, setActiveBelt] = useState<string>('');
+
+  const allCandidates = (candidates || []) as any[];
+
+  // Get unique groups
+  const groups = useMemo(() => {
+    const groupSet = new Set<string>();
+    allCandidates.forEach(c => { if (c.groupCode) groupSet.add(c.groupCode); });
+    return Array.from(groupSet).sort();
+  }, [allCandidates]);
+
+  // Auto-select first group
+  useEffect(() => {
+    if (groups.length > 0 && !selectedGroup) {
+      setSelectedGroup(groups[0]);
+    }
+  }, [groups, selectedGroup]);
+
+  // Filter candidates by group
+  const groupCandidates = useMemo(() => {
+    if (!selectedGroup) return [];
+    return allCandidates.filter(c => c.groupCode === selectedGroup);
+  }, [allCandidates, selectedGroup]);
+
+  // Get belts in this group
+  const belts = useMemo(() => {
+    const beltSet = new Set(groupCandidates.map(c => c.currentBelt));
+    return Array.from(beltSet).sort((a, b) => (BELT_LEVELS[a]?.order ?? 99) - (BELT_LEVELS[b]?.order ?? 99));
+  }, [groupCandidates]);
+
+  const currentBelt = activeBelt || belts[0] || '';
+  const beltCandidates = groupCandidates.filter(c => c.currentBelt === currentBelt);
+
+  // Reset belt when group changes
+  useEffect(() => { setActiveBelt(''); }, [selectedGroup]);
+
+  // Scoring items for current belt
+  const { data: scoringItems } = trpc.exam.scoringItems.listByBelt.useQuery(
+    { beltLevel: currentBelt },
+    { enabled: !!currentBelt }
+  );
+
+  // Score map: candidateId -> { scoringItemId -> score }
+  const scoreMap = useMemo(() => {
+    if (!allScores) return new Map<number, Map<number, string>>();
+    const map = new Map<number, Map<number, string>>();
+    (allScores as any[]).forEach((entry: any) => {
+      const s = entry.score || entry;
+      const cid = s.candidateId;
+      const itemId = s.scoringItemId;
+      const scoreVal = s.score;
+      if (cid && itemId && scoreVal) {
+        if (!map.has(cid)) map.set(cid, new Map());
+        map.get(cid)!.set(itemId, scoreVal);
+      }
+    });
+    return map;
+  }, [allScores]);
+
+  const items = (scoringItems as any[]) || [];
+
+  // Group items by category
+  const categorizedItems = useMemo(() => {
+    const cats: { category: string; name: string; items: any[] }[] = [];
+    const catMap = new Map<string, any[]>();
+    for (const item of items) {
+      const cat = item.category || 'other';
+      if (!catMap.has(cat)) catMap.set(cat, []);
+      catMap.get(cat)!.push(item);
+    }
+    catMap.forEach((items, cat) => {
+      cats.push({ category: cat, name: CATEGORY_NAMES[cat] || cat, items });
+    });
+    return cats;
+  }, [items]);
+
+  // Stats
+  const scoredCount = beltCandidates.filter(c => ['passed', 'failed'].includes(c.status)).length;
+  const totalItems = items.length;
+
+  // Score display helper
+  function renderScore(score: string, type: string) {
+    if (!score) return <span className="text-gray-300">—</span>;
+    if (type === 'grade') {
+      const colors: Record<string, string> = {
+        'A': 'bg-green-500 text-white',
+        'B': 'bg-yellow-400 text-yellow-900',
+        'C': 'bg-orange-400 text-white',
+        'F': 'bg-red-500 text-white',
+      };
+      return (
+        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold ${colors[score] || 'bg-gray-200'}`}>
+          {score}
+        </span>
+      );
+    }
+    if (type === 'pass_fail') {
+      return score === 'pass' 
+        ? <span className="text-green-600 font-bold text-[11px]">✓</span>
+        : <span className="text-red-500 font-bold text-[11px]">✗</span>;
+    }
+    if (type === 'yes_no') {
+      return score === 'true' || score === 'yes'
+        ? <span className="text-green-600 font-bold text-[11px]">✓</span>
+        : <span className="text-red-500 font-bold text-[11px]">✗</span>;
+    }
+    return <span className="text-xs">{score}</span>;
+  }
+
+  if (!candidates) return <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Eye className="w-5 h-5 text-purple-600" />
+            成績記錄（唯讀）
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {(exam as any)?.name || ''} — 即時同步主考官評分，供記錄人員填寫實體成績單
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            即時同步中
+          </span>
+        </div>
+      </div>
+
+      {/* Group selector */}
+      <div className="flex flex-wrap gap-1.5">
+        {groups.map(g => {
+          const gCandidates = allCandidates.filter(c => c.groupCode === g);
+          const gScored = gCandidates.filter(c => ['passed', 'failed'].includes(c.status)).length;
+          return (
+            <button key={g}
+              onClick={() => setSelectedGroup(g)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                selectedGroup === g
+                  ? 'bg-purple-600 text-white shadow'
+                  : 'bg-white border text-gray-600 hover:bg-gray-50'
+              }`}>
+              {g.toUpperCase()} 組
+              <span className={`ml-1 text-xs ${selectedGroup === g ? 'text-purple-200' : 'text-gray-400'}`}>
+                ({gScored}/{gCandidates.length})
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Belt tabs */}
+      {belts.length > 1 && (
+        <div className="flex gap-1">
+          {belts.map(b => (
+            <button key={b}
+              onClick={() => setActiveBelt(b)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                currentBelt === b ? 'bg-white shadow border text-gray-900' : 'text-gray-500 hover:bg-gray-100'
+              }`}>
+              {getBeltName(b)} ({groupCandidates.filter(c => c.currentBelt === b).length}人)
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Info bar */}
+      {selectedGroup && currentBelt && (
+        <div className="flex items-center gap-4 text-sm text-gray-600 bg-white rounded-lg border px-4 py-2">
+          <span>組別：<strong>{selectedGroup.toUpperCase()}</strong></span>
+          <span>帶級：<strong>{getBeltName(currentBelt)}</strong></span>
+          <span>人數：<strong>{beltCandidates.length}</strong></span>
+          <span>已評分：<strong className="text-green-600">{scoredCount}</strong>/{beltCandidates.length}</span>
+          <span>項目：<strong>{totalItems}</strong> 項</span>
+        </div>
+      )}
+
+      {/* Scoring Matrix - READ ONLY */}
+      {items.length > 0 ? (
+        <div className="bg-white rounded-lg border overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              {/* Category header row */}
+              <tr className="border-b">
+                <th className="px-2 py-1.5 border-r bg-gray-50 min-w-[40px] sticky left-0 z-10" rowSpan={2}>編號</th>
+                <th className="px-2 py-1.5 border-r bg-gray-50 min-w-[70px] sticky left-[40px] z-10" rowSpan={2}>姓名</th>
+                <th className="px-2 py-1.5 border-r bg-gray-50 min-w-[50px]" rowSpan={2}>狀態</th>
+                {categorizedItems.map(cat => (
+                  <th key={cat.category} colSpan={cat.items.length}
+                    className={`px-2 py-1.5 text-center text-white text-xs font-bold ${
+                      cat.category === 'fitness' ? 'bg-green-600' :
+                      cat.category === 'technique' ? 'bg-blue-600' :
+                      cat.category === 'poomsae' ? 'bg-purple-600' :
+                      cat.category === 'board' ? 'bg-amber-600' :
+                      cat.category === 'sparring' ? 'bg-red-600' :
+                      cat.category === 'split' || cat.category === 'side_split' ? 'bg-pink-600' :
+                      cat.category === 'competition' ? 'bg-teal-600' :
+                      'bg-gray-600'
+                    }`}>
+                    {cat.name}
+                  </th>
+                ))}
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[50px]" rowSpan={2}>結果</th>
+              </tr>
+              {/* Item name row */}
+              <tr className="border-b bg-gray-50">
+                {categorizedItems.flatMap(cat => cat.items.map(item => (
+                  <th key={item.id} className="px-1 py-1 text-center border-r min-w-[70px]">
+                    <div className="font-medium text-[10px] leading-tight">{item.name}</div>
+                  </th>
+                )))}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {beltCandidates.map((c: any, idx: number) => {
+                const isAbsent = c.status === 'absent';
+                const statusCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.registered;
+                const candidateScores = scoreMap.get(c.id) || new Map<number, string>();
+                const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : `${idx + 1}`;
+                const scoredItems = candidateScores.size;
+                const allScored = scoredItems >= totalItems && totalItems > 0;
+
+                return (
+                  <tr key={c.id} className={`${
+                    isAbsent ? 'bg-red-50/60 opacity-60' : 
+                    allScored ? 'bg-green-50/40' : 
+                    scoredItems > 0 ? 'bg-yellow-50/30' : ''
+                  }`}>
+                    <td className="px-2 py-2 border-r font-mono font-bold text-center text-sm sticky left-0 bg-inherit z-10">{code}</td>
+                    <td className="px-2 py-2 border-r sticky left-[40px] bg-inherit z-10">
+                      <div className={`font-medium text-sm ${isAbsent ? 'line-through text-gray-400' : ''}`}>{c.name}</div>
+                      <div className="text-[10px] text-gray-400">{c.dojoName || ''}</div>
+                    </td>
+                    <td className="px-2 py-2 border-r text-center">
+                      <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${statusCfg.color}`}>
+                        <statusCfg.icon className="w-3 h-3" /> {statusCfg.label}
+                      </span>
+                      {c.hasLakLakAward && <div className="text-[10px] text-amber-500 font-medium mt-0.5">⭐叻叻獎</div>}
+                    </td>
+                    {categorizedItems.flatMap(cat => cat.items.map(item => {
+                      const currentScore = candidateScores.get(item.id) || '';
+                      if (isAbsent) {
+                        return (
+                          <td key={item.id} className="px-1 py-2 border-r text-center">
+                            <span className="text-gray-300">—</span>
+                          </td>
+                        );
+                      }
+                      return (
+                        <td key={item.id} className="px-1 py-2 border-r text-center">
+                          {currentScore ? renderScore(currentScore, item.type) : <span className="text-gray-200">⋯</span>}
+                        </td>
+                      );
+                    }))}
+                    <td className="px-2 py-2 border-l text-center font-medium">
+                      {c.status === 'passed' && <span className="text-green-600 font-bold">合格 ✓</span>}
+                      {c.status === 'failed' && <span className="text-red-600 font-bold">不合格</span>}
+                      {!['passed', 'failed', 'absent'].includes(c.status) && (
+                        <span className="text-gray-300 text-[10px]">
+                          {scoredItems > 0 ? `${scoredItems}/${totalItems}` : '—'}
+                        </span>
+                      )}
+                      {isAbsent && <span className="text-gray-400">缺席</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : selectedGroup && currentBelt ? (
+        <div className="text-center py-12 bg-white rounded-lg border">
+          <ClipboardCheck className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <p className="text-gray-500">此帶級尚未設定評分項目</p>
+          <p className="text-xs text-gray-400 mt-1">請在「評分」頁面初始化評分項目</p>
+        </div>
+      ) : (
+        <div className="text-center py-12 bg-white rounded-lg border">
+          <Eye className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <p className="text-gray-500">請選擇組別查看成績</p>
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="bg-white rounded-lg border px-4 py-3">
+        <div className="text-xs text-gray-500 flex flex-wrap items-center gap-4">
+          <span className="font-medium text-gray-700">圖例：</span>
+          <span className="flex items-center gap-1">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-500 text-white text-[9px] font-bold">A</span> 優秀
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-yellow-900 text-[9px] font-bold">B</span> 良好
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-400 text-white text-[9px] font-bold">C</span> 及格
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-bold">F</span> 不合格
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="text-green-600 font-bold">✓</span> 通過
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="text-red-500 font-bold">✗</span> 未通過
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="text-gray-300">⋯</span> 未評分
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
