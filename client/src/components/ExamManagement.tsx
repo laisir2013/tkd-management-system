@@ -10,7 +10,7 @@ import {
   XCircle, AlertCircle, FileText, Upload, UserPlus, Calendar,
   Download, Search, ExternalLink, Copy, UserCheck, ArrowLeft,
   Eye, Clock, RefreshCw, LayoutDashboard, MessageSquare, Printer,
-  Mail, Send, ChevronRight, BarChart3, Zap
+  Mail, Send, ChevronRight, BarChart3, Zap, ListChecks, Phone
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -75,10 +75,11 @@ const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 // ==================== NAV ITEMS ====================
-type NavPage = 'overview' | 'candidates' | 'scoring' | 'timetable' | 'results';
+type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'timetable' | 'results';
 const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'overview', label: '考試概覽', icon: LayoutDashboard },
   { key: 'candidates', label: '考生管理', icon: Users },
+  { key: 'checkin', label: '點名', icon: ListChecks },
   { key: 'scoring', label: '評分', icon: ClipboardCheck },
   { key: 'timetable', label: '時間表', icon: Calendar },
   { key: 'results', label: '合格名單', icon: Trophy },
@@ -126,6 +127,7 @@ export default function ExamManagement() {
       <div className="flex-1 overflow-auto bg-gray-50 p-4 sm:p-6">
         {navPage === 'overview' && <OverviewPage examId={selectedExamId} />}
         {navPage === 'candidates' && <CandidatesPage examId={selectedExamId} />}
+        {navPage === 'checkin' && <CheckInPage examId={selectedExamId} />}
         {navPage === 'scoring' && <ScoringPage examId={selectedExamId} />}
         {navPage === 'timetable' && <TimetablePage examId={selectedExamId} />}
         {navPage === 'results' && <ResultsPage examId={selectedExamId} />}
@@ -1822,6 +1824,303 @@ function TimetablePage({ examId }: { examId: number }) {
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================== 點名頁 ====================
+function CheckInPage({ examId }: { examId: number }) {
+  const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: exam } = trpc.exam.get.useQuery({ id: examId });
+  const checkIn = trpc.exam.attendance.checkIn.useMutation({
+    onSuccess: () => { refetchCandidates(); },
+    onError: (err) => { toast.error(err.message || '報到失敗'); },
+  });
+  const undoCheckIn = trpc.exam.attendance.undoCheckIn.useMutation({
+    onSuccess: () => { refetchCandidates(); },
+    onError: (err) => { toast.error(err.message || '撤銷失敗'); },
+  });
+  const markAbsent = trpc.exam.attendance.markAbsent.useMutation({
+    onSuccess: () => { refetchCandidates(); },
+    onError: (err) => { toast.error(err.message || '操作失敗'); },
+  });
+  const bulkCheckIn = trpc.exam.attendance.bulkCheckIn.useMutation({
+    onSuccess: (data) => { refetchCandidates(); toast.success(`已批量報到 ${(data as any).count} 位考生`); },
+    onError: (err) => { toast.error(err.message || '批量報到失敗'); },
+  });
+
+  useExamSSE({ examId, enabled: true, autoInvalidate: true });
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'registered' | 'checked_in' | 'absent'>('all');
+
+  const allCandidates = (candidates || []) as any[];
+  
+  // Stats
+  const totalCount = allCandidates.length;
+  const checkedInCount = allCandidates.filter(c => ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)).length;
+  const registeredCount = allCandidates.filter(c => c.status === 'registered').length;
+  const absentCount = allCandidates.filter(c => c.status === 'absent').length;
+
+  // Group by groupCode
+  const grouped = useMemo(() => {
+    let filtered = allCandidates;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(c => c.name?.toLowerCase().includes(q) || c.phone?.includes(q) || c.dojoName?.toLowerCase().includes(q));
+    }
+    if (filterStatus !== 'all') {
+      if (filterStatus === 'checked_in') {
+        filtered = filtered.filter(c => ['checked_in', 'examining', 'passed', 'failed'].includes(c.status));
+      } else {
+        filtered = filtered.filter(c => c.status === filterStatus);
+      }
+    }
+    const groups: Record<string, any[]> = {};
+    filtered.forEach(c => {
+      const key = c.groupCode || '未分組';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(c);
+    });
+    // Sort groups alphabetically
+    const sorted = Object.entries(groups).sort(([a], [b]) => {
+      if (a === '未分組') return 1;
+      if (b === '未分組') return -1;
+      return a.localeCompare(b);
+    });
+    return sorted;
+  }, [allCandidates, searchQuery, filterStatus]);
+
+  const getStatusDisplay = (status: string) => {
+    if (['checked_in', 'examining', 'passed', 'failed'].includes(status)) {
+      return { label: '已到', color: 'bg-green-100 text-green-700 border-green-300' };
+    }
+    if (status === 'absent') {
+      return { label: '缺席', color: 'bg-red-100 text-red-700 border-red-300' };
+    }
+    return { label: '未到', color: 'bg-gray-100 text-gray-600 border-gray-300' };
+  };
+
+  const handleBulkCheckInAll = () => {
+    const notCheckedIn = allCandidates.filter(c => c.status === 'registered').map(c => c.id);
+    if (notCheckedIn.length === 0) {
+      toast.info('所有考生已報到');
+      return;
+    }
+    if (confirm(`確定要將 ${notCheckedIn.length} 位未報到考生全部標記為已報到？`)) {
+      bulkCheckIn.mutate({ candidateIds: notCheckedIn });
+    }
+  };
+
+  if (!candidates) return <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <ListChecks className="w-5 h-5 text-blue-600" />
+            點名
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {(exam as any)?.name || ''}
+          </p>
+        </div>
+        <Button onClick={handleBulkCheckInAll} disabled={bulkCheckIn.isPending || registeredCount === 0}
+          className="bg-blue-600 hover:bg-blue-700 text-white">
+          <UserCheck className="w-4 h-4 mr-1" />
+          全部報到 ({registeredCount})
+        </Button>
+      </div>
+
+      {/* Stats Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white rounded-lg border p-3 text-center">
+          <div className="text-2xl font-bold text-gray-800">{totalCount}</div>
+          <div className="text-xs text-gray-500">總人數</div>
+        </div>
+        <div className="bg-white rounded-lg border p-3 text-center border-green-200 bg-green-50">
+          <div className="text-2xl font-bold text-green-700">{checkedInCount}</div>
+          <div className="text-xs text-green-600">已到</div>
+        </div>
+        <div className="bg-white rounded-lg border p-3 text-center">
+          <div className="text-2xl font-bold text-gray-600">{registeredCount}</div>
+          <div className="text-xs text-gray-500">未到</div>
+        </div>
+        <div className="bg-white rounded-lg border p-3 text-center border-red-200 bg-red-50">
+          <div className="text-2xl font-bold text-red-600">{absentCount}</div>
+          <div className="text-xs text-red-500">缺席</div>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="bg-white rounded-lg border p-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-sm font-medium text-gray-700">報到進度</span>
+          <span className="text-sm font-bold text-blue-700">
+            {totalCount > 0 ? Math.round((checkedInCount / totalCount) * 100) : 0}%
+          </span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-3">
+          <div className="bg-green-500 h-3 rounded-full transition-all duration-500"
+            style={{ width: `${totalCount > 0 ? (checkedInCount / totalCount) * 100 : 0}%` }}></div>
+        </div>
+      </div>
+
+      {/* Search and Filter */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Input
+            value={searchQuery}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+            placeholder="搜尋考生姓名、電話、道場..."
+            className="pl-9"
+          />
+        </div>
+        <div className="flex gap-1">
+          {([
+            { key: 'all', label: '全部' },
+            { key: 'registered', label: '未到' },
+            { key: 'checked_in', label: '已到' },
+            { key: 'absent', label: '缺席' },
+          ] as const).map(f => (
+            <button key={f.key}
+              onClick={() => setFilterStatus(f.key)}
+              className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                filterStatus === f.key 
+                  ? 'bg-blue-600 text-white border-blue-600' 
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              }`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Candidate List by Group */}
+      <div className="space-y-3">
+        {grouped.map(([groupCode, members]) => {
+          const groupCheckedIn = members.filter(c => ['checked_in', 'examining', 'passed', 'failed'].includes(c.status)).length;
+          return (
+            <div key={groupCode} className="bg-white rounded-lg border overflow-hidden">
+              {/* Group Header */}
+              <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm text-blue-700">
+                    {groupCode === '未分組' ? '未分組' : `${groupCode.toUpperCase()} 組`}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    ({groupCheckedIn}/{members.length} 已到)
+                  </span>
+                  {members.length > 0 && members[0].currentBelt && (
+                    <span className="ml-1">{getBeltBadge(members[0].currentBelt)}</span>
+                  )}
+                </div>
+                {/* Bulk check-in for this group */}
+                {members.some(c => c.status === 'registered') && (
+                  <button
+                    onClick={() => {
+                      const ids = members.filter(c => c.status === 'registered').map(c => c.id);
+                      bulkCheckIn.mutate({ candidateIds: ids });
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    disabled={bulkCheckIn.isPending}
+                  >
+                    全組報到
+                  </button>
+                )}
+              </div>
+              {/* Students */}
+              <div className="divide-y">
+                {members.map(c => {
+                  const statusDisplay = getStatusDisplay(c.status);
+                  const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : '';
+                  const isNotArrived = c.status === 'registered';
+                  const isCheckedIn = ['checked_in', 'examining', 'passed', 'failed'].includes(c.status);
+                  const isAbsent = c.status === 'absent';
+
+                  return (
+                    <div key={c.id} className={`flex items-center justify-between px-4 py-3 ${
+                      isCheckedIn ? 'bg-green-50/50' : isAbsent ? 'bg-red-50/30' : ''
+                    }`}>
+                      {/* Left: Student info */}
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <span className="text-xs text-gray-400 w-6 text-center font-mono">{code}</span>
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm truncate">{c.name}</div>
+                          <div className="text-xs text-gray-400 flex items-center gap-2">
+                            {c.dojoName && <span>{c.dojoName}</span>}
+                            {c.phone && <span className="flex items-center gap-0.5"><Phone className="w-3 h-3" />{c.phone}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      {/* Right: Status + Actions */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded border ${statusDisplay.color}`}>
+                          {statusDisplay.label}
+                        </span>
+                        {isNotArrived && (
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => checkIn.mutate({ candidateId: c.id })}
+                              disabled={checkIn.isPending}
+                              className="px-3 py-1.5 text-sm font-medium rounded-md bg-green-600 text-white hover:bg-green-700 active:bg-green-800 transition-colors disabled:opacity-50 shadow-sm"
+                            >
+                              <UserCheck className="w-4 h-4 inline mr-1" />
+                              報到
+                            </button>
+                            <button
+                              onClick={() => markAbsent.mutate({ candidateId: c.id, absent: true })}
+                              disabled={markAbsent.isPending}
+                              className="px-2 py-1.5 text-sm rounded-md border border-red-300 text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors disabled:opacity-50"
+                              title="標記缺席"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                        {isCheckedIn && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`確定撤銷 ${c.name} 的報到？`)) {
+                                undoCheckIn.mutate({ candidateId: c.id });
+                              }
+                            }}
+                            disabled={undoCheckIn.isPending}
+                            className="px-2 py-1.5 text-xs rounded-md border border-gray-300 text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                            title="撤銷報到"
+                          >
+                            撤銷
+                          </button>
+                        )}
+                        {isAbsent && (
+                          <button
+                            onClick={() => markAbsent.mutate({ candidateId: c.id, absent: false })}
+                            disabled={markAbsent.isPending}
+                            className="px-2 py-1.5 text-xs rounded-md border border-blue-300 text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                            title="取消缺席"
+                          >
+                            取消缺席
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {grouped.length === 0 && (
+        <div className="text-center py-12 text-gray-400">
+          <ListChecks className="w-12 h-12 mx-auto mb-2 opacity-30" />
+          <p>沒有符合條件的考生</p>
         </div>
       )}
     </div>

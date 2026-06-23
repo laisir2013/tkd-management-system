@@ -7395,7 +7395,7 @@ function getBeltScoringItems(belt: string) {
       { name: "太極二章", description: "", type: "grade", category: "poomsae", weight: 1.5 },
       { name: "跳躍旋踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
       { name: "跳躍前踢", description: "5次左5次右", type: "grade", category: "technique", weight: 1 },
-      { name: "上中雙前踢", description: "10組", type: "grade", category: "technique", weight: 1 },
+      { name: "空中雙前踢", description: "10組", type: "grade", category: "technique", weight: 1 },
     ],
     green: [
       { name: "掌上壓", description: "幼稚園10次/小學20次/中學或以上25次", type: "grade", category: "fitness", weight: 1 },
