@@ -734,8 +734,25 @@ function ScoringPage({ examId }: { examId: number }) {
 
   const examData = exam as any;
 
+  // Build group navigation info for BatchScoringTable
+  const groupCodes = groups.map(g => g.code);
+  const groupInfoMap = useMemo(() => {
+    const m = new Map<string, { belts: string[] }>();
+    for (const g of groups) {
+      m.set(g.code, { belts: Array.from(g.belts) });
+    }
+    return m;
+  }, [groups]);
+
   if (selectedGroup) {
-    return <BatchScoringTable examId={examId} groupCode={selectedGroup} onBack={() => setSelectedGroup(null)} />;
+    return <BatchScoringTable
+      examId={examId}
+      groupCode={selectedGroup}
+      onBack={() => setSelectedGroup(null)}
+      groupCodes={groupCodes}
+      groupInfoMap={groupInfoMap}
+      onNavigate={(code: string) => setSelectedGroup(code)}
+    />;
   }
 
   return (
@@ -883,7 +900,10 @@ function generateTimetableWhatsAppMessage(exam: any, schedules: any[], candidate
 }
 
 // ==================== 批量評分表格 (A/B/C 矩陣) ====================
-function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; groupCode: string; onBack: () => void }) {
+function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap, onNavigate }: {
+  examId: number; groupCode: string; onBack: () => void;
+  groupCodes: string[]; groupInfoMap: Map<string, { belts: string[] }>; onNavigate: (code: string) => void;
+}) {
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
   const [activeBelt, setActiveBelt] = useState<string>('');
@@ -989,6 +1009,39 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
   const scoredCount = beltCandidates.filter(c => ['passed', 'failed'].includes(c.status)).length;
   const absentCount = beltCandidates.filter(c => c.status === 'absent').length;
 
+  // Group navigation
+  const currentGroupIdx = groupCodes.indexOf(groupCode);
+  const prevGroup = currentGroupIdx > 0 ? groupCodes[currentGroupIdx - 1] : null;
+  const nextGroup = currentGroupIdx < groupCodes.length - 1 ? groupCodes[currentGroupIdx + 1] : null;
+
+  function getGroupLabel(code: string) {
+    const info = groupInfoMap.get(code);
+    const beltNames = info?.belts?.map(b => getBeltName(b)).join('・') || '';
+    return `${code.toUpperCase()} 組${beltNames ? ` (${beltNames})` : ''}`;
+  }
+
+  function GroupNavBar() {
+    return (
+      <div className="flex items-center justify-between bg-gray-50 rounded-lg border px-3 py-2">
+        {prevGroup ? (
+          <button onClick={() => onNavigate(prevGroup)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> 上一組：{getGroupLabel(prevGroup)}
+          </button>
+        ) : <div />}
+        <span className="text-sm text-gray-500 font-medium">
+          {currentGroupIdx + 1} / {groupCodes.length}
+        </span>
+        {nextGroup ? (
+          <button onClick={() => onNavigate(nextGroup)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
+            下一組：{getGroupLabel(nextGroup)} <ChevronRight className="w-4 h-4" />
+          </button>
+        ) : <div />}
+      </div>
+    );
+  }
+
   // --- WhatsApp 成績通知 ---
   const examData = exam as any;
   const examName = examData?.name || '升級試';
@@ -1078,6 +1131,9 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
 
   return (
     <div className="space-y-4">
+      {/* Top navigation */}
+      <GroupNavBar />
+
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <Button size="sm" variant="ghost" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> 返回</Button>
@@ -1293,6 +1349,9 @@ function BatchScoringTable({ examId, groupCode, onBack }: { examId: number; grou
           <p className="text-sm mt-1">請點擊「初始化評分項目」按鈕</p>
         </div>
       )}
+
+      {/* Bottom navigation */}
+      <GroupNavBar />
     </div>
   );
 }
@@ -1627,14 +1686,23 @@ function TimetablePage({ examId }: { examId: number }) {
                       >
                         {c ? (
                           <div
-                            onClick={(e) => { e.stopPropagation(); handleSelectCandidate({ id: c.id, name: c.name, groupCode: row.groupCode }); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (selectedCandidate && selectedCandidate.id !== c.id) {
+                                // Place the selected student at this position (insert before this student)
+                                handlePlaceCandidate(row.groupCode, i + 1);
+                              } else {
+                                // Select or deselect this student
+                                handleSelectCandidate({ id: c.id, name: c.name, groupCode: row.groupCode });
+                              }
+                            }}
                             className={`inline-flex flex-col items-center px-1.5 py-0.5 rounded text-xs cursor-pointer select-none transition-all
                               ${isSelected
                                 ? 'bg-blue-500 text-white shadow-lg scale-105 ring-2 ring-blue-300'
                                 : selectedCandidate
                                   ? 'bg-green-50 hover:bg-green-100 border border-green-300 hover:border-green-500'
                                   : 'bg-gray-50 hover:bg-blue-50 hover:shadow border border-transparent hover:border-blue-300'}`}
-                            title={isSelected ? `點擊取消選擇` : selectedCandidate ? `點擊此處放置 ${selectedCandidate.name}` : `點擊選擇 ${c.name} 進行移動`}
+                            title={isSelected ? `點擊取消選擇` : selectedCandidate ? `點擊此處：將 ${selectedCandidate.name} 插入到 ${c.name} 前面` : `點擊選擇 ${c.name} 進行移動`}
                           >
                             <span>{c.name}</span>
                             <span className={`text-[9px] leading-tight ${isSelected ? 'text-blue-100' : BELT_LEVELS[c.targetBelt]?.textColor || 'text-gray-500'}`}>(考{getBeltShort(c.targetBelt)})</span>
