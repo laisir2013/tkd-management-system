@@ -1014,6 +1014,12 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
     onError: (err) => toast.error(err.message),
   });
 
+  // Issuance mutation for dispatch tracking
+  const updateIssuance = trpc.exam.updateIssuance.useMutation({
+    onSuccess: () => { refetchCandidates(); },
+    onError: (err) => toast.error(err.message || '更新失敗'),
+  });
+
   const handleClearScore = (candidateId: number, scoringItemId: number, itemName: string) => {
     const pw = prompt(`取消「${itemName}」的評分\n\n請輸入您的登入密碼以確認：`);
     if (!pw) return;
@@ -1261,6 +1267,9 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                     {cat.name}
                   </th>
                 ))}
+                <th className="px-1 py-1 border-l bg-orange-50 min-w-[32px]" rowSpan={2} title="成績表派發">📄</th>
+                <th className="px-1 py-1 border-l bg-orange-50 min-w-[32px]" rowSpan={2} title="證書派發">🏅</th>
+                <th className="px-1 py-1 border-l bg-orange-50 min-w-[32px]" rowSpan={2} title="叻叻獎派發">⭐</th>
               </tr>
               {/* Item name row */}
               <tr className="border-b bg-gray-50">
@@ -1398,6 +1407,37 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                         </td>
                       );
                     }))}
+                    {/* 派發記錄欄 */}
+                    {(() => {
+                      const isDone = ['passed', 'failed'].includes(c.status);
+                      const isPassed = c.status === 'passed';
+                      const DispBtn = ({ field, value }: { field: 'certificateIssued' | 'reportCardIssued' | 'lakLakAwardIssued'; value: string }) => {
+                        if (value === 'issued') return <span className="text-green-600 font-bold text-xs" title="已派">✓</span>;
+                        return (
+                          <button
+                            onClick={() => updateIssuance.mutate({ candidateId: c.id, field, value: 'issued' })}
+                            disabled={updateIssuance.isPending}
+                            className="w-6 h-6 rounded border border-orange-300 bg-orange-50 text-orange-600 text-[10px] font-bold hover:bg-orange-200 active:scale-95 transition-colors"
+                            title="點擊標記為已派"
+                          >
+                            派
+                          </button>
+                        );
+                      };
+                      return (
+                        <>
+                          <td className="px-1 py-1 border-l text-center">
+                            {isDone && !isAbsent ? <DispBtn field="reportCardIssued" value={c.reportCardIssued || 'not_issued'} /> : <span className="text-gray-200">—</span>}
+                          </td>
+                          <td className="px-1 py-1 border-l text-center">
+                            {isPassed ? <DispBtn field="certificateIssued" value={c.certificateIssued || 'not_issued'} /> : <span className="text-gray-200">—</span>}
+                          </td>
+                          <td className="px-1 py-1 border-l text-center">
+                            {c.hasLakLakAward ? <DispBtn field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'not_issued'} /> : <span className="text-gray-200">—</span>}
+                          </td>
+                        </>
+                      );
+                    })()}
                   </tr>
                 );
               })}
