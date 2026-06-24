@@ -3499,8 +3499,9 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
   
   const isItemFailed = (scoreValue: string | null): boolean => {
     if (!scoreValue) return true;
-    const failValues = ['false', 'fail', '未達標', '否', '不合格', '沒有'];
-    return failValues.includes(scoreValue.toLowerCase());
+    const v = scoreValue.toLowerCase();
+    const failValues = ['f', 'false', 'fail', '未達標', '否', '不合格', '沒有'];
+    return failValues.includes(v);
   };
   
   const isGradeA = (scoreValue: string | null): boolean => {
