@@ -1282,19 +1282,19 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                   <tr key={c.id} className={isAbsent ? 'bg-red-50/60 opacity-70' : 'hover:bg-gray-50'}>
                     <td className="px-2 py-2 border-r font-medium text-center">{code}</td>
                     <td className="px-2 py-2 border-r">
-                      <div className="flex items-center gap-1">
-                        <span className={`font-medium ${isAbsent ? 'line-through text-gray-400' : ''}`}>{c.name}</span>
+                      <div className={`font-medium ${isAbsent ? 'line-through text-gray-400' : ''}`}>{c.name}</div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] text-gray-400">{c.dojoName || ''}</span>
                         {['passed', 'failed'].includes(c.status) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); sendWhatsAppScoringResult(c); }}
-                            className="shrink-0 p-0.5 rounded text-green-600 hover:bg-green-100 transition-colors"
+                            className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-500 text-white text-[10px] font-medium hover:bg-green-600 active:scale-95 transition-colors shadow-sm"
                             title={`WhatsApp 通知 ${c.name} 家長成績`}
                           >
-                            <Send className="w-3.5 h-3.5" />
+                            <Send className="w-2.5 h-2.5" />通知
                           </button>
                         )}
                       </div>
-                      <div className="text-[10px] text-gray-400">{c.dojoName || ''}</div>
                     </td>
                     <td className="px-2 py-2 border-r text-center">{getBeltBadge(c.currentBelt)}</td>
                     <td className="px-2 py-2 border-r text-center">
