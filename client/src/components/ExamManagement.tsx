@@ -1280,7 +1280,12 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                 const candidateScores = scoreMap.get(c.id) || new Map<number, string>();
                 const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : `${idx + 1}`;
                 return (
-                  <tr key={c.id} className={isAbsent ? 'bg-red-50/60 opacity-70' : 'hover:bg-gray-50'}>
+                  <tr key={c.id} className={
+                    isAbsent ? 'bg-red-50/60 opacity-70' :
+                    c.status === 'failed' ? 'bg-red-100/60' :
+                    c.hasLakLakAward ? 'bg-amber-100/60' :
+                    'hover:bg-gray-50'
+                  }>
                     <td className="px-2 py-2 border-r font-medium text-center">{code}</td>
                     <td className="px-2 py-2 border-r">
                       <div className={`font-medium ${isAbsent ? 'line-through text-gray-400' : ''}`}>{c.name}</div>
