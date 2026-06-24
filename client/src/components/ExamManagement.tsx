@@ -2242,7 +2242,7 @@ function ScoreViewPage({ examId }: { examId: number }) {
                             {!isAbsent ? <CycleBtn field="certificateIssued" value={c.certificateIssued || 'not_issued'} /> : <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-1 py-2 border-l text-center">
-                            {!isAbsent ? <CycleBtn field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'not_issued'} /> : <span className="text-gray-300">—</span>}
+                            {!isAbsent && c.hasLakLakAward ? <CycleBtn field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'not_issued'} /> : <span className="text-gray-300">—</span>}
                           </td>
                         </>
                       );
