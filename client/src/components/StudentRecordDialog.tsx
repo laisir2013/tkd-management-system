@@ -33,11 +33,11 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
   );
 
   // 查詢考試成績（優先用 phone 匹配，因為 exam_candidates.student_id 可能為 NULL）
-  const { data: examByPhone = [], isLoading: examsByPhoneLoading } = trpc.exams.resultsByPhone.useQuery(
+  const { data: examByPhone = [], isLoading: examsByPhoneLoading } = trpc.exam.resultsByPhone.useQuery(
     { phone: studentPhone || '' },
     { enabled: open && !!studentPhone }
   );
-  const { data: examByStudentId = [], isLoading: examsByIdLoading } = trpc.exams.resultsByStudent.useQuery(
+  const { data: examByStudentId = [], isLoading: examsByIdLoading } = trpc.exam.resultsByStudent.useQuery(
     { studentId },
     { enabled: open && !studentPhone }
   );
