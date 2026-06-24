@@ -1014,11 +1014,6 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
     onError: (err) => toast.error(err.message),
   });
 
-  // Issuance mutation for dispatch tracking
-  const updateIssuance = trpc.exam.updateIssuance.useMutation({
-    onSuccess: () => { refetchCandidates(); },
-    onError: (err) => toast.error(err.message || '更新失敗'),
-  });
 
   const handleClearScore = (candidateId: number, scoringItemId: number, itemName: string) => {
     const pw = prompt(`取消「${itemName}」的評分\n\n請輸入您的登入密碼以確認：`);
@@ -1267,9 +1262,6 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                     {cat.name}
                   </th>
                 ))}
-                <th className="px-1 py-1 border-l bg-orange-50 min-w-[32px]" rowSpan={2} title="成績表派發">📄</th>
-                <th className="px-1 py-1 border-l bg-orange-50 min-w-[32px]" rowSpan={2} title="證書派發">🏅</th>
-                <th className="px-1 py-1 border-l bg-orange-50 min-w-[32px]" rowSpan={2} title="叻叻獎派發">⭐</th>
               </tr>
               {/* Item name row */}
               <tr className="border-b bg-gray-50">
@@ -1407,37 +1399,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                         </td>
                       );
                     }))}
-                    {/* 派發記錄欄 */}
-                    {(() => {
-                      const isDone = ['passed', 'failed'].includes(c.status);
-                      const isPassed = c.status === 'passed';
-                      const DispBtn = ({ field, value }: { field: 'certificateIssued' | 'reportCardIssued' | 'lakLakAwardIssued'; value: string }) => {
-                        if (value === 'issued') return <span className="text-green-600 font-bold text-xs" title="已派">✓</span>;
-                        return (
-                          <button
-                            onClick={() => updateIssuance.mutate({ candidateId: c.id, field, value: 'issued' })}
-                            disabled={updateIssuance.isPending}
-                            className="w-6 h-6 rounded border border-orange-300 bg-orange-50 text-orange-600 text-[10px] font-bold hover:bg-orange-200 active:scale-95 transition-colors"
-                            title="點擊標記為已派"
-                          >
-                            派
-                          </button>
-                        );
-                      };
-                      return (
-                        <>
-                          <td className="px-1 py-1 border-l text-center">
-                            {isDone && !isAbsent ? <DispBtn field="reportCardIssued" value={c.reportCardIssued || 'not_issued'} /> : <span className="text-gray-200">—</span>}
-                          </td>
-                          <td className="px-1 py-1 border-l text-center">
-                            {isPassed ? <DispBtn field="certificateIssued" value={c.certificateIssued || 'not_issued'} /> : <span className="text-gray-200">—</span>}
-                          </td>
-                          <td className="px-1 py-1 border-l text-center">
-                            {c.hasLakLakAward ? <DispBtn field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'not_issued'} /> : <span className="text-gray-200">—</span>}
-                          </td>
-                        </>
-                      );
-                    })()}
+
                   </tr>
                 );
               })}
@@ -2249,40 +2211,36 @@ function ScoreViewPage({ examId }: { examId: number }) {
                       )}
                       {isAbsent && <span className="text-gray-400">缺席</span>}
                     </td>
-                    {/* 派發記錄 — inline buttons */}
+                    {/* 派發記錄 — 未派顯示按鈕，已派顯示 ✓ */}
                     {(() => {
                       const isDone = ['passed', 'failed'].includes(c.status);
                       const isPassed = c.status === 'passed';
-                      const IssuBtn = ({ field, value }: { field: 'certificateIssued' | 'reportCardIssued' | 'lakLakAwardIssued'; value: string }) => {
-                        const sts = [
-                          { key: 'not_issued', label: '未', color: 'bg-gray-100 text-gray-500 border-gray-300' },
-                          { key: 'issued', label: '✓', color: 'bg-green-100 text-green-700 border-green-400' },
-                          { key: 'out_of_stock', label: '缺', color: 'bg-red-100 text-red-600 border-red-300' },
-                        ];
-                        const cur = sts.find(s => s.key === value) || sts[0];
-                        const ni = (sts.findIndex(s => s.key === value) + 1) % sts.length;
-                        const nxt = sts[ni];
+                      const DispBtn = ({ field, value, label }: { field: 'certificateIssued' | 'reportCardIssued' | 'lakLakAwardIssued'; value: string; label: string }) => {
+                        if (value === 'issued') {
+                          return <span className="text-green-600 font-bold" title={`${label}已派`}>✓</span>;
+                        }
+                        // 未派 → 顯示按鈕，點擊直接標記已派
                         return (
                           <button
-                            onClick={() => updateIssuance.mutate({ candidateId: c.id, field, value: nxt.key as any })}
+                            onClick={() => updateIssuance.mutate({ candidateId: c.id, field, value: 'issued' })}
                             disabled={updateIssuance.isPending}
-                            className={`w-7 h-7 text-[11px] font-bold rounded border transition-colors ${cur.color} hover:opacity-80 active:scale-95`}
-                            title={`${cur.key === 'not_issued' ? '未派' : cur.key === 'issued' ? '已派' : '缺貨'} → 點擊切換為「${nxt.key === 'not_issued' ? '未派' : nxt.key === 'issued' ? '已派' : '缺貨'}」`}
+                            className="px-2 py-1 rounded border border-orange-300 bg-orange-50 text-orange-700 text-[10px] font-bold hover:bg-orange-200 active:scale-95 transition-colors"
+                            title={`點擊標記「${label}」已派`}
                           >
-                            {cur.label}
+                            派
                           </button>
                         );
                       };
                       return (
                         <>
                           <td className="px-1 py-2 border-l text-center">
-                            {isDone && !isAbsent ? <IssuBtn field="reportCardIssued" value={c.reportCardIssued || 'not_issued'} /> : <span className="text-gray-300">—</span>}
+                            {isDone && !isAbsent ? <DispBtn field="reportCardIssued" value={c.reportCardIssued || 'not_issued'} label="成績表" /> : <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-1 py-2 border-l text-center">
-                            {isPassed ? <IssuBtn field="certificateIssued" value={c.certificateIssued || 'not_issued'} /> : <span className="text-gray-300">—</span>}
+                            {isPassed ? <DispBtn field="certificateIssued" value={c.certificateIssued || 'not_issued'} label="證書" /> : <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-1 py-2 border-l text-center">
-                            {c.hasLakLakAward ? <IssuBtn field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'not_issued'} /> : <span className="text-gray-300">—</span>}
+                            {c.hasLakLakAward ? <DispBtn field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'not_issued'} label="叻叻獎" /> : <span className="text-gray-300">—</span>}
                           </td>
                         </>
                       );
@@ -2377,10 +2335,8 @@ function ScoreViewPage({ examId }: { examId: number }) {
             </div>
             <div className="mt-3 text-[10px] text-gray-400 flex flex-wrap items-center gap-2">
               <span>派發欄圖例：</span>
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded border bg-gray-100 text-gray-500 text-[10px] font-bold">未</span> 未派
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded border bg-green-100 text-green-700 border-green-400 text-[10px] font-bold">✓</span> 已派
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded border bg-red-100 text-red-600 border-red-300 text-[10px] font-bold">缺</span> 缺貨
-              <span className="ml-1">（點擊按鈕循環切換）</span>
+              <span className="px-1.5 py-0.5 rounded border border-orange-300 bg-orange-50 text-orange-700 text-[10px] font-bold">派</span> 未派（點擊標記已派）
+              <span className="text-green-600 font-bold">✓</span> 已派
             </div>
           </div>
         );
