@@ -2211,37 +2211,34 @@ function ScoreViewPage({ examId }: { examId: number }) {
                       )}
                       {isAbsent && <span className="text-gray-400">缺席</span>}
                     </td>
-                    {/* 派發記錄 — 未派顯示按鈕，已派顯示 ✓ */}
+                    {/* 派發記錄 — 未派顯示按鈕，已派顯示 ✓，未出結果顯示「待定」 */}
                     {(() => {
                       const isDone = ['passed', 'failed'].includes(c.status);
                       const isPassed = c.status === 'passed';
-                      const DispBtn = ({ field, value, label }: { field: 'certificateIssued' | 'reportCardIssued' | 'lakLakAwardIssued'; value: string; label: string }) => {
+                      const DispCell = ({ field, value, label, show }: { field: 'certificateIssued' | 'reportCardIssued' | 'lakLakAwardIssued'; value: string; label: string; show: boolean }) => {
+                        if (isAbsent) return <td className="px-1 py-2 border-l text-center"><span className="text-gray-300">—</span></td>;
+                        if (!show) return <td className="px-1 py-2 border-l text-center"><span className="text-gray-300 text-[9px]">待定</span></td>;
                         if (value === 'issued') {
-                          return <span className="text-green-600 font-bold" title={`${label}已派`}>✓</span>;
+                          return <td className="px-1 py-2 border-l text-center bg-green-50"><span className="text-green-600 font-bold text-sm" title={`${label}已派`}>✓</span></td>;
                         }
-                        // 未派 → 顯示按鈕，點擊直接標記已派
                         return (
-                          <button
-                            onClick={() => updateIssuance.mutate({ candidateId: c.id, field, value: 'issued' })}
-                            disabled={updateIssuance.isPending}
-                            className="px-2 py-1 rounded border border-orange-300 bg-orange-50 text-orange-700 text-[10px] font-bold hover:bg-orange-200 active:scale-95 transition-colors"
-                            title={`點擊標記「${label}」已派`}
-                          >
-                            派
-                          </button>
+                          <td className="px-1 py-2 border-l text-center bg-orange-50/50">
+                            <button
+                              onClick={() => updateIssuance.mutate({ candidateId: c.id, field, value: 'issued' })}
+                              disabled={updateIssuance.isPending}
+                              className="px-2.5 py-1 rounded border-2 border-orange-400 bg-orange-100 text-orange-800 text-[11px] font-bold hover:bg-orange-300 active:scale-95 transition-colors shadow-sm"
+                              title={`點擊標記「${label}」已派`}
+                            >
+                              未派
+                            </button>
+                          </td>
                         );
                       };
                       return (
                         <>
-                          <td className="px-1 py-2 border-l text-center">
-                            {isDone && !isAbsent ? <DispBtn field="reportCardIssued" value={c.reportCardIssued || 'not_issued'} label="成績表" /> : <span className="text-gray-300">—</span>}
-                          </td>
-                          <td className="px-1 py-2 border-l text-center">
-                            {isPassed ? <DispBtn field="certificateIssued" value={c.certificateIssued || 'not_issued'} label="證書" /> : <span className="text-gray-300">—</span>}
-                          </td>
-                          <td className="px-1 py-2 border-l text-center">
-                            {c.hasLakLakAward ? <DispBtn field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'not_issued'} label="叻叻獎" /> : <span className="text-gray-300">—</span>}
-                          </td>
+                          <DispCell field="reportCardIssued" value={c.reportCardIssued || 'not_issued'} label="成績表" show={isDone} />
+                          <DispCell field="certificateIssued" value={c.certificateIssued || 'not_issued'} label="證書" show={isPassed} />
+                          <DispCell field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'not_issued'} label="叻叻獎" show={!!c.hasLakLakAward} />
                         </>
                       );
                     })()}
@@ -2335,8 +2332,9 @@ function ScoreViewPage({ examId }: { examId: number }) {
             </div>
             <div className="mt-3 text-[10px] text-gray-400 flex flex-wrap items-center gap-2">
               <span>派發欄圖例：</span>
-              <span className="px-1.5 py-0.5 rounded border border-orange-300 bg-orange-50 text-orange-700 text-[10px] font-bold">派</span> 未派（點擊標記已派）
-              <span className="text-green-600 font-bold">✓</span> 已派
+              <span className="px-1.5 py-0.5 rounded border-2 border-orange-400 bg-orange-100 text-orange-800 text-[10px] font-bold">未派</span> 點擊即標記已派
+              <span className="text-green-600 font-bold text-sm">✓</span> 已派
+              <span className="text-gray-300 text-[9px]">待定</span> 尚未出結果
             </div>
           </div>
         );
