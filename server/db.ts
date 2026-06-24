@@ -3551,7 +3551,7 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
 }
 
 // --- 回退考生帶級（改分後從 passed 變 failed 時調用）---
-async function revertCandidateBelt(candidateId: number): Promise<{ success: boolean }> {
+export async function revertCandidateBelt(candidateId: number): Promise<{ success: boolean }> {
   const db = await getDb();
   if (!db) return { success: false };
   

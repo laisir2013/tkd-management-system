@@ -134,6 +134,7 @@ import {
   calculateExamResult,
   promotePassedCandidate,
   promoteAllPassedCandidates,
+  revertCandidateBelt,
   createCandidatesFromEventRegistrations,
   getExamResultsByStudent,
   getExamResultsByPhone,
@@ -6531,16 +6532,30 @@ export const appRouter = router({
           if (!userPassword) throw new TRPCError({ code: 'BAD_REQUEST', message: '您的帳號尚未設定密碼，無法執行此操作' });
           const isValid = await verifyPassword(input.password, userPassword);
           if (!isValid) throw new TRPCError({ code: 'FORBIDDEN', message: '密碼錯誤' });
+          // 先取得目前狀態，判斷是否需要回退帶級
+          const prevCandidate = await getExamCandidateById(input.candidateId);
+          const wasPassed = prevCandidate?.status === 'passed';
+
           await deleteExamScoresByCandidate(input.candidateId);
           // Reset candidate status to registered + clear lakLak award
           const db = await getDb();
           if (db) {
             await db.update(schema.examCandidates)
-              .set({ status: 'registered', hasLakLakAward: false })
+              .set({ status: 'registered', hasLakLakAward: false } as any)
               .where(eq(schema.examCandidates.id, input.candidateId));
           }
+
+          // 如果之前是 passed（已自動升帶），需要回退帶級
+          if (wasPassed) {
+            try {
+              await revertCandidateBelt(input.candidateId);
+            } catch (e) {
+              console.warn('[Exam] Belt revert failed on clearAllScores:', e);
+            }
+          }
+
           broadcastCandidateUpdate(
-            (await getExamCandidateById(input.candidateId) as any)?.examId || 0,
+            prevCandidate?.examId || 0,
             input.candidateId,
             { status: 'registered', hasLakLakAward: false }
           );
