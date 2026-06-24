@@ -1282,7 +1282,18 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                   <tr key={c.id} className={isAbsent ? 'bg-red-50/60 opacity-70' : 'hover:bg-gray-50'}>
                     <td className="px-2 py-2 border-r font-medium text-center">{code}</td>
                     <td className="px-2 py-2 border-r">
-                      <div className={`font-medium ${isAbsent ? 'line-through text-gray-400' : ''}`}>{c.name}</div>
+                      <div className="flex items-center gap-1">
+                        <span className={`font-medium ${isAbsent ? 'line-through text-gray-400' : ''}`}>{c.name}</span>
+                        {['passed', 'failed'].includes(c.status) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); sendWhatsAppScoringResult(c); }}
+                            className="shrink-0 p-0.5 rounded text-green-600 hover:bg-green-100 transition-colors"
+                            title={`WhatsApp 通知 ${c.name} 家長成績`}
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                       <div className="text-[10px] text-gray-400">{c.dojoName || ''}</div>
                     </td>
                     <td className="px-2 py-2 border-r text-center">{getBeltBadge(c.currentBelt)}</td>
@@ -1292,15 +1303,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                           <statusCfg.icon className="w-3 h-3" /> {statusCfg.label}
                         </span>
                         {c.hasLakLakAward && <div className="text-[10px] text-amber-500 font-medium">⭐叻叻獎</div>}
-                        {['passed', 'failed'].includes(c.status) && (
-                          <button
-                            onClick={() => sendWhatsAppScoringResult(c)}
-                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors flex items-center gap-0.5"
-                            title={`WhatsApp 通知 ${c.name} 家長成績`}
-                          >
-                            <Send className="w-2.5 h-2.5" /> 通知
-                          </button>
-                        )}
+
                         {isAbsent ? (
                           <button
                             onClick={() => markAbsent.mutate({ candidateId: c.id, absent: false })}
