@@ -14,6 +14,12 @@ interface StudentRecordDialogProps {
   studentPhone?: string;
 }
 
+const BELT_NAMES: Record<string, string> = {
+  white: '白帶', yellow: '黃帶', yellow_green: '黃綠帶', green: '綠帶',
+  green_blue: '綠藍帶', blue: '藍帶', blue_red: '藍紅帶', red: '紅帶',
+  red_black: '紅黑帶', black: '黑帶', black_2dan: '黑帶二段', black_3dan: '黑帶三段',
+};
+
 const PERIOD_LABELS: Record<string, string> = {
   Q1: "1-3月",
   Q2: "4-6月",
@@ -32,17 +38,27 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
     { enabled: open }
   );
 
-  // 查詢考試成績（優先用 phone 匹配，因為 exam_candidates.student_id 可能為 NULL）
+  // 查詢考試成績（兩種方式都查，合併去重）
   const { data: examByPhone = [], isLoading: examsByPhoneLoading } = trpc.exam.resultsByPhone.useQuery(
     { phone: studentPhone || '' },
     { enabled: open && !!studentPhone }
   );
   const { data: examByStudentId = [], isLoading: examsByIdLoading } = trpc.exam.resultsByStudent.useQuery(
     { studentId },
-    { enabled: open && !studentPhone }
+    { enabled: open }
   );
-  const examResults = studentPhone ? examByPhone : examByStudentId;
-  const examsLoading = studentPhone ? examsByPhoneLoading : examsByIdLoading;
+  // 合併結果並只保留該學生的記錄（同電話可能有兄弟姐妹）
+  const allExamResults = studentPhone ? examByPhone : examByStudentId;
+  const examResults = allExamResults.filter((r: any) => {
+    const c = r.candidate;
+    if (!c) return false;
+    // 優先用 studentId 精確匹配
+    if (c.studentId === studentId) return true;
+    // 其次用姓名匹配（同電話不同人要過濾掉）
+    if (c.name === studentName) return true;
+    return false;
+  });
+  const examsLoading = examsByPhoneLoading || examsByIdLoading;
 
   // 查詢是否為精英班學生
   const { data: eliteStudents = [], isLoading: eliteStudentLoading } = trpc.elite.getStudentsByPhone.useQuery(
@@ -190,7 +206,7 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
                         )}
                       </div>
                       <Badge variant="outline" className="text-[10px]">
-                        {result.candidate?.currentBelt || "-"} → {result.candidate?.targetBelt || "-"}
+                        {BELT_NAMES[result.candidate?.currentBelt] || result.candidate?.currentBelt || "-"} → {BELT_NAMES[result.candidate?.targetBelt] || result.candidate?.targetBelt || "-"}
                       </Badge>
                     </div>
                     {result.candidate?.status && (
