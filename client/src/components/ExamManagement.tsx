@@ -1352,14 +1352,15 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                         <td key={item.id} className="px-1 py-1 border-r text-center relative group/cell">
                           {isGrade ? (
                             <div className="flex items-center justify-center gap-1">
-                              {['A', 'B', 'C'].map(grade => (
+                              {['A', 'B', 'C', 'F'].map(grade => (
                                 <button key={grade}
                                   onClick={() => handleScoreClick(c.id, item.id, grade)}
                                   className={`w-6 h-6 rounded-full text-[10px] font-bold transition-all ${
                                     currentScore === grade
                                       ? grade === 'A' ? 'bg-green-500 text-white shadow'
                                         : grade === 'B' ? 'bg-blue-500 text-white shadow'
-                                        : 'bg-orange-500 text-white shadow'
+                                        : grade === 'C' ? 'bg-orange-500 text-white shadow'
+                                        : 'bg-red-600 text-white shadow'
                                       : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                                   }`}>
                                   {grade}
