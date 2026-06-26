@@ -76,7 +76,7 @@ const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 // ==================== NAV ITEMS ====================
-type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results';
+type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results' | 'statistics';
 const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'overview', label: '考試概覽', icon: LayoutDashboard },
   { key: 'candidates', label: '考生管理', icon: Users },
@@ -85,6 +85,7 @@ const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'scoreview', label: '成績記錄', icon: Eye },
   { key: 'timetable', label: '時間表', icon: Calendar },
   { key: 'results', label: '合格名單', icon: Trophy },
+  { key: 'statistics', label: '統計分析', icon: BarChart3 },
 ];
 
 // ==================== 主組件 ====================
@@ -188,6 +189,7 @@ export default function ExamManagement() {
         {navPage === 'scoreview' && <ScoreViewPage examId={selectedExamId} />}
         {navPage === 'timetable' && <TimetablePage examId={selectedExamId} />}
         {navPage === 'results' && <ResultsPage examId={selectedExamId} />}
+        {navPage === 'statistics' && <StatisticsPage examId={selectedExamId} />}
       </div>
     </div>
   );
@@ -2891,6 +2893,619 @@ function ResultsPage({ examId }: { examId: number }) {
             <p>沒有符合條件的考生</p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ==================== 統計分析頁 ====================
+function StatisticsPage({ examId }: { examId: number }) {
+  const { data: exam } = trpc.exam.get.useQuery({ id: examId });
+  const { data: stats } = trpc.exam.statistics.useQuery({ examId });
+  const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: allScores } = trpc.exam.scores.listByExam.useQuery({ examId });
+
+  useExamSSE({ examId, enabled: true, autoInvalidate: true });
+
+  const allCandidates = (candidates || []) as any[];
+  const scores = (allScores || []) as any[];
+  const s = stats as any;
+  const examData = exam as any;
+
+  // ---- Derived statistics ----
+
+  // 1. Status distribution
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { registered: 0, checked_in: 0, examining: 0, passed: 0, failed: 0, absent: 0 };
+    allCandidates.forEach(c => { counts[c.status] = (counts[c.status] || 0) + 1; });
+    return counts;
+  }, [allCandidates]);
+
+  const totalJudged = statusCounts.passed + statusCounts.failed;
+  const passRate = totalJudged > 0 ? ((statusCounts.passed / totalJudged) * 100) : 0;
+  const checkedInTotal = allCandidates.filter(c => !['registered', 'absent'].includes(c.status)).length;
+  const attendanceRate = allCandidates.length > 0 ? ((checkedInTotal / allCandidates.length) * 100) : 0;
+
+  // 2. Belt-level stats
+  const beltStats = useMemo(() => {
+    return BELT_ORDER_KEYS.map(key => {
+      const belt = allCandidates.filter(c => c.currentBelt === key);
+      const passed = belt.filter(c => c.status === 'passed').length;
+      const failed = belt.filter(c => c.status === 'failed').length;
+      const lakLak = belt.filter(c => c.hasLakLakAward).length;
+      const judged = passed + failed;
+      return { key, name: getBeltName(key), total: belt.length, passed, failed, judged, lakLak, rate: judged > 0 ? Math.round((passed / judged) * 100) : null };
+    }).filter(b => b.total > 0);
+  }, [allCandidates]);
+
+  // 3. Per-item score distribution (A/B/C/F/pass)
+  const itemStats = useMemo(() => {
+    const map: Record<number, { id: number; name: string; category: string; beltLevel: string; gradeA: number; gradeB: number; gradeC: number; gradeF: number; pass: number; total: number }> = {};
+    scores.forEach((entry: any) => {
+      const item = entry.item || {};
+      const sc = entry.score || entry;
+      const itemId = item.id || sc.scoringItemId;
+      if (!map[itemId]) {
+        map[itemId] = { id: itemId, name: item.name || '', category: item.category || '', beltLevel: item.beltLevel || '', gradeA: 0, gradeB: 0, gradeC: 0, gradeF: 0, pass: 0, total: 0 };
+      }
+      map[itemId].total++;
+      const v = (sc.score || '').toUpperCase();
+      if (v === 'A') map[itemId].gradeA++;
+      else if (v === 'B') map[itemId].gradeB++;
+      else if (v === 'C') map[itemId].gradeC++;
+      else if (v === 'F' || v === 'FAIL' || v === 'FALSE' || v === '不合格' || v === '未達標') map[itemId].gradeF++;
+      else if (v === 'PASS' || v === 'TRUE' || v === '合格') map[itemId].pass++;
+    });
+    return Object.values(map);
+  }, [scores]);
+
+  // Group items by belt
+  const itemsByBelt = useMemo(() => {
+    const map = new Map<string, typeof itemStats>();
+    itemStats.forEach(item => {
+      const belt = item.beltLevel || 'unknown';
+      if (!map.has(belt)) map.set(belt, []);
+      map.get(belt)!.push(item);
+    });
+    return map;
+  }, [itemStats]);
+
+  // 4. Group (A~M) performance
+  const groupStats = useMemo(() => {
+    const map: Record<string, { code: string; belt: string; total: number; passed: number; failed: number; lakLak: number }> = {};
+    allCandidates.forEach(c => {
+      const g = c.groupCode || '';
+      if (!g) return;
+      if (!map[g]) map[g] = { code: g, belt: '', total: 0, passed: 0, failed: 0, lakLak: 0 };
+      map[g].total++;
+      if (c.status === 'passed') map[g].passed++;
+      if (c.status === 'failed') map[g].failed++;
+      if (c.hasLakLakAward) map[g].lakLak++;
+      if (!map[g].belt && c.currentBelt) map[g].belt = c.currentBelt;
+    });
+    return Object.values(map).sort((a, b) => a.code.localeCompare(b.code));
+  }, [allCandidates]);
+
+  // 5. Dojo performance
+  const dojoStats = useMemo(() => {
+    const map: Record<string, { name: string; total: number; passed: number; failed: number; lakLak: number; checkedIn: number }> = {};
+    allCandidates.forEach(c => {
+      const dojo = c.dojoName || '未知道場';
+      if (!map[dojo]) map[dojo] = { name: dojo, total: 0, passed: 0, failed: 0, lakLak: 0, checkedIn: 0 };
+      map[dojo].total++;
+      if (c.status === 'passed') map[dojo].passed++;
+      if (c.status === 'failed') map[dojo].failed++;
+      if (c.hasLakLakAward) map[dojo].lakLak++;
+      if (!['registered', 'absent'].includes(c.status)) map[dojo].checkedIn++;
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total);
+  }, [allCandidates]);
+
+  // 6. Gender stats
+  const genderStats = useMemo(() => {
+    const map: Record<string, { total: number; passed: number; failed: number }> = {};
+    allCandidates.forEach(c => {
+      const g = c.gender || 'unknown';
+      if (!map[g]) map[g] = { total: 0, passed: 0, failed: 0 };
+      map[g].total++;
+      if (c.status === 'passed') map[g].passed++;
+      if (c.status === 'failed') map[g].failed++;
+    });
+    return map;
+  }, [allCandidates]);
+
+  // 7. Issuance summary
+  const issuanceSummary = useMemo(() => {
+    const result = {
+      certificate: { issued: 0, not_issued: 0, out_of_stock: 0 },
+      report_card: { issued: 0, not_issued: 0, out_of_stock: 0 },
+      lak_lak: { issued: 0, not_issued: 0, out_of_stock: 0, eligible: 0 },
+    };
+    allCandidates.forEach(c => {
+      if (c.status === 'absent') return;
+      const cert = c.certificateIssued || c.certificate_issued || 'not_issued';
+      const report = c.reportCardIssued || c.report_card_issued || 'not_issued';
+      const lak = c.lakLakAwardIssued || c.lak_lak_award_issued || 'not_issued';
+      if (cert in result.certificate) result.certificate[cert as keyof typeof result.certificate]++;
+      if (report in result.report_card) result.report_card[report as keyof typeof result.report_card]++;
+      if (c.hasLakLakAward) {
+        result.lak_lak.eligible++;
+        if (lak in result.lak_lak) (result.lak_lak as any)[lak]++;
+      }
+    });
+    return result;
+  }, [allCandidates]);
+
+  // 8. Overall grade distribution
+  const gradeDistribution = useMemo(() => {
+    const d = { A: 0, B: 0, C: 0, F: 0, pass: 0, total: 0 };
+    scores.forEach((entry: any) => {
+      const sc = entry.score || entry;
+      const v = (sc.score || '').toUpperCase();
+      d.total++;
+      if (v === 'A') d.A++;
+      else if (v === 'B') d.B++;
+      else if (v === 'C') d.C++;
+      else if (v === 'F' || v === 'FAIL' || v === 'FALSE' || v === '不合格' || v === '未達標') d.F++;
+      else if (v === 'PASS' || v === 'TRUE' || v === '合格') d.pass++;
+    });
+    return d;
+  }, [scores]);
+
+  // 9. 叻叻獎 students
+  const lakLakStudents = useMemo(() => {
+    return allCandidates.filter(c => c.hasLakLakAward).sort((a: any, b: any) => {
+      const aOrder = BELT_LEVELS[a.currentBelt]?.order || 99;
+      const bOrder = BELT_LEVELS[b.currentBelt]?.order || 99;
+      return aOrder - bOrder;
+    });
+  }, [allCandidates]);
+
+  // 10. Weakest items (highest fail rate)
+  const weakestItems = useMemo(() => {
+    return [...itemStats].filter(i => i.gradeF > 0).sort((a, b) => (b.gradeF / b.total) - (a.gradeF / a.total)).slice(0, 15);
+  }, [itemStats]);
+
+  // 11. Strongest items (highest A rate)
+  const strongestItems = useMemo(() => {
+    return [...itemStats].filter(i => i.gradeA > 0 && i.total >= 3).sort((a, b) => (b.gradeA / b.total) - (a.gradeA / a.total)).slice(0, 10);
+  }, [itemStats]);
+
+  if (!exam) return <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold flex items-center gap-2">
+          <BarChart3 className="w-6 h-6 text-indigo-600" /> 統計分析
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">{examData?.name} — 詳細數據儀表板</p>
+      </div>
+
+      {/* ===== Section 1: Overview KPIs ===== */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <StatCard icon="👥" label="總報名" value={allCandidates.length} color="blue" />
+        <StatCard icon="✅" label="已報到" value={checkedInTotal} color="green" suffix={`${checkedInTotal} (${Math.round(attendanceRate)}%)`} />
+        <StatCard icon="🏆" label="合格" value={statusCounts.passed} color="emerald" />
+        <StatCard icon="❌" label="不合格" value={statusCounts.failed} color="red" />
+        <StatCard icon="📊" label="合格率" value={0} color="indigo" suffix={totalJudged > 0 ? `${passRate.toFixed(1)}%` : '-'} />
+        <StatCard icon="⭐" label="叻叻獎" value={s?.lakLakCount || lakLakStudents.length} color="amber" />
+      </div>
+
+      {/* ===== Section 2: Status Breakdown Visual ===== */}
+      <div className="bg-white rounded-lg border p-4">
+        <h3 className="font-semibold mb-3 flex items-center gap-2">📋 考生狀態分佈</h3>
+        <div className="h-8 rounded-full overflow-hidden flex mb-3">
+          {Object.entries(statusCounts).map(([status, count]) => {
+            if (count === 0) return null;
+            const colors: Record<string, string> = { registered: 'bg-gray-300', checked_in: 'bg-blue-400', examining: 'bg-yellow-400', passed: 'bg-green-500', failed: 'bg-red-400', absent: 'bg-gray-200' };
+            const pct = allCandidates.length > 0 ? (count / allCandidates.length) * 100 : 0;
+            return <div key={status} className={`${colors[status] || 'bg-gray-300'} h-full transition-all flex items-center justify-center`} style={{ width: `${pct}%` }} title={`${STATUS_CONFIG[status]?.label || status}: ${count}`}>
+              {pct > 8 && <span className="text-xs font-medium text-white drop-shadow">{count}</span>}
+            </div>;
+          })}
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs">
+          {Object.entries(statusCounts).filter(([, c]) => c > 0).map(([status, count]) => {
+            const colors: Record<string, string> = { registered: 'bg-gray-300', checked_in: 'bg-blue-400', examining: 'bg-yellow-400', passed: 'bg-green-500', failed: 'bg-red-400', absent: 'bg-gray-200' };
+            return <div key={status} className="flex items-center gap-1.5">
+              <div className={`w-3 h-3 rounded-sm ${colors[status] || 'bg-gray-300'}`} />
+              <span className="text-gray-600">{STATUS_CONFIG[status]?.label || status}: <strong>{count}</strong></span>
+            </div>;
+          })}
+        </div>
+      </div>
+
+      {/* ===== Section 3: Grade Distribution ===== */}
+      {gradeDistribution.total > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">📊 整體成績分佈（所有評分項目）</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+            <GradeCard label="A（優秀）" count={gradeDistribution.A} total={gradeDistribution.total} color="bg-green-500" />
+            <GradeCard label="B（良好）" count={gradeDistribution.B} total={gradeDistribution.total} color="bg-blue-500" />
+            <GradeCard label="C（合格）" count={gradeDistribution.C} total={gradeDistribution.total} color="bg-yellow-500" />
+            <GradeCard label="Pass" count={gradeDistribution.pass} total={gradeDistribution.total} color="bg-emerald-500" />
+            <GradeCard label="F（不合格）" count={gradeDistribution.F} total={gradeDistribution.total} color="bg-red-500" />
+          </div>
+          <div className="h-6 rounded-full overflow-hidden flex">
+            {[
+              { label: 'A', count: gradeDistribution.A, color: 'bg-green-500' },
+              { label: 'B', count: gradeDistribution.B, color: 'bg-blue-500' },
+              { label: 'C', count: gradeDistribution.C, color: 'bg-yellow-500' },
+              { label: 'Pass', count: gradeDistribution.pass, color: 'bg-emerald-400' },
+              { label: 'F', count: gradeDistribution.F, color: 'bg-red-400' },
+            ].filter(g => g.count > 0).map(g => {
+              const pct = (g.count / gradeDistribution.total) * 100;
+              return <div key={g.label} className={`${g.color} h-full flex items-center justify-center transition-all`} style={{ width: `${pct}%` }} title={`${g.label}: ${g.count} (${pct.toFixed(1)}%)`}>
+                {pct > 6 && <span className="text-xs font-medium text-white drop-shadow">{g.label}</span>}
+              </div>;
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Section 4: Belt-Level Performance ===== */}
+      {beltStats.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">🥋 各帶級表現</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">帶級</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">報名</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">合格</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">不合格</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">合格率</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">叻叻獎</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600 w-36">比較</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {beltStats.map(b => (
+                  <tr key={b.key} className="hover:bg-gray-50">
+                    <td className="px-3 py-2">{getBeltBadge(b.key)}</td>
+                    <td className="px-3 py-2 text-center">{b.total}</td>
+                    <td className="px-3 py-2 text-center text-green-600 font-medium">{b.passed}</td>
+                    <td className="px-3 py-2 text-center text-red-600 font-medium">{b.failed}</td>
+                    <td className="px-3 py-2 text-center font-bold">{b.rate !== null ? `${b.rate}%` : '-'}</td>
+                    <td className="px-3 py-2 text-center">{b.lakLak > 0 ? <span className="text-amber-600 font-medium">⭐ {b.lakLak}</span> : <span className="text-gray-300">-</span>}</td>
+                    <td className="px-3 py-2">
+                      {b.judged > 0 && (
+                        <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
+                          <div className="h-full bg-green-500" style={{ width: `${(b.passed / b.judged) * 100}%` }} />
+                          <div className="h-full bg-red-400" style={{ width: `${(b.failed / b.judged) * 100}%` }} />
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-50 font-medium">
+                <tr>
+                  <td className="px-3 py-2">合計</td>
+                  <td className="px-3 py-2 text-center">{allCandidates.length}</td>
+                  <td className="px-3 py-2 text-center text-green-600">{statusCounts.passed}</td>
+                  <td className="px-3 py-2 text-center text-red-600">{statusCounts.failed}</td>
+                  <td className="px-3 py-2 text-center">{totalJudged > 0 ? `${passRate.toFixed(1)}%` : '-'}</td>
+                  <td className="px-3 py-2 text-center text-amber-600">⭐ {lakLakStudents.length}</td>
+                  <td className="px-3 py-2" />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Section 5: Group Performance ===== */}
+      {groupStats.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">📁 分組表現</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {groupStats.map(g => {
+              const judged = g.passed + g.failed;
+              const rate = judged > 0 ? Math.round((g.passed / judged) * 100) : null;
+              return (
+                <div key={g.code} className="bg-gray-50 rounded-lg p-3 border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-lg font-bold text-blue-600">{g.code.toUpperCase()} 組</span>
+                    {g.belt && <span className="text-xs">{getBeltBadge(g.belt)}</span>}
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-500">人數</span><span className="font-medium">{g.total}</span></div>
+                    {g.passed > 0 && <div className="flex justify-between"><span className="text-green-600">合格</span><span className="font-medium text-green-600">{g.passed}</span></div>}
+                    {g.failed > 0 && <div className="flex justify-between"><span className="text-red-600">不合格</span><span className="font-medium text-red-600">{g.failed}</span></div>}
+                    {g.lakLak > 0 && <div className="flex justify-between"><span className="text-amber-600">叻叻獎</span><span className="font-medium text-amber-600">⭐ {g.lakLak}</span></div>}
+                    {rate !== null && (
+                      <div className="mt-1">
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden flex">
+                          <div className="h-full bg-green-500" style={{ width: `${rate}%` }} />
+                          <div className="h-full bg-red-400" style={{ width: `${100 - rate}%` }} />
+                        </div>
+                        <div className="text-center text-gray-500 mt-0.5">{rate}%</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Section 6: Dojo Performance ===== */}
+      {dojoStats.length > 1 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">🏠 各道場表現</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">道場</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">報名</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">出席</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">合格</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">不合格</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">合格率</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">叻叻獎</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600 w-32">比較</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {dojoStats.map(d => {
+                  const judged = d.passed + d.failed;
+                  const rate = judged > 0 ? Math.round((d.passed / judged) * 100) : null;
+                  return (
+                    <tr key={d.name} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 font-medium">{d.name}</td>
+                      <td className="px-3 py-2 text-center">{d.total}</td>
+                      <td className="px-3 py-2 text-center text-blue-600">{d.checkedIn}</td>
+                      <td className="px-3 py-2 text-center text-green-600 font-medium">{d.passed}</td>
+                      <td className="px-3 py-2 text-center text-red-600 font-medium">{d.failed}</td>
+                      <td className="px-3 py-2 text-center font-bold">{rate !== null ? `${rate}%` : '-'}</td>
+                      <td className="px-3 py-2 text-center">{d.lakLak > 0 ? <span className="text-amber-600">⭐ {d.lakLak}</span> : '-'}</td>
+                      <td className="px-3 py-2">
+                        {judged > 0 && (
+                          <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
+                            <div className="h-full bg-green-500" style={{ width: `${rate}%` }} />
+                            <div className="h-full bg-red-400" style={{ width: `${100 - (rate || 0)}%` }} />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Section 7: Gender Analysis ===== */}
+      {Object.keys(genderStats).length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">👫 性別分析</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {Object.entries(genderStats).map(([gender, data]) => {
+              const judged = data.passed + data.failed;
+              const rate = judged > 0 ? Math.round((data.passed / judged) * 100) : null;
+              const label = GENDER_MAP[gender] || gender;
+              return (
+                <div key={gender} className="bg-gray-50 rounded-lg p-4 text-center border">
+                  <div className="text-2xl mb-1">{gender === 'male' ? '👦' : gender === 'female' ? '👧' : '❓'}</div>
+                  <div className="font-medium">{label}</div>
+                  <div className="text-2xl font-bold text-gray-800 mt-1">{data.total}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    合格 <span className="text-green-600 font-medium">{data.passed}</span>
+                    {' / '}不合格 <span className="text-red-600 font-medium">{data.failed}</span>
+                  </div>
+                  {rate !== null && (
+                    <div className="mt-2">
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-green-500 rounded-full" style={{ width: `${rate}%` }} />
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">合格率 {rate}%</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Section 8: Weakest Items ===== */}
+      {weakestItems.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">⚠️ 不合格率最高項目（需加強訓練）</h3>
+          <div className="space-y-2">
+            {weakestItems.map((item, idx) => {
+              const failRate = Math.round((item.gradeF / item.total) * 100);
+              const categoryLabel = CATEGORY_NAMES[item.category] || item.category;
+              return (
+                <div key={item.id} className="flex items-center gap-3">
+                  <span className="w-6 text-center text-sm font-bold text-red-500">#{idx + 1}</span>
+                  <div className="w-16 shrink-0">{getBeltBadge(item.beltLevel)}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1 gap-2">
+                      <span className="text-sm font-medium truncate">
+                        {categoryLabel && <span className="text-gray-400 mr-1">[{categoryLabel}]</span>}
+                        {item.name}
+                      </span>
+                      <span className="text-xs text-red-600 font-medium whitespace-nowrap">{item.gradeF}/{item.total} 不合格 ({failRate}%)</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-red-400 rounded-full" style={{ width: `${failRate}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Section 9: Strongest Items ===== */}
+      {strongestItems.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">🌟 A級率最高項目（表現優秀）</h3>
+          <div className="space-y-2">
+            {strongestItems.map((item, idx) => {
+              const aRate = Math.round((item.gradeA / item.total) * 100);
+              const categoryLabel = CATEGORY_NAMES[item.category] || item.category;
+              return (
+                <div key={item.id} className="flex items-center gap-3">
+                  <span className="w-6 text-center text-sm font-bold text-green-500">#{idx + 1}</span>
+                  <div className="w-16 shrink-0">{getBeltBadge(item.beltLevel)}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1 gap-2">
+                      <span className="text-sm font-medium truncate">
+                        {categoryLabel && <span className="text-gray-400 mr-1">[{categoryLabel}]</span>}
+                        {item.name}
+                      </span>
+                      <span className="text-xs text-green-600 font-medium whitespace-nowrap">{item.gradeA}/{item.total} A級 ({aRate}%)</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-green-500 rounded-full" style={{ width: `${aRate}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Section 10: Per-Belt Item Breakdown ===== */}
+      {itemsByBelt.size > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">📋 各帶級評分項目詳情</h3>
+          <div className="space-y-4">
+            {BELT_ORDER_KEYS.filter(k => itemsByBelt.has(k)).map(beltKey => {
+              const beltItems = itemsByBelt.get(beltKey)!;
+              const byCat = new Map<string, typeof beltItems>();
+              beltItems.forEach(i => {
+                const cat = i.category || 'other';
+                if (!byCat.has(cat)) byCat.set(cat, []);
+                byCat.get(cat)!.push(i);
+              });
+              return (
+                <div key={beltKey}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {getBeltBadge(beltKey)}
+                    <span className="text-sm text-gray-500">({beltItems.reduce((sum, i) => sum + i.total, 0)} 項成績)</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-2 py-1.5 text-left font-medium text-gray-600">類別</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-gray-600">項目</th>
+                          <th className="px-2 py-1.5 text-center font-medium text-green-600">A</th>
+                          <th className="px-2 py-1.5 text-center font-medium text-blue-600">B</th>
+                          <th className="px-2 py-1.5 text-center font-medium text-yellow-600">C</th>
+                          <th className="px-2 py-1.5 text-center font-medium text-red-600">F</th>
+                          <th className="px-2 py-1.5 text-center font-medium text-emerald-600">Pass</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-gray-600 w-28">分佈</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {Array.from(byCat.entries()).flatMap(([cat, catItems]) =>
+                          catItems.map((item, idx) => (
+                            <tr key={item.id} className="hover:bg-gray-50">
+                              {idx === 0 && <td className="px-2 py-1.5 text-gray-500 font-medium" rowSpan={catItems.length}>{CATEGORY_NAMES[cat] || cat}</td>}
+                              <td className="px-2 py-1.5 font-medium">{item.name}</td>
+                              <td className="px-2 py-1.5 text-center text-green-600 font-medium">{item.gradeA || '-'}</td>
+                              <td className="px-2 py-1.5 text-center text-blue-600 font-medium">{item.gradeB || '-'}</td>
+                              <td className="px-2 py-1.5 text-center text-yellow-600 font-medium">{item.gradeC || '-'}</td>
+                              <td className="px-2 py-1.5 text-center text-red-600 font-medium">{item.gradeF || '-'}</td>
+                              <td className="px-2 py-1.5 text-center text-emerald-600 font-medium">{item.pass || '-'}</td>
+                              <td className="px-2 py-1.5">
+                                <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
+                                  {item.total > 0 && <>
+                                    <div className="h-full bg-green-500" style={{ width: `${(item.gradeA / item.total) * 100}%` }} title={`A: ${item.gradeA}`} />
+                                    <div className="h-full bg-blue-400" style={{ width: `${(item.gradeB / item.total) * 100}%` }} title={`B: ${item.gradeB}`} />
+                                    <div className="h-full bg-yellow-400" style={{ width: `${(item.gradeC / item.total) * 100}%` }} title={`C: ${item.gradeC}`} />
+                                    <div className="h-full bg-emerald-400" style={{ width: `${(item.pass / item.total) * 100}%` }} title={`Pass: ${item.pass}`} />
+                                    <div className="h-full bg-red-400" style={{ width: `${(item.gradeF / item.total) * 100}%` }} title={`F: ${item.gradeF}`} />
+                                  </>}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Section 11: 叻叻獎 List ===== */}
+      {lakLakStudents.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">⭐ 叻叻獎名單（{lakLakStudents.length} 人）</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+            {lakLakStudents.map((c: any) => (
+              <div key={c.id} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <span className="text-sm font-medium text-amber-800">{c.name}</span>
+                <div className="flex items-center gap-1 ml-auto">
+                  {getBeltBadge(c.currentBelt)}
+                  <span className="text-xs text-amber-500">→</span>
+                  {getBeltBadge(c.targetBelt)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Section 12: Issuance Tracking ===== */}
+      <div className="bg-white rounded-lg border p-4">
+        <h3 className="font-semibold mb-3 flex items-center gap-2">📦 派發追蹤</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label: '證書', icon: '📜', data: issuanceSummary.certificate, eligibleNote: '' },
+            { label: '成績表', icon: '📄', data: issuanceSummary.report_card, eligibleNote: '' },
+            { label: '叻叻獎', icon: '⭐', data: issuanceSummary.lak_lak, eligibleNote: `(合資格: ${issuanceSummary.lak_lak.eligible})` },
+          ].map(item => {
+            const total = item.data.issued + item.data.not_issued + item.data.out_of_stock;
+            return (
+              <div key={item.label} className="bg-gray-50 rounded-lg p-3 border">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">{item.icon}</span>
+                  <span className="font-medium">{item.label}</span>
+                  {item.eligibleNote && <span className="text-xs text-gray-400">{item.eligibleNote}</span>}
+                </div>
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-green-600">✅ 已派</span>
+                    <span className="font-medium">{item.data.issued}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-orange-500">⏳ 未派</span>
+                    <span className="font-medium">{item.data.not_issued}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">🚫 待定</span>
+                    <span className="font-medium">{item.data.out_of_stock}</span>
+                  </div>
+                  {total > 0 && (
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden flex mt-1">
+                      <div className="h-full bg-green-500" style={{ width: `${(item.data.issued / total) * 100}%` }} />
+                      <div className="h-full bg-orange-400" style={{ width: `${(item.data.not_issued / total) * 100}%` }} />
+                      <div className="h-full bg-gray-300" style={{ width: `${(item.data.out_of_stock / total) * 100}%` }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
