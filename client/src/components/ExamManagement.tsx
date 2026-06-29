@@ -11,7 +11,7 @@ import {
   Download, Search, ExternalLink, Copy, UserCheck, ArrowLeft,
   Eye, Clock, RefreshCw, LayoutDashboard, MessageSquare, Printer,
   Mail, Send, ChevronRight, BarChart3, Zap, ListChecks, Phone,
-  Menu, X
+  Menu, X, Package
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -76,7 +76,7 @@ const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 // ==================== NAV ITEMS ====================
-type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results' | 'statistics';
+type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results' | 'statistics' | 'supplies';
 const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'overview', label: '考試概覽', icon: LayoutDashboard },
   { key: 'candidates', label: '考生管理', icon: Users },
@@ -86,6 +86,7 @@ const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'timetable', label: '時間表', icon: Calendar },
   { key: 'results', label: '合格名單', icon: Trophy },
   { key: 'statistics', label: '統計分析', icon: BarChart3 },
+  { key: 'supplies', label: '物資清單', icon: Package },
 ];
 
 // ==================== 主組件 ====================
@@ -190,6 +191,7 @@ export default function ExamManagement() {
         {navPage === 'timetable' && <TimetablePage examId={selectedExamId} />}
         {navPage === 'results' && <ResultsPage examId={selectedExamId} />}
         {navPage === 'statistics' && <StatisticsPage examId={selectedExamId} />}
+        {navPage === 'supplies' && <SuppliesPage examId={selectedExamId} />}
       </div>
     </div>
   );
@@ -3506,6 +3508,300 @@ function StatisticsPage({ examId }: { examId: number }) {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== 物資清單頁 ====================
+function SuppliesPage({ examId }: { examId: number }) {
+  const { data: exam } = trpc.exam.get.useQuery({ id: examId });
+  const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
+
+  useExamSSE({ examId, enabled: true, autoInvalidate: true });
+
+  const allCandidates = (candidates || []) as any[];
+  const examData = exam as any;
+
+  // ---- Belt Size Logic ----
+  // 幼稚園 (K): age 3~5 → 160cm
+  // 小學 (Primary): age 6~11 → 180cm
+  // 中學 (Secondary): age 12+ → 210cm
+  const getBeltSize = (age: number | null): { size: string; label: string } => {
+    if (!age || age <= 5) return { size: '160cm', label: '幼稚園' };
+    if (age <= 11) return { size: '180cm', label: '小學' };
+    return { size: '210cm', label: '中學' };
+  };
+
+  // ---- Calculate belt orders ----
+  // Only count non-absent candidates (candidates who will actually take the exam)
+  const beltOrders = useMemo(() => {
+    const orders: Record<string, { belt: string; beltName: string; sizes: Record<string, { count: number; label: string }> ; total: number }> = {};
+
+    allCandidates.forEach(c => {
+      if (c.status === 'absent') return; // skip absent
+      const targetBelt = c.targetBelt;
+      if (!targetBelt) return;
+
+      if (!orders[targetBelt]) {
+        orders[targetBelt] = {
+          belt: targetBelt,
+          beltName: getBeltName(targetBelt),
+          sizes: {},
+          total: 0,
+        };
+      }
+
+      const { size, label } = getBeltSize(c.age);
+      if (!orders[targetBelt].sizes[size]) {
+        orders[targetBelt].sizes[size] = { count: 0, label };
+      }
+      orders[targetBelt].sizes[size].count++;
+      orders[targetBelt].total++;
+    });
+
+    // Sort by belt order
+    return Object.values(orders).sort((a, b) => {
+      const aOrder = BELT_LEVELS[a.belt]?.order || 99;
+      const bOrder = BELT_LEVELS[b.belt]?.order || 99;
+      return aOrder - bOrder;
+    });
+  }, [allCandidates]);
+
+  // ---- Detailed list per belt (for expandable detail) ----
+  const beltDetailList = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    allCandidates.forEach(c => {
+      if (c.status === 'absent') return;
+      const targetBelt = c.targetBelt;
+      if (!targetBelt) return;
+      if (!map[targetBelt]) map[targetBelt] = [];
+      map[targetBelt].push(c);
+    });
+    return map;
+  }, [allCandidates]);
+
+  // ---- Other supplies: certificates, report cards, lak lak awards ----
+  const otherSupplies = useMemo(() => {
+    const active = allCandidates.filter(c => c.status !== 'absent');
+    const passedCount = allCandidates.filter(c => c.status === 'passed').length;
+    const lakLakCount = allCandidates.filter(c => c.hasLakLakAward).length;
+    return {
+      totalActive: active.length,
+      certificates: active.length, // all non-absent get certificate
+      reportCards: active.length, // all non-absent get report card
+      lakLakAwards: lakLakCount,
+      passed: passedCount,
+    };
+  }, [allCandidates]);
+
+  // ---- Grand total belts ----
+  const totalBelts = beltOrders.reduce((sum, o) => sum + o.total, 0);
+
+  // Sizes breakdown across all belts
+  const sizeGrandTotal = useMemo(() => {
+    const sizes: Record<string, number> = { '160cm': 0, '180cm': 0, '210cm': 0 };
+    beltOrders.forEach(o => {
+      Object.entries(o.sizes).forEach(([size, data]) => {
+        sizes[size] = (sizes[size] || 0) + data.count;
+      });
+    });
+    return sizes;
+  }, [beltOrders]);
+
+  const [expandedBelt, setExpandedBelt] = useState<string | null>(null);
+
+  if (!exam) return <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
+
+  return (
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold flex items-center gap-2">
+          <Package className="w-6 h-6 text-orange-600" /> 物資清單
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">{examData?.name} — 所需物資計算（排除缺席考生）</p>
+      </div>
+
+      {/* ===== Summary Cards ===== */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+          <div className="text-2xl">🥋</div>
+          <div className="text-2xl font-bold text-orange-700 mt-1">{totalBelts}</div>
+          <div className="text-xs text-orange-600">色帶總數</div>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+          <div className="text-2xl">📜</div>
+          <div className="text-2xl font-bold text-blue-700 mt-1">{otherSupplies.certificates}</div>
+          <div className="text-xs text-blue-600">證書</div>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+          <div className="text-2xl">📄</div>
+          <div className="text-2xl font-bold text-green-700 mt-1">{otherSupplies.reportCards}</div>
+          <div className="text-xs text-green-600">成績表</div>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+          <div className="text-2xl">⭐</div>
+          <div className="text-2xl font-bold text-amber-700 mt-1">{otherSupplies.lakLakAwards}</div>
+          <div className="text-xs text-amber-600">叻叻獎</div>
+        </div>
+      </div>
+
+      {/* ===== Belt Size Summary ===== */}
+      <div className="bg-white rounded-lg border p-4">
+        <h3 className="font-semibold mb-3 flex items-center gap-2">📏 色帶尺寸總覽</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
+            <div className="text-sm text-purple-600 font-medium">幼稚園</div>
+            <div className="text-xs text-purple-400 mb-1">(年齡 ≤5)</div>
+            <div className="text-3xl font-bold text-purple-700">{sizeGrandTotal['160cm']}</div>
+            <div className="text-xs text-purple-500 mt-1">160cm</div>
+          </div>
+          <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3 text-center">
+            <div className="text-sm text-cyan-600 font-medium">小學</div>
+            <div className="text-xs text-cyan-400 mb-1">(年齡 6~11)</div>
+            <div className="text-3xl font-bold text-cyan-700">{sizeGrandTotal['180cm']}</div>
+            <div className="text-xs text-cyan-500 mt-1">180cm</div>
+          </div>
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-center">
+            <div className="text-sm text-indigo-600 font-medium">中學</div>
+            <div className="text-xs text-indigo-400 mb-1">(年齡 ≥12)</div>
+            <div className="text-3xl font-bold text-indigo-700">{sizeGrandTotal['210cm']}</div>
+            <div className="text-xs text-indigo-500 mt-1">210cm</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ===== Belt Orders Table ===== */}
+      <div className="bg-white rounded-lg border p-4">
+        <h3 className="font-semibold mb-3 flex items-center gap-2">🥋 色帶訂購明細</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">需訂色帶</th>
+                <th className="px-3 py-2 text-center font-medium text-gray-600">總數</th>
+                <th className="px-3 py-2 text-center font-medium text-purple-600">160cm<br/><span className="text-xs font-normal">幼稚園</span></th>
+                <th className="px-3 py-2 text-center font-medium text-cyan-600">180cm<br/><span className="text-xs font-normal">小學</span></th>
+                <th className="px-3 py-2 text-center font-medium text-indigo-600">210cm<br/><span className="text-xs font-normal">中學</span></th>
+                <th className="px-3 py-2 text-center font-medium text-gray-600">明細</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {beltOrders.map(order => (
+                <React.Fragment key={order.belt}>
+                  <tr className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        {getBeltBadge(order.belt)}
+                        <span className="text-gray-500 text-xs">× {order.total}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-center font-bold text-lg">{order.total}</td>
+                    <td className="px-3 py-2.5 text-center">
+                      {order.sizes['160cm'] ? (
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-bold">{order.sizes['160cm'].count}</span>
+                      ) : <span className="text-gray-300">-</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {order.sizes['180cm'] ? (
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-cyan-100 text-cyan-700 font-bold">{order.sizes['180cm'].count}</span>
+                      ) : <span className="text-gray-300">-</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {order.sizes['210cm'] ? (
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold">{order.sizes['210cm'].count}</span>
+                      ) : <span className="text-gray-300">-</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <button
+                        onClick={() => setExpandedBelt(expandedBelt === order.belt ? null : order.belt)}
+                        className="text-blue-500 hover:text-blue-700 text-xs underline"
+                      >
+                        {expandedBelt === order.belt ? '收起' : '展開'}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedBelt === order.belt && beltDetailList[order.belt] && (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-2 bg-gray-50">
+                        <div className="text-xs space-y-1 max-h-60 overflow-y-auto">
+                          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1">
+                            {beltDetailList[order.belt].sort((a: any, b: any) => (a.age || 0) - (b.age || 0)).map((c: any) => {
+                              const { size, label } = getBeltSize(c.age);
+                              return (
+                                <div key={c.id} className="flex items-center gap-1 bg-white rounded px-2 py-1 border">
+                                  <span className="font-medium truncate">{c.name}</span>
+                                  <span className="text-gray-400 shrink-0">({c.age || '?'}歲)</span>
+                                  <span className="text-xs text-gray-500 shrink-0 ml-auto">{size}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-100 font-medium">
+              <tr>
+                <td className="px-3 py-2.5">合計</td>
+                <td className="px-3 py-2.5 text-center font-bold text-lg">{totalBelts}</td>
+                <td className="px-3 py-2.5 text-center font-bold text-purple-700">{sizeGrandTotal['160cm']}</td>
+                <td className="px-3 py-2.5 text-center font-bold text-cyan-700">{sizeGrandTotal['180cm']}</td>
+                <td className="px-3 py-2.5 text-center font-bold text-indigo-700">{sizeGrandTotal['210cm']}</td>
+                <td className="px-3 py-2.5" />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* ===== Other Supplies ===== */}
+      <div className="bg-white rounded-lg border p-4">
+        <h3 className="font-semibold mb-3 flex items-center gap-2">📦 其他物資</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">物資項目</th>
+                <th className="px-3 py-2 text-center font-medium text-gray-600">數量</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">備註</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              <tr className="hover:bg-gray-50">
+                <td className="px-3 py-2.5 flex items-center gap-2">📜 證書</td>
+                <td className="px-3 py-2.5 text-center font-bold">{otherSupplies.certificates}</td>
+                <td className="px-3 py-2.5 text-gray-500 text-xs">所有出席考生均需 (排除缺席)</td>
+              </tr>
+              <tr className="hover:bg-gray-50">
+                <td className="px-3 py-2.5 flex items-center gap-2">📄 成績表</td>
+                <td className="px-3 py-2.5 text-center font-bold">{otherSupplies.reportCards}</td>
+                <td className="px-3 py-2.5 text-gray-500 text-xs">所有出席考生均需 (排除缺席)</td>
+              </tr>
+              <tr className="hover:bg-gray-50">
+                <td className="px-3 py-2.5 flex items-center gap-2">⭐ 叻叻獎獎狀</td>
+                <td className="px-3 py-2.5 text-center font-bold">{otherSupplies.lakLakAwards}</td>
+                <td className="px-3 py-2.5 text-gray-500 text-xs">合格且 A 級 ≥80% 的考生</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ===== Notes ===== */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+        <h4 className="font-semibold mb-2">📝 備註</h4>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>色帶尺寸依考生年齡判斷：幼稚園（≤5歲）= 160cm、小學（6~11歲）= 180cm、中學（≥12歲）= 210cm</li>
+          <li>考生報考時的目標帶（target belt）即為需訂購的色帶顏色</li>
+          <li>計算已排除「缺席」狀態的考生</li>
+          <li>叻叻獎數量會隨考試評分進度即時更新</li>
+          <li>建議加訂 5~10% 備用量以防損耗</li>
+        </ul>
       </div>
     </div>
   );
