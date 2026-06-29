@@ -3617,11 +3617,13 @@ function SuppliesPage({ examId }: { examId: number }) {
     const active = allCandidates.filter(c => c.status !== 'absent');
     const passedCount = allCandidates.filter(c => c.status === 'passed').length;
     const lakLakCount = allCandidates.filter(c => c.hasLakLakAward).length;
+    const lakLakEstimate = Math.ceil(active.length * 0.25); // 預估約25%獲獎
     return {
       totalActive: active.length,
       certificates: active.length, // all non-absent get certificate
       reportCards: active.length, // all non-absent get report card
       lakLakAwards: lakLakCount,
+      lakLakEstimate,
       passed: passedCount,
     };
   }, [allCandidates]);
@@ -3774,7 +3776,9 @@ function SuppliesPage({ examId }: { examId: number }) {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
           <div className="text-2xl">⭐</div>
           <div className="text-2xl font-bold text-amber-700 mt-1">{otherSupplies.lakLakAwards}</div>
-          <div className="text-xs text-amber-600">叻叻獎</div>
+          <div className="text-xs text-amber-600">叻叻獎（實際）</div>
+          <div className="text-sm text-amber-500 mt-1">建議準備 <span className="font-bold">{otherSupplies.lakLakEstimate}</span> 份</div>
+          <div className="text-[10px] text-amber-400">（預估約25%考生）</div>
         </div>
       </div>
 
@@ -4012,8 +4016,12 @@ function SuppliesPage({ examId }: { examId: number }) {
               </tr>
               <tr className="hover:bg-gray-50">
                 <td className="px-3 py-2.5 flex items-center gap-2">⭐ 叻叻獎獎狀</td>
-                <td className="px-3 py-2.5 text-center font-bold">{otherSupplies.lakLakAwards}</td>
-                <td className="px-3 py-2.5 text-gray-500 text-xs">合格且 A 級 ≥80% 的考生</td>
+                <td className="px-3 py-2.5 text-center">
+                  <span className="font-bold">{otherSupplies.lakLakAwards}</span>
+                  <span className="text-gray-400 mx-1">/</span>
+                  <span className="text-amber-600 font-medium">建議 {otherSupplies.lakLakEstimate}</span>
+                </td>
+                <td className="px-3 py-2.5 text-gray-500 text-xs">實際數 / 預估25%。合格+非補考+A級≥80%</td>
               </tr>
             </tbody>
           </table>
@@ -4029,7 +4037,7 @@ function SuppliesPage({ examId }: { examId: number }) {
           <li>木板：綠帶以上才需要（按現時帶級）。塊數：綠/綠藍/藍/藍紅 各8塊、紅帶12塊、紅黑帶28塊（21項：拆分項各1塊、單項各2塊）</li>
           <li>木板厚度依考生年齡判斷：幼稚園 = 2分厚、小學 = 3分厚、中學以上 = 4分厚</li>
           <li>計算已排除「缺席」狀態的考生</li>
-          <li>叻叻獎數量會隨考試評分進度即時更新</li>
+          <li>叻叻獎：實際數隨評分進度即時更新；建議準備數 = 考生人數 × 25%（歷屆約20~25%獲獎率）</li>
           <li>建議加訂 5~10% 備用量以防損耗</li>
         </ul>
       </div>
