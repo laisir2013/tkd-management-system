@@ -1358,6 +1358,8 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                       // Previous score for retake students
                       const prevScore = isRetake ? prevScores.find(ps => ps.scoringItemId === item.id)?.score || '' : '';
                       const prevFailed = prevScore && ['f', 'fail', 'false', '未達標', '否', '不合格', '沒有'].includes(prevScore.toLowerCase());
+                      // 補考生已合格項目鎖定不可改
+                      const isLockedByRetake = isRetake && prevScore && !prevFailed;
 
                       if (isAbsent) {
                         return (
@@ -1367,12 +1369,24 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                         );
                       }
 
+                      // 補考生已合格項目 — 顯示鎖定狀態，不可修改
+                      if (isLockedByRetake) {
+                        return (
+                          <td key={item.id} className="px-1 py-1 border-r text-center bg-green-50/60 relative">
+                            <div className="flex flex-col items-center justify-center gap-0.5">
+                              <span className="text-[10px] font-bold text-green-600">{prevScore.toUpperCase()}</span>
+                              <span className="text-[8px] text-green-500">🔒已合格</span>
+                            </div>
+                          </td>
+                        );
+                      }
+
                       return (
-                        <td key={item.id} className={`px-1 py-1 border-r text-center relative group/cell ${isRetake && prevScore && !prevFailed ? 'bg-blue-50/40' : ''}`}>
-                          {/* Previous score indicator for retake students */}
-                          {isRetake && prevScore && !prevFailed && !currentScore && (
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <span className="text-[10px] text-blue-400 font-medium opacity-60">{prevScore.toUpperCase()}</span>
+                        <td key={item.id} className={`px-1 py-1 border-r text-center relative group/cell ${isRetake && prevFailed ? 'bg-red-50/30' : ''}`}>
+                          {/* Previous failed score indicator for retake students */}
+                          {isRetake && prevFailed && !currentScore && (
+                            <div className="absolute top-0 right-0 pointer-events-none">
+                              <span className="text-[8px] text-red-400 font-medium">重考</span>
                             </div>
                           )}
                           {isGrade ? (

@@ -6450,6 +6450,23 @@ export const appRouter = router({
           })),
         }))
         .mutation(async ({ input, ctx }) => {
+          // 補考生已合格項目保護：檢查是否嘗試修改已合格的項目
+          const candidate = await getExamCandidateById(input.candidateId);
+          if (candidate) {
+            const retakeInfo = await getRetakeInfo(candidate.examId);
+            const isRetake = retakeInfo.retakeCandidateIds.includes(input.candidateId);
+            if (isRetake) {
+              const prevScores = retakeInfo.previousScores[input.candidateId]?.scores || [];
+              const lockedItemIds = prevScores
+                .filter(ps => !['f', 'fail', 'false', '未達標', '否', '不合格', '沒有'].includes((ps.score || '').toLowerCase()))
+                .map(ps => ps.scoringItemId);
+              const blockedItems = input.scores.filter(s => lockedItemIds.includes(s.scoringItemId));
+              if (blockedItems.length > 0) {
+                throw new TRPCError({ code: 'FORBIDDEN', message: '補考生已合格的項目不可修改' });
+              }
+            }
+          }
+
           for (const s of input.scores) {
             await upsertExamScore({
               candidateId: input.candidateId,
@@ -6508,6 +6525,21 @@ export const appRouter = router({
           password: z.string(),
         }))
         .mutation(async ({ input, ctx }) => {
+          // 補考生已合格項目保護
+          const candidate = await getExamCandidateById(input.candidateId);
+          if (candidate) {
+            const retakeInfo = await getRetakeInfo(candidate.examId);
+            const isRetake = retakeInfo.retakeCandidateIds.includes(input.candidateId);
+            if (isRetake) {
+              const prevScores = retakeInfo.previousScores[input.candidateId]?.scores || [];
+              const lockedItemIds = prevScores
+                .filter(ps => !['f', 'fail', 'false', '未達標', '否', '不合格', '沒有'].includes((ps.score || '').toLowerCase()))
+                .map(ps => ps.scoringItemId);
+              if (lockedItemIds.includes(input.scoringItemId)) {
+                throw new TRPCError({ code: 'FORBIDDEN', message: '補考生已合格的項目不可取消' });
+              }
+            }
+          }
           // 驗證登入用戶的密碼
           const userPassword = ctx.user.password;
           if (!userPassword) throw new TRPCError({ code: 'BAD_REQUEST', message: '您的帳號尚未設定密碼，無法執行此操作' });
