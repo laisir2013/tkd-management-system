@@ -3,6 +3,8 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import path from "path";
+import { execFile } from "child_process";
+import fs from "fs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
@@ -129,7 +131,129 @@ async function startServer() {
       }
     }
   });
-  
+
+  // ── Certificate Generation Endpoint ─────────────────────────────────
+  // POST /api/exam/certificates - Generate certificates for passed candidates
+  // Body: { examId: number } OR { students: [{name, belt_level, exam_date}] }
+  app.post('/api/exam/certificates', async (req, res) => {
+    try {
+      const { examId, students } = req.body;
+      
+      if (!examId && !students) {
+        return res.status(400).json({ error: 'Must provide examId or students array' });
+      }
+      
+      const outputPath = `/tmp/certs_${Date.now()}.pdf`;
+      const scriptPath = path.join(process.cwd(), 'server/generate-certs.py');
+      
+      let args: string[];
+      if (examId) {
+        args = ['--exam-id', String(examId), '--output', outputPath];
+      } else {
+        // Write students data to temp JSON file
+        const jsonPath = `/tmp/cert_data_${Date.now()}.json`;
+        fs.writeFileSync(jsonPath, JSON.stringify(students), 'utf-8');
+        args = ['--json-file', jsonPath, '--output', outputPath];
+      }
+      
+      // Execute Python script
+      await new Promise<void>((resolve, reject) => {
+        execFile('python3', [scriptPath, ...args], { timeout: 60000 }, (error, stdout, stderr) => {
+          if (error) {
+            console.error('Certificate generation error:', stderr || error.message);
+            reject(new Error(stderr || error.message));
+            return;
+          }
+          try {
+            const result = JSON.parse(stdout);
+            if (!result.success) {
+              reject(new Error(result.error || 'Generation failed'));
+            } else {
+              resolve();
+            }
+          } catch (e) {
+            reject(new Error(`Invalid script output: ${stdout}`));
+          }
+        });
+      });
+      
+      // Send the generated PDF
+      if (!fs.existsSync(outputPath)) {
+        return res.status(500).json({ error: 'PDF file not generated' });
+      }
+      
+      const examDate = new Date().toISOString().split('T')[0];
+      const filename = `certificates_exam${examId || 'custom'}_${examDate}.pdf`;
+      
+      res.set('Content-Type', 'application/pdf');
+      res.set('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+      
+      const stream = fs.createReadStream(outputPath);
+      stream.pipe(res);
+      stream.on('end', () => {
+        // Clean up temp file
+        fs.unlink(outputPath, () => {});
+      });
+    } catch (error: any) {
+      console.error('Certificate generation failed:', error.message);
+      if (!res.headersSent) {
+        res.status(500).json({ error: error.message || 'Certificate generation failed' });
+      }
+    }
+  });
+
+  // GET /api/exam/certificates/preview - Get list of candidates who would get certificates
+  app.get('/api/exam/certificates/preview/:examId', async (req, res) => {
+    try {
+      const examId = parseInt(req.params.examId);
+      if (isNaN(examId)) {
+        return res.status(400).json({ error: 'Invalid examId' });
+      }
+      
+      const scriptPath = path.join(process.cwd(), 'server/generate-certs.py');
+      
+      // Use Python script to get candidates (reusing same DB logic)
+      const previewScript = `
+import sys, json, mysql.connector
+conn = mysql.connector.connect(host='localhost', user='tkd_user', password='tkd_pass_2026', database='taekwondo', charset='utf8mb4')
+cursor = conn.cursor(dictionary=True)
+cursor.execute("SELECT exam_date FROM exam_sessions WHERE id = %s", (${examId},))
+exam = cursor.fetchone()
+if not exam:
+    print(json.dumps({"error": "Exam not found"}))
+    sys.exit(0)
+exam_date = exam['exam_date'].strftime('%Y-%m-%d')
+cursor.execute("""
+    SELECT ec.id, ec.name, ec.target_belt, ec.current_belt, ec.has_lak_lak_award
+    FROM exam_candidates ec
+    WHERE ec.exam_id = %s AND ec.status = 'passed'
+    ORDER BY ec.target_belt, ec.name
+""", (${examId},))
+candidates = cursor.fetchall()
+cursor.close()
+conn.close()
+print(json.dumps({"examDate": exam_date, "candidates": candidates}, default=str))
+`;
+      
+      const result = await new Promise<string>((resolve, reject) => {
+        execFile('python3', ['-c', previewScript], { timeout: 10000 }, (error, stdout, stderr) => {
+          if (error) reject(new Error(stderr || error.message));
+          else resolve(stdout.trim());
+        });
+      });
+      
+      const data = JSON.parse(result);
+      if (data.error) {
+        return res.status(404).json({ error: data.error });
+      }
+      
+      res.json(data);
+    } catch (error: any) {
+      console.error('Certificate preview failed:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // SSE endpoint for real-time exam scoring sync
   app.get('/api/exam/sse/:examId', (req, res) => {
     const examId = parseInt(req.params.examId);

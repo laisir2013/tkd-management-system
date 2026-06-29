@@ -115,3 +115,6 @@ core
 backup_db_*.sql
 WHATSAPP_BUSINESS_SETUP.md
 export/
+cert_template.pdf
+cert_page*.png
+cert_font.*

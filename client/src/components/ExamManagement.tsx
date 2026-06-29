@@ -2713,11 +2713,47 @@ function ResultsPage({ examId }: { examId: number }) {
 
   const [activeTab, setActiveTab] = useState<'passed' | 'failed' | 'absent'>('passed');
   const [beltFilter, setBeltFilter] = useState('all');
+  const [certGenerating, setCertGenerating] = useState(false);
 
   const allCandidates = (candidates as any[]) || [];
   const passed = allCandidates.filter(c => c.status === 'passed');
   const failed = allCandidates.filter(c => c.status === 'failed');
   const absent = allCandidates.filter(c => c.status === 'absent');
+
+  // Certificate export handler
+  async function handleExportCertificates() {
+    if (passed.length === 0) {
+      toast.error('沒有合格考生可匯出證書');
+      return;
+    }
+    setCertGenerating(true);
+    try {
+      const response = await fetch('/api/exam/certificates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ examId }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: '匯出失敗' }));
+        throw new Error(err.error || '匯出失敗');
+      }
+      // Download the PDF
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certificates_${examData?.name || 'exam'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success(`已匯出 ${passed.length} 份證書`);
+    } catch (err: any) {
+      toast.error(err.message || '證書匯出失敗');
+    } finally {
+      setCertGenerating(false);
+    }
+  }
   const s = stats as any;
   const passRate = s && (s.passed + s.failed) > 0 ? ((s.passed / (s.passed + s.failed)) * 100).toFixed(1) : '0';
 
@@ -2819,10 +2855,20 @@ function ResultsPage({ examId }: { examId: number }) {
           <h1 className="text-xl font-bold">考試結果</h1>
           {examData && <p className="text-sm text-gray-500">{examData.name}</p>}
         </div>
-        <Button size="sm" variant="outline" onClick={() => {
-          const TAB_LABELS: Record<string, string> = { passed: '合格名單', failed: '不合格名單', absent: '缺席名單' };
-          exportCandidateListToCSV(filteredList, examData?.name || '考試', TAB_LABELS[activeTab] || activeTab);
-        }}><Download className="w-4 h-4 mr-1" /> 匯出名單</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={() => {
+            const TAB_LABELS: Record<string, string> = { passed: '合格名單', failed: '不合格名單', absent: '缺席名單' };
+            exportCandidateListToCSV(filteredList, examData?.name || '考試', TAB_LABELS[activeTab] || activeTab);
+          }}><Download className="w-4 h-4 mr-1" /> 匯出名單</Button>
+          {activeTab === 'passed' && passed.length > 0 && (
+            <Button size="sm" variant="outline" className="text-purple-600 border-purple-300 hover:bg-purple-50"
+              onClick={handleExportCertificates}
+              disabled={certGenerating}>
+              {certGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileText className="w-4 h-4 mr-1" />}
+              匯出證書 PDF
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Statistics Cards */}
