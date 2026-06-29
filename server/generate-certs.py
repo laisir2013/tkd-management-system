@@ -104,7 +104,7 @@ def get_exam_candidates(exam_id):
     if not exam:
         raise ValueError(f"Exam {exam_id} not found")
     
-    exam_date = exam['exam_date'].strftime('%Y-%m-%d') if exam['exam_date'] else ''
+    exam_date = exam['exam_date'].strftime('%Y年%-m月%-d日') if exam['exam_date'] else ''
     
     # Get ALL non-absent candidates (certificates prepared in advance for everyone)
     # exam_candidates uses: name (直接存), target_belt, current_belt, student_id (nullable)
