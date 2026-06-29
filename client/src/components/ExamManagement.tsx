@@ -3630,7 +3630,7 @@ function SuppliesPage({ examId }: { examId: number }) {
   // 綠帶開始才需要木板，每個帶級所需塊數不同
   // 厚度：幼稚園=2分, 小學=3分, 中學以上=4分
   const BOARD_PER_BELT: Record<string, number> = {
-    green: 8, green_blue: 8, blue: 8, blue_red: 8, red: 12, red_black: 46, black: 46,
+    green: 8, green_blue: 8, blue: 8, blue_red: 8, red: 12, red_black: 28, black: 28,
   };
   const BOARD_BELTS = ['green', 'green_blue', 'blue', 'blue_red', 'red', 'red_black', 'black'];
 
@@ -3684,11 +3684,16 @@ function SuppliesPage({ examId }: { examId: number }) {
             ['f', 'fail', 'false', '未達標', '否', '不合格', '沒有'].includes((ps.score || '').toLowerCase())
           );
           // If no board items failed in previous exam → 0 boards needed
-          // If some board items failed → 2 boards per failed item
+          // If some board items failed → count boards per failed item:
+          //   左/右 split items = 1 board each, single items = 2 boards each
           if (failedBoardItems.length === 0) {
             boardsForThis = 0;
           } else {
-            boardsForThis = failedBoardItems.length * 2;
+            boardsForThis = failedBoardItems.reduce((sum, ps) => {
+              const name = ps.itemName || ps.name || '';
+              const isSplit = name.includes('（左）') || name.includes('（右）');
+              return sum + (isSplit ? 1 : 2);
+            }, 0);
           }
         }
         orders[targetBelt].retakeBoards += boardsForThis;
@@ -4021,7 +4026,7 @@ function SuppliesPage({ examId }: { examId: number }) {
         <ul className="list-disc list-inside space-y-1 text-xs">
           <li>色帶尺寸依考生年齡判斷：幼稚園（≤5歲）= 160cm、小學（6~11歲）= 180cm、中學（≥12歲）= 210cm</li>
           <li>考生報考時的目標帶（target belt）即為需訂購的色帶顏色</li>
-          <li>木板：綠帶以上才需要。塊數：綠/綠藍/藍/藍紅 各8塊、紅帶12塊、紅黑帶/黑帶各46塊（23項×2塊）</li>
+          <li>木板：綠帶以上才需要。塊數：綠/綠藍/藍/藍紅 各8塊、紅帶12塊、紅黑帶/黑帶各28塊（21項：左右拆分項各1塊、單項各2塊）</li>
           <li>木板厚度依考生年齡判斷：幼稚園 = 2分厚、小學 = 3分厚、中學以上 = 4分厚</li>
           <li>計算已排除「缺席」狀態的考生</li>
           <li>叻叻獎數量會隨考試評分進度即時更新</li>
