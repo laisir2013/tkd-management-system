@@ -2722,8 +2722,9 @@ function ResultsPage({ examId }: { examId: number }) {
 
   // Certificate export handler
   async function handleExportCertificates() {
-    if (passed.length === 0) {
-      toast.error('沒有合格考生可匯出證書');
+    const nonAbsent = allCandidates.filter(c => c.status !== 'absent');
+    if (nonAbsent.length === 0) {
+      toast.error('沒有考生可匯出證書');
       return;
     }
     setCertGenerating(true);
@@ -2742,12 +2743,12 @@ function ResultsPage({ examId }: { examId: number }) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `certificates_${examData?.name || 'exam'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      a.download = `證書_${examData?.name || 'exam'}_${new Date().toISOString().split('T')[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      toast.success(`已匯出 ${passed.length} 份證書`);
+      toast.success(`已匯出 ${nonAbsent.length} 份證書`);
     } catch (err: any) {
       toast.error(err.message || '證書匯出失敗');
     } finally {
@@ -2860,14 +2861,12 @@ function ResultsPage({ examId }: { examId: number }) {
             const TAB_LABELS: Record<string, string> = { passed: '合格名單', failed: '不合格名單', absent: '缺席名單' };
             exportCandidateListToCSV(filteredList, examData?.name || '考試', TAB_LABELS[activeTab] || activeTab);
           }}><Download className="w-4 h-4 mr-1" /> 匯出名單</Button>
-          {activeTab === 'passed' && passed.length > 0 && (
-            <Button size="sm" variant="outline" className="text-purple-600 border-purple-300 hover:bg-purple-50"
-              onClick={handleExportCertificates}
-              disabled={certGenerating}>
-              {certGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileText className="w-4 h-4 mr-1" />}
-              匯出證書 PDF
-            </Button>
-          )}
+          <Button size="sm" variant="outline" className="text-purple-600 border-purple-300 hover:bg-purple-50"
+            onClick={handleExportCertificates}
+            disabled={certGenerating}>
+            {certGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileText className="w-4 h-4 mr-1" />}
+            匯出全部證書
+          </Button>
         </div>
       </div>
 
@@ -3590,6 +3589,65 @@ function StatisticsPage({ examId }: { examId: number }) {
 }
 
 // ==================== 物資清單頁 ====================
+// ==================== 證書匯出組件 ====================
+function CertificateExportSection({ examId, candidateCount, examName }: { examId: number; candidateCount: number; examName?: string }) {
+  const [generating, setGenerating] = useState(false);
+
+  async function handleExport() {
+    if (candidateCount === 0) {
+      toast.error('沒有考生可匯出證書');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const response = await fetch('/api/exam/certificates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ examId }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: '匯出失敗' }));
+        throw new Error(err.error || '匯出失敗');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `證書_${examName || 'exam'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success(`已匯出 ${candidateCount} 份證書 PDF`);
+    } catch (err: any) {
+      toast.error(err.message || '證書匯出失敗');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-lg border p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold flex items-center gap-2">📜 證書批量匯出</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            自動為所有考生（{candidateCount} 人）生成對應帶級的證書 PDF，填入姓名、級別、考試日期
+          </p>
+        </div>
+        <Button
+          onClick={handleExport}
+          disabled={generating || candidateCount === 0}
+          className="bg-purple-600 hover:bg-purple-700 text-white"
+        >
+          {generating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
+          {generating ? '生成中...' : `匯出全部證書 (${candidateCount}份)`}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SuppliesPage({ examId }: { examId: number }) {
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
@@ -3827,6 +3885,9 @@ function SuppliesPage({ examId }: { examId: number }) {
           <div className="text-[10px] text-amber-400">（預估約25%考生）</div>
         </div>
       </div>
+
+      {/* ===== Certificate Export ===== */}
+      <CertificateExportSection examId={examId} candidateCount={otherSupplies.certificates} examName={examData?.name} />
 
       {/* ===== Belt Size Summary ===== */}
       <div className="bg-white rounded-lg border p-4">

@@ -94,7 +94,7 @@ def get_db_connection():
 
 
 def get_exam_candidates(exam_id):
-    """Get passed candidates for an exam from database."""
+    """Get ALL non-absent candidates for an exam (certificates are prepared before exam)."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
@@ -106,7 +106,7 @@ def get_exam_candidates(exam_id):
     
     exam_date = exam['exam_date'].strftime('%Y-%m-%d') if exam['exam_date'] else ''
     
-    # Get passed candidates with their target belt
+    # Get ALL non-absent candidates (certificates prepared in advance for everyone)
     # exam_candidates uses: name (直接存), target_belt, current_belt, student_id (nullable)
     cursor.execute("""
         SELECT 
@@ -115,7 +115,7 @@ def get_exam_candidates(exam_id):
             ec.target_belt,
             ec.name as student_name
         FROM exam_candidates ec
-        WHERE ec.exam_id = %s AND ec.status = 'passed'
+        WHERE ec.exam_id = %s AND ec.status != 'absent'
         ORDER BY ec.target_belt, ec.name
     """, (exam_id,))
     
@@ -201,8 +201,8 @@ def generate_certificates(students, output_path):
             color=text_color,
         )
     
-    # Save output
-    output_doc.save(output_path)
+    # Save output with compression (reduces ~200MB to ~15MB for 86 pages)
+    output_doc.save(output_path, garbage=4, deflate=True, clean=True)
     output_doc.close()
     template_doc.close()
     

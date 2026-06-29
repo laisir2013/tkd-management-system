@@ -226,7 +226,7 @@ exam_date = exam['exam_date'].strftime('%Y-%m-%d')
 cursor.execute("""
     SELECT ec.id, ec.name, ec.target_belt, ec.current_belt, ec.has_lak_lak_award
     FROM exam_candidates ec
-    WHERE ec.exam_id = %s AND ec.status = 'passed'
+    WHERE ec.exam_id = %s AND ec.status != 'absent'
     ORDER BY ec.target_belt, ec.name
 """, (${examId},))
 candidates = cursor.fetchall()
