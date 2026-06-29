@@ -969,6 +969,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
 }) {
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: retakeData } = trpc.exam.candidates.retakeInfo.useQuery({ examId });
   const [activeBelt, setActiveBelt] = useState<string>('');
 
   const groupCandidates = useMemo(() => {
@@ -1283,16 +1284,22 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                 const statusCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.registered;
                 const candidateScores = scoreMap.get(c.id) || new Map<number, string>();
                 const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : `${idx + 1}`;
+                const isRetake = retakeData?.retakeCandidateIds?.includes(c.id) || false;
+                const prevScores = isRetake ? (retakeData?.previousScores?.[c.id]?.scores || []) : [];
                 return (
                   <tr key={c.id} className={
                     isAbsent ? 'bg-red-50/60 opacity-70' :
                     c.status === 'failed' ? 'bg-red-100/60' :
                     c.hasLakLakAward ? 'bg-amber-100/60' :
+                    isRetake ? 'bg-blue-50/60' :
                     'hover:bg-gray-50'
                   }>
                     <td className="px-2 py-2 border-r font-medium text-center">{code}</td>
                     <td className="px-2 py-2 border-r">
-                      <div className={`font-medium ${isAbsent ? 'line-through text-gray-400' : ''}`}>{c.name}</div>
+                      <div className={`font-medium ${isAbsent ? 'line-through text-gray-400' : ''}`}>
+                        {c.name}
+                        {isRetake && <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 border border-blue-300">補考</span>}
+                      </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-[10px] text-gray-400">{c.dojoName || ''}</span>
                         {['passed', 'failed'].includes(c.status) && (
@@ -1348,6 +1355,9 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                       const isGrade = item.type === 'grade';
                       const isPassFail = item.type === 'pass_fail';
                       const isYesNo = item.type === 'yes_no';
+                      // Previous score for retake students
+                      const prevScore = isRetake ? prevScores.find(ps => ps.scoringItemId === item.id)?.score || '' : '';
+                      const prevFailed = prevScore && ['f', 'fail', 'false', '未達標', '否', '不合格', '沒有'].includes(prevScore.toLowerCase());
 
                       if (isAbsent) {
                         return (
@@ -1358,7 +1368,13 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                       }
 
                       return (
-                        <td key={item.id} className="px-1 py-1 border-r text-center relative group/cell">
+                        <td key={item.id} className={`px-1 py-1 border-r text-center relative group/cell ${isRetake && prevScore && !prevFailed ? 'bg-blue-50/40' : ''}`}>
+                          {/* Previous score indicator for retake students */}
+                          {isRetake && prevScore && !prevFailed && !currentScore && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <span className="text-[10px] text-blue-400 font-medium opacity-60">{prevScore.toUpperCase()}</span>
+                            </div>
+                          )}
                           {isGrade ? (
                             <div className="flex flex-col items-center gap-0.5">
                               <div className="flex items-center justify-center gap-1">
@@ -3517,6 +3533,7 @@ function StatisticsPage({ examId }: { examId: number }) {
 function SuppliesPage({ examId }: { examId: number }) {
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: retakeData } = trpc.exam.candidates.retakeInfo.useQuery({ examId });
 
   useExamSSE({ examId, enabled: true, autoInvalidate: true });
 
@@ -3610,7 +3627,7 @@ function SuppliesPage({ examId }: { examId: number }) {
   };
 
   const boardOrders = useMemo(() => {
-    const orders: Record<string, { belt: string; beltName: string; boardsPerPerson: number; candidates: number; thicknesses: Record<string, { count: number; totalBoards: number }> ; totalBoards: number }> = {};
+    const orders: Record<string, { belt: string; beltName: string; boardsPerPerson: number; candidates: number; thicknesses: Record<string, { count: number; totalBoards: number }> ; totalBoards: number; retakeBoards: number }> = {};
 
     allCandidates.forEach(c => {
       if (c.status === 'absent') return;
@@ -3625,6 +3642,7 @@ function SuppliesPage({ examId }: { examId: number }) {
           candidates: 0,
           thicknesses: {},
           totalBoards: 0,
+          retakeBoards: 0,
         };
       }
 
@@ -3632,16 +3650,46 @@ function SuppliesPage({ examId }: { examId: number }) {
       if (!orders[targetBelt].thicknesses[thickness]) {
         orders[targetBelt].thicknesses[thickness] = { count: 0, totalBoards: 0 };
       }
+
+      // Check if retake student — only count failed board items (2 boards each)
+      const isRetake = retakeData?.retakeCandidateIds?.includes(c.id) || false;
+      let boardsForThis = BOARD_PER_BELT[targetBelt];
+
+      if (isRetake) {
+        const prevInfo = retakeData?.previousScores?.[c.id];
+        const prevScores = prevInfo?.scores || [];
+        const prevStatus = prevInfo?.prevStatus || '';
+        
+        // If previously absent (never took the exam), full boards needed
+        if (prevStatus === 'absent' || prevScores.length === 0) {
+          // Keep full boards — they need to do the whole exam
+        } else {
+          // Previously failed — check which board items failed
+          const failedBoardItems = prevScores.filter(ps =>
+            ps.category === 'board' &&
+            ['f', 'fail', 'false', '未達標', '否', '不合格', '沒有'].includes((ps.score || '').toLowerCase())
+          );
+          // If no board items failed in previous exam → 0 boards needed
+          // If some board items failed → 2 boards per failed item
+          if (failedBoardItems.length === 0) {
+            boardsForThis = 0;
+          } else {
+            boardsForThis = failedBoardItems.length * 2;
+          }
+        }
+        orders[targetBelt].retakeBoards += boardsForThis;
+      }
+
       orders[targetBelt].thicknesses[thickness].count++;
-      orders[targetBelt].thicknesses[thickness].totalBoards += BOARD_PER_BELT[targetBelt];
+      orders[targetBelt].thicknesses[thickness].totalBoards += boardsForThis;
       orders[targetBelt].candidates++;
-      orders[targetBelt].totalBoards += BOARD_PER_BELT[targetBelt];
+      orders[targetBelt].totalBoards += boardsForThis;
     });
 
     return BOARD_BELTS
       .filter(key => orders[key])
       .map(key => orders[key]);
-  }, [allCandidates]);
+  }, [allCandidates, retakeData]);
 
   const boardGrandTotal = useMemo(() => {
     const totals = { total: 0, '2分': 0, '3分': 0, '4分': 0 };
@@ -3906,6 +3954,17 @@ function SuppliesPage({ examId }: { examId: number }) {
               </tfoot>
             </table>
           </div>
+          {/* Retake note */}
+          {retakeData && retakeData.retakeCandidateIds.length > 0 && (
+            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+              <span className="font-semibold">📌 補考調整：</span>
+              {' '}本次有 {retakeData.retakeCandidateIds.filter(id => {
+                const c = allCandidates.find((x: any) => x.id === id);
+                return c && BOARD_PER_BELT[c.targetBelt];
+              }).length} 位補考生需用木板。
+              補考生如上次木板項目均合格，則不需重新踢板（0塊）；如有不合格項目，每項只需2塊。
+            </div>
+          )}
         </div>
       )}
 

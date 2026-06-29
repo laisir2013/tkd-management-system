@@ -3158,6 +3158,67 @@ export async function getExamCandidatesByExam(examId: number) {
     .orderBy(asc(examCandidates.groupCode), asc(examCandidates.orderNumber));
 }
 
+// --- 補考生資料 (retake info) ---
+// 找出本次考試中，在上一次考試曾不合格/缺席的考生，並帶回上次成績
+export async function getRetakeInfo(examId: number): Promise<{
+  retakeCandidateIds: number[];
+  previousScores: Record<number, { prevCandidateId: number; prevStatus: string; scores: { itemName: string; category: string; score: string; scoringItemId: number }[] }>;
+}> {
+  const db = await getDb();
+  if (!db) return { retakeCandidateIds: [], previousScores: {} };
+
+  // Get all candidates in this exam
+  const currentCandidates = await db.select().from(examCandidates)
+    .where(eq(examCandidates.examId, examId));
+
+  // Find previous exam candidates with same name+phone who failed or were absent
+  const retakeCandidateIds: number[] = [];
+  const previousScores: Record<number, { prevCandidateId: number; prevStatus: string; scores: { itemName: string; category: string; score: string; scoringItemId: number }[] }> = {};
+
+  for (const curr of currentCandidates) {
+    if (!curr.name || !curr.phone) continue;
+
+    // Find matching candidate in previous exams with same belt transition who failed/absent
+    const prevCandidates = await db.select().from(examCandidates)
+      .where(and(
+        eq(examCandidates.name, curr.name),
+        eq(examCandidates.phone, curr.phone),
+        eq(examCandidates.currentBelt, curr.currentBelt),
+        eq(examCandidates.targetBelt, curr.targetBelt),
+        sql`${examCandidates.examId} < ${examId}`,
+        sql`${examCandidates.status} IN ('failed', 'absent')`
+      ))
+      .orderBy(sql`${examCandidates.examId} DESC`)
+      .limit(1);
+
+    if (prevCandidates.length > 0) {
+      const prev = prevCandidates[0];
+      retakeCandidateIds.push(curr.id);
+
+      // Get previous scores
+      const prevScores = await db.select({
+        score: examScores,
+        item: examScoringItems,
+      }).from(examScores)
+        .innerJoin(examScoringItems, eq(examScores.scoringItemId, examScoringItems.id))
+        .where(eq(examScores.candidateId, prev.id));
+
+      previousScores[curr.id] = {
+        prevCandidateId: prev.id,
+        prevStatus: prev.status,
+        scores: prevScores.map(ps => ({
+          itemName: ps.item.name,
+          category: ps.item.category || '',
+          score: ps.score.score || '',
+          scoringItemId: ps.item.id,
+        })),
+      };
+    }
+  }
+
+  return { retakeCandidateIds, previousScores };
+}
+
 export async function getExamCandidatesByBelt(examId: number, belt: string) {
   const db = await getDb();
   if (!db) return [];
@@ -3523,7 +3584,24 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
   
   const passed = !hasAnyFailed;
   const gradeAPercentage = totalGradableItems > 0 ? (gradeACount / totalGradableItems) * 100 : 0;
-  const hasLakLakAward = passed && gradeAPercentage >= 80;
+  
+  // 補考生不能獲得叻叻獎 — 檢查是否有上次考試同帶同目標不合格/缺席記錄
+  let isRetake = false;
+  if (candidate.name && candidate.phone) {
+    const prevRetake = await db!.select({ id: examCandidates.id }).from(examCandidates)
+      .where(and(
+        eq(examCandidates.name, candidate.name),
+        eq(examCandidates.phone, candidate.phone),
+        eq(examCandidates.currentBelt, candidate.currentBelt),
+        eq(examCandidates.targetBelt, candidate.targetBelt),
+        sql`${examCandidates.examId} < ${candidate.examId}`,
+        sql`${examCandidates.status} IN ('failed', 'absent')`
+      ))
+      .limit(1);
+    isRetake = prevRetake.length > 0;
+  }
+  
+  const hasLakLakAward = passed && !isRetake && gradeAPercentage >= 80;
   
   // 取得之前的狀態（用來判斷是否需要升帶或回退）
   const previousStatus = candidate.status;

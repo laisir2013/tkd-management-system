@@ -115,6 +115,7 @@ import {
   updateExamSession,
   deleteExamSession,
   getExamCandidatesByExam,
+  getRetakeInfo,
   getExamCandidatesByBelt,
   getExamCandidateById,
   insertExamCandidate,
@@ -6032,6 +6033,12 @@ export const appRouter = router({
         .input(z.object({ examId: z.number() }))
         .query(async ({ input }) => {
           return getExamCandidatesByExam(input.examId);
+        }),
+
+      retakeInfo: publicProcedure
+        .input(z.object({ examId: z.number() }))
+        .query(async ({ input }) => {
+          return getRetakeInfo(input.examId);
         }),
 
       listByBelt: publicProcedure
