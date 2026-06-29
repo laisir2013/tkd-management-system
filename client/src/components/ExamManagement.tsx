@@ -3627,12 +3627,12 @@ function SuppliesPage({ examId }: { examId: number }) {
   }, [allCandidates]);
 
   // ---- Board (木板) Logic ----
-  // 綠帶開始才需要木板，每個帶級所需塊數不同
+  // 綠帶以上（currentBelt）才需要踢木板，按 currentBelt 決定塊數
   // 厚度：幼稚園=2分, 小學=3分, 中學以上=4分
   const BOARD_PER_BELT: Record<string, number> = {
-    green: 8, green_blue: 8, blue: 8, blue_red: 8, red: 12, red_black: 28, black: 28,
+    green: 8, green_blue: 8, blue: 8, blue_red: 8, red: 12, red_black: 28,
   };
-  const BOARD_BELTS = ['green', 'green_blue', 'blue', 'blue_red', 'red', 'red_black', 'black'];
+  const BOARD_BELTS = ['green', 'green_blue', 'blue', 'blue_red', 'red', 'red_black'];
 
   const getBoardThickness = (age: number | null): { thickness: string; label: string } => {
     if (!age || age <= 5) return { thickness: '2分', label: '幼稚園' };
@@ -3645,14 +3645,14 @@ function SuppliesPage({ examId }: { examId: number }) {
 
     allCandidates.forEach(c => {
       if (c.status === 'absent') return;
-      const targetBelt = c.targetBelt;
-      if (!targetBelt || !BOARD_PER_BELT[targetBelt]) return;
+      const curBelt = c.currentBelt;
+      if (!curBelt || !BOARD_PER_BELT[curBelt]) return;
 
-      if (!orders[targetBelt]) {
-        orders[targetBelt] = {
-          belt: targetBelt,
-          beltName: getBeltName(targetBelt),
-          boardsPerPerson: BOARD_PER_BELT[targetBelt],
+      if (!orders[curBelt]) {
+        orders[curBelt] = {
+          belt: curBelt,
+          beltName: getBeltName(curBelt),
+          boardsPerPerson: BOARD_PER_BELT[curBelt],
           candidates: 0,
           thicknesses: {},
           totalBoards: 0,
@@ -3661,13 +3661,13 @@ function SuppliesPage({ examId }: { examId: number }) {
       }
 
       const { thickness } = getBoardThickness(c.age);
-      if (!orders[targetBelt].thicknesses[thickness]) {
-        orders[targetBelt].thicknesses[thickness] = { count: 0, totalBoards: 0 };
+      if (!orders[curBelt].thicknesses[thickness]) {
+        orders[curBelt].thicknesses[thickness] = { count: 0, totalBoards: 0 };
       }
 
-      // Check if retake student — only count failed board items (2 boards each)
+      // Check if retake student — only count failed board items
       const isRetake = retakeData?.retakeCandidateIds?.includes(c.id) || false;
-      let boardsForThis = BOARD_PER_BELT[targetBelt];
+      let boardsForThis = BOARD_PER_BELT[curBelt];
 
       if (isRetake) {
         const prevInfo = retakeData?.previousScores?.[c.id];
@@ -3696,13 +3696,13 @@ function SuppliesPage({ examId }: { examId: number }) {
             }, 0);
           }
         }
-        orders[targetBelt].retakeBoards += boardsForThis;
+        orders[curBelt].retakeBoards += boardsForThis;
       }
 
-      orders[targetBelt].thicknesses[thickness].count++;
-      orders[targetBelt].thicknesses[thickness].totalBoards += boardsForThis;
-      orders[targetBelt].candidates++;
-      orders[targetBelt].totalBoards += boardsForThis;
+      orders[curBelt].thicknesses[thickness].count++;
+      orders[curBelt].thicknesses[thickness].totalBoards += boardsForThis;
+      orders[curBelt].candidates++;
+      orders[curBelt].totalBoards += boardsForThis;
     });
 
     return BOARD_BELTS
@@ -3922,7 +3922,7 @@ function SuppliesPage({ examId }: { examId: number }) {
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">目標帶級</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">現時帶級</th>
                   <th className="px-3 py-2 text-center font-medium text-gray-600">人數</th>
                   <th className="px-3 py-2 text-center font-medium text-gray-600">每人塊數</th>
                   <th className="px-3 py-2 text-center font-medium text-amber-600">2分<br/><span className="text-xs font-normal">幼稚園</span></th>
@@ -3979,7 +3979,7 @@ function SuppliesPage({ examId }: { examId: number }) {
               <span className="font-semibold">📌 補考調整：</span>
               {' '}本次有 {retakeData.retakeCandidateIds.filter(id => {
                 const c = allCandidates.find((x: any) => x.id === id);
-                return c && BOARD_PER_BELT[c.targetBelt];
+                return c && BOARD_PER_BELT[c.currentBelt];
               }).length} 位補考生需用木板。
               補考生如上次木板項目均合格，則不需重新踢板（0塊）；如有不合格項目，左/右拆分項每項1塊、單項每項2塊。
             </div>
@@ -4026,7 +4026,7 @@ function SuppliesPage({ examId }: { examId: number }) {
         <ul className="list-disc list-inside space-y-1 text-xs">
           <li>色帶尺寸依考生年齡判斷：幼稚園（≤5歲）= 160cm、小學（6~11歲）= 180cm、中學（≥12歲）= 210cm</li>
           <li>考生報考時的目標帶（target belt）即為需訂購的色帶顏色</li>
-          <li>木板：綠帶以上才需要。塊數：綠/綠藍/藍/藍紅 各8塊、紅帶12塊、紅黑帶/黑帶各28塊（21項：左右拆分項各1塊、單項各2塊）</li>
+          <li>木板：綠帶以上才需要（按現時帶級）。塊數：綠/綠藍/藍/藍紅 各8塊、紅帶12塊、紅黑帶28塊（21項：拆分項各1塊、單項各2塊）</li>
           <li>木板厚度依考生年齡判斷：幼稚園 = 2分厚、小學 = 3分厚、中學以上 = 4分厚</li>
           <li>計算已排除「缺席」狀態的考生</li>
           <li>叻叻獎數量會隨考試評分進度即時更新</li>
