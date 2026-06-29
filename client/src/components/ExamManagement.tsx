@@ -3922,7 +3922,7 @@ function SuppliesPage({ examId }: { examId: number }) {
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">考核帶級</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">目標帶級</th>
                   <th className="px-3 py-2 text-center font-medium text-gray-600">人數</th>
                   <th className="px-3 py-2 text-center font-medium text-gray-600">每人塊數</th>
                   <th className="px-3 py-2 text-center font-medium text-amber-600">2分<br/><span className="text-xs font-normal">幼稚園</span></th>
@@ -3981,7 +3981,7 @@ function SuppliesPage({ examId }: { examId: number }) {
                 const c = allCandidates.find((x: any) => x.id === id);
                 return c && BOARD_PER_BELT[c.targetBelt];
               }).length} 位補考生需用木板。
-              補考生如上次木板項目均合格，則不需重新踢板（0塊）；如有不合格項目，每項只需2塊。
+              補考生如上次木板項目均合格，則不需重新踢板（0塊）；如有不合格項目，左/右拆分項每項1塊、單項每項2塊。
             </div>
           )}
         </div>
