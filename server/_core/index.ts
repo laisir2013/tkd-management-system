@@ -136,6 +136,7 @@ async function startServer() {
   // POST /api/exam/certificates - Generate certificates for passed candidates
   // Body: { examId: number } OR { students: [{name, belt_level, exam_date}] }
   app.post('/api/exam/certificates', async (req, res) => {
+    console.log('[Certificate] Request received:', { examId: req.body?.examId, hasStudents: !!req.body?.students });
     try {
       const { examId, students } = req.body;
       
@@ -143,29 +144,40 @@ async function startServer() {
         return res.status(400).json({ error: 'Must provide examId or students array' });
       }
       
-      const outputPath = `/tmp/certs_${Date.now()}.pdf`;
+      // Save to public downloads directory for reliable serving
+      const downloadsDir = path.join(process.cwd(), 'public/downloads');
+      if (!fs.existsSync(downloadsDir)) {
+        fs.mkdirSync(downloadsDir, { recursive: true });
+      }
+      
+      const timestamp = Date.now();
+      const pdfFilename = `certs_${examId || 'custom'}_${timestamp}.pdf`;
+      const outputPath = path.join(downloadsDir, pdfFilename);
       const scriptPath = path.join(process.cwd(), 'server/generate-certs.py');
+      
+      console.log('[Certificate] Script path:', scriptPath, 'exists:', fs.existsSync(scriptPath));
       
       let args: string[];
       if (examId) {
         args = ['--exam-id', String(examId), '--output', outputPath];
       } else {
         // Write students data to temp JSON file
-        const jsonPath = `/tmp/cert_data_${Date.now()}.json`;
+        const jsonPath = `/tmp/cert_data_${timestamp}.json`;
         fs.writeFileSync(jsonPath, JSON.stringify(students), 'utf-8');
         args = ['--json-file', jsonPath, '--output', outputPath];
       }
       
       // Execute Python script
       await new Promise<void>((resolve, reject) => {
-        execFile('python3', [scriptPath, ...args], { timeout: 60000 }, (error, stdout, stderr) => {
+        execFile('python3', [scriptPath, ...args], { timeout: 120000 }, (error, stdout, stderr) => {
           if (error) {
-            console.error('Certificate generation error:', stderr || error.message);
+            console.error('[Certificate] Generation error:', stderr || error.message);
             reject(new Error(stderr || error.message));
             return;
           }
           try {
             const result = JSON.parse(stdout);
+            console.log('[Certificate] Script result:', result);
             if (!result.success) {
               reject(new Error(result.error || 'Generation failed'));
             } else {
@@ -177,25 +189,31 @@ async function startServer() {
         });
       });
       
-      // Send the generated PDF
+      // Verify file exists
       if (!fs.existsSync(outputPath)) {
+        console.error('[Certificate] PDF file not found at:', outputPath);
         return res.status(500).json({ error: 'PDF file not generated' });
       }
       
-      const examDate = new Date().toISOString().split('T')[0];
-      const filename = `certificates_exam${examId || 'custom'}_${examDate}.pdf`;
+      const fileSize = fs.statSync(outputPath).size;
+      console.log('[Certificate] PDF ready:', outputPath, `(${(fileSize/1024/1024).toFixed(1)}MB)`);
       
-      res.set('Content-Type', 'application/pdf');
-      res.set('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
-      
-      const stream = fs.createReadStream(outputPath);
-      stream.pipe(res);
-      stream.on('end', () => {
-        // Clean up temp file
-        fs.unlink(outputPath, () => {});
+      // Return download URL instead of streaming (more reliable for large files)
+      const downloadUrl = `/downloads/${pdfFilename}`;
+      res.json({ 
+        success: true, 
+        downloadUrl,
+        fileSize,
+        count: examId ? undefined : (students?.length || 0),
       });
+      
+      // Schedule cleanup after 10 minutes
+      setTimeout(() => {
+        fs.unlink(outputPath, () => {});
+      }, 10 * 60 * 1000);
+      
     } catch (error: any) {
-      console.error('Certificate generation failed:', error.message);
+      console.error('[Certificate] Generation failed:', error.message);
       if (!res.headersSent) {
         res.status(500).json({ error: error.message || 'Certificate generation failed' });
       }

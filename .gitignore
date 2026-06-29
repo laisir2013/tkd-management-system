@@ -118,3 +118,4 @@ export/
 cert_template.pdf
 cert_page*.png
 cert_font.*
+public/downloads/

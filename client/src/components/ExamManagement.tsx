@@ -2738,17 +2738,18 @@ function ResultsPage({ examId }: { examId: number }) {
         const err = await response.json().catch(() => ({ error: '匯出失敗' }));
         throw new Error(err.error || '匯出失敗');
       }
-      // Download the PDF
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const data = await response.json();
+      if (!data.success || !data.downloadUrl) {
+        throw new Error(data.error || '生成失敗');
+      }
+      // Trigger download via link
       const a = document.createElement('a');
-      a.href = url;
+      a.href = data.downloadUrl;
       a.download = `證書_${examData?.name || 'exam'}_${new Date().toISOString().split('T')[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      toast.success(`已匯出 ${nonAbsent.length} 份證書`);
+      toast.success(`已匯出 ${nonAbsent.length} 份證書 (${(data.fileSize/1024/1024).toFixed(1)}MB)`);
     } catch (err: any) {
       toast.error(err.message || '證書匯出失敗');
     } finally {
@@ -3609,16 +3610,18 @@ function CertificateExportSection({ examId, candidateCount, examName }: { examId
         const err = await response.json().catch(() => ({ error: '匯出失敗' }));
         throw new Error(err.error || '匯出失敗');
       }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const data = await response.json();
+      if (!data.success || !data.downloadUrl) {
+        throw new Error(data.error || '生成失敗');
+      }
+      // Trigger download via link
       const a = document.createElement('a');
-      a.href = url;
+      a.href = data.downloadUrl;
       a.download = `證書_${examName || 'exam'}_${new Date().toISOString().split('T')[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      toast.success(`已匯出 ${candidateCount} 份證書 PDF`);
+      toast.success(`已匯出 ${candidateCount} 份證書 PDF (${(data.fileSize/1024/1024).toFixed(1)}MB)`);
     } catch (err: any) {
       toast.error(err.message || '證書匯出失敗');
     } finally {
