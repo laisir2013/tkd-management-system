@@ -3595,6 +3595,65 @@ function SuppliesPage({ examId }: { examId: number }) {
     };
   }, [allCandidates]);
 
+  // ---- Board (木板) Logic ----
+  // 綠帶開始才需要木板，每個帶級所需塊數不同
+  // 厚度：幼稚園=2分, 小學=3分, 中學以上=4分
+  const BOARD_PER_BELT: Record<string, number> = {
+    green: 8, green_blue: 8, blue: 8, blue_red: 8, red: 12, red_black: 40,
+  };
+  const BOARD_BELTS = ['green', 'green_blue', 'blue', 'blue_red', 'red', 'red_black'];
+
+  const getBoardThickness = (age: number | null): { thickness: string; label: string } => {
+    if (!age || age <= 5) return { thickness: '2分', label: '幼稚園' };
+    if (age <= 11) return { thickness: '3分', label: '小學' };
+    return { thickness: '4分', label: '中學' };
+  };
+
+  const boardOrders = useMemo(() => {
+    const orders: Record<string, { belt: string; beltName: string; boardsPerPerson: number; candidates: number; thicknesses: Record<string, { count: number; totalBoards: number }> ; totalBoards: number }> = {};
+
+    allCandidates.forEach(c => {
+      if (c.status === 'absent') return;
+      const targetBelt = c.targetBelt;
+      if (!targetBelt || !BOARD_PER_BELT[targetBelt]) return;
+
+      if (!orders[targetBelt]) {
+        orders[targetBelt] = {
+          belt: targetBelt,
+          beltName: getBeltName(targetBelt),
+          boardsPerPerson: BOARD_PER_BELT[targetBelt],
+          candidates: 0,
+          thicknesses: {},
+          totalBoards: 0,
+        };
+      }
+
+      const { thickness } = getBoardThickness(c.age);
+      if (!orders[targetBelt].thicknesses[thickness]) {
+        orders[targetBelt].thicknesses[thickness] = { count: 0, totalBoards: 0 };
+      }
+      orders[targetBelt].thicknesses[thickness].count++;
+      orders[targetBelt].thicknesses[thickness].totalBoards += BOARD_PER_BELT[targetBelt];
+      orders[targetBelt].candidates++;
+      orders[targetBelt].totalBoards += BOARD_PER_BELT[targetBelt];
+    });
+
+    return BOARD_BELTS
+      .filter(key => orders[key])
+      .map(key => orders[key]);
+  }, [allCandidates]);
+
+  const boardGrandTotal = useMemo(() => {
+    const totals = { total: 0, '2分': 0, '3分': 0, '4分': 0 };
+    boardOrders.forEach(o => {
+      totals.total += o.totalBoards;
+      Object.entries(o.thicknesses).forEach(([thickness, data]) => {
+        (totals as any)[thickness] = ((totals as any)[thickness] || 0) + data.totalBoards;
+      });
+    });
+    return totals;
+  }, [boardOrders]);
+
   // ---- Grand total belts ----
   const totalBelts = beltOrders.reduce((sum, o) => sum + o.total, 0);
 
@@ -3624,11 +3683,16 @@ function SuppliesPage({ examId }: { examId: number }) {
       </div>
 
       {/* ===== Summary Cards ===== */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
           <div className="text-2xl">🥋</div>
           <div className="text-2xl font-bold text-orange-700 mt-1">{totalBelts}</div>
           <div className="text-xs text-orange-600">色帶總數</div>
+        </div>
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-center">
+          <div className="text-2xl">🪵</div>
+          <div className="text-2xl font-bold text-rose-700 mt-1">{boardGrandTotal.total}</div>
+          <div className="text-xs text-rose-600">木板總數</div>
         </div>
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
           <div className="text-2xl">📜</div>
@@ -3759,6 +3823,92 @@ function SuppliesPage({ examId }: { examId: number }) {
         </div>
       </div>
 
+      {/* ===== Board Orders Table ===== */}
+      {boardOrders.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">🪵 木板訂購明細</h3>
+          <p className="text-xs text-gray-500 mb-3">綠帶以上需要木板。厚度：幼稚園 = 2分、小學 = 3分、中學以上 = 4分</p>
+          
+          {/* Board thickness summary */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+              <div className="text-sm text-amber-600 font-medium">幼稚園</div>
+              <div className="text-xs text-amber-400 mb-1">2分厚</div>
+              <div className="text-2xl font-bold text-amber-700">{boardGrandTotal['2分']}</div>
+              <div className="text-xs text-amber-500 mt-0.5">塊</div>
+            </div>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+              <div className="text-sm text-orange-600 font-medium">小學</div>
+              <div className="text-xs text-orange-400 mb-1">3分厚</div>
+              <div className="text-2xl font-bold text-orange-700">{boardGrandTotal['3分']}</div>
+              <div className="text-xs text-orange-500 mt-0.5">塊</div>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+              <div className="text-sm text-red-600 font-medium">中學以上</div>
+              <div className="text-xs text-red-400 mb-1">4分厚</div>
+              <div className="text-2xl font-bold text-red-700">{boardGrandTotal['4分']}</div>
+              <div className="text-xs text-red-500 mt-0.5">塊</div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">考核帶級</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">人數</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">每人塊數</th>
+                  <th className="px-3 py-2 text-center font-medium text-amber-600">2分<br/><span className="text-xs font-normal">幼稚園</span></th>
+                  <th className="px-3 py-2 text-center font-medium text-orange-600">3分<br/><span className="text-xs font-normal">小學</span></th>
+                  <th className="px-3 py-2 text-center font-medium text-red-600">4分<br/><span className="text-xs font-normal">中學</span></th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-600">小計</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {boardOrders.map(order => (
+                  <tr key={order.belt} className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        {getBeltBadge(order.belt)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">{order.candidates}</td>
+                    <td className="px-3 py-2.5 text-center font-medium">{order.boardsPerPerson}</td>
+                    <td className="px-3 py-2.5 text-center">
+                      {order.thicknesses['2分'] ? (
+                        <span className="text-amber-700 font-medium">{order.thicknesses['2分'].totalBoards}</span>
+                      ) : <span className="text-gray-300">-</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {order.thicknesses['3分'] ? (
+                        <span className="text-orange-700 font-medium">{order.thicknesses['3分'].totalBoards}</span>
+                      ) : <span className="text-gray-300">-</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {order.thicknesses['4分'] ? (
+                        <span className="text-red-700 font-medium">{order.thicknesses['4分'].totalBoards}</span>
+                      ) : <span className="text-gray-300">-</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center font-bold text-lg">{order.totalBoards}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-100 font-medium">
+                <tr>
+                  <td className="px-3 py-2.5">合計</td>
+                  <td className="px-3 py-2.5 text-center">{boardOrders.reduce((s, o) => s + o.candidates, 0)}</td>
+                  <td className="px-3 py-2.5" />
+                  <td className="px-3 py-2.5 text-center font-bold text-amber-700">{boardGrandTotal['2分']}</td>
+                  <td className="px-3 py-2.5 text-center font-bold text-orange-700">{boardGrandTotal['3分']}</td>
+                  <td className="px-3 py-2.5 text-center font-bold text-red-700">{boardGrandTotal['4分']}</td>
+                  <td className="px-3 py-2.5 text-center font-bold text-lg">{boardGrandTotal.total}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* ===== Other Supplies ===== */}
       <div className="bg-white rounded-lg border p-4">
         <h3 className="font-semibold mb-3 flex items-center gap-2">📦 其他物資</h3>
@@ -3798,6 +3948,8 @@ function SuppliesPage({ examId }: { examId: number }) {
         <ul className="list-disc list-inside space-y-1 text-xs">
           <li>色帶尺寸依考生年齡判斷：幼稚園（≤5歲）= 160cm、小學（6~11歲）= 180cm、中學（≥12歲）= 210cm</li>
           <li>考生報考時的目標帶（target belt）即為需訂購的色帶顏色</li>
+          <li>木板：綠帶以上才需要。塊數：綠/綠藍/藍/藍紅 各8塊、紅帶12塊、紅黑帶40塊</li>
+          <li>木板厚度依考生年齡判斷：幼稚園 = 2分厚、小學 = 3分厚、中學以上 = 4分厚</li>
           <li>計算已排除「缺席」狀態的考生</li>
           <li>叻叻獎數量會隨考試評分進度即時更新</li>
           <li>建議加訂 5~10% 備用量以防損耗</li>
