@@ -1537,6 +1537,10 @@ function TimetablePage({ examId }: { examId: number }) {
   const [tsNewBreakType, setTsNewBreakType] = useState<'break' | 'lunch'>('break');
   const [tsNewBreakMins, setTsNewBreakMins] = useState(15);
 
+  // --- 拖拉小休/午餐 ---
+  const [draggingBreakType, setDraggingBreakType] = useState<'break' | 'lunch' | null>(null);
+  const [dropTargetGroup, setDropTargetGroup] = useState<string | null>(null);
+
   const recalculateTimes = trpc.exam.schedules.recalculateTimes.useMutation({
     onSuccess: (data: any) => { refetch(); toast.success(`已重新計算 ${data.updatedCount} 組時間`); },
     onError: (err) => toast.error(err.message),
@@ -1629,6 +1633,44 @@ function TimetablePage({ examId }: { examId: number }) {
     }
     return result;
   }, [timetableRows]);
+
+  // 拖拉放下後的處理函數 — 加入後自動儲存
+  const handleDropBreak = useCallback((afterGroupCode: string, type: 'break' | 'lunch') => {
+    const minutes = type === 'lunch' ? 45 : 15;
+    setTsBreaks(prev => {
+      const newBreaks = [...prev.filter(b => b.afterGroup !== afterGroupCode), { afterGroup: afterGroupCode, type, minutes }]
+        .sort((a, b) => a.afterGroup.localeCompare(b.afterGroup));
+      // 自動觸發重新計算
+      setTimeout(() => {
+        recalculateTimes.mutate({
+          examId,
+          startTime: tsStartTime,
+          minutesPerGroup: tsMinutesPerGroup,
+          breaks: newBreaks,
+        });
+      }, 0);
+      return newBreaks;
+    });
+    setDraggingBreakType(null);
+    setDropTargetGroup(null);
+  }, [examId, tsStartTime, tsMinutesPerGroup, recalculateTimes]);
+
+  // 移除休息並自動重新計算
+  const handleRemoveBreak = useCallback((afterGroupCode: string) => {
+    setTsBreaks(prev => {
+      const newBreaks = prev.filter(b => b.afterGroup !== afterGroupCode);
+      // 自動觸發重新計算
+      setTimeout(() => {
+        recalculateTimes.mutate({
+          examId,
+          startTime: tsStartTime,
+          minutesPerGroup: tsMinutesPerGroup,
+          breaks: newBreaks,
+        });
+      }, 0);
+      return newBreaks;
+    });
+  }, [examId, tsStartTime, tsMinutesPerGroup, recalculateTimes]);
 
   const maxPositions = Math.max(9, ...timetableRows.map(r => r.candidates.length));
 
@@ -1797,7 +1839,21 @@ function TimetablePage({ examId }: { examId: number }) {
               <div className="flex flex-wrap gap-2">
                 {tsBreaks.map((b, idx) => (
                   <div key={idx} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${b.type === 'lunch' ? 'bg-orange-100 border-orange-300 text-orange-800' : 'bg-blue-100 border-blue-300 text-blue-800'}`}>
-                    {b.type === 'lunch' ? '🍱' : '☕'} {b.afterGroup} 組後 — {b.type === 'lunch' ? '午餐' : '小休'} {b.minutes} 分鐘
+                    {b.type === 'lunch' ? '🍱' : '☕'} {b.afterGroup} 組後 — {b.type === 'lunch' ? '午餐' : '小休'}
+                    <input
+                      type="number"
+                      min={5}
+                      max={120}
+                      value={b.minutes}
+                      onChange={(e) => {
+                        const mins = Number(e.target.value);
+                        if (mins >= 5 && mins <= 120) {
+                          setTsBreaks(prev => prev.map((item, i) => i === idx ? { ...item, minutes: mins } : item));
+                        }
+                      }}
+                      className="w-10 text-center bg-white/60 border rounded px-1 py-0 text-xs mx-0.5"
+                    />
+                    分鐘
                     <button onClick={() => setTsBreaks(prev => prev.filter((_, i) => i !== idx))} className="ml-1 text-gray-500 hover:text-red-600 font-bold">✕</button>
                   </div>
                 ))}
@@ -1968,6 +2024,40 @@ function TimetablePage({ examId }: { examId: number }) {
         </div>
       )}
 
+      {/* Draggable break/lunch buttons */}
+      {viewMode === 'timetable' && sortedSchedules.length > 1 && (
+        <div className="flex items-center gap-3 px-1">
+          <span className="text-xs text-gray-500 font-medium">拖拉插入：</span>
+          <div
+            draggable
+            onDragStart={(e) => {
+              setDraggingBreakType('break');
+              e.dataTransfer.effectAllowed = 'copy';
+              e.dataTransfer.setData('text/plain', 'break');
+            }}
+            onDragEnd={() => { setDraggingBreakType(null); setDropTargetGroup(null); }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 border-dashed border-blue-300 bg-blue-50 text-blue-700 cursor-grab active:cursor-grabbing hover:bg-blue-100 hover:border-blue-400 transition-colors select-none"
+          >
+            ☕ 小休 <span className="text-[10px] text-blue-500">(15分鐘)</span>
+          </div>
+          <div
+            draggable
+            onDragStart={(e) => {
+              setDraggingBreakType('lunch');
+              e.dataTransfer.effectAllowed = 'copy';
+              e.dataTransfer.setData('text/plain', 'lunch');
+            }}
+            onDragEnd={() => { setDraggingBreakType(null); setDropTargetGroup(null); }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 border-dashed border-orange-300 bg-orange-50 text-orange-700 cursor-grab active:cursor-grabbing hover:bg-orange-100 hover:border-orange-400 transition-colors select-none"
+          >
+            🍱 午餐 <span className="text-[10px] text-orange-500">(45分鐘)</span>
+          </div>
+          {draggingBreakType && (
+            <span className="text-xs text-gray-400 animate-pulse">← 拖到下方表格組與組之間</span>
+          )}
+        </div>
+      )}
+
       {/* Timetable view */}
       {viewMode === 'timetable' && (
         <div className="bg-white rounded-lg border overflow-x-auto">
@@ -1989,26 +2079,44 @@ function TimetablePage({ examId }: { examId: number }) {
             </thead>
             <tbody className="divide-y">
               {timetableRowsWithBreaks.map((row: any, rowIdx: number) => {
+                const colSpanFull = 7 + Math.min(maxPositions, 9) + 1;
                 // 小休/午餐行
                 if (row._type === 'break') {
-                  const colSpan = 7 + Math.min(maxPositions, 9) + 1;
                   return (
-                    <tr key={`break-${rowIdx}`} className={row._breakType === 'lunch' ? 'bg-orange-50' : 'bg-blue-50'}>
-                      <td colSpan={colSpan} className="px-4 py-2 text-center">
+                    <tr
+                      key={`break-${rowIdx}`}
+                      className={`${row._breakType === 'lunch' ? 'bg-orange-50' : 'bg-blue-50'} ${draggingBreakType ? 'hover:ring-2 hover:ring-inset hover:ring-purple-400' : ''}`}
+                      onDragOver={(e) => { if (draggingBreakType) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+                      onDrop={(e) => { e.preventDefault(); if (draggingBreakType) handleDropBreak(row._afterGroup, draggingBreakType); }}
+                    >
+                      <td colSpan={colSpanFull} className="px-4 py-2 text-center">
                         <div className="flex items-center justify-center gap-2 text-sm font-medium">
                           <span>{row._breakType === 'lunch' ? '🍱' : '☕'}</span>
                           <span className={row._breakType === 'lunch' ? 'text-orange-700' : 'text-blue-700'}>
                             {row._breakType === 'lunch' ? '午餐' : '小休'} — {row._breakMinutes} 分鐘
                           </span>
                           <span className="text-gray-500 text-xs">({row._breakStart} ~ {row._breakEnd})</span>
+                          <button
+                            onClick={() => handleRemoveBreak(row._afterGroup)}
+                            className={`ml-2 px-1.5 py-0.5 rounded text-xs font-bold hover:bg-white/80 transition-colors ${row._breakType === 'lunch' ? 'text-orange-500 hover:text-red-600' : 'text-blue-500 hover:text-red-600'}`}
+                            title={`移除 ${row._afterGroup} 組後的${row._breakType === 'lunch' ? '午餐' : '小休'}`}
+                          >✕ 移除</button>
                         </div>
                       </td>
                     </tr>
                   );
                 }
-                // 正常組別行
+                // 正常組別行 + 後接 drop zone
+                const groupCode = String(row.groupCode || '').toUpperCase();
+                // 判斷此組之後是否已有 break 行（如有則不顯示 drop zone）
+                const nextRow = timetableRowsWithBreaks[rowIdx + 1];
+                const isLastGroup = !nextRow || nextRow._type !== 'group'; // 最後一組或下一行是 break
+                const hasBreakAfter = nextRow && nextRow._type === 'break';
+                const showDropZone = draggingBreakType && !hasBreakAfter && rowIdx < timetableRowsWithBreaks.length - 1;
+                const isDropTarget = dropTargetGroup === groupCode;
                 return (
-                <tr key={row.id} className="hover:bg-gray-50">
+                <React.Fragment key={row.id}>
+                <tr className="hover:bg-gray-50">
                   <td className="px-2 py-2 border-r">
                     {row.targetBelts && row.targetBelts.length > 1 ? (
                       <div className="flex flex-col gap-0.5">
@@ -2100,6 +2208,31 @@ function TimetablePage({ examId }: { examId: number }) {
                     </button>
                   </td>
                 </tr>
+                {/* Drop zone: 拖拉小休/午餐到此組之後 */}
+                {showDropZone && (
+                  <tr
+                    key={`dropzone-${groupCode}`}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDropTargetGroup(groupCode); }}
+                    onDragLeave={() => setDropTargetGroup(null)}
+                    onDrop={(e) => { e.preventDefault(); if (draggingBreakType) handleDropBreak(groupCode, draggingBreakType); }}
+                    className={`transition-all ${isDropTarget ? 'h-10' : 'h-2'}`}
+                  >
+                    <td colSpan={colSpanFull} className="p-0">
+                      <div className={`flex items-center justify-center transition-all border-2 border-dashed rounded mx-2 ${
+                        isDropTarget
+                          ? (draggingBreakType === 'lunch'
+                            ? 'border-orange-400 bg-orange-100 h-10 text-orange-600 text-xs font-medium'
+                            : 'border-blue-400 bg-blue-100 h-10 text-blue-600 text-xs font-medium')
+                          : 'border-gray-200 bg-gray-50/50 h-2 hover:h-6 hover:border-gray-300'
+                      }`}>
+                        {isDropTarget && (
+                          <span>{draggingBreakType === 'lunch' ? '🍱 放下加入午餐' : '☕ 放下加入小休'} — {groupCode} 組之後</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
                 );
               })}
               {timetableRowsWithBreaks.length === 0 && (
