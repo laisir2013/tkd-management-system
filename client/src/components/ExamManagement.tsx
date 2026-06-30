@@ -1528,6 +1528,50 @@ function TimetablePage({ examId }: { examId: number }) {
   const [newEnd, setNewEnd] = useState('');
   const [newTimeSlot, setNewTimeSlot] = useState('');
 
+  // --- 時間表調整設定 ---
+  const [showTimeSettings, setShowTimeSettings] = useState(false);
+  const [tsStartTime, setTsStartTime] = useState('10:00');
+  const [tsMinutesPerGroup, setTsMinutesPerGroup] = useState(30);
+  const [tsBreaks, setTsBreaks] = useState<Array<{ afterGroup: string; type: 'break' | 'lunch'; minutes: number }>>([]);
+  const [tsNewBreakGroup, setTsNewBreakGroup] = useState('');
+  const [tsNewBreakType, setTsNewBreakType] = useState<'break' | 'lunch'>('break');
+  const [tsNewBreakMins, setTsNewBreakMins] = useState(15);
+
+  const recalculateTimes = trpc.exam.schedules.recalculateTimes.useMutation({
+    onSuccess: (data: any) => { refetch(); toast.success(`已重新計算 ${data.updatedCount} 組時間`); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // 從現有數據推斷設定（初始化）
+  useEffect(() => {
+    if (schedules && (schedules as any[]).length > 0) {
+      const sorted = [...(schedules as any[])].sort((a: any, b: any) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+      // 推斷開始時間
+      if (sorted[0]?.startTime) setTsStartTime(sorted[0].startTime);
+      // 推斷每組時長
+      if (sorted[0]?.startTime && sorted[0]?.endTime) {
+        const parseT = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+        const mins = parseT(sorted[0].endTime) - parseT(sorted[0].startTime);
+        if (mins > 0) setTsMinutesPerGroup(mins);
+      }
+      // 推斷已有小休（找出時間不連續的地方）
+      const inferredBreaks: Array<{ afterGroup: string; type: 'break' | 'lunch'; minutes: number }> = [];
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const endMins = (() => { const [h, m] = (sorted[i].endTime || '').split(':').map(Number); return h * 60 + m; })();
+        const nextStartMins = (() => { const [h, m] = (sorted[i + 1].startTime || '').split(':').map(Number); return h * 60 + m; })();
+        const gap = nextStartMins - endMins;
+        if (gap > 0 && sorted[i].groupCode) {
+          inferredBreaks.push({
+            afterGroup: String(sorted[i].groupCode).toUpperCase(),
+            type: gap >= 30 ? 'lunch' : 'break',
+            minutes: gap,
+          });
+        }
+      }
+      if (inferredBreaks.length > 0) setTsBreaks(inferredBreaks);
+    }
+  }, [schedules]);
+
   const sortedSchedules = useMemo(() => {
     if (!schedules) return [];
     return [...(schedules as any[])].sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
@@ -1558,6 +1602,33 @@ function TimetablePage({ examId }: { examId: number }) {
       };
     });
   }, [sortedSchedules, candidates]);
+
+  // 在時間表中插入小休/午餐行（根據時間間隔自動偵測）
+  const timetableRowsWithBreaks = useMemo(() => {
+    if (timetableRows.length === 0) return [];
+    const result: any[] = [];
+    const parseT = (t: string) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
+    for (let i = 0; i < timetableRows.length; i++) {
+      result.push({ ...timetableRows[i], _type: 'group' });
+      if (i < timetableRows.length - 1) {
+        const endMins = parseT(timetableRows[i].endTime);
+        const nextStartMins = parseT(timetableRows[i + 1].startTime);
+        const gap = nextStartMins - endMins;
+        if (gap > 0) {
+          const formatT = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+          result.push({
+            _type: 'break',
+            _breakType: gap >= 30 ? 'lunch' : 'break',
+            _breakMinutes: gap,
+            _breakStart: formatT(endMins),
+            _breakEnd: formatT(nextStartMins),
+            _afterGroup: String(timetableRows[i].groupCode || '').toUpperCase(),
+          });
+        }
+      }
+    }
+    return result;
+  }, [timetableRows]);
 
   const maxPositions = Math.max(9, ...timetableRows.map(r => r.candidates.length));
 
@@ -1623,10 +1694,15 @@ function TimetablePage({ examId }: { examId: number }) {
             const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
             window.open(url, '_blank');
           }}><Send className="w-4 h-4 mr-1" /> WhatsApp 通知</Button>
-          <Button size="sm" onClick={() => { setShowAutoGroup(!showAutoGroup); setShowCreate(false); }} className="bg-amber-600 hover:bg-amber-700 text-white">
+          {sortedSchedules.length > 0 && (
+            <Button size="sm" onClick={() => { setShowTimeSettings(!showTimeSettings); setShowAutoGroup(false); setShowCreate(false); }} className="bg-green-600 hover:bg-green-700 text-white">
+              <Clock className="w-4 h-4 mr-1" /> 時間設定
+            </Button>
+          )}
+          <Button size="sm" onClick={() => { setShowAutoGroup(!showAutoGroup); setShowCreate(false); setShowTimeSettings(false); }} className="bg-amber-600 hover:bg-amber-700 text-white">
             <Zap className="w-4 h-4 mr-1" /> 自動分組
           </Button>
-          <Button size="sm" onClick={() => { setShowCreate(!showCreate); setShowAutoGroup(false); }} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button size="sm" onClick={() => { setShowCreate(!showCreate); setShowAutoGroup(false); setShowTimeSettings(false); }} className="bg-blue-600 hover:bg-blue-700 text-white">
             <Plus className="w-4 h-4 mr-1" /> 新增時間表
           </Button>
         </div>
@@ -1690,6 +1766,158 @@ function TimetablePage({ examId }: { examId: number }) {
                 <AlertCircle className="w-3 h-3" /> 執行後將清除現有分組和時間表
               </span>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Time settings panel (小休/午餐/開始時間) */}
+      {showTimeSettings && sortedSchedules.length > 0 && (
+        <div className="bg-green-50 rounded-lg border border-green-200 p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-green-600" />
+            <h3 className="font-semibold text-green-800">時間表設定</h3>
+            <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">調整開始時間、每組時長、小休/午餐</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">開始時間</label>
+              <Input type="time" value={tsStartTime} onChange={e => setTsStartTime(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">每組時間（分鐘）</label>
+              <Input type="number" min={15} max={120} value={tsMinutesPerGroup} onChange={e => setTsMinutesPerGroup(Number(e.target.value))} />
+            </div>
+          </div>
+
+          {/* 已設定的小休/午餐列表 */}
+          {tsBreaks.length > 0 && (
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-2 block">已設定的休息時段</label>
+              <div className="flex flex-wrap gap-2">
+                {tsBreaks.map((b, idx) => (
+                  <div key={idx} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${b.type === 'lunch' ? 'bg-orange-100 border-orange-300 text-orange-800' : 'bg-blue-100 border-blue-300 text-blue-800'}`}>
+                    {b.type === 'lunch' ? '🍱' : '☕'} {b.afterGroup} 組後 — {b.type === 'lunch' ? '午餐' : '小休'} {b.minutes} 分鐘
+                    <button onClick={() => setTsBreaks(prev => prev.filter((_, i) => i !== idx))} className="ml-1 text-gray-500 hover:text-red-600 font-bold">✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 新增小休/午餐 */}
+          <div>
+            <label className="text-xs font-medium text-gray-600 mb-2 block">新增休息時段</label>
+            <div className="flex items-end gap-2 flex-wrap">
+              <div>
+                <label className="text-[10px] text-gray-500 block">在哪組之後</label>
+                <select
+                  value={tsNewBreakGroup}
+                  onChange={e => setTsNewBreakGroup(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm min-w-[100px]"
+                >
+                  <option value="">選擇組別</option>
+                  {sortedSchedules.map((sch: any) => (
+                    <option key={sch.groupCode} value={String(sch.groupCode).toUpperCase()}>
+                      {String(sch.groupCode).toUpperCase()} 組 ({getBeltName(sch.beltLevel)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 block">類型</label>
+                <select
+                  value={tsNewBreakType}
+                  onChange={e => setTsNewBreakType(e.target.value as 'break' | 'lunch')}
+                  className="border rounded-md px-3 py-2 text-sm"
+                >
+                  <option value="break">☕ 小休</option>
+                  <option value="lunch">🍱 午餐</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 block">時長（分鐘）</label>
+                <Input type="number" min={5} max={120} value={tsNewBreakMins} onChange={e => setTsNewBreakMins(Number(e.target.value))} className="w-20" />
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!tsNewBreakGroup}
+                onClick={() => {
+                  if (!tsNewBreakGroup) return;
+                  // 避免重複添加同一組的休息
+                  setTsBreaks(prev => {
+                    const filtered = prev.filter(b => b.afterGroup !== tsNewBreakGroup);
+                    return [...filtered, { afterGroup: tsNewBreakGroup, type: tsNewBreakType, minutes: tsNewBreakMins }]
+                      .sort((a, b) => a.afterGroup.localeCompare(b.afterGroup));
+                  });
+                  setTsNewBreakGroup('');
+                }}
+              >
+                <Plus className="w-3 h-3 mr-1" /> 加入
+              </Button>
+            </div>
+          </div>
+
+          {/* 預覽計算結果 */}
+          {(() => {
+            const parseT = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+            const formatT = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+            const breaksMap = new Map(tsBreaks.map(b => [b.afterGroup, b]));
+            let cur = parseT(tsStartTime);
+            const preview: { group: string; belt: string; start: string; end: string; breakAfter?: { type: string; mins: number } }[] = [];
+            for (const sch of sortedSchedules) {
+              const gc = String((sch as any).groupCode || '').toUpperCase();
+              const s = formatT(cur);
+              cur += tsMinutesPerGroup;
+              const e = formatT(cur);
+              const brk = breaksMap.get(gc);
+              preview.push({ group: gc, belt: (sch as any).beltLevel, start: s, end: e, breakAfter: brk ? { type: brk.type, mins: brk.minutes } : undefined });
+              if (brk) cur += brk.minutes;
+            }
+            const lastEnd = preview[preview.length - 1]?.end || '';
+            return (
+              <div className="bg-white rounded border p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-gray-600">預覽時間</span>
+                  <span className="text-xs text-gray-500">
+                    {tsStartTime} ~ {lastEnd}（共 {preview.length} 組）
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {preview.map((p, idx) => (
+                    <React.Fragment key={idx}>
+                      <div className="inline-flex flex-col items-center px-2 py-1 bg-gray-50 rounded text-[10px] border">
+                        <span className="font-bold">{p.group}</span>
+                        <span className="text-gray-500">{p.start}-{p.end}</span>
+                      </div>
+                      {p.breakAfter && (
+                        <div className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-medium ${p.breakAfter.type === 'lunch' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {p.breakAfter.type === 'lunch' ? '🍱' : '☕'} {p.breakAfter.mins}min
+                        </div>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              onClick={() => recalculateTimes.mutate({
+                examId,
+                startTime: tsStartTime,
+                minutesPerGroup: tsMinutesPerGroup,
+                breaks: tsBreaks,
+              })}
+              disabled={recalculateTimes.isPending}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {recalculateTimes.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+              {recalculateTimes.isPending ? '計算中...' : '重新計算並儲存'}
+            </Button>
+            <Button variant="outline" onClick={() => setShowTimeSettings(false)}>取消</Button>
           </div>
         </div>
       )}
@@ -1760,7 +1988,26 @@ function TimetablePage({ examId }: { examId: number }) {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {timetableRows.map((row: any) => (
+              {timetableRowsWithBreaks.map((row: any, rowIdx: number) => {
+                // 小休/午餐行
+                if (row._type === 'break') {
+                  const colSpan = 7 + Math.min(maxPositions, 9) + 1;
+                  return (
+                    <tr key={`break-${rowIdx}`} className={row._breakType === 'lunch' ? 'bg-orange-50' : 'bg-blue-50'}>
+                      <td colSpan={colSpan} className="px-4 py-2 text-center">
+                        <div className="flex items-center justify-center gap-2 text-sm font-medium">
+                          <span>{row._breakType === 'lunch' ? '🍱' : '☕'}</span>
+                          <span className={row._breakType === 'lunch' ? 'text-orange-700' : 'text-blue-700'}>
+                            {row._breakType === 'lunch' ? '午餐' : '小休'} — {row._breakMinutes} 分鐘
+                          </span>
+                          <span className="text-gray-500 text-xs">({row._breakStart} ~ {row._breakEnd})</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+                // 正常組別行
+                return (
                 <tr key={row.id} className="hover:bg-gray-50">
                   <td className="px-2 py-2 border-r">
                     {row.targetBelts && row.targetBelts.length > 1 ? (
@@ -1853,8 +2100,9 @@ function TimetablePage({ examId }: { examId: number }) {
                     </button>
                   </td>
                 </tr>
-              ))}
-              {timetableRows.length === 0 && (
+                );
+              })}
+              {timetableRowsWithBreaks.length === 0 && (
                 <tr><td colSpan={99} className="text-center py-8 text-gray-400">尚無時間表</td></tr>
               )}
             </tbody>

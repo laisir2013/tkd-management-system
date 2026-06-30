@@ -6688,6 +6688,92 @@ export const appRouter = router({
           await deleteExamSchedule(input.id);
           return { success: true };
         }),
+
+      // 重新計算時間表：支援自定義開始時間、每組時長、小休/午餐插入
+      recalculateTimes: protectedProcedure
+        .input(z.object({
+          examId: z.number(),
+          startTime: z.string(), // 'HH:MM'
+          minutesPerGroup: z.number().min(15).max(120),
+          breaks: z.array(z.object({
+            afterGroup: z.string(), // group code, e.g. 'C', 'H'
+            type: z.enum(['break', 'lunch']),
+            minutes: z.number().min(5).max(120),
+          })),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+
+          // 取得該考試的所有時間表，按 group_code 排序
+          const allSchedules = await getExamSchedulesByExam(input.examId);
+          if (!allSchedules || allSchedules.length === 0) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '沒有時間表可重新計算' });
+          }
+
+          // 按 group_code 字母排序
+          const sorted = [...allSchedules].sort((a: any, b: any) =>
+            String(a.groupCode || '').localeCompare(String(b.groupCode || '')));
+
+          // 建立 breaks lookup: afterGroup → break info
+          const breaksMap = new Map<string, { type: string; minutes: number }>();
+          for (const b of input.breaks) {
+            breaksMap.set(b.afterGroup.toUpperCase(), { type: b.type, minutes: b.minutes });
+          }
+
+          // 計算時間
+          const parseTime = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+          const formatTime = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+
+          let currentMinutes = parseTime(input.startTime);
+          const updates: { id: number; startTime: string; endTime: string; timeSlot: string; notes: string | null }[] = [];
+
+          for (let i = 0; i < sorted.length; i++) {
+            const sch = sorted[i] as any;
+            const startStr = formatTime(currentMinutes);
+            const endMinutes = currentMinutes + input.minutesPerGroup;
+            const endStr = formatTime(endMinutes);
+
+            updates.push({
+              id: sch.id,
+              startTime: startStr,
+              endTime: endStr,
+              timeSlot: `${startStr}-${endStr}`,
+              notes: sch.notes || null,
+            });
+
+            currentMinutes = endMinutes;
+
+            // 檢查此組後是否有小休/午餐
+            const groupCode = String(sch.groupCode || '').toUpperCase();
+            const breakInfo = breaksMap.get(groupCode);
+            if (breakInfo && i < sorted.length - 1) {
+              currentMinutes += breakInfo.minutes;
+            }
+          }
+
+          // 批量更新
+          for (const u of updates) {
+            await updateExamSchedule(u.id, {
+              startTime: u.startTime,
+              endTime: u.endTime,
+              timeSlot: u.timeSlot,
+            });
+          }
+
+          return {
+            success: true,
+            updatedCount: updates.length,
+            schedules: updates.map(u => ({
+              id: u.id,
+              startTime: u.startTime,
+              endTime: u.endTime,
+              timeSlot: u.timeSlot,
+            })),
+          };
+        }),
     }),
 
     // --- 考試簽到 (公開，不需登入) ---
