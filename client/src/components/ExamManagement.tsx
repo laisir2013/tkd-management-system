@@ -1537,9 +1537,8 @@ function TimetablePage({ examId }: { examId: number }) {
   const [tsNewBreakType, setTsNewBreakType] = useState<'break' | 'lunch'>('break');
   const [tsNewBreakMins, setTsNewBreakMins] = useState(15);
 
-  // --- 拖拉小休/午餐 ---
-  const [draggingBreakType, setDraggingBreakType] = useState<'break' | 'lunch' | null>(null);
-  const [dropTargetGroup, setDropTargetGroup] = useState<string | null>(null);
+  // --- 拖拉小休/午餐（改為點擊放置模式） ---
+  const [placingBreakType, setPlacingBreakType] = useState<'break' | 'lunch' | null>(null);
 
   const recalculateTimes = trpc.exam.schedules.recalculateTimes.useMutation({
     onSuccess: (data: any) => { refetch(); toast.success(`已重新計算 ${data.updatedCount} 組時間`); },
@@ -1634,9 +1633,11 @@ function TimetablePage({ examId }: { examId: number }) {
     return result;
   }, [timetableRows]);
 
-  // 拖拉放下後的處理函數 — 加入後自動儲存
-  const handleDropBreak = useCallback((afterGroupCode: string, type: 'break' | 'lunch') => {
-    const minutes = type === 'lunch' ? 45 : 15;
+  // 點擊放置小休/午餐 — 加入後自動儲存
+  const handlePlaceBreak = useCallback((afterGroupCode: string) => {
+    if (!placingBreakType) return;
+    const minutes = placingBreakType === 'lunch' ? 45 : 15;
+    const type = placingBreakType;
     setTsBreaks(prev => {
       const newBreaks = [...prev.filter(b => b.afterGroup !== afterGroupCode), { afterGroup: afterGroupCode, type, minutes }]
         .sort((a, b) => a.afterGroup.localeCompare(b.afterGroup));
@@ -1651,9 +1652,8 @@ function TimetablePage({ examId }: { examId: number }) {
       }, 0);
       return newBreaks;
     });
-    setDraggingBreakType(null);
-    setDropTargetGroup(null);
-  }, [examId, tsStartTime, tsMinutesPerGroup, recalculateTimes]);
+    setPlacingBreakType(null);
+  }, [placingBreakType, examId, tsStartTime, tsMinutesPerGroup, recalculateTimes]);
 
   // 移除休息並自動重新計算
   const handleRemoveBreak = useCallback((afterGroupCode: string) => {
@@ -2024,37 +2024,56 @@ function TimetablePage({ examId }: { examId: number }) {
         </div>
       )}
 
-      {/* Draggable break/lunch buttons */}
+      {/* Break/Lunch placement buttons + indicator */}
       {viewMode === 'timetable' && sortedSchedules.length > 1 && (
-        <div className="flex items-center gap-3 px-1">
-          <span className="text-xs text-gray-500 font-medium">拖拉插入：</span>
-          <div
-            draggable
-            onDragStart={(e) => {
-              setDraggingBreakType('break');
-              e.dataTransfer.effectAllowed = 'copy';
-              e.dataTransfer.setData('text/plain', 'break');
-            }}
-            onDragEnd={() => { setDraggingBreakType(null); setDropTargetGroup(null); }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 border-dashed border-blue-300 bg-blue-50 text-blue-700 cursor-grab active:cursor-grabbing hover:bg-blue-100 hover:border-blue-400 transition-colors select-none"
+        <div className="flex items-center gap-3 px-1 flex-wrap">
+          <span className="text-xs text-gray-500 font-medium">插入休息：</span>
+          <button
+            onClick={() => setPlacingBreakType(placingBreakType === 'break' ? null : 'break')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all select-none ${
+              placingBreakType === 'break'
+                ? 'border-blue-500 bg-blue-200 text-blue-800 shadow-md scale-105 ring-2 ring-blue-300'
+                : 'border-dashed border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-400'
+            }`}
           >
-            ☕ 小休 <span className="text-[10px] text-blue-500">(15分鐘)</span>
-          </div>
-          <div
-            draggable
-            onDragStart={(e) => {
-              setDraggingBreakType('lunch');
-              e.dataTransfer.effectAllowed = 'copy';
-              e.dataTransfer.setData('text/plain', 'lunch');
-            }}
-            onDragEnd={() => { setDraggingBreakType(null); setDropTargetGroup(null); }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 border-dashed border-orange-300 bg-orange-50 text-orange-700 cursor-grab active:cursor-grabbing hover:bg-orange-100 hover:border-orange-400 transition-colors select-none"
+            ☕ 小休 <span className="text-[10px]">(15分鐘)</span>
+          </button>
+          <button
+            onClick={() => setPlacingBreakType(placingBreakType === 'lunch' ? null : 'lunch')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all select-none ${
+              placingBreakType === 'lunch'
+                ? 'border-orange-500 bg-orange-200 text-orange-800 shadow-md scale-105 ring-2 ring-orange-300'
+                : 'border-dashed border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 hover:border-orange-400'
+            }`}
           >
-            🍱 午餐 <span className="text-[10px] text-orange-500">(45分鐘)</span>
-          </div>
-          {draggingBreakType && (
-            <span className="text-xs text-gray-400 animate-pulse">← 拖到下方表格組與組之間</span>
+            🍱 午餐 <span className="text-[10px]">(45分鐘)</span>
+          </button>
+          {placingBreakType && (
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-medium animate-pulse ${placingBreakType === 'lunch' ? 'text-orange-600' : 'text-blue-600'}`}>
+                ← 點擊下方表格組與組之間的「放置」列
+              </span>
+              <button
+                onClick={() => setPlacingBreakType(null)}
+                className="text-xs text-gray-500 hover:text-red-500 px-2 py-0.5 rounded border hover:border-red-300"
+              >取消</button>
+            </div>
           )}
+        </div>
+      )}
+
+      {/* Placement mode indicator bar */}
+      {placingBreakType && (
+        <div className={`rounded-lg px-4 py-2 flex items-center justify-between text-sm sticky top-0 z-10 ${
+          placingBreakType === 'lunch' ? 'bg-orange-50 border border-orange-200 text-orange-700' : 'bg-blue-50 border border-blue-200 text-blue-700'
+        }`}>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{placingBreakType === 'lunch' ? '🍱' : '☕'}</span>
+            正在放置<strong>{placingBreakType === 'lunch' ? '午餐 (45分鐘)' : '小休 (15分鐘)'}</strong> — 點擊組與組之間的高亮區域放置
+          </div>
+          <button onClick={() => setPlacingBreakType(null)} className={`font-medium px-2 py-1 rounded ${
+            placingBreakType === 'lunch' ? 'text-orange-500 hover:text-orange-800 hover:bg-orange-100' : 'text-blue-500 hover:text-blue-800 hover:bg-blue-100'
+          }`}>✕ 取消</button>
         </div>
       )}
 
@@ -2085,9 +2104,7 @@ function TimetablePage({ examId }: { examId: number }) {
                   return (
                     <tr
                       key={`break-${rowIdx}`}
-                      className={`${row._breakType === 'lunch' ? 'bg-orange-50' : 'bg-blue-50'} ${draggingBreakType ? 'hover:ring-2 hover:ring-inset hover:ring-purple-400' : ''}`}
-                      onDragOver={(e) => { if (draggingBreakType) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
-                      onDrop={(e) => { e.preventDefault(); if (draggingBreakType) handleDropBreak(row._afterGroup, draggingBreakType); }}
+                      className={row._breakType === 'lunch' ? 'bg-orange-50' : 'bg-blue-50'}
                     >
                       <td colSpan={colSpanFull} className="px-4 py-2 text-center">
                         <div className="flex items-center justify-center gap-2 text-sm font-medium">
@@ -2110,10 +2127,8 @@ function TimetablePage({ examId }: { examId: number }) {
                 const groupCode = String(row.groupCode || '').toUpperCase();
                 // 判斷此組之後是否已有 break 行（如有則不顯示 drop zone）
                 const nextRow = timetableRowsWithBreaks[rowIdx + 1];
-                const isLastGroup = !nextRow || nextRow._type !== 'group'; // 最後一組或下一行是 break
                 const hasBreakAfter = nextRow && nextRow._type === 'break';
-                const showDropZone = draggingBreakType && !hasBreakAfter && rowIdx < timetableRowsWithBreaks.length - 1;
-                const isDropTarget = dropTargetGroup === groupCode;
+                const showDropZone = placingBreakType && !hasBreakAfter && rowIdx < timetableRowsWithBreaks.length - 1;
                 return (
                 <React.Fragment key={row.id}>
                 <tr className="hover:bg-gray-50">
@@ -2208,26 +2223,20 @@ function TimetablePage({ examId }: { examId: number }) {
                     </button>
                   </td>
                 </tr>
-                {/* Drop zone: 拖拉小休/午餐到此組之後 */}
+                {/* Drop zone: 點擊放置小休/午餐到此組之後 */}
                 {showDropZone && (
                   <tr
                     key={`dropzone-${groupCode}`}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDropTargetGroup(groupCode); }}
-                    onDragLeave={() => setDropTargetGroup(null)}
-                    onDrop={(e) => { e.preventDefault(); if (draggingBreakType) handleDropBreak(groupCode, draggingBreakType); }}
-                    className={`transition-all ${isDropTarget ? 'h-10' : 'h-2'}`}
+                    onClick={() => handlePlaceBreak(groupCode)}
+                    className="cursor-pointer"
                   >
                     <td colSpan={colSpanFull} className="p-0">
-                      <div className={`flex items-center justify-center transition-all border-2 border-dashed rounded mx-2 ${
-                        isDropTarget
-                          ? (draggingBreakType === 'lunch'
-                            ? 'border-orange-400 bg-orange-100 h-10 text-orange-600 text-xs font-medium'
-                            : 'border-blue-400 bg-blue-100 h-10 text-blue-600 text-xs font-medium')
-                          : 'border-gray-200 bg-gray-50/50 h-2 hover:h-6 hover:border-gray-300'
-                      }`}>
-                        {isDropTarget && (
-                          <span>{draggingBreakType === 'lunch' ? '🍱 放下加入午餐' : '☕ 放下加入小休'} — {groupCode} 組之後</span>
-                        )}
+                      <div className={`flex items-center justify-center transition-all border-2 border-dashed rounded mx-2 my-0.5 h-9 hover:h-11 ${
+                        placingBreakType === 'lunch'
+                          ? 'border-orange-400 bg-orange-50 hover:bg-orange-100 text-orange-600'
+                          : 'border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-600'
+                      } text-xs font-medium hover:shadow-sm`}>
+                        <span>{placingBreakType === 'lunch' ? '🍱 點擊加入午餐' : '☕ 點擊加入小休'} — {groupCode} 組之後</span>
                       </div>
                     </td>
                   </tr>
