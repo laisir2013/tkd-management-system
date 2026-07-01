@@ -11,7 +11,7 @@ import {
   Download, Search, ExternalLink, Copy, UserCheck, ArrowLeft,
   Eye, Clock, RefreshCw, LayoutDashboard, MessageSquare, Printer,
   Mail, Send, ChevronRight, BarChart3, Zap, ListChecks, Phone,
-  Menu, X, Package
+  Menu, X, Package, CreditCard, DollarSign, Receipt, Ban
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -76,7 +76,7 @@ const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 // ==================== NAV ITEMS ====================
-type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results' | 'statistics' | 'supplies';
+type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results' | 'statistics' | 'supplies' | 'payments';
 const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'overview', label: '考試概覽', icon: LayoutDashboard },
   { key: 'candidates', label: '考生管理', icon: Users },
@@ -87,6 +87,7 @@ const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'results', label: '合格名單', icon: Trophy },
   { key: 'statistics', label: '統計分析', icon: BarChart3 },
   { key: 'supplies', label: '物資清單', icon: Package },
+  { key: 'payments', label: '考試繳費', icon: CreditCard },
 ];
 
 // ==================== 主組件 ====================
@@ -192,6 +193,7 @@ export default function ExamManagement() {
         {navPage === 'results' && <ResultsPage examId={selectedExamId} />}
         {navPage === 'statistics' && <StatisticsPage examId={selectedExamId} />}
         {navPage === 'supplies' && <SuppliesPage examId={selectedExamId} />}
+        {navPage === 'payments' && <PaymentsPage examId={selectedExamId} />}
       </div>
     </div>
   );
@@ -282,6 +284,7 @@ function OverviewPage({ examId }: { examId: number }) {
   const { data: stats } = trpc.exam.statistics.useQuery({ examId });
   const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
   const { data: allScores } = trpc.exam.scores.listByExam.useQuery({ examId });
+  const { data: paymentStats } = trpc.exam.payments.stats.useQuery({ examId });
   const updateExam = trpc.exam.update.useMutation({ onSuccess: () => { refetchExam(); toast.success('已更新'); } });
 
   const [sseConnected, setSseConnected] = useState(false);
@@ -342,6 +345,39 @@ function OverviewPage({ examId }: { examId: number }) {
                 <span className="text-sm font-medium">{b.count} 人</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 繳費概覽 */}
+      {paymentStats && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-medium mb-3 flex items-center gap-2"><CreditCard className="w-4 h-4 text-green-600" /> 考試繳費概覽</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-green-50 rounded-lg p-3 text-center">
+              <div className="text-xl font-bold text-green-700">{paymentStats.paidCount}</div>
+              <div className="text-xs text-green-600">已繳費</div>
+            </div>
+            <div className="bg-blue-50 rounded-lg p-3 text-center">
+              <div className="text-xl font-bold text-blue-700">{paymentStats.waivedCount}</div>
+              <div className="text-xs text-blue-600">免費(補考)</div>
+            </div>
+            <div className="bg-red-50 rounded-lg p-3 text-center">
+              <div className="text-xl font-bold text-red-700">{paymentStats.unpaidCount}</div>
+              <div className="text-xs text-red-600">未繳費</div>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-3 text-center">
+              <div className="text-xl font-bold text-purple-700">${paymentStats.totalAmount}</div>
+              <div className="text-xs text-purple-600">已收金額</div>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3 text-center">
+              <div className="text-xl font-bold text-gray-700">
+                {paymentStats.totalCandidates > 0
+                  ? Math.round(((paymentStats.paidCount + paymentStats.waivedCount) / paymentStats.totalCandidates) * 100)
+                  : 0}%
+              </div>
+              <div className="text-xs text-gray-600">完成率</div>
+            </div>
           </div>
         </div>
       )}
@@ -579,11 +615,19 @@ function StatCard({ icon, label, value, color, suffix }: { icon: string; label: 
 function CandidatesPage({ examId }: { examId: number }) {
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: candidates, refetch } = trpc.exam.candidates.list.useQuery({ examId });
+  const { data: payments } = trpc.exam.payments.listByExam.useQuery({ examId });
   const createCandidate = trpc.exam.candidates.create.useMutation({ onSuccess: () => { refetch(); toast.success('已新增考生'); } });
   const deleteCandidate = trpc.exam.candidates.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
   const importFromEvent = trpc.exam.candidates.importFromEvent.useMutation({ 
     onSuccess: (data: any) => { refetch(); toast.success(`已匯入 ${data.imported} 位考生`); } 
   });
+
+  // Payment status map (candidateId -> payment)
+  const paymentMap = useMemo(() => {
+    const map = new Map<number, any>();
+    if (payments) (payments as any[]).forEach(p => { if (p.candidateId) map.set(p.candidateId, p); });
+    return map;
+  }, [payments]);
 
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState('');
@@ -715,6 +759,7 @@ function CandidatesPage({ examId }: { examId: number }) {
                 <th className="px-3 py-2 text-left font-medium text-gray-600">道場</th>
                 <th className="px-3 py-2 text-left font-medium text-gray-600">現時級別</th>
                 <th className="px-3 py-2 text-left font-medium text-gray-600">繳交級別</th>
+                <th className="px-3 py-2 text-center font-medium text-gray-600">繳費</th>
                 <th className="px-3 py-2 text-left font-medium text-gray-600">狀態</th>
                 <th className="px-3 py-2 text-center font-medium text-gray-600">操作</th>
               </tr>
@@ -734,6 +779,18 @@ function CandidatesPage({ examId }: { examId: number }) {
                     <td className="px-3 py-2 text-gray-600">{c.dojoName || '-'}</td>
                     <td className="px-3 py-2">{getBeltBadge(c.currentBelt)}</td>
                     <td className="px-3 py-2">{getBeltBadge(c.targetBelt)}</td>
+                    <td className="px-3 py-2 text-center">
+                      {(() => {
+                        const pmt = paymentMap.get(c.id);
+                        if (pmt) {
+                          if (pmt.status === 'confirmed') return <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700"><CheckCircle2 className="w-3 h-3" />已繳</span>;
+                          if (pmt.status === 'waived') return <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">免費</span>;
+                          return <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700"><Clock className="w-3 h-3" />待確認</span>;
+                        }
+                        if (c.isRetake) return <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">補考</span>;
+                        return <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600"><XCircle className="w-3 h-3" />未繳</span>;
+                      })()}
+                    </td>
                     <td className="px-3 py-2">
                       <span className={`inline-flex items-center gap-1 text-xs font-medium ${statusCfg.color}`}>
                         <statusCfg.icon className="w-3 h-3" /> {statusCfg.label}
@@ -4540,6 +4597,397 @@ function SuppliesPage({ examId }: { examId: number }) {
           <li>叻叻獎：實際數隨評分進度即時更新；建議準備數 = 考生人數 × 25%（歷屆約20~25%獲獎率）</li>
           <li>建議加訂 5~10% 備用量以防損耗</li>
         </ul>
+      </div>
+    </div>
+  );
+}
+
+// ==================== 考試繳費管理 ====================
+const EXAM_FEE_MAP: Record<string, number> = {
+  yellow: 700, yellowGreen: 700, green: 700, red: 700, redBlack: 700,
+  greenBlue: 800, blue: 800, blueRed: 800,
+  black: 2200,
+};
+
+const BELT_NAME_MAP: Record<string, string> = {
+  white: '白帶', yellow: '黃帶', yellowGreen: '黃綠帶', green: '綠帶',
+  greenBlue: '綠藍帶', blue: '藍帶', blueRed: '藍紅帶', red: '紅帶',
+  redBlack: '紅黑帶', black: '黑帶',
+};
+
+function PaymentsPage({ examId }: { examId: number }) {
+  const utils = trpc.useUtils();
+  const { data: stats, refetch: refetchStats } = trpc.exam.payments.stats.useQuery({ examId });
+  const { data: payments, refetch: refetchPayments } = trpc.exam.payments.listByExam.useQuery({ examId });
+  const { data: candidates } = trpc.exam.candidates.list.useQuery({ examId });
+
+  const createPayment = trpc.exam.payments.create.useMutation({
+    onSuccess: () => { refetchPayments(); refetchStats(); utils.exam.payments.listByExam.invalidate({ examId }); toast.success('繳費記錄已新增'); setShowCreate(false); },
+    onError: (err) => toast.error(err.message || '新增失敗'),
+  });
+  const updatePayment = trpc.exam.payments.update.useMutation({
+    onSuccess: () => { refetchPayments(); refetchStats(); toast.success('已更新'); },
+    onError: (err) => toast.error(err.message || '更新失敗'),
+  });
+  const deletePayment = trpc.exam.payments.delete.useMutation({
+    onSuccess: () => { refetchPayments(); refetchStats(); toast.success('已刪除'); },
+    onError: (err) => toast.error(err.message || '刪除失敗'),
+  });
+  const bulkCreate = trpc.exam.payments.bulkCreate.useMutation({
+    onSuccess: (result) => { refetchPayments(); refetchStats(); toast.success(`已批量新增 ${result.count} 筆記錄`); setShowBulk(false); },
+    onError: (err) => toast.error(err.message || '批量新增失敗'),
+  });
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'unpaid' | 'waived'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Build candidate payment status map
+  const candidatePaymentMap = useMemo(() => {
+    const map = new Map<number, any>();
+    if (payments) {
+      payments.forEach((p: any) => { if (p.candidateId) map.set(p.candidateId, p); });
+    }
+    return map;
+  }, [payments]);
+
+  // Build combined list: all candidates with payment info
+  const combinedList = useMemo(() => {
+    if (!candidates) return [];
+    return (candidates as any[]).map((c: any) => {
+      const payment = candidatePaymentMap.get(c.id);
+      const fee = EXAM_FEE_MAP[c.targetBelt] || 0;
+      const isRetake = c.isRetake || false;
+      return {
+        candidateId: c.id,
+        studentId: c.studentId,
+        studentName: c.studentName,
+        targetBelt: c.targetBelt,
+        targetBeltName: BELT_NAME_MAP[c.targetBelt] || c.targetBelt,
+        fee: isRetake ? 0 : fee,
+        isRetake,
+        payment,
+        status: payment ? payment.status : (isRetake ? 'waived' : 'unpaid'),
+      };
+    });
+  }, [candidates, candidatePaymentMap]);
+
+  // Filter + search
+  const filteredList = useMemo(() => {
+    let list = combinedList;
+    if (filterStatus === 'paid') list = list.filter(c => c.status === 'confirmed');
+    else if (filterStatus === 'unpaid') list = list.filter(c => c.status === 'unpaid' || c.status === 'pending');
+    else if (filterStatus === 'waived') list = list.filter(c => c.status === 'waived');
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(c => c.studentName.toLowerCase().includes(term) || c.targetBeltName.includes(term));
+    }
+    return list;
+  }, [combinedList, filterStatus, searchTerm]);
+
+  // Quick actions
+  const handleMarkPaid = (item: any) => {
+    createPayment.mutate({
+      examId,
+      candidateId: item.candidateId,
+      studentId: item.studentId,
+      studentName: item.studentName,
+      targetBelt: item.targetBelt,
+      amount: String(item.fee),
+      isRetake: item.isRetake,
+      status: 'confirmed',
+    });
+  };
+
+  const handleMarkWaived = (item: any) => {
+    createPayment.mutate({
+      examId,
+      candidateId: item.candidateId,
+      studentId: item.studentId,
+      studentName: item.studentName,
+      targetBelt: item.targetBelt,
+      amount: '0',
+      isRetake: true,
+      status: 'waived',
+      notes: '補考免費',
+    });
+  };
+
+  const handleDelete = (paymentId: number) => {
+    if (confirm('確定要刪除此繳費記錄？')) {
+      deletePayment.mutate({ id: paymentId });
+    }
+  };
+
+  // Bulk mark all retakes as waived
+  const handleBulkWaiveRetakes = () => {
+    const retakesUnpaid = combinedList.filter(c => c.isRetake && c.status === 'unpaid');
+    if (retakesUnpaid.length === 0) { toast.info('所有補考生已標記'); return; }
+    const records = retakesUnpaid.map(c => ({
+      examId,
+      candidateId: c.candidateId,
+      studentId: c.studentId,
+      studentName: c.studentName,
+      targetBelt: c.targetBelt,
+      amount: '0',
+      isRetake: true,
+      status: 'waived' as const,
+      notes: '補考免費',
+    }));
+    bulkCreate.mutate({ records });
+  };
+
+  // Create payment form state
+  const [createForm, setCreateForm] = useState({
+    candidateId: 0, bank: '', receivingBank: '', paymentDate: '', notes: '',
+  });
+
+  const selectedCandidate = combinedList.find(c => c.candidateId === createForm.candidateId);
+
+  const handleCreateSubmit = () => {
+    if (!createForm.candidateId) { toast.error('請選擇考生'); return; }
+    const item = combinedList.find(c => c.candidateId === createForm.candidateId);
+    if (!item) return;
+    createPayment.mutate({
+      examId,
+      candidateId: item.candidateId,
+      studentId: item.studentId,
+      studentName: item.studentName,
+      targetBelt: item.targetBelt,
+      amount: String(item.fee),
+      isRetake: item.isRetake,
+      status: 'confirmed',
+      bank: createForm.bank || undefined,
+      receivingBank: createForm.receivingBank || undefined,
+      paymentDate: createForm.paymentDate ? new Date(createForm.paymentDate).toISOString() : undefined,
+      notes: createForm.notes || undefined,
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* ===== Stats Summary ===== */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+        <div className="bg-white rounded-lg border p-3 text-center">
+          <div className="text-2xl font-bold text-gray-800">{stats?.totalCandidates ?? '-'}</div>
+          <div className="text-xs text-gray-500">總考生</div>
+        </div>
+        <div className="bg-white rounded-lg border p-3 text-center border-green-200">
+          <div className="text-2xl font-bold text-green-600">{stats?.paidCount ?? '-'}</div>
+          <div className="text-xs text-gray-500">已繳費</div>
+        </div>
+        <div className="bg-white rounded-lg border p-3 text-center border-blue-200">
+          <div className="text-2xl font-bold text-blue-600">{stats?.waivedCount ?? '-'}</div>
+          <div className="text-xs text-gray-500">免費(補考)</div>
+        </div>
+        <div className="bg-white rounded-lg border p-3 text-center border-yellow-200">
+          <div className="text-2xl font-bold text-yellow-600">{stats?.pendingCount ?? '-'}</div>
+          <div className="text-xs text-gray-500">待確認</div>
+        </div>
+        <div className="bg-white rounded-lg border p-3 text-center border-red-200">
+          <div className="text-2xl font-bold text-red-600">{stats?.unpaidCount ?? '-'}</div>
+          <div className="text-xs text-gray-500">未繳費</div>
+        </div>
+        <div className="bg-white rounded-lg border p-3 text-center border-purple-200">
+          <div className="text-2xl font-bold text-purple-600">${stats?.totalAmount ?? '0'}</div>
+          <div className="text-xs text-gray-500">已收金額</div>
+        </div>
+      </div>
+
+      {/* ===== Actions Bar ===== */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => setShowCreate(true)} className="bg-green-600 hover:bg-green-700 text-white text-sm">
+          <Plus className="w-4 h-4 mr-1" /> 新增繳費
+        </Button>
+        <Button onClick={handleBulkWaiveRetakes} variant="outline" className="text-sm border-blue-300 text-blue-700 hover:bg-blue-50">
+          <Ban className="w-4 h-4 mr-1" /> 批量標記補考免費
+        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="搜尋學生..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 w-48 h-9"
+            />
+          </div>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as any)}
+            className="h-9 px-3 rounded-md border text-sm bg-white"
+          >
+            <option value="all">全部</option>
+            <option value="paid">已繳費</option>
+            <option value="unpaid">未繳費</option>
+            <option value="waived">免費</option>
+          </select>
+        </div>
+      </div>
+
+      {/* ===== Create Payment Modal ===== */}
+      {showCreate && (
+        <div className="bg-white rounded-lg border-2 border-green-200 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-green-800"><CreditCard className="w-4 h-4 inline mr-1" />新增繳費記錄</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)}><X className="w-4 h-4" /></Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">選擇考生</label>
+              <select
+                value={createForm.candidateId}
+                onChange={(e) => setCreateForm(f => ({ ...f, candidateId: Number(e.target.value) }))}
+                className="w-full h-9 px-3 rounded-md border text-sm bg-white"
+              >
+                <option value={0}>-- 選擇考生 --</option>
+                {combinedList.filter(c => c.status === 'unpaid').map(c => (
+                  <option key={c.candidateId} value={c.candidateId}>
+                    {c.studentName} → {c.targetBeltName} (${c.fee})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">付款銀行</label>
+              <select
+                value={createForm.bank}
+                onChange={(e) => setCreateForm(f => ({ ...f, bank: e.target.value }))}
+                className="w-full h-9 px-3 rounded-md border text-sm bg-white"
+              >
+                <option value="">-- 選擇 --</option>
+                <option value="HSBC">HSBC 匯豐</option>
+                <option value="BOC">BOC 中銀</option>
+                <option value="FPS">FPS 轉數快</option>
+                <option value="cash">現金</option>
+                <option value="other">其他</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">收款帳戶</label>
+              <select
+                value={createForm.receivingBank}
+                onChange={(e) => setCreateForm(f => ({ ...f, receivingBank: e.target.value }))}
+                className="w-full h-9 px-3 rounded-md border text-sm bg-white"
+              >
+                <option value="">-- 選擇 --</option>
+                <option value="HSBC 484-287123-838">HSBC 484-287123-838</option>
+                <option value="BOC 01269220114816">BOC 01269220114816</option>
+                <option value="FPS 164577132 (BOC)">FPS 164577132 → BOC</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">付款日期</label>
+              <Input type="date" value={createForm.paymentDate} onChange={(e) => setCreateForm(f => ({ ...f, paymentDate: e.target.value }))} className="h-9" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">備註</label>
+              <Input placeholder="備註" value={createForm.notes} onChange={(e) => setCreateForm(f => ({ ...f, notes: e.target.value }))} className="h-9" />
+            </div>
+            <div className="flex items-end">
+              <Button onClick={handleCreateSubmit} disabled={createPayment.isPending} className="bg-green-600 hover:bg-green-700 text-white w-full h-9">
+                {createPayment.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : '確認入帳'}
+              </Button>
+            </div>
+          </div>
+          {selectedCandidate && (
+            <div className="text-sm text-gray-600 bg-green-50 p-2 rounded">
+              金額：<span className="font-bold text-green-700">${selectedCandidate.fee}</span>
+              {' '}| 考{selectedCandidate.targetBeltName}
+              {selectedCandidate.isRetake && <span className="ml-2 text-blue-600">(補考-免費)</span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== Payment Table ===== */}
+      <div className="bg-white rounded-lg border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-600">#</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-600">學生姓名</th>
+                <th className="px-3 py-2.5 text-center font-medium text-gray-600">考帶</th>
+                <th className="px-3 py-2.5 text-center font-medium text-gray-600">費用</th>
+                <th className="px-3 py-2.5 text-center font-medium text-gray-600">狀態</th>
+                <th className="px-3 py-2.5 text-center font-medium text-gray-600">付款方式</th>
+                <th className="px-3 py-2.5 text-center font-medium text-gray-600">日期</th>
+                <th className="px-3 py-2.5 text-center font-medium text-gray-600">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredList.map((item, idx) => (
+                <tr key={item.candidateId} className={`hover:bg-gray-50 ${item.isRetake ? 'bg-blue-50/30' : ''}`}>
+                  <td className="px-3 py-2.5 text-gray-400 text-xs">{idx + 1}</td>
+                  <td className="px-3 py-2.5 font-medium">
+                    {item.studentName}
+                    {item.isRetake && <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">補考</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <span className={`px-2 py-0.5 rounded text-xs ${BELT_LEVELS[item.targetBelt]?.color || 'bg-gray-100'}`}>
+                      {item.targetBeltName}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center font-medium">{item.fee > 0 ? `$${item.fee}` : '-'}</td>
+                  <td className="px-3 py-2.5 text-center">
+                    {item.status === 'confirmed' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700"><CheckCircle2 className="w-3 h-3" />已繳</span>}
+                    {item.status === 'waived' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700"><Ban className="w-3 h-3" />免費</span>}
+                    {item.status === 'pending' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-700"><Clock className="w-3 h-3" />待確認</span>}
+                    {item.status === 'unpaid' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700"><XCircle className="w-3 h-3" />未繳</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-center text-xs text-gray-500">{item.payment?.bank || '-'}</td>
+                  <td className="px-3 py-2.5 text-center text-xs text-gray-500">
+                    {item.payment?.paymentDate ? new Date(item.payment.paymentDate).toLocaleDateString('zh-HK') : '-'}
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    {item.status === 'unpaid' && !item.isRetake && (
+                      <Button size="sm" variant="ghost" onClick={() => handleMarkPaid(item)} className="text-green-600 hover:text-green-700 h-7 px-2 text-xs">
+                        <DollarSign className="w-3 h-3 mr-0.5" />入帳
+                      </Button>
+                    )}
+                    {item.status === 'unpaid' && item.isRetake && (
+                      <Button size="sm" variant="ghost" onClick={() => handleMarkWaived(item)} className="text-blue-600 hover:text-blue-700 h-7 px-2 text-xs">
+                        <Ban className="w-3 h-3 mr-0.5" />免費
+                      </Button>
+                    )}
+                    {item.payment && (
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete(item.payment.id)} className="text-red-500 hover:text-red-700 h-7 px-2 text-xs">
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {filteredList.length === 0 && (
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">沒有符合條件的記錄</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ===== Fee Structure Reference ===== */}
+      <div className="bg-gray-50 border rounded-lg p-4">
+        <h4 className="font-semibold text-sm mb-2 flex items-center gap-2"><Receipt className="w-4 h-4" /> 收費標準</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <div className="bg-white rounded p-2 border">
+            <div className="font-medium text-gray-700">$700</div>
+            <div className="text-gray-500">黃帶 / 黃綠帶 / 綠帶 / 紅帶 / 紅黑帶</div>
+          </div>
+          <div className="bg-white rounded p-2 border">
+            <div className="font-medium text-gray-700">$800</div>
+            <div className="text-gray-500">綠藍帶 / 藍帶 / 藍紅帶</div>
+          </div>
+          <div className="bg-white rounded p-2 border">
+            <div className="font-medium text-gray-700">$2,200</div>
+            <div className="text-gray-500">黑帶</div>
+          </div>
+        </div>
+        <div className="mt-2 text-xs text-gray-500">
+          收款帳戶：HSBC 484-287123-838 ｜ BOC 01269220114816 ｜ FPS ID 164577132 → BOC
+        </div>
       </div>
     </div>
   );

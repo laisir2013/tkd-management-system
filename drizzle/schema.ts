@@ -543,6 +543,34 @@ export const examSchedules = mysqlTable("exam_schedules", {
 export type ExamSchedule = typeof examSchedules.$inferSelect;
 export type InsertExamSchedule = typeof examSchedules.$inferInsert;
 
+// 考試繳費記錄表
+export const examPayments = mysqlTable("exam_payments", {
+  id: int("id").autoincrement().primaryKey(),
+  examId: int("exam_id").notNull(), // 關聯到 exam_sessions
+  candidateId: int("candidate_id"), // 關聯到 exam_candidates（可能為 null，若考生被刪除）
+  studentId: int("student_id"), // 關聯到 students（方便穿透查詢）
+  studentName: varchar("student_name", { length: 100 }).notNull(), // 學生姓名（冗餘，查詢方便）
+  targetBelt: varchar("target_belt", { length: 50 }).notNull(), // 考什麼帶（決定費用）
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(), // 繳費金額
+  isRetake: boolean("is_retake").default(false).notNull(), // 是否重考（免費）
+  // 收據資訊
+  receiptUrl: text("receipt_url"), // 收據圖片 URL
+  receiptKey: text("receipt_key"), // Storage key
+  bank: varchar("bank", { length: 100 }), // 付款銀行
+  receivingBank: varchar("receiving_bank", { length: 100 }), // 收款銀行
+  paymentDate: timestamp("payment_date"), // 轉帳日期
+  // 狀態
+  status: mysqlEnum("status", ["pending", "confirmed", "waived"]).default("confirmed").notNull(),
+  // waived = 重考免費豁免
+  confirmedBy: varchar("confirmed_by", { length: 100 }), // 確認者
+  notes: text("notes"), // 備註
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExamPayment = typeof examPayments.$inferSelect;
+export type InsertExamPayment = typeof examPayments.$inferInsert;
+
 // 系統設定
 export const systemConfig = mysqlTable("system_config", {
   id: int("id").autoincrement().primaryKey(),

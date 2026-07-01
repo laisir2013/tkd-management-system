@@ -1,7 +1,7 @@
 import { eq, and, inArray, gte, lte, sql, or, desc, asc, isNull, between } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig, bankStatements, InsertBankStatement, BankStatement, bankStatementTransactions, InsertBankStatementTransaction, BankStatementTransaction, studentLeaveMonths } from "../drizzle/schema";
+import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig, bankStatements, InsertBankStatement, BankStatement, bankStatementTransactions, InsertBankStatementTransaction, BankStatementTransaction, studentLeaveMonths, examPayments, InsertExamPayment, ExamPayment } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 // 安全解析 customMonths JSON：防止 double-parse 和無效格式
@@ -4663,4 +4663,66 @@ export async function deleteBankStatement(statementId: number): Promise<void> {
 
   await db.delete(bankStatementTransactions).where(eq(bankStatementTransactions.statementId, statementId));
   await db.delete(bankStatements).where(eq(bankStatements.id, statementId));
+}
+
+// ============ Exam Payments (考試繳費) ============
+
+/** 取得某場考試的所有繳費記錄 */
+export async function getExamPaymentsByExam(examId: number): Promise<ExamPayment[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examPayments).where(eq(examPayments.examId, examId)).orderBy(asc(examPayments.studentName));
+}
+
+/** 取得某學生的所有考試繳費記錄 */
+export async function getExamPaymentsByStudent(studentId: number): Promise<ExamPayment[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examPayments).where(eq(examPayments.studentId, studentId)).orderBy(desc(examPayments.createdAt));
+}
+
+/** 取得某考生的繳費記錄 */
+export async function getExamPaymentByCandidate(candidateId: number): Promise<ExamPayment | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(examPayments).where(eq(examPayments.candidateId, candidateId)).limit(1);
+  return result[0] || null;
+}
+
+/** 新增考試繳費記錄 */
+export async function insertExamPayment(data: InsertExamPayment): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(examPayments).values(data);
+  return result[0].insertId;
+}
+
+/** 更新考試繳費記錄 */
+export async function updateExamPayment(id: number, data: Partial<InsertExamPayment>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.update(examPayments).set(data).where(eq(examPayments.id, id));
+}
+
+/** 刪除考試繳費記錄 */
+export async function deleteExamPayment(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.delete(examPayments).where(eq(examPayments.id, id));
+}
+
+/** 批量新增考試繳費記錄 */
+export async function bulkInsertExamPayments(records: InsertExamPayment[]): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (records.length === 0) return 0;
+  const result = await db.insert(examPayments).values(records);
+  return records.length;
+}
+
+/** 按學生姓名查詢考試繳費（跨考試） */
+export async function getExamPaymentsByStudentName(studentName: string): Promise<ExamPayment[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examPayments).where(eq(examPayments.studentName, studentName)).orderBy(desc(examPayments.createdAt));
 }

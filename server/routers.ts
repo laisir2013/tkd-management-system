@@ -190,6 +190,14 @@ import {
   getLeaveMonthsByStudent,
   insertLeaveMonth,
   deleteLeaveMonth,
+  // 考試繳費
+  getExamPaymentsByExam,
+  getExamPaymentsByStudent,
+  getExamPaymentByCandidate,
+  insertExamPayment,
+  updateExamPayment,
+  deleteExamPayment,
+  bulkInsertExamPayments,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -6898,6 +6906,165 @@ export const appRouter = router({
             }
           } catch (e) { console.warn('[SSE] bulkCheckIn broadcast failed:', e); }
           return { success: true, count: input.candidateIds.length };
+        }),
+    }),
+
+    // --- 考試繳費 ---
+    payments: router({
+      /** 取得某場考試的所有繳費記錄 */
+      listByExam: protectedProcedure
+        .input(z.object({ examId: z.number() }))
+        .query(async ({ input }) => {
+          return getExamPaymentsByExam(input.examId);
+        }),
+
+      /** 取得某學生的考試繳費歷史 */
+      listByStudent: protectedProcedure
+        .input(z.object({ studentId: z.number() }))
+        .query(async ({ input }) => {
+          return getExamPaymentsByStudent(input.studentId);
+        }),
+
+      /** 取得某考生的繳費狀態 */
+      getByCandidate: publicProcedure
+        .input(z.object({ candidateId: z.number() }))
+        .query(async ({ input }) => {
+          return getExamPaymentByCandidate(input.candidateId);
+        }),
+
+      /** 新增單筆考試繳費 */
+      create: protectedProcedure
+        .input(z.object({
+          examId: z.number(),
+          candidateId: z.number().optional(),
+          studentId: z.number().optional(),
+          studentName: z.string(),
+          targetBelt: z.string(),
+          amount: z.string(),
+          isRetake: z.boolean().default(false),
+          receiptUrl: z.string().optional(),
+          bank: z.string().optional(),
+          receivingBank: z.string().optional(),
+          paymentDate: z.string().optional(), // ISO date string
+          status: z.enum(['pending', 'confirmed', 'waived']).default('confirmed'),
+          notes: z.string().optional(),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          const id = await insertExamPayment({
+            examId: input.examId,
+            candidateId: input.candidateId || null,
+            studentId: input.studentId || null,
+            studentName: input.studentName,
+            targetBelt: input.targetBelt,
+            amount: input.amount,
+            isRetake: input.isRetake,
+            receiptUrl: input.receiptUrl || null,
+            receiptKey: null,
+            bank: input.bank || null,
+            receivingBank: input.receivingBank || null,
+            paymentDate: input.paymentDate ? new Date(input.paymentDate) : null,
+            status: input.status,
+            confirmedBy: ctx.user.role,
+            notes: input.notes || null,
+          });
+          return { success: true, id };
+        }),
+
+      /** 批量新增考試繳費（用於匯入已驗證的收據） */
+      bulkCreate: protectedProcedure
+        .input(z.object({
+          records: z.array(z.object({
+            examId: z.number(),
+            candidateId: z.number().optional(),
+            studentId: z.number().optional(),
+            studentName: z.string(),
+            targetBelt: z.string(),
+            amount: z.string(),
+            isRetake: z.boolean().default(false),
+            receiptUrl: z.string().optional(),
+            bank: z.string().optional(),
+            receivingBank: z.string().optional(),
+            paymentDate: z.string().optional(),
+            status: z.enum(['pending', 'confirmed', 'waived']).default('confirmed'),
+            notes: z.string().optional(),
+          })),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          const records = input.records.map(r => ({
+            examId: r.examId,
+            candidateId: r.candidateId || null,
+            studentId: r.studentId || null,
+            studentName: r.studentName,
+            targetBelt: r.targetBelt,
+            amount: r.amount,
+            isRetake: r.isRetake,
+            receiptUrl: r.receiptUrl || null,
+            receiptKey: null,
+            bank: r.bank || null,
+            receivingBank: r.receivingBank || null,
+            paymentDate: r.paymentDate ? new Date(r.paymentDate) : null,
+            status: r.status,
+            confirmedBy: ctx.user.role,
+            notes: r.notes || null,
+          }));
+          const count = await bulkInsertExamPayments(records);
+          return { success: true, count };
+        }),
+
+      /** 更新繳費記錄 */
+      update: protectedProcedure
+        .input(z.object({
+          id: z.number(),
+          amount: z.string().optional(),
+          status: z.enum(['pending', 'confirmed', 'waived']).optional(),
+          bank: z.string().optional(),
+          receivingBank: z.string().optional(),
+          paymentDate: z.string().optional(),
+          receiptUrl: z.string().optional(),
+          notes: z.string().optional(),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          const { id, paymentDate, ...rest } = input;
+          const data: any = { ...rest };
+          if (paymentDate) data.paymentDate = new Date(paymentDate);
+          await updateExamPayment(id, data);
+          return { success: true };
+        }),
+
+      /** 刪除繳費記錄 */
+      delete: protectedProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          await deleteExamPayment(input.id);
+          return { success: true };
+        }),
+
+      /** 取得考試繳費統計（某場考試） */
+      stats: publicProcedure
+        .input(z.object({ examId: z.number() }))
+        .query(async ({ input }) => {
+          const payments = await getExamPaymentsByExam(input.examId);
+          const candidates = await getExamCandidatesByExam(input.examId);
+          const totalCandidates = candidates.length;
+          const paidCount = payments.filter(p => p.status === 'confirmed').length;
+          const waivedCount = payments.filter(p => p.status === 'waived').length;
+          const pendingCount = payments.filter(p => p.status === 'pending').length;
+          const unpaidCount = totalCandidates - paidCount - waivedCount - pendingCount;
+          const totalAmount = payments
+            .filter(p => p.status === 'confirmed')
+            .reduce((sum, p) => sum + parseFloat(String(p.amount)), 0);
+          return {
+            totalCandidates,
+            paidCount,
+            waivedCount,
+            pendingCount,
+            unpaidCount: Math.max(0, unpaidCount),
+            totalAmount,
+          };
         }),
     }),
 
