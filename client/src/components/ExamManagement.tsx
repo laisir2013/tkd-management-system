@@ -3161,6 +3161,7 @@ function ResultsPage({ examId }: { examId: number }) {
   const [activeTab, setActiveTab] = useState<'passed' | 'failed' | 'absent'>('passed');
   const [beltFilter, setBeltFilter] = useState('all');
   const [certGenerating, setCertGenerating] = useState(false);
+  const [sheetGenerating, setSheetGenerating] = useState(false);
 
   const allCandidates = (candidates as any[]) || [];
   const passed = allCandidates.filter(c => c.status === 'passed');
@@ -3201,6 +3202,45 @@ function ResultsPage({ examId }: { examId: number }) {
       toast.error(err.message || '證書匯出失敗');
     } finally {
       setCertGenerating(false);
+    }
+  }
+
+  // Score sheet export handler (same pattern as certificates)
+  async function handleExportScoreSheets() {
+    const nonAbsent = allCandidates.filter(c => c.status !== 'absent');
+    if (nonAbsent.length === 0) {
+      toast.error('沒有考生可匯出成績表');
+      return;
+    }
+    setSheetGenerating(true);
+    try {
+      const response = await fetch('/api/exam/scoresheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ examId }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: '匯出失敗' }));
+        throw new Error(err.error || '匯出失敗');
+      }
+      const data = await response.json();
+      if (!data.success || !data.url) {
+        throw new Error(data.error || '生成失敗');
+      }
+      const a = document.createElement('a');
+      a.href = data.url;
+      a.download = `成績表_${examData?.name || 'exam'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success(`已匯出 ${data.pages} 份成績表 (按分組時間表排序)`);
+      if (data.skipped?.length > 0) {
+        toast.info(`跳過 ${data.skipped.length} 位考生 (無對應模板)`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || '成績表匯出失敗');
+    } finally {
+      setSheetGenerating(false);
     }
   }
   const s = stats as any;
@@ -3314,6 +3354,12 @@ function ResultsPage({ examId }: { examId: number }) {
             disabled={certGenerating}>
             {certGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileText className="w-4 h-4 mr-1" />}
             匯出全部證書
+          </Button>
+          <Button size="sm" variant="outline" className="text-amber-600 border-amber-300 hover:bg-amber-50"
+            onClick={handleExportScoreSheets}
+            disabled={sheetGenerating}>
+            {sheetGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Printer className="w-4 h-4 mr-1" />}
+            匯出成績表PDF
           </Button>
         </div>
       </div>

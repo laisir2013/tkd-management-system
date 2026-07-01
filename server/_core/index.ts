@@ -272,6 +272,86 @@ print(json.dumps({"examDate": exam_date, "candidates": candidates}, default=str)
     }
   });
 
+  // POST /api/exam/scoresheets - Generate score sheets PDF
+  app.post('/api/exam/scoresheets', async (req, res) => {
+    try {
+      const { examId } = req.body;
+      if (!examId) return res.status(400).json({ error: 'examId required' });
+
+      // Get exam info and candidates ordered by schedule groups
+      const queryScript = `
+import sys, json, mysql.connector
+conn = mysql.connector.connect(host='localhost', user='tkd_user', password='tkd_pass_2026', database='taekwondo', charset='utf8mb4')
+cursor = conn.cursor(dictionary=True)
+cursor.execute("SELECT exam_date, name FROM exam_sessions WHERE id = %s", (${examId},))
+exam = cursor.fetchone()
+if not exam:
+    print(json.dumps({"error": "Exam not found"}))
+    sys.exit(0)
+exam_date = exam['exam_date'].strftime('%Y-%m-%d')
+exam_name = exam['name']
+# Get candidates ordered by group_code and order_number (timetable order)
+cursor.execute("""
+    SELECT ec.id, ec.name, ec.current_belt, ec.target_belt, ec.group_code, ec.order_number, ec.age, ec.status
+    FROM exam_candidates ec
+    WHERE ec.exam_id = %s AND ec.status != 'absent'
+    ORDER BY ec.group_code ASC, ec.order_number ASC, ec.id ASC
+""", (${examId},))
+candidates = cursor.fetchall()
+cursor.close()
+conn.close()
+print(json.dumps({"examDate": exam_date, "examName": exam_name, "candidates": candidates}, default=str))
+`;
+
+      const result = await new Promise<string>((resolve, reject) => {
+        execFile('python3', ['-c', queryScript], { timeout: 10000 }, (error, stdout, stderr) => {
+          if (error) reject(new Error(stderr || error.message));
+          else resolve(stdout.trim());
+        });
+      });
+
+      const data = JSON.parse(result);
+      if (data.error) return res.status(404).json({ error: data.error });
+
+      const { generateScoreSheetPdf } = await import('../scoresheet/generatePdf');
+
+      const downloadsDir = path.join(process.cwd(), 'public/downloads');
+      if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
+
+      const timestamp = Date.now();
+      const pdfFilename = `scoresheets_${examId}_${timestamp}.pdf`;
+      const outputPath = path.join(downloadsDir, pdfFilename);
+
+      const candidates = data.candidates.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        currentBelt: c.current_belt,
+        targetBelt: c.target_belt,
+        groupCode: c.group_code,
+        orderNumber: c.order_number,
+        age: c.age,
+      }));
+
+      const genResult = await generateScoreSheetPdf({
+        candidates,
+        examDate: data.examDate,
+        examName: data.examName,
+        outputPath,
+      });
+
+      res.json({
+        success: true,
+        url: `/downloads/${pdfFilename}`,
+        pages: genResult.pages,
+        skipped: genResult.skipped,
+        totalCandidates: candidates.length,
+      });
+    } catch (error: any) {
+      console.error('Score sheet generation failed:', error.message);
+      res.status(500).json({ error: error.message || 'Generation failed' });
+    }
+  });
+
   // SSE endpoint for real-time exam scoring sync
   app.get('/api/exam/sse/:examId', (req, res) => {
     const examId = parseInt(req.params.examId);
