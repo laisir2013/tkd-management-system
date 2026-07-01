@@ -2651,6 +2651,16 @@ export async function getAccountingRecordByElitePaymentId(elitePaymentRecordId: 
   return records[0] || null;
 }
 
+export async function getAccountingRecordByExamPaymentId(examPaymentId: number): Promise<AccountingRecord | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const records = await db.select().from(accountingRecords)
+    .where(eq(accountingRecords.examPaymentId, examPaymentId))
+    .limit(1);
+  return records[0] || null;
+}
+
 /**
  * 公司收款帳號常量（用於自動分配銀行）
  * - BOC 帳號: 012-692-2-0114816 (去掉橫線: 01269220114816)
@@ -2849,6 +2859,145 @@ export async function syncElitePaymentToAccounting(params: {
   });
   // Auto-generate journal entry（帶上 paymentMethod 讓分錄歸入正確銀行子科目）
   try { await onAccountingRecordCreated(result.insertId, normalizedBank); } catch (e) { console.error('Auto journal from elite payment sync failed:', e); }
+}
+
+/**
+ * 同步考試繳費記錄到會計記錄
+ */
+export async function syncExamPaymentToAccounting(params: {
+  examPaymentId: number;
+  transactionDate: Date;
+  amount: string;
+  bank?: string | null;
+  receivingBank?: string | null;
+  studentName: string;
+  coachName?: string | null;
+  dojoName?: string | null;
+  receiptUrl?: string | null;
+  receiptKey?: string | null;
+  examTitle?: string; // e.g. "第3屆升級試"
+}): Promise<void> {
+  const existing = await getAccountingRecordByExamPaymentId(params.examPaymentId);
+  if (existing) return;
+
+  // bank 為空時用 receivingBank 補上（與 syncPaymentToAccounting 同邏輯）
+  const effectiveBank = params.bank || params.receivingBank || null;
+  const effectiveReceivingBank = params.receivingBank || params.bank || null;
+
+  // 標準化銀行名稱
+  const normalizedBank = normalizeBankName(effectiveBank);
+  const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : (effectiveBank || null);
+
+  const normalizedReceivingBank = effectiveReceivingBank ? normalizeBankName(effectiveReceivingBank) : null;
+  const displayReceivingBank = normalizedReceivingBank
+    ? paymentMethodToDisplayName(normalizedReceivingBank)
+    : (effectiveReceivingBank || null);
+
+  const desc = params.examTitle
+    ? `${params.studentName} 考試費（${params.examTitle}）`
+    : `${params.studentName} 考試費`;
+
+  const result = await insertAccountingRecord({
+    transactionDate: params.transactionDate,
+    bank: displayBank,
+    receivingBank: displayReceivingBank,
+    amount: params.amount,
+    type: 'income',
+    category: 'exam_fee',
+    description: desc,
+    receiptUrl: params.receiptUrl || null,
+    receiptKey: params.receiptKey || null,
+    paymentRecordId: null,
+    elitePaymentRecordId: null,
+    examPaymentId: params.examPaymentId,
+    studentName: params.studentName,
+    coachName: params.coachName || null,
+    dojoName: params.dojoName || null,
+    source: 'auto_sync',
+  });
+  // Auto-generate journal entry
+  try { await onAccountingRecordCreated(result.insertId, normalizedBank); } catch (e) { console.error('Auto journal from exam payment sync failed:', e); }
+}
+
+/**
+ * 批量同步遺漏的考試繳費記錄到會計系統
+ * 找出所有 status='confirmed' 且 amount > 0 但沒有對應 accounting_record 的 examPayments，
+ * 逐一執行 syncExamPaymentToAccounting
+ */
+export async function syncOrphanedExamPayments(): Promise<{ synced: number; errors: number; details: string[] }> {
+  const db = await getDb();
+  if (!db) return { synced: 0, errors: 0, details: ['Database not available'] };
+
+  // 找出已確認且金額>0，但未同步到會計的考試繳費記錄
+  const orphaned = await db.select({
+    id: examPayments.id,
+    examId: examPayments.examId,
+    studentId: examPayments.studentId,
+    studentName: examPayments.studentName,
+    targetBelt: examPayments.targetBelt,
+    amount: examPayments.amount,
+    paymentDate: examPayments.paymentDate,
+    receiptUrl: examPayments.receiptUrl,
+    receiptKey: examPayments.receiptKey,
+    bank: examPayments.bank,
+    receivingBank: examPayments.receivingBank,
+  })
+    .from(examPayments)
+    .leftJoin(accountingRecords, eq(accountingRecords.examPaymentId, examPayments.id))
+    .where(and(
+      eq(examPayments.status, 'confirmed'),
+      isNull(accountingRecords.id),
+      sql`${examPayments.amount} > 0`
+    ));
+
+  let synced = 0;
+  let errors = 0;
+  const details: string[] = [];
+
+  for (const payment of orphaned) {
+    try {
+      // 取得考試名稱
+      let examTitle = '';
+      try {
+        const exams = await db.select({ title: examSessions.title }).from(examSessions).where(eq(examSessions.id, payment.examId)).limit(1);
+        if (exams[0]) examTitle = exams[0].title;
+      } catch {}
+
+      // 取得學生道場/教練資訊
+      let coachName: string | null = null;
+      let dojoName: string | null = null;
+      if (payment.studentId) {
+        try {
+          const student = await getStudentById(payment.studentId);
+          if (student) {
+            coachName = student.coach || null;
+            dojoName = student.venue || null;
+          }
+        } catch {}
+      }
+
+      await syncExamPaymentToAccounting({
+        examPaymentId: payment.id,
+        transactionDate: payment.paymentDate || new Date(),
+        amount: String(payment.amount),
+        bank: payment.bank || null,
+        receivingBank: payment.receivingBank || null,
+        studentName: payment.studentName,
+        coachName,
+        dojoName,
+        receiptUrl: payment.receiptUrl,
+        receiptKey: payment.receiptKey,
+        examTitle,
+      });
+      details.push(`ExamPayment ${payment.id}: ${payment.studentName} $${payment.amount} → synced`);
+      synced++;
+    } catch (e: any) {
+      details.push(`ExamPayment ${payment.id}: ${payment.studentName} ERROR - ${e.message}`);
+      errors++;
+    }
+  }
+
+  return { synced, errors, details };
 }
 
 /**
@@ -4686,6 +4835,13 @@ export async function getExamPaymentByCandidate(candidateId: number): Promise<Ex
   const db = await getDb();
   if (!db) return null;
   const result = await db.select().from(examPayments).where(eq(examPayments.candidateId, candidateId)).limit(1);
+  return result[0] || null;
+}
+
+export async function getExamPaymentById(id: number): Promise<ExamPayment | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(examPayments).where(eq(examPayments.id, id)).limit(1);
   return result[0] || null;
 }
 

@@ -194,10 +194,14 @@ import {
   getExamPaymentsByExam,
   getExamPaymentsByStudent,
   getExamPaymentByCandidate,
+  getExamPaymentById,
   insertExamPayment,
   updateExamPayment,
   deleteExamPayment,
   bulkInsertExamPayments,
+  syncExamPaymentToAccounting,
+  syncOrphanedExamPayments,
+  getAccountingRecordByExamPaymentId,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -6968,6 +6972,21 @@ export const appRouter = router({
             confirmedBy: ctx.user.role,
             notes: input.notes || null,
           });
+          // 自動同步到會計帳（confirmed 且 amount > 0）
+          if (input.status === 'confirmed' && parseFloat(input.amount) > 0) {
+            try {
+              const exam = await getExamSessionById(input.examId);
+              await syncExamPaymentToAccounting({
+                examPaymentId: id,
+                transactionDate: input.paymentDate ? new Date(input.paymentDate) : new Date(),
+                amount: input.amount,
+                bank: input.bank || null,
+                receivingBank: input.receivingBank || null,
+                studentName: input.studentName,
+                examTitle: exam?.title || '',
+              });
+            } catch (e) { console.error('Auto sync exam payment to accounting failed:', e); }
+          }
           return { success: true, id };
         }),
 
@@ -7031,6 +7050,24 @@ export const appRouter = router({
           const data: any = { ...rest };
           if (paymentDate) data.paymentDate = new Date(paymentDate);
           await updateExamPayment(id, data);
+          // 若更新為 confirmed，自動同步到會計帳
+          if (input.status === 'confirmed') {
+            try {
+              const payment = await getExamPaymentById(id);
+              if (payment && parseFloat(String(payment.amount)) > 0) {
+                const exam = await getExamSessionById(payment.examId);
+                await syncExamPaymentToAccounting({
+                  examPaymentId: id,
+                  transactionDate: payment.paymentDate || new Date(),
+                  amount: String(payment.amount),
+                  bank: payment.bank || null,
+                  receivingBank: payment.receivingBank || null,
+                  studentName: payment.studentName,
+                  examTitle: exam?.title || '',
+                });
+              }
+            } catch (e) { console.error('Auto sync exam payment on update failed:', e); }
+          }
           return { success: true };
         }),
 
@@ -7065,6 +7102,14 @@ export const appRouter = router({
             unpaidCount: Math.max(0, unpaidCount),
             totalAmount,
           };
+        }),
+
+      /** 批量同步考試繳費到會計帳（補漏） */
+      syncToAccounting: protectedProcedure
+        .mutation(async ({ ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          const result = await syncOrphanedExamPayments();
+          return result;
         }),
     }),
 

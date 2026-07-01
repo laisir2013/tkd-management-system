@@ -382,6 +382,7 @@ export const accountingRecords = mysqlTable("accounting_records", {
   // 關聯（可選）
   paymentRecordId: int("payment_record_id"), // 關聯的繳費記錄ID（自動同步時填入）
   elitePaymentRecordId: int("elite_payment_record_id"), // 關聯的精英班繳費記錄ID
+  examPaymentId: int("exam_payment_id"), // 關聯的考試繳費記錄ID
   studentName: varchar("student_name", { length: 100 }), // 學生姓名（收入時填入）
   coachName: varchar("coach_name", { length: 100 }), // 教練姓名
   dojoName: varchar("dojo_name", { length: 100 }), // 道場名稱（來源道場）
