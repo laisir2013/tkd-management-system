@@ -38,11 +38,17 @@ const BELT_TEMPLATE_MAP: Record<string, string> = {
 };
 
 // Text overlay positions (PDF points, A4 landscape 842x595)
-// Image 1024x724 scaled to 842x595, scale = 0.822
-const NAME_X = 172;
-const NAME_Y = 496;
-const DATE_X = 172;
-const DATE_Y = 525;
+// Image 1024x724 → PDF 842x595, scaleX=0.8223, scaleY=0.8216
+// Positioned right after the colon (：) of each label:
+//   考生姓名： label at imgY=617-631, colon right edge imgX≈305
+//   考試日期： label at imgY=653-668, colon right edge imgX≈305
+//   X = 308 * 0.8223 = 253 (just after colon)
+//   NAME_Y = 617 * 0.8216 = 507 (align text top with label top)
+//   DATE_Y = 653 * 0.8216 = 537 (align text top with label top)
+const NAME_X = 253;
+const NAME_Y = 507;
+const DATE_X = 253;
+const DATE_Y = 537;
 const FONT_SIZE = 13;
 
 export interface CandidateForSheet {
