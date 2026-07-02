@@ -1049,7 +1049,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
 
   const groupCandidates = useMemo(() => {
     if (!candidates) return [];
-    return (candidates as any[]).filter(c => c.groupCode === groupCode);
+    return (candidates as any[]).filter(c => (c.groupCode || 'ungrouped') === groupCode);
   }, [candidates, groupCode]);
 
   const belts = useMemo(() => {
