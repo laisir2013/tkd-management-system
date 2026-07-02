@@ -7104,6 +7104,36 @@ export const appRouter = router({
           };
         }),
 
+      /** 上傳考試繳費收據 */
+      uploadReceipt: protectedProcedure
+        .input(z.object({
+          examPaymentId: z.number(),
+          receiptBase64: z.string(),
+          receiptMimeType: z.string().default('image/jpeg'),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          const payment = await getExamPaymentById(input.examPaymentId);
+          if (!payment) throw new TRPCError({ code: 'NOT_FOUND', message: '找不到繳費記錄' });
+
+          // Upload to storage
+          const ext = input.receiptMimeType.includes('png') ? 'png' : 'jpg';
+          const receiptKey = `exam-receipts/${payment.examId}/${payment.id}-${Date.now()}.${ext}`;
+          const receiptBuffer = Buffer.from(input.receiptBase64, 'base64');
+          const { url: receiptUrl, key } = await storagePut(receiptKey, receiptBuffer, input.receiptMimeType);
+
+          // Update exam_payments
+          await updateExamPayment(payment.id, { receiptUrl, receiptKey: key });
+
+          // Update corresponding accounting_record
+          const acctRecord = await getAccountingRecordByExamPaymentId(payment.id);
+          if (acctRecord) {
+            await updateAccountingRecord(acctRecord.id, { receiptUrl, receiptKey: key });
+          }
+
+          return { success: true, receiptUrl };
+        }),
+
       /** 批量同步考試繳費到會計帳（補漏） */
       syncToAccounting: protectedProcedure
         .mutation(async ({ ctx }) => {

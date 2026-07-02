@@ -4676,10 +4676,40 @@ function PaymentsPage({ examId }: { examId: number }) {
     onError: (err) => toast.error(err.message || '批量新增失敗'),
   });
 
+  const uploadReceipt = trpc.exam.payments.uploadReceipt.useMutation({
+    onSuccess: () => { refetchPayments(); toast.success('收據已上傳'); setUploadingId(null); },
+    onError: (err) => toast.error(err.message || '上傳失敗'),
+  });
+
   const [showCreate, setShowCreate] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'unpaid' | 'waived'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const handleReceiptUpload = (paymentId: number) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) { toast.error('檔案太大（上限 10MB）'); return; }
+      setUploadingId(paymentId);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        uploadReceipt.mutate({
+          examPaymentId: paymentId,
+          receiptBase64: base64,
+          receiptMimeType: file.type || 'image/jpeg',
+        });
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
 
   // Build candidate payment status map
   const candidatePaymentMap = useMemo(() => {
@@ -4952,6 +4982,7 @@ function PaymentsPage({ examId }: { examId: number }) {
                 <th className="px-3 py-2.5 text-center font-medium text-gray-600">狀態</th>
                 <th className="px-3 py-2.5 text-center font-medium text-gray-600">付款方式</th>
                 <th className="px-3 py-2.5 text-center font-medium text-gray-600">日期</th>
+                <th className="px-3 py-2.5 text-center font-medium text-gray-600">收據</th>
                 <th className="px-3 py-2.5 text-center font-medium text-gray-600">操作</th>
               </tr>
             </thead>
@@ -4980,6 +5011,19 @@ function PaymentsPage({ examId }: { examId: number }) {
                     {item.payment?.paymentDate ? new Date(item.payment.paymentDate).toLocaleDateString('zh-HK') : '-'}
                   </td>
                   <td className="px-3 py-2.5 text-center">
+                    {item.payment?.receiptUrl ? (
+                      <Button size="sm" variant="ghost" onClick={() => setPreviewUrl(item.payment.receiptUrl)} className="text-green-600 hover:text-green-700 h-7 px-2 text-xs" title="查看收據">
+                        <Eye className="w-3 h-3" />
+                      </Button>
+                    ) : item.payment && item.status !== 'waived' ? (
+                      <Button size="sm" variant="ghost" onClick={() => handleReceiptUpload(item.payment.id)} disabled={uploadingId === item.payment.id} className="text-orange-500 hover:text-orange-700 h-7 px-2 text-xs" title="上傳收據">
+                        {uploadingId === item.payment.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                      </Button>
+                    ) : (
+                      <span className="text-gray-300 text-xs">-</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
                     {item.status === 'unpaid' && !item.isRetake && (
                       <Button size="sm" variant="ghost" onClick={() => handleMarkPaid(item)} className="text-green-600 hover:text-green-700 h-7 px-2 text-xs">
                         <DollarSign className="w-3 h-3 mr-0.5" />入帳
@@ -4999,12 +5043,25 @@ function PaymentsPage({ examId }: { examId: number }) {
                 </tr>
               ))}
               {filteredList.length === 0 && (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">沒有符合條件的記錄</td></tr>
+                <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">沒有符合條件的記錄</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* ===== Receipt Preview Modal ===== */}
+      {previewUrl && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setPreviewUrl(null)}>
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[85vh] overflow-auto p-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-sm">收據預覽</h3>
+              <Button variant="ghost" size="sm" onClick={() => setPreviewUrl(null)}><X className="w-4 h-4" /></Button>
+            </div>
+            <img src={previewUrl} alt="收據" className="w-full rounded border" />
+          </div>
+        </div>
+      )}
 
       {/* ===== Fee Structure Reference ===== */}
       <div className="bg-gray-50 border rounded-lg p-4">
