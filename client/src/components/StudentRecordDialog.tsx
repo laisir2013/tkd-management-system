@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, GraduationCap, DollarSign, Calendar, Trophy, CheckCircle, XCircle } from "lucide-react";
+import { FileText, GraduationCap, DollarSign, Calendar, Trophy, CheckCircle, XCircle, Receipt, ImageIcon, X } from "lucide-react";
 
 interface StudentRecordDialogProps {
   open: boolean;
@@ -31,6 +31,7 @@ const PERIOD_LABELS: Record<string, string> = {
 
 export function StudentRecordDialog({ open, onOpenChange, studentId, studentName, studentPhone }: StudentRecordDialogProps) {
   const [activeTab, setActiveTab] = useState("payments");
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
 
   // 查詢付款紀錄
   const { data: paymentRecords = [], isLoading: paymentsLoading } = trpc.payments.getByStudentIds.useQuery(
@@ -195,86 +196,164 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
             ) : (
               <div className="space-y-3">
                 {examResults.map((result: any, idx: number) => (
-                  <div key={idx} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <span className="font-semibold text-sm">{result.exam?.name || "考試"}</span>
-                        {result.exam?.examDate && (
-                          <span className="text-xs text-muted-foreground ml-2">
-                            {formatDate(result.exam.examDate)}
-                          </span>
-                        )}
-                      </div>
-                      <Badge variant="outline" className="text-[10px]">
-                        {BELT_NAMES[result.candidate?.currentBelt] || result.candidate?.currentBelt || "-"} → {BELT_NAMES[result.candidate?.targetBelt] || result.candidate?.targetBelt || "-"}
-                      </Badge>
-                    </div>
-                    {result.candidate?.status && (
-                      <div className="mb-2 flex items-center gap-1.5">
-                        <Badge
-                          className={`text-[10px] ${
-                            result.candidate.status === "passed"
-                              ? "bg-green-100 text-green-700 border-green-300"
-                              : result.candidate.status === "failed"
-                              ? "bg-red-100 text-red-700 border-red-300"
-                              : result.candidate.status === "checked_in"
-                              ? "bg-blue-100 text-blue-700 border-blue-300"
-                              : result.candidate.status === "examining"
-                              ? "bg-yellow-100 text-yellow-700 border-yellow-300"
-                              : result.candidate.status === "absent"
-                              ? "bg-gray-100 text-red-600 border-red-200"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                          variant="outline"
-                        >
-                          {result.candidate.status === "passed" ? "✓ 合格" : result.candidate.status === "failed" ? "✗ 不合格" : result.candidate.status === "checked_in" ? "已報到" : result.candidate.status === "examining" ? "評分中" : result.candidate.status === "absent" ? "缺席" : result.candidate.status === "registered" ? "已報名" : result.candidate.status}
-                        </Badge>
-                        {result.candidate.hasLakLakAward && (
-                          <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-300" variant="outline">⭐ 叻叻獎</Badge>
-                        )}
-                        {result.candidate.groupCode && (
-                          <span className="text-[10px] text-muted-foreground">
-                            {result.candidate.groupCode.toUpperCase()}組{result.candidate.orderNumber ? ` 第${result.candidate.orderNumber}位` : ''}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {result.scores && result.scores.length > 0 ? (
-                      <div className="space-y-1">
-                        <div className="grid grid-cols-[1fr_auto] gap-x-3 text-xs">
-                          {result.scores.map((score: any, sIdx: number) => (
-                            <div key={sIdx} className="contents">
-                              <span className="text-muted-foreground truncate">{score.itemName}</span>
-                              <span className="font-medium text-right">
-                                {score.score === 'pass' ? (
-                                  <span className="text-green-600">✓ 通過</span>
-                                ) : score.score === 'fail' ? (
-                                  <span className="text-red-500">✗ 不通過</span>
-                                ) : score.score === 'true' || score.score === 'yes' ? (
-                                  <span className="text-green-600">✓</span>
-                                ) : score.score === 'false' || score.score === 'no' ? (
-                                  <span className="text-red-500">✗</span>
-                                ) : score.score === 'A' ? (
-                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-500 text-white text-[10px] font-bold">A</span>
-                                ) : score.score === 'B' ? (
-                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-yellow-900 text-[10px] font-bold">B</span>
-                                ) : score.score === 'C' ? (
-                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-400 text-white text-[10px] font-bold">C</span>
-                                ) : score.score === 'F' ? (
-                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold">F</span>
-                                ) : score.score !== null && score.score !== undefined ? (
-                                  <span>{score.score}</span>
-                                ) : (
-                                  <span className="text-gray-300">-</span>
-                                )}
-                              </span>
-                            </div>
-                          ))}
+                  <div key={idx} className="border rounded-lg overflow-hidden hover:bg-muted/30 transition-colors">
+                    {/* 考試標題列 */}
+                    <div className="p-3 pb-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <span className="font-semibold text-sm">{result.exam?.name || "考試"}</span>
+                          {result.exam?.examDate && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {formatDate(result.exam.examDate)}
+                            </span>
+                          )}
                         </div>
+                        <Badge variant="outline" className="text-[10px]">
+                          {BELT_NAMES[result.candidate?.currentBelt] || result.candidate?.currentBelt || "-"} → {BELT_NAMES[result.candidate?.targetBelt] || result.candidate?.targetBelt || "-"}
+                        </Badge>
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">尚無評分</p>
-                    )}
+                      {result.candidate?.status && (
+                        <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+                          <Badge
+                            className={`text-[10px] ${
+                              result.candidate.status === "passed"
+                                ? "bg-green-100 text-green-700 border-green-300"
+                                : result.candidate.status === "failed"
+                                ? "bg-red-100 text-red-700 border-red-300"
+                                : result.candidate.status === "checked_in"
+                                ? "bg-blue-100 text-blue-700 border-blue-300"
+                                : result.candidate.status === "examining"
+                                ? "bg-yellow-100 text-yellow-700 border-yellow-300"
+                                : result.candidate.status === "absent"
+                                ? "bg-gray-100 text-red-600 border-red-200"
+                                : "bg-gray-100 text-gray-700"
+                            }`}
+                            variant="outline"
+                          >
+                            {result.candidate.status === "passed" ? "✓ 合格" : result.candidate.status === "failed" ? "✗ 不合格" : result.candidate.status === "checked_in" ? "已報到" : result.candidate.status === "examining" ? "評分中" : result.candidate.status === "absent" ? "缺席" : result.candidate.status === "registered" ? "已報名" : result.candidate.status}
+                          </Badge>
+                          {result.candidate.hasLakLakAward && (
+                            <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-300" variant="outline">⭐ 叻叻獎</Badge>
+                          )}
+                          {result.candidate.groupCode && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {result.candidate.groupCode.toUpperCase()}組{result.candidate.orderNumber ? ` 第${result.candidate.orderNumber}位` : ''}
+                            </span>
+                          )}
+                          {/* 證書/成績表派發狀態 */}
+                          {result.candidate.certificateIssued === 'issued' && (
+                            <Badge className="text-[9px] bg-indigo-100 text-indigo-700 border-indigo-300" variant="outline">📜 證書已派</Badge>
+                          )}
+                          {result.candidate.reportCardIssued === 'issued' && (
+                            <Badge className="text-[9px] bg-teal-100 text-teal-700 border-teal-300" variant="outline">📋 成績表已派</Badge>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 考試費用區塊 */}
+                      {result.payment && (
+                        <div className="mt-2 bg-emerald-50 border border-emerald-200 rounded-md p-2">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Receipt className="h-3.5 w-3.5 text-emerald-600" />
+                            <span className="text-xs font-semibold text-emerald-800">考試費用</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                            <div className="flex items-center gap-1">
+                              <span className="text-muted-foreground">金額：</span>
+                              <span className="font-bold text-emerald-700">
+                                {Number(result.payment.amount) === 0 ? '免費' : `$${Number(result.payment.amount).toLocaleString()}`}
+                              </span>
+                              {result.payment.isRetake && (
+                                <Badge className="text-[9px] bg-orange-100 text-orange-600 border-orange-300 ml-1" variant="outline">重考</Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-muted-foreground">狀態：</span>
+                              <Badge
+                                className={`text-[9px] ${
+                                  result.payment.status === 'confirmed'
+                                    ? 'bg-green-100 text-green-700 border-green-300'
+                                    : result.payment.status === 'waived'
+                                    ? 'bg-gray-100 text-gray-600 border-gray-300'
+                                    : 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                                }`}
+                                variant="outline"
+                              >
+                                {result.payment.status === 'confirmed' ? '已確認' : result.payment.status === 'waived' ? '已豁免' : '待確認'}
+                              </Badge>
+                            </div>
+                            {result.payment.paymentDate && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-muted-foreground">繳費日期：</span>
+                                <span>{formatDate(result.payment.paymentDate)}</span>
+                              </div>
+                            )}
+                            {result.payment.bank && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-muted-foreground">銀行：</span>
+                                <span>{result.payment.bank}</span>
+                              </div>
+                            )}
+                          </div>
+                          {/* 收據圖片 */}
+                          {result.payment.receiptUrl && (
+                            <div className="mt-2">
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 hover:underline"
+                                onClick={() => setReceiptPreview(result.payment.receiptUrl)}
+                              >
+                                <ImageIcon className="h-3 w-3" />
+                                查看收據
+                              </button>
+                            </div>
+                          )}
+                          {result.payment.notes && (
+                            <div className="mt-1 text-[10px] text-muted-foreground italic">
+                              備註：{result.payment.notes}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 評分 */}
+                      {result.scores && result.scores.length > 0 ? (
+                        <div className="mt-2 space-y-1">
+                          <div className="grid grid-cols-[1fr_auto] gap-x-3 text-xs">
+                            {result.scores.map((score: any, sIdx: number) => (
+                              <div key={sIdx} className="contents">
+                                <span className="text-muted-foreground truncate">{score.itemName}</span>
+                                <span className="font-medium text-right">
+                                  {score.score === 'pass' ? (
+                                    <span className="text-green-600">✓ 通過</span>
+                                  ) : score.score === 'fail' ? (
+                                    <span className="text-red-500">✗ 不通過</span>
+                                  ) : score.score === 'true' || score.score === 'yes' ? (
+                                    <span className="text-green-600">✓</span>
+                                  ) : score.score === 'false' || score.score === 'no' ? (
+                                    <span className="text-red-500">✗</span>
+                                  ) : score.score === 'A' ? (
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-500 text-white text-[10px] font-bold">A</span>
+                                  ) : score.score === 'B' ? (
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-yellow-900 text-[10px] font-bold">B</span>
+                                  ) : score.score === 'C' ? (
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-400 text-white text-[10px] font-bold">C</span>
+                                  ) : score.score === 'F' ? (
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold">F</span>
+                                  ) : score.score !== null && score.score !== undefined ? (
+                                    <span>{score.score}</span>
+                                  ) : (
+                                    <span className="text-gray-300">-</span>
+                                  )}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-2">尚無評分</p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -446,6 +525,29 @@ export function StudentRecordDialog({ open, onOpenChange, studentId, studentName
           )}
         </Tabs>
       </DialogContent>
+
+      {/* 收據圖片預覽 */}
+      {receiptPreview && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setReceiptPreview(null)}
+        >
+          <div className="relative max-w-2xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="absolute -top-3 -right-3 bg-white rounded-full p-1 shadow-lg hover:bg-gray-100 z-10"
+              onClick={() => setReceiptPreview(null)}
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <img
+              src={receiptPreview}
+              alt="收據"
+              className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain bg-white"
+            />
+          </div>
+        </div>
+      )}
     </Dialog>
   );
 }

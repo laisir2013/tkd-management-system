@@ -3856,6 +3856,7 @@ export async function getExamResultsByStudent(studentId: number) {
   for (const c of candidateRecords) {
     const exam = await getExamSessionById(c.examId);
     const scores = await getExamScoresWithItemsByCandidate(c.id);
+    const payment = await getExamPaymentByCandidate(c.id);
     results.push({
       exam,
       candidate: c,
@@ -3866,6 +3867,17 @@ export async function getExamResultsByStudent(studentId: number) {
         score: s.score.score,
         comment: s.score.comment,
       })),
+      payment: payment ? {
+        id: payment.id,
+        amount: payment.amount,
+        status: payment.status,
+        bank: payment.bank,
+        receivingBank: payment.receivingBank,
+        paymentDate: payment.paymentDate,
+        receiptUrl: payment.receiptUrl,
+        isRetake: payment.isRetake,
+        notes: payment.notes,
+      } : null,
     });
   }
   return results;
@@ -3883,6 +3895,7 @@ export async function getExamResultsByPhone(phone: string) {
   for (const c of candidateRecords) {
     const exam = await getExamSessionById(c.examId);
     const scores = await getExamScoresWithItemsByCandidate(c.id);
+    const payment = await getExamPaymentByCandidate(c.id);
     results.push({
       exam,
       candidate: c,
@@ -3893,6 +3906,17 @@ export async function getExamResultsByPhone(phone: string) {
         score: s.score.score,
         comment: s.score.comment,
       })),
+      payment: payment ? {
+        id: payment.id,
+        amount: payment.amount,
+        status: payment.status,
+        bank: payment.bank,
+        receivingBank: payment.receivingBank,
+        paymentDate: payment.paymentDate,
+        receiptUrl: payment.receiptUrl,
+        isRetake: payment.isRetake,
+        notes: payment.notes,
+      } : null,
     });
   }
   return results;
