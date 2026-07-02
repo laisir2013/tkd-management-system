@@ -6023,9 +6023,11 @@ export const appRouter = router({
       .input(z.object({
         name: z.string().min(1),
         examDate: z.coerce.date(),
+        examTime: z.string().optional(),
         location: z.string().optional(),
         description: z.string().optional(),
         eventId: z.number().optional(),
+        registrationOpen: z.boolean().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
@@ -6033,10 +6035,12 @@ export const appRouter = router({
         const result = await insertExamSession({
           name: input.name,
           examDate: dateStr,
+          examTime: input.examTime || null,
           location: input.location || null,
           description: input.description || null,
           eventId: input.eventId || null,
-          status: 'draft',
+          status: input.registrationOpen ? 'scheduled' : 'draft',
+          registrationOpen: input.registrationOpen || false,
         });
         return { success: true, id: result.insertId };
       }),

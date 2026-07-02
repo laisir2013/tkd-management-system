@@ -202,17 +202,19 @@ export default function ExamManagement() {
 // ==================== 考試列表 ====================
 function ExamList({ onSelectExam }: { onSelectExam: (id: number) => void }) {
   const { data: exams, refetch } = trpc.exam.list.useQuery();
-  const createExam = trpc.exam.create.useMutation({ onSuccess: () => { refetch(); setShowCreate(false); setName(''); setExamDate(''); setLocation(''); toast.success('考試已建立'); }, onError: (err) => { toast.error(err.message || '建立失敗'); } });
+  const createExam = trpc.exam.create.useMutation({ onSuccess: () => { refetch(); setShowCreate(false); setName(''); setExamDate(''); setExamTime(''); setLocation(''); setRegOpen(true); toast.success('考試已建立'); }, onError: (err) => { toast.error(err.message || '建立失敗'); } });
   const deleteExam = trpc.exam.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
 
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
   const [examDate, setExamDate] = useState('');
+  const [examTime, setExamTime] = useState('');
   const [location, setLocation] = useState('');
+  const [regOpen, setRegOpen] = useState(true);
 
   const handleCreate = () => {
     if (!name || !examDate) { toast.error('請填寫名稱和日期'); return; }
-    createExam.mutate({ name, examDate: new Date(examDate + 'T00:00:00'), location: location || undefined });
+    createExam.mutate({ name, examDate: new Date(examDate + 'T00:00:00'), examTime: examTime || undefined, location: location || undefined, registrationOpen: regOpen });
   };
 
   return (
@@ -227,11 +229,16 @@ function ExamList({ onSelectExam }: { onSelectExam: (id: number) => void }) {
       {showCreate && (
         <div className="bg-white rounded-lg border p-4 space-y-3">
           <h3 className="font-medium">建立新考試</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Input placeholder="考試名稱" value={name} onChange={e => setName(e.target.value)} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input placeholder="考試名稱 *" value={name} onChange={e => setName(e.target.value)} />
             <Input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} />
+            <Input placeholder="時間 (如: 09:00-17:00)" value={examTime} onChange={e => setExamTime(e.target.value)} />
             <Input placeholder="地點 (選填)" value={location} onChange={e => setLocation(e.target.value)} />
           </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={regOpen} onChange={e => setRegOpen(e.target.checked)} className="rounded border-gray-300" />
+            <span>建立後立即開放報名</span>
+          </label>
           <div className="flex gap-2">
             <Button onClick={handleCreate} disabled={createExam.isPending} className="bg-blue-600 text-white">
               {createExam.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : '建立'}
@@ -254,7 +261,9 @@ function ExamList({ onSelectExam }: { onSelectExam: (id: number) => void }) {
                 </div>
                 <div className="text-sm text-gray-500 mt-1">
                   📅 {new Date(exam.examDate + 'T00:00:00').toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  {exam.examTime && <span className="ml-2">🕐 {exam.examTime}</span>}
                   {exam.location && <span className="ml-2">📍 {exam.location}</span>}
+                  {exam.registrationOpen && <span className="ml-2 text-green-600 font-medium">📋 報名中</span>}
                 </div>
               </div>
               <div className="flex items-center gap-2">
