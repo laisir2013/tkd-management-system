@@ -91,6 +91,7 @@ import {
   getAllAccountingRecords,
   insertAccountingRecord,
   updateAccountingRecord,
+  getAccountingRecordById,
   deleteAccountingRecord,
   syncPaymentToAccounting,
   syncElitePaymentToAccounting,
@@ -4450,6 +4451,32 @@ export const appRouter = router({
         }
 
         return { success: true, synced };
+      }),
+
+    // 為已有帳目上傳/補上收據
+    uploadReceiptToRecord: protectedProcedure
+      .input(z.object({
+        recordId: z.number(),
+        receiptBase64: z.string(),
+        receiptMimeType: z.string().default('image/jpeg'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+
+        const ext = input.receiptMimeType.includes('png') ? 'png' : 'jpg';
+        const receiptKey = `accounting-receipts/${input.recordId}-${Date.now()}.${ext}`;
+        const receiptBuffer = Buffer.from(input.receiptBase64, 'base64');
+        const { url: receiptUrl, key } = await storagePut(receiptKey, receiptBuffer, input.receiptMimeType);
+
+        await updateAccountingRecord(input.recordId, { receiptUrl, receiptKey: key });
+
+        // 如果這筆帳目關聯了 exam_payment，也同步更新 exam_payments 的收據
+        const record = await getAccountingRecordById(input.recordId);
+        if (record?.examPaymentId) {
+          await updateExamPayment(record.examPaymentId, { receiptUrl, receiptKey: key });
+        }
+
+        return { success: true, receiptUrl };
       }),
 
     // 更新會計記錄的銀行分類（管理員為缺少銀行的記錄分配銀行）

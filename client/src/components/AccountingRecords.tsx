@@ -187,6 +187,35 @@ export default function AccountingRecords() {
     onError: (e) => toast.error(`回填失敗: ${e.message}`),
   });
 
+  const uploadReceiptMutation = trpc.accounting.uploadReceiptToRecord.useMutation({
+    onSuccess: () => { toast.success("收據已上傳"); refetch(); setUploadingRecordId(null); },
+    onError: (e) => { toast.error(`上傳失敗: ${e.message}`); setUploadingRecordId(null); },
+  });
+  const [uploadingRecordId, setUploadingRecordId] = useState<number | null>(null);
+
+  function handleUploadReceiptToRecord(recordId: number) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) { toast.error('檔案太大（上限 10MB）'); return; }
+      setUploadingRecordId(recordId);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        uploadReceiptMutation.mutate({
+          recordId,
+          receiptBase64: base64,
+          receiptMimeType: file.type || 'image/jpeg',
+        });
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  }
+
   // 收款帳號設定
   const { data: payeeConfigData, refetch: refetchPayeeConfig } = trpc.payeeConfig.getAcceptedAccounts.useQuery(undefined, {
     enabled: showPayeeConfig,
@@ -843,7 +872,16 @@ export default function AccountingRecords() {
                             </Button>
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-400">無</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-orange-500 hover:text-orange-700"
+                            title="上傳收據"
+                            disabled={uploadingRecordId === record.id}
+                            onClick={() => handleUploadReceiptToRecord(record.id)}
+                          >
+                            {uploadingRecordId === record.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                          </Button>
                         )}
                       </TableCell>
                       <TableCell className="text-center">

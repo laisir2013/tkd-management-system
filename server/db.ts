@@ -2631,6 +2631,16 @@ export async function deleteAccountingRecord(id: number): Promise<void> {
   await db.delete(accountingRecords).where(eq(accountingRecords.id, id));
 }
 
+export async function getAccountingRecordById(id: number): Promise<AccountingRecord | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const records = await db.select().from(accountingRecords)
+    .where(eq(accountingRecords.id, id))
+    .limit(1);
+  return records[0] || null;
+}
+
 export async function getAccountingRecordByPaymentId(paymentRecordId: number): Promise<AccountingRecord | null> {
   const db = await getDb();
   if (!db) return null;
