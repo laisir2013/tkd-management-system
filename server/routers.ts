@@ -6755,9 +6755,9 @@ export const appRouter = router({
           await syncExamPaymentToAccounting({
             examPaymentId: payment.id,
             studentName: payment.studentName,
-            amount: Number(payment.amount),
+            amount: String(payment.amount),
             examTitle: exam?.name || '升級試',
-            paymentDate: input.paymentDate ? new Date(input.paymentDate) : new Date(),
+            transactionDate: input.paymentDate ? new Date(input.paymentDate) : new Date(),
             bank: input.bank || null,
             receivingBank: payment.receivingBank || null,
             receiptUrl,
