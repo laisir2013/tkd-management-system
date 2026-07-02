@@ -4977,8 +4977,8 @@ function PaymentsPage({ examId }: { examId: number }) {
               <tr>
                 <th className="px-3 py-2.5 text-left font-medium text-gray-600">#</th>
                 <th className="px-3 py-2.5 text-left font-medium text-gray-600">學生姓名</th>
-                <th className="px-3 py-2.5 text-center font-medium text-gray-600">考帶</th>
-                <th className="px-3 py-2.5 text-center font-medium text-gray-600">費用</th>
+                <th className="px-3 py-2.5 text-center font-medium text-gray-600">目標帶</th>
+                <th className="px-3 py-2.5 text-center font-medium text-gray-600">考試費</th>
                 <th className="px-3 py-2.5 text-center font-medium text-gray-600">狀態</th>
                 <th className="px-3 py-2.5 text-center font-medium text-gray-600">付款方式</th>
                 <th className="px-3 py-2.5 text-center font-medium text-gray-600">日期</th>
