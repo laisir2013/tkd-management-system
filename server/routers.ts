@@ -6677,12 +6677,42 @@ export const appRouter = router({
 
       /** 計算某學生的下一個帶級和費用 */
       calculateFee: publicProcedure
-        .input(z.object({ currentBeltCn: z.string() }))
-        .query(({ input }) => {
+        .input(z.object({ currentBeltCn: z.string(), studentName: z.string().optional(), phone: z.string().optional(), examId: z.number().optional() }))
+        .query(async ({ input }) => {
           const beltInfo = getNextBeltFromChinese(input.currentBeltCn);
           if (!beltInfo) return null;
           const fee = calculateExamFee(beltInfo.targetBelt);
-          return { ...beltInfo, fee };
+
+          // 檢測是否補考
+          let isRetake = false;
+          let prevExamDate: string | null = null;
+          let prevExamName: string | null = null;
+
+          if (input.studentName && input.phone && input.examId) {
+            const db = await getDb();
+            if (db) {
+              const prevCandidates = await db.select().from(schema.examCandidates)
+                .innerJoin(schema.examSessions, eq(schema.examCandidates.examId, schema.examSessions.id))
+                .where(and(
+                  eq(schema.examCandidates.name, input.studentName),
+                  eq(schema.examCandidates.phone, input.phone),
+                  eq(schema.examCandidates.currentBelt, beltInfo.currentBelt),
+                  eq(schema.examCandidates.targetBelt, beltInfo.targetBelt),
+                  sql`${schema.examCandidates.examId} < ${input.examId}`,
+                  sql`${schema.examCandidates.status} IN ('failed', 'absent')`
+                ))
+                .orderBy(sql`${schema.examCandidates.examId} DESC`)
+                .limit(1);
+
+              if (prevCandidates.length > 0) {
+                isRetake = true;
+                prevExamDate = prevCandidates[0].exam_sessions.examDate;
+                prevExamName = prevCandidates[0].exam_sessions.name;
+              }
+            }
+          }
+
+          return { ...beltInfo, fee: isRetake ? 0 : fee, isRetake, prevExamDate, prevExamName };
         }),
 
       /** 家長報名考試 */

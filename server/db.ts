@@ -4987,7 +4987,7 @@ export async function isStudentRegisteredForExam(examId: number, studentName: st
   return existing.length > 0;
 }
 
-/** 家長報名考試 — 全系統穿透 */
+/** 家長報名考試 — 全系統穿透（含補考自動檢測） */
 export async function registerStudentForExam(params: {
   examId: number;
   studentId: number | null;
@@ -5005,6 +5005,9 @@ export async function registerStudentForExam(params: {
   amount?: number;
   targetBelt?: string;
   targetBeltCn?: string;
+  isRetake?: boolean;
+  prevExamDate?: string;
+  prevExamName?: string;
   error?: string;
 }> {
   const { examId, studentId, studentName, phone, dojoName, gender, age, currentBeltCn } = params;
@@ -5014,9 +5017,8 @@ export async function registerStudentForExam(params: {
   if (!beltInfo) {
     return { success: false, error: `無法識別帶級: ${currentBeltCn}` };
   }
-  const amount = calculateExamFee(beltInfo.targetBelt);
 
-  // 2. 檢查是否重考（之前同一考試已報名且 failed）
+  // 2. DB
   const db = await getDb();
   if (!db) return { success: false, error: 'Database not available' };
 
@@ -5026,7 +5028,38 @@ export async function registerStudentForExam(params: {
     return { success: false, error: '該學生已報名此考試' };
   }
 
-  // 4. 計算年齡分組
+  // 4. 自動檢測是否補考：同 name+phone+currentBelt+targetBelt 在之前考試中 failed/absent
+  let isRetake = false;
+  let prevCandidateId: number | null = null;
+  let prevExamDate: string | null = null;
+  let prevExamName: string | null = null;
+
+  if (phone) {
+    const prevCandidates = await db.select().from(examCandidates)
+      .innerJoin(examSessions, eq(examCandidates.examId, examSessions.id))
+      .where(and(
+        eq(examCandidates.name, studentName),
+        eq(examCandidates.phone, phone),
+        eq(examCandidates.currentBelt, beltInfo.currentBelt),
+        eq(examCandidates.targetBelt, beltInfo.targetBelt),
+        sql`${examCandidates.examId} < ${examId}`,
+        sql`${examCandidates.status} IN ('failed', 'absent')`
+      ))
+      .orderBy(sql`${examCandidates.examId} DESC`)
+      .limit(1);
+
+    if (prevCandidates.length > 0) {
+      isRetake = true;
+      prevCandidateId = prevCandidates[0].exam_candidates.id;
+      prevExamDate = prevCandidates[0].exam_sessions.examDate;
+      prevExamName = prevCandidates[0].exam_sessions.name;
+    }
+  }
+
+  // 5. 補考免費，非補考正常收費
+  const amount = isRetake ? 0 : calculateExamFee(beltInfo.targetBelt);
+
+  // 6. 計算年齡分組
   let ageGroup: string | null = null;
   if (age !== null) {
     if (age <= 6) ageGroup = '6歲或以下';
@@ -5036,7 +5069,7 @@ export async function registerStudentForExam(params: {
     else ageGroup = '16歲或以上';
   }
 
-  // 5. 建立考生記錄 (exam_candidates)
+  // 7. 建立考生記錄 (exam_candidates)
   const candidateResult = await db.insert(examCandidates).values({
     examId,
     studentId,
@@ -5052,7 +5085,7 @@ export async function registerStudentForExam(params: {
   });
   const candidateId = Number(candidateResult[0].insertId);
 
-  // 6. 建立繳費記錄 (exam_payments)
+  // 8. 建立繳費記錄 (exam_payments)
   const paymentResult = await db.insert(examPayments).values({
     examId,
     candidateId,
@@ -5060,13 +5093,15 @@ export async function registerStudentForExam(params: {
     studentName,
     targetBelt: beltInfo.targetBelt,
     amount: String(amount),
-    isRetake: false,
-    status: 'pending', // 待家長上傳收據後確認
+    isRetake,
+    status: isRetake ? 'waived' : 'pending', // 補考免費直接 waived，非補考待上傳收據
   });
   const paymentId = Number(paymentResult[0].insertId);
 
-  // 7. 同步到會計帳目 (先建立 pending 狀態，確認收據後再改 confirmed)
-  // 不在此處建 accounting record，等到確認收據時才自動建立
+  // 9. 補考：自動帶入上次合格成績到新考生的 exam_scores
+  if (isRetake && prevCandidateId) {
+    await prefillRetakeScores(candidateId, prevCandidateId);
+  }
 
   return {
     success: true,
@@ -5075,7 +5110,46 @@ export async function registerStudentForExam(params: {
     amount,
     targetBelt: beltInfo.targetBelt,
     targetBeltCn: beltInfo.targetBeltCn,
+    isRetake,
+    prevExamDate: prevExamDate || undefined,
+    prevExamName: prevExamName || undefined,
   };
+}
+
+/**
+ * 補考自動帶入成績：把上次考試已合格的評分項寫入新考生的 exam_scores，
+ * 不合格的項目留空（待本次評分）
+ */
+async function prefillRetakeScores(newCandidateId: number, prevCandidateId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  // 取得上次所有評分
+  const prevScores = await db.select({
+    score: examScores,
+    item: examScoringItems,
+  }).from(examScores)
+    .innerJoin(examScoringItems, eq(examScores.scoringItemId, examScoringItems.id))
+    .where(eq(examScores.candidateId, prevCandidateId));
+
+  const failValues = ['f', 'fail', 'false', '未達標', '否', '不合格', '沒有'];
+
+  for (const { score, item } of prevScores) {
+    const scoreValue = score.score || '';
+    const isFailed = failValues.includes(scoreValue.toLowerCase());
+
+    if (!isFailed && scoreValue) {
+      // 合格項目：自動寫入上次成績（鎖定）
+      await db.insert(examScores).values({
+        candidateId: newCandidateId,
+        scoringItemId: item.id,
+        score: scoreValue,
+        comment: '上次考試合格（自動帶入）',
+        scoredBy: 'system_retake',
+      });
+    }
+    // 不合格項目不寫入，留待本次評分
+  }
 }
 
 /** 取得某學生在某考試的報名狀態（含繳費情況） */

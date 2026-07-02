@@ -1492,10 +1492,10 @@ function ExamRegistrationTab({ phone, students, eliteInfo }: { phone: string; st
     return age;
   };
 
-  // Belt info for selected student
+  // Belt info for selected student (with retake detection)
   const { data: feeInfo } = trpc.exam.registration.calculateFee.useQuery(
-    { currentBeltCn: selectedStudent?.beltLevel || '' },
-    { enabled: !!selectedStudent?.beltLevel }
+    { currentBeltCn: selectedStudent?.beltLevel || '', studentName: selectedStudent?.name || '', phone, examId: selectedExam?.id || 0 },
+    { enabled: !!selectedStudent?.beltLevel && !!selectedExam }
   );
 
   const BELT_NAMES: Record<string, string> = {
@@ -1519,7 +1519,11 @@ function ExamRegistrationTab({ phone, students, eliteInfo }: { phone: string; st
         currentBeltCn: selectedStudent.beltLevel || '白帶',
       });
       if (result.success) {
-        toast.success(`報名成功！考試費 $${result.amount?.toLocaleString()}`);
+        if (result.isRetake) {
+          toast.success(`補考報名成功！免費補考（上次: ${result.prevExamName || ''}）`);
+        } else {
+          toast.success(`報名成功！考試費 $${result.amount?.toLocaleString()}`);
+        }
         setSelectedExam(null);
         setSelectedStudentName("");
         refetchRegs();
@@ -1600,15 +1604,22 @@ function ExamRegistrationTab({ phone, students, eliteInfo }: { phone: string; st
                     reg.payment?.status === 'waived' ? 'bg-gray-100 text-gray-600' :
                     'bg-yellow-100 text-yellow-700'
                   }`}>
-                    {reg.payment?.status === 'confirmed' ? '已繳費' : reg.payment?.status === 'waived' ? '已豁免' : '待繳費'}
+                    {reg.payment?.status === 'confirmed' ? '已繳費' : reg.payment?.status === 'waived' ? (reg.payment?.isRetake ? '補考免費' : '已豁免') : '待繳費'}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-2">
                   <div>👤 {reg.candidate.name}</div>
                   <div>🥋 {BELT_NAMES[reg.candidate.currentBelt] || reg.candidate.currentBelt} → {BELT_NAMES[reg.candidate.targetBelt] || reg.candidate.targetBelt}</div>
-                  <div>💰 考試費 ${reg.payment ? Number(reg.payment.amount).toLocaleString() : '-'}</div>
+                  <div>💰 {reg.payment?.isRetake ? '免費（補考）' : `考試費 $${reg.payment ? Number(reg.payment.amount).toLocaleString() : '-'}`}</div>
                   {reg.exam?.location && <div>📍 {reg.exam.location}</div>}
                 </div>
+
+                {/* 補考標記 */}
+                {reg.payment?.isRetake && (
+                  <div className="mb-2 px-2 py-1 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                    🔄 補考 — 免費，無需繳費或上傳收據
+                  </div>
+                )}
 
                 {/* 上傳收據區 — 只在 pending 時顯示 */}
                 {reg.payment && reg.payment.status === 'pending' && (
@@ -1735,20 +1746,31 @@ function ExamRegistrationTab({ phone, students, eliteInfo }: { phone: string; st
 
                     {/* 自動識別資訊 */}
                     {selectedStudent && feeInfo && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3 space-y-1.5">
-                        <div className="flex items-center gap-2 text-sm font-medium text-blue-800">
+                      <div className={`border rounded-md p-3 space-y-1.5 ${feeInfo.isRetake ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-200'}`}>
+                        <div className={`flex items-center gap-2 text-sm font-medium ${feeInfo.isRetake ? 'text-orange-800' : 'text-blue-800'}`}>
                           <CheckCircle2 className="w-4 h-4" />
-                          自動識別結果
+                          {feeInfo.isRetake ? '🔄 補考報名' : '自動識別結果'}
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs text-blue-700">
+                        {feeInfo.isRetake && (
+                          <div className="bg-orange-100 border border-orange-300 rounded p-2 text-xs text-orange-800 space-y-0.5">
+                            <p className="font-semibold">此學生為補考（免費）</p>
+                            <p>上次考試：{feeInfo.prevExamName || '-'}</p>
+                            <p>上次日期：{feeInfo.prevExamDate ? new Date(feeInfo.prevExamDate).toLocaleDateString('zh-TW') : '-'}</p>
+                            <p className="text-orange-600">✅ 不需繳費、不需上傳收據</p>
+                            <p className="text-orange-600">✅ 上次合格項目自動帶入評分表</p>
+                          </div>
+                        )}
+                        <div className={`grid grid-cols-2 gap-2 text-xs ${feeInfo.isRetake ? 'text-orange-700' : 'text-blue-700'}`}>
                           <div>現有帶級：{selectedStudent.beltLevel}</div>
                           <div>報考帶級：<span className="font-bold">{feeInfo.targetBeltCn}</span></div>
                           <div>道場：{selectedStudent.venue || '-'}</div>
                           <div>年齡：{calculateAge(selectedStudent.birthDate) || '-'} 歲</div>
                         </div>
-                        <div className="mt-2 p-2 bg-emerald-100 rounded text-center">
-                          <span className="text-xs text-emerald-700">考試費用：</span>
-                          <span className="text-lg font-bold text-emerald-800">${feeInfo.fee.toLocaleString()}</span>
+                        <div className={`mt-2 p-2 rounded text-center ${feeInfo.isRetake ? 'bg-green-100' : 'bg-emerald-100'}`}>
+                          <span className={`text-xs ${feeInfo.isRetake ? 'text-green-700' : 'text-emerald-700'}`}>考試費用：</span>
+                          <span className={`text-lg font-bold ${feeInfo.isRetake ? 'text-green-800' : 'text-emerald-800'}`}>
+                            {feeInfo.isRetake ? '免費（補考）' : `$${feeInfo.fee.toLocaleString()}`}
+                          </span>
                         </div>
                       </div>
                     )}
