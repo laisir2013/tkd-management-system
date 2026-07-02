@@ -3747,6 +3747,7 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
   // 補考生不能獲得叻叻獎 — 檢查是否有上次考試同帶同目標不合格/缺席記錄
   let isRetake = false;
   if (candidate.name && candidate.phone) {
+    const db = await getDb();
     const prevRetake = await db!.select({ id: examCandidates.id }).from(examCandidates)
       .where(and(
         eq(examCandidates.name, candidate.name),
