@@ -455,9 +455,12 @@ export const examSessions = mysqlTable("exam_sessions", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   examDate: date("exam_date", { mode: 'string' }).notNull(),
+  examTime: varchar("exam_time", { length: 100 }),
   location: varchar("location", { length: 255 }),
   description: text("description"),
   status: mysqlEnum("status", ["draft", "scheduled", "in_progress", "completed"]).default("draft").notNull(),
+  registrationOpen: boolean("registration_open").default(false).notNull(),
+  registrationDeadline: timestamp("registration_deadline"),
   eventId: int("event_id"),  // 關聯到 events 表
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

@@ -203,6 +203,13 @@ import {
   syncExamPaymentToAccounting,
   syncOrphanedExamPayments,
   getAccountingRecordByExamPaymentId,
+  getExamsOpenForRegistration,
+  isStudentRegisteredForExam,
+  registerStudentForExam,
+  getStudentExamRegistration,
+  getExamRegistrationsByPhone,
+  getNextBeltFromChinese,
+  calculateExamFee,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -6039,15 +6046,19 @@ export const appRouter = router({
         id: z.number(),
         name: z.string().optional(),
         examDate: z.coerce.date().optional(),
+        examTime: z.string().optional(),
         location: z.string().optional(),
         description: z.string().optional(),
         status: z.enum(['draft', 'scheduled', 'in_progress', 'completed']).optional(),
+        registrationOpen: z.boolean().optional(),
+        registrationDeadline: z.coerce.date().nullable().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
-        const { id, examDate, ...rest } = input;
+        const { id, examDate, registrationDeadline, ...rest } = input;
         const data: any = { ...rest };
         if (examDate) data.examDate = examDate.toISOString().split('T')[0];
+        if (registrationDeadline !== undefined) data.registrationDeadline = registrationDeadline;
         await updateExamSession(id, data);
         return { success: true };
       }),
@@ -6655,6 +6666,107 @@ export const appRouter = router({
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
         return promoteAllPassedCandidates(input.examId);
       }),
+
+    // --- 考試報名 ---
+    registration: router({
+      /** 取得開放報名的考試列表 */
+      getOpenExams: publicProcedure
+        .query(async () => {
+          return getExamsOpenForRegistration();
+        }),
+
+      /** 計算某學生的下一個帶級和費用 */
+      calculateFee: publicProcedure
+        .input(z.object({ currentBeltCn: z.string() }))
+        .query(({ input }) => {
+          const beltInfo = getNextBeltFromChinese(input.currentBeltCn);
+          if (!beltInfo) return null;
+          const fee = calculateExamFee(beltInfo.targetBelt);
+          return { ...beltInfo, fee };
+        }),
+
+      /** 家長報名考試 */
+      register: publicProcedure
+        .input(z.object({
+          examId: z.number(),
+          studentId: z.number().nullable(),
+          studentName: z.string(),
+          phone: z.string(),
+          dojoName: z.string(),
+          gender: z.enum(['male', 'female']),
+          age: z.number().nullable(),
+          currentBeltCn: z.string(),
+        }))
+        .mutation(async ({ input }) => {
+          return registerStudentForExam(input);
+        }),
+
+      /** 查詢某學生在某考試的報名狀態 */
+      getStatus: publicProcedure
+        .input(z.object({ examId: z.number(), studentName: z.string(), phone: z.string() }))
+        .query(async ({ input }) => {
+          return getStudentExamRegistration(input.examId, input.studentName, input.phone);
+        }),
+
+      /** 查詢某家長所有考試報名記錄 */
+      getMyRegistrations: publicProcedure
+        .input(z.object({ phone: z.string() }))
+        .query(async ({ input }) => {
+          return getExamRegistrationsByPhone(input.phone);
+        }),
+
+      /** 上傳收據（報名後） — 確認繳費並穿透到會計帳 */
+      uploadReceipt: publicProcedure
+        .input(z.object({
+          paymentId: z.number(),
+          receiptBase64: z.string(),
+          receiptFilename: z.string(),
+          bank: z.string().optional(),
+          paymentDate: z.string().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const { storagePut } = await import('./storage');
+          
+          // Get payment record
+          const payment = await getExamPaymentById(input.paymentId);
+          if (!payment) throw new TRPCError({ code: 'NOT_FOUND', message: '找不到繳費記錄' });
+          
+          // Decode and save receipt
+          const base64Data = input.receiptBase64.replace(/^data:image\/\w+;base64,/, '');
+          const buffer = Buffer.from(base64Data, 'base64');
+          const ext = input.receiptFilename.split('.').pop() || 'jpg';
+          const key = `receipts/exam-${payment.examId}/${payment.id}-${Date.now()}.${ext}`;
+          const contentType = ext === 'png' ? 'image/png' : ext === 'pdf' ? 'application/pdf' : 'image/jpeg';
+          
+          const { url: receiptUrl, key: receiptKey } = await storagePut(key, buffer, contentType);
+          
+          // Update payment — mark as confirmed
+          await updateExamPayment(payment.id, {
+            receiptUrl,
+            receiptKey,
+            bank: input.bank || null,
+            paymentDate: input.paymentDate ? new Date(input.paymentDate) : new Date(),
+            status: 'confirmed',
+            confirmedBy: 'parent_upload',
+          });
+
+          // Sync to accounting
+          const exam = await getExamSessionById(payment.examId);
+          await syncExamPaymentToAccounting({
+            examPaymentId: payment.id,
+            studentName: payment.studentName,
+            amount: Number(payment.amount),
+            examTitle: exam?.name || '升級試',
+            paymentDate: input.paymentDate ? new Date(input.paymentDate) : new Date(),
+            bank: input.bank || null,
+            receivingBank: payment.receivingBank || null,
+            receiptUrl,
+            receiptKey,
+          });
+
+          return { success: true, receiptUrl };
+        }),
+    }),
 
     // --- 家長查看成績 ---
     resultsByPhone: publicProcedure

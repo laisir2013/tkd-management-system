@@ -316,6 +316,15 @@ function OverviewPage({ examId }: { examId: number }) {
         </div>
         <div className="flex items-center gap-2">
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
+          {/* 報名開關 */}
+          <Button
+            size="sm"
+            variant={examData.registrationOpen ? "default" : "outline"}
+            className={examData.registrationOpen ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+            onClick={() => updateExam.mutate({ id: examId, registrationOpen: !examData.registrationOpen })}
+          >
+            {examData.registrationOpen ? '📋 報名中' : '📋 開放報名'}
+          </Button>
           {examData.status === 'draft' && <Button size="sm" variant="outline" onClick={() => updateExam.mutate({ id: examId, status: 'scheduled' })}>排程</Button>}
           {examData.status === 'scheduled' && <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-white" onClick={() => updateExam.mutate({ id: examId, status: 'in_progress' })}>開始考試</Button>}
           {examData.status === 'in_progress' && <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => updateExam.mutate({ id: examId, status: 'completed' })}>完成考試</Button>}

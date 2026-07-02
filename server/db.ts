@@ -4916,3 +4916,212 @@ export async function getExamPaymentsByStudentName(studentName: string): Promise
   if (!db) return [];
   return db.select().from(examPayments).where(eq(examPayments.studentName, studentName)).orderBy(desc(examPayments.createdAt));
 }
+
+// ==================== 考試報名功能 ====================
+
+/** 帶級中英文對照表 */
+const BELT_CN_TO_EN: Record<string, string> = {
+  '白帶': 'white', '黃帶': 'yellow', '黃綠帶': 'yellow_green', '綠帶': 'green',
+  '綠藍帶': 'green_blue', '藍帶': 'blue', '藍紅帶': 'blue_red', '紅帶': 'red',
+  '紅黑帶': 'red_black', '黑帶': 'black', '黑帶2段': 'black_2dan', '黑帶3段': 'black_3dan',
+};
+
+const BELT_EN_TO_CN: Record<string, string> = {
+  'white': '白帶', 'yellow': '黃帶', 'yellow_green': '黃綠帶', 'green': '綠帶',
+  'green_blue': '綠藍帶', 'blue': '藍帶', 'blue_red': '藍紅帶', 'red': '紅帶',
+  'red_black': '紅黑帶', 'black': '黑帶', 'black_2dan': '黑帶2段', 'black_3dan': '黑帶3段',
+};
+
+/** 帶級升級順序 */
+const BELT_ORDER = ['white', 'yellow', 'yellow_green', 'green', 'green_blue', 'blue', 'blue_red', 'red', 'red_black', 'black', 'black_2dan', 'black_3dan'];
+
+/** 根據現有帶級（中文）取得下一級帶級資訊 */
+export function getNextBeltFromChinese(currentBeltCn: string): { currentBelt: string; targetBelt: string; targetBeltCn: string } | null {
+  const currentBeltEn = BELT_CN_TO_EN[currentBeltCn];
+  if (!currentBeltEn) return null;
+  const idx = BELT_ORDER.indexOf(currentBeltEn);
+  if (idx === -1 || idx >= BELT_ORDER.length - 1) return null;
+  const targetBeltEn = BELT_ORDER[idx + 1];
+  return {
+    currentBelt: currentBeltEn,
+    targetBelt: targetBeltEn,
+    targetBeltCn: BELT_EN_TO_CN[targetBeltEn] || targetBeltEn,
+  };
+}
+
+/** 根據目標帶計算考試費用 */
+export function calculateExamFee(targetBelt: string): number {
+  // 黃/黃綠/綠/紅/紅黑 → $700
+  // 綠藍/藍/藍紅 → $800
+  // 黑帶及以上 → $2,200
+  const fee700 = ['yellow', 'yellow_green', 'green', 'red', 'red_black'];
+  const fee800 = ['green_blue', 'blue', 'blue_red'];
+  const fee2200 = ['black', 'black_2dan', 'black_3dan'];
+  if (fee700.includes(targetBelt)) return 700;
+  if (fee800.includes(targetBelt)) return 800;
+  if (fee2200.includes(targetBelt)) return 2200;
+  return 700; // default
+}
+
+/** 取得開放報名的考試列表 */
+export async function getExamsOpenForRegistration() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(examSessions)
+    .where(eq(examSessions.registrationOpen, true))
+    .orderBy(desc(examSessions.examDate));
+}
+
+/** 檢查學生是否已報名某考試 */
+export async function isStudentRegisteredForExam(examId: number, studentName: string, phone: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const existing = await db.select().from(examCandidates)
+    .where(and(
+      eq(examCandidates.examId, examId),
+      eq(examCandidates.name, studentName),
+      eq(examCandidates.phone, phone),
+    ))
+    .limit(1);
+  return existing.length > 0;
+}
+
+/** 家長報名考試 — 全系統穿透 */
+export async function registerStudentForExam(params: {
+  examId: number;
+  studentId: number | null;
+  studentName: string;
+  phone: string;
+  dojoName: string;
+  gender: 'male' | 'female';
+  age: number | null;
+  currentBeltCn: string;
+}): Promise<{
+  success: boolean;
+  candidateId?: number;
+  paymentId?: number;
+  accountingId?: number;
+  amount?: number;
+  targetBelt?: string;
+  targetBeltCn?: string;
+  error?: string;
+}> {
+  const { examId, studentId, studentName, phone, dojoName, gender, age, currentBeltCn } = params;
+
+  // 1. 計算目標帶和費用
+  const beltInfo = getNextBeltFromChinese(currentBeltCn);
+  if (!beltInfo) {
+    return { success: false, error: `無法識別帶級: ${currentBeltCn}` };
+  }
+  const amount = calculateExamFee(beltInfo.targetBelt);
+
+  // 2. 檢查是否重考（之前同一考試已報名且 failed）
+  const db = await getDb();
+  if (!db) return { success: false, error: 'Database not available' };
+
+  // 3. 檢查是否已報名
+  const alreadyRegistered = await isStudentRegisteredForExam(examId, studentName, phone);
+  if (alreadyRegistered) {
+    return { success: false, error: '該學生已報名此考試' };
+  }
+
+  // 4. 計算年齡分組
+  let ageGroup: string | null = null;
+  if (age !== null) {
+    if (age <= 6) ageGroup = '6歲或以下';
+    else if (age <= 9) ageGroup = '7-9歲';
+    else if (age <= 12) ageGroup = '10-12歲';
+    else if (age <= 15) ageGroup = '13-15歲';
+    else ageGroup = '16歲或以上';
+  }
+
+  // 5. 建立考生記錄 (exam_candidates)
+  const candidateResult = await db.insert(examCandidates).values({
+    examId,
+    studentId,
+    name: studentName,
+    phone,
+    dojoName,
+    gender,
+    age,
+    ageGroup,
+    currentBelt: beltInfo.currentBelt,
+    targetBelt: beltInfo.targetBelt,
+    status: 'registered',
+  });
+  const candidateId = Number(candidateResult[0].insertId);
+
+  // 6. 建立繳費記錄 (exam_payments)
+  const paymentResult = await db.insert(examPayments).values({
+    examId,
+    candidateId,
+    studentId,
+    studentName,
+    targetBelt: beltInfo.targetBelt,
+    amount: String(amount),
+    isRetake: false,
+    status: 'pending', // 待家長上傳收據後確認
+  });
+  const paymentId = Number(paymentResult[0].insertId);
+
+  // 7. 同步到會計帳目 (先建立 pending 狀態，確認收據後再改 confirmed)
+  // 不在此處建 accounting record，等到確認收據時才自動建立
+
+  return {
+    success: true,
+    candidateId,
+    paymentId,
+    amount,
+    targetBelt: beltInfo.targetBelt,
+    targetBeltCn: beltInfo.targetBeltCn,
+  };
+}
+
+/** 取得某學生在某考試的報名狀態（含繳費情況） */
+export async function getStudentExamRegistration(examId: number, studentName: string, phone: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const candidates = await db.select().from(examCandidates)
+    .where(and(
+      eq(examCandidates.examId, examId),
+      eq(examCandidates.name, studentName),
+      eq(examCandidates.phone, phone),
+    ))
+    .limit(1);
+  
+  if (candidates.length === 0) return null;
+  const candidate = candidates[0];
+
+  // Get payment record
+  const payments = await db.select().from(examPayments)
+    .where(eq(examPayments.candidateId, candidate.id))
+    .limit(1);
+  const payment = payments[0] || null;
+
+  return { candidate, payment };
+}
+
+/** 取得某家長（phone）所有考試報名記錄 */
+export async function getExamRegistrationsByPhone(phone: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const candidates = await db.select().from(examCandidates)
+    .where(eq(examCandidates.phone, phone))
+    .orderBy(desc(examCandidates.createdAt));
+  
+  const results = [];
+  for (const c of candidates) {
+    const exam = await getExamSessionById(c.examId);
+    const payments = await db.select().from(examPayments)
+      .where(eq(examPayments.candidateId, c.id))
+      .limit(1);
+    results.push({
+      candidate: c,
+      exam,
+      payment: payments[0] || null,
+    });
+  }
+  return results;
+}

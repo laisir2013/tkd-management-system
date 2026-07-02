@@ -34,7 +34,7 @@ const ATTENDANCE_STATUS_CONFIG = {
   excused: { label: "請假", icon: MinusCircle, color: "text-blue-600", bg: "bg-blue-50" },
 } as const;
 
-type TabType = "overview" | "regular-attendance" | "regular-payment" | "elite" | "events" | "exam-results";
+type TabType = "overview" | "regular-attendance" | "regular-payment" | "elite" | "events" | "exam-registration" | "exam-results";
 
 export default function Payment() {
   const search = useSearch();
@@ -84,6 +84,7 @@ export default function Payment() {
     ...(hasRegular ? [{ key: "regular-payment" as TabType, label: "恆常班繳費", icon: CreditCard, shortLabel: "繳費" }] : []),
     ...(hasElite ? [{ key: "elite" as TabType, label: "精英班", icon: Award, shortLabel: "精英班" }] : []),
     { key: "events" as TabType, label: "報名活動", icon: Trophy, shortLabel: "活動" },
+    { key: "exam-registration" as TabType, label: "考試報名", icon: FileText, shortLabel: "報名" },
     { key: "exam-results" as TabType, label: "考試成績", icon: Award, shortLabel: "成績" },
   ];
 
@@ -154,6 +155,9 @@ export default function Payment() {
         )}
         {activeTab === "events" && (
           <EventsTab phone={phone} students={students || []} eliteInfo={eliteInfo || []} />
+        )}
+        {activeTab === "exam-registration" && (
+          <ExamRegistrationTab phone={phone} students={students || []} eliteInfo={eliteInfo || []} />
         )}
         {activeTab === "exam-results" && (
           <ExamResultsTab phone={phone} />
@@ -1449,6 +1453,369 @@ function EventsTab({ phone, students, eliteInfo }: { phone: string; students: an
             </Card>
           );
         })
+      )}
+    </div>
+  );
+}
+
+// ================= 考試報名 Tab =================
+function ExamRegistrationTab({ phone, students, eliteInfo }: { phone: string; students: any[]; eliteInfo: any[] }) {
+  const { data: openExams, isLoading: examsLoading } = trpc.exam.registration.getOpenExams.useQuery();
+  const { data: myRegistrations, isLoading: regsLoading, refetch: refetchRegs } = trpc.exam.registration.getMyRegistrations.useQuery({ phone });
+  
+  const registerMutation = trpc.exam.registration.register.useMutation();
+  const uploadReceiptMutation = trpc.exam.registration.uploadReceipt.useMutation();
+
+  const [selectedExam, setSelectedExam] = useState<any>(null);
+  const [selectedStudentName, setSelectedStudentName] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const [uploadingFor, setUploadingFor] = useState<number | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [bankName, setBankName] = useState("");
+
+  // Combine all students
+  const allStudents = [
+    ...students.map(s => ({ id: s.id, name: s.name, beltLevel: s.beltLevel, venue: s.venue, gender: s.gender || 'male', birthDate: s.birthDate })),
+    ...eliteInfo.map(e => ({ id: e.student.id, name: e.student.name, beltLevel: e.student.beltLevel, venue: e.student.venue, gender: e.student.gender || 'male', birthDate: e.student.birthDate })),
+  ];
+  const uniqueStudents = allStudents.filter((s, i) => allStudents.findIndex(x => x.name === s.name) === i);
+
+  const selectedStudent = uniqueStudents.find(s => s.name === selectedStudentName);
+
+  // Calculate age from birthDate
+  const calculateAge = (birthDate: string | null) => {
+    if (!birthDate) return null;
+    const birth = new Date(birthDate);
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) age--;
+    return age;
+  };
+
+  // Belt info for selected student
+  const { data: feeInfo } = trpc.exam.registration.calculateFee.useQuery(
+    { currentBeltCn: selectedStudent?.beltLevel || '' },
+    { enabled: !!selectedStudent?.beltLevel }
+  );
+
+  const BELT_NAMES: Record<string, string> = {
+    white: '白帶', yellow: '黃帶', yellow_green: '黃綠帶', green: '綠帶',
+    green_blue: '綠藍帶', blue: '藍帶', blue_red: '藍紅帶', red: '紅帶',
+    red_black: '紅黑帶', black: '黑帶', black_2dan: '黑帶二段', black_3dan: '黑帶三段',
+  };
+
+  const handleRegister = async () => {
+    if (!selectedExam || !selectedStudent || !feeInfo) return;
+    setRegistering(true);
+    try {
+      const result = await registerMutation.mutateAsync({
+        examId: selectedExam.id,
+        studentId: selectedStudent.id,
+        studentName: selectedStudent.name,
+        phone,
+        dojoName: selectedStudent.venue || '',
+        gender: (selectedStudent.gender === 'female' ? 'female' : 'male') as 'male' | 'female',
+        age: calculateAge(selectedStudent.birthDate),
+        currentBeltCn: selectedStudent.beltLevel || '白帶',
+      });
+      if (result.success) {
+        toast.success(`報名成功！考試費 $${result.amount?.toLocaleString()}`);
+        setSelectedExam(null);
+        setSelectedStudentName("");
+        refetchRegs();
+      } else {
+        toast.error(result.error || '報名失敗');
+      }
+    } catch (err: any) {
+      toast.error(err.message || '報名失敗');
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  const handleUploadReceipt = async (paymentId: number, file: File) => {
+    setUploadingFor(paymentId);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target?.result as string;
+        try {
+          await uploadReceiptMutation.mutateAsync({
+            paymentId,
+            receiptBase64: base64,
+            receiptFilename: file.name,
+            bank: bankName || undefined,
+          });
+          toast.success('收據上傳成功！繳費已確認');
+          refetchRegs();
+        } catch (err: any) {
+          toast.error(err.message || '上傳失敗');
+        } finally {
+          setUploadingFor(null);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      toast.error('讀取檔案失敗');
+      setUploadingFor(null);
+    }
+  };
+
+  if (examsLoading || regsLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  // Check which students are already registered for which exams
+  const isRegistered = (examId: number, studentName: string) => {
+    return myRegistrations?.some(r => r.candidate.examId === examId && r.candidate.name === studentName);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 已報名的考試 */}
+      {myRegistrations && myRegistrations.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              已報名考試
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {myRegistrations.map((reg) => (
+              <div key={reg.candidate.id} className="border rounded-lg p-3 bg-white">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <span className="font-semibold text-sm">{reg.exam?.name || '考試'}</span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      {reg.exam?.examDate && new Date(reg.exam.examDate).toLocaleDateString('zh-TW')}
+                    </span>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded ${
+                    reg.payment?.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                    reg.payment?.status === 'waived' ? 'bg-gray-100 text-gray-600' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {reg.payment?.status === 'confirmed' ? '已繳費' : reg.payment?.status === 'waived' ? '已豁免' : '待繳費'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-2">
+                  <div>👤 {reg.candidate.name}</div>
+                  <div>🥋 {BELT_NAMES[reg.candidate.currentBelt] || reg.candidate.currentBelt} → {BELT_NAMES[reg.candidate.targetBelt] || reg.candidate.targetBelt}</div>
+                  <div>💰 考試費 ${reg.payment ? Number(reg.payment.amount).toLocaleString() : '-'}</div>
+                  {reg.exam?.location && <div>📍 {reg.exam.location}</div>}
+                </div>
+
+                {/* 上傳收據區 — 只在 pending 時顯示 */}
+                {reg.payment && reg.payment.status === 'pending' && (
+                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-xs text-yellow-800 mb-2 font-medium">
+                      📎 請上傳轉帳收據以完成繳費
+                    </p>
+                    <div className="text-[10px] text-gray-500 mb-2 space-y-0.5">
+                      <p>轉帳資料：</p>
+                      <p>• HSBC: 484-287123-838</p>
+                      <p>• 中銀: 012-692-2-011481-6</p>
+                      <p>• FPS ID: 164577132 (中銀)</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="付款銀行名稱"
+                        className="flex-1 text-xs border rounded px-2 py-1"
+                        value={bankName}
+                        onChange={(e) => setBankName(e.target.value)}
+                      />
+                      <label className="cursor-pointer inline-flex items-center gap-1 text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700">
+                        {uploadingFor === reg.payment.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Upload className="w-3 h-3" />
+                        )}
+                        上傳收據
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingFor === reg.payment.id}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file && reg.payment) handleUploadReceipt(reg.payment.id, file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* 已上傳收據 */}
+                {reg.payment && reg.payment.receiptUrl && (
+                  <button
+                    type="button"
+                    className="mt-2 text-xs text-blue-600 hover:underline flex items-center gap-1"
+                    onClick={() => setReceiptPreview(reg.payment!.receiptUrl)}
+                  >
+                    🧾 查看收據
+                  </button>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 開放報名的考試 */}
+      {openExams && openExams.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-600" />
+              開放報名的考試
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {openExams.map(exam => (
+              <div key={exam.id} className="border rounded-lg p-3 bg-white">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <span className="font-bold text-sm">{exam.name}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-3">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {new Date(exam.examDate).toLocaleDateString('zh-TW')}
+                  </div>
+                  {exam.examTime && (
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {exam.examTime}
+                    </div>
+                  )}
+                  {exam.location && (
+                    <div className="flex items-center gap-1 col-span-2">
+                      <MapPin className="w-3 h-3" />
+                      {exam.location}
+                    </div>
+                  )}
+                  {exam.registrationDeadline && (
+                    <div className="text-orange-600 col-span-2">
+                      截止報名：{new Date(exam.registrationDeadline).toLocaleDateString('zh-TW')}
+                    </div>
+                  )}
+                </div>
+
+                {/* 報名表單 */}
+                {selectedExam?.id === exam.id ? (
+                  <div className="border-t pt-3 space-y-3">
+                    {/* 選擇學生 */}
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 block mb-1">選擇學生</label>
+                      <select
+                        className="w-full text-sm border rounded-md px-3 py-2"
+                        value={selectedStudentName}
+                        onChange={(e) => setSelectedStudentName(e.target.value)}
+                      >
+                        <option value="">-- 請選擇 --</option>
+                        {uniqueStudents.map(s => {
+                          const alreadyReg = isRegistered(exam.id, s.name);
+                          return (
+                            <option key={s.name} value={s.name} disabled={alreadyReg}>
+                              {s.name} ({s.beltLevel || '未設定'}){alreadyReg ? ' [已報名]' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    {/* 自動識別資訊 */}
+                    {selectedStudent && feeInfo && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3 space-y-1.5">
+                        <div className="flex items-center gap-2 text-sm font-medium text-blue-800">
+                          <CheckCircle2 className="w-4 h-4" />
+                          自動識別結果
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs text-blue-700">
+                          <div>現有帶級：{selectedStudent.beltLevel}</div>
+                          <div>報考帶級：<span className="font-bold">{feeInfo.targetBeltCn}</span></div>
+                          <div>道場：{selectedStudent.venue || '-'}</div>
+                          <div>年齡：{calculateAge(selectedStudent.birthDate) || '-'} 歲</div>
+                        </div>
+                        <div className="mt-2 p-2 bg-emerald-100 rounded text-center">
+                          <span className="text-xs text-emerald-700">考試費用：</span>
+                          <span className="text-lg font-bold text-emerald-800">${feeInfo.fee.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedStudent && !feeInfo && selectedStudent.beltLevel && (
+                      <div className="bg-red-50 border border-red-200 rounded-md p-2 text-xs text-red-700">
+                        無法識別帶級升級路線，請聯繫教練確認。
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => { setSelectedExam(null); setSelectedStudentName(""); }}
+                      >
+                        取消
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700"
+                        disabled={!selectedStudent || !feeInfo || registering}
+                        onClick={handleRegister}
+                      >
+                        {registering ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                        確認報名
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    onClick={() => setSelectedExam(exam)}
+                  >
+                    立即報名
+                  </Button>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500">目前沒有開放報名的考試</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 收據預覽 */}
+      {receiptPreview && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setReceiptPreview(null)}
+        >
+          <div className="relative max-w-lg max-h-[85vh]" onClick={e => e.stopPropagation()}>
+            <button
+              className="absolute -top-3 -right-3 bg-white rounded-full p-1 shadow-lg"
+              onClick={() => setReceiptPreview(null)}
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+            <img src={receiptPreview} alt="收據" className="max-w-full max-h-[80vh] rounded-lg shadow-2xl object-contain bg-white" />
+          </div>
+        </div>
       )}
     </div>
   );
