@@ -1028,6 +1028,12 @@ function generateTimetableWhatsAppMessage(exam: any, schedules: any[], candidate
   
   const sorted = [...schedules].sort((a: any, b: any) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
   for (const sch of sorted) {
+    const gc = String(sch.groupCode || '');
+    // 搏擊時段
+    if (gc.startsWith('SPR-')) {
+      msg += `🥊 搏擊 | ${sch.timeSlot || `${sch.startTime}-${sch.endTime}`}\n\n`;
+      continue;
+    }
     const groupCandidates = candidates.filter((c: any) => c.groupCode === sch.groupCode);
     if (groupCandidates.length === 0) continue;
     msg += `【${sch.groupCode?.toUpperCase() || '-'} 組】${getBeltName(sch.beltLevel)} | ${sch.timeSlot || `${sch.startTime}-${sch.endTime}`}\n`;
@@ -1592,7 +1598,6 @@ function TimetablePage({ examId }: { examId: number }) {
   const [showCreate, setShowCreate] = useState(false);
   const [showAutoGroup, setShowAutoGroup] = useState(false);
   const [agStartTime, setAgStartTime] = useState('10:00');
-  const [agMinutes, setAgMinutes] = useState(30);
   const [agMaxPerGroup, setAgMaxPerGroup] = useState(10);
   const [agBreakAfter, setAgBreakAfter] = useState(4);
   const [agBreakMins, setAgBreakMins] = useState(15);
@@ -1606,7 +1611,6 @@ function TimetablePage({ examId }: { examId: number }) {
   // --- 時間表調整設定 ---
   const [showTimeSettings, setShowTimeSettings] = useState(false);
   const [tsStartTime, setTsStartTime] = useState('10:00');
-  const [tsMinutesPerGroup, setTsMinutesPerGroup] = useState(30);
   const [tsBreaks, setTsBreaks] = useState<Array<{ afterGroup: string; type: 'break' | 'lunch'; minutes: number }>>([]);
   const [tsNewBreakGroup, setTsNewBreakGroup] = useState('');
   const [tsNewBreakType, setTsNewBreakType] = useState<'break' | 'lunch'>('break');
@@ -1626,12 +1630,6 @@ function TimetablePage({ examId }: { examId: number }) {
       const sorted = [...(schedules as any[])].sort((a: any, b: any) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
       // 推斷開始時間
       if (sorted[0]?.startTime) setTsStartTime(sorted[0].startTime);
-      // 推斷每組時長
-      if (sorted[0]?.startTime && sorted[0]?.endTime) {
-        const parseT = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-        const mins = parseT(sorted[0].endTime) - parseT(sorted[0].startTime);
-        if (mins > 0) setTsMinutesPerGroup(mins);
-      }
       // 推斷已有小休（找出時間不連續的地方）
       const inferredBreaks: Array<{ afterGroup: string; type: 'break' | 'lunch'; minutes: number }> = [];
       for (let i = 0; i < sorted.length - 1; i++) {
@@ -1663,7 +1661,8 @@ function TimetablePage({ examId }: { examId: number }) {
     const allCandidates = candidates as any[];
     
     return sortedSchedules.map((sch: any) => {
-      const groupCandidates = allCandidates
+      const isSparring = String(sch.groupCode || '').startsWith('SPR-');
+      const groupCandidates = isSparring ? [] : allCandidates
         .filter(c => c.groupCode === sch.groupCode)
         .sort((a, b) => (a.orderNumber || 0) - (b.orderNumber || 0));
       
@@ -1673,7 +1672,8 @@ function TimetablePage({ examId }: { examId: number }) {
 
       return {
         ...sch,
-        beltName: getBeltName(sch.beltLevel),
+        isSparring,
+        beltName: isSparring ? '搏擊' : getBeltName(sch.beltLevel),
         candidateCount: groupCandidates.length,
         candidates: groupCandidates,
         targetBelts,
@@ -1687,7 +1687,13 @@ function TimetablePage({ examId }: { examId: number }) {
     const result: any[] = [];
     const parseT = (t: string) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
     for (let i = 0; i < timetableRows.length; i++) {
-      result.push({ ...timetableRows[i], _type: 'group' });
+      const row = timetableRows[i];
+      // 搏擊時段用特殊類型
+      if (row.isSparring) {
+        result.push({ ...row, _type: 'sparring' });
+      } else {
+        result.push({ ...row, _type: 'group' });
+      }
       if (i < timetableRows.length - 1) {
         const endMins = parseT(timetableRows[i].endTime);
         const nextStartMins = parseT(timetableRows[i + 1].startTime);
@@ -1721,14 +1727,13 @@ function TimetablePage({ examId }: { examId: number }) {
         recalculateTimes.mutate({
           examId,
           startTime: tsStartTime,
-          minutesPerGroup: tsMinutesPerGroup,
           breaks: newBreaks,
         });
       }, 0);
       return newBreaks;
     });
     setPlacingBreakType(null);
-  }, [placingBreakType, examId, tsStartTime, tsMinutesPerGroup, recalculateTimes]);
+  }, [placingBreakType, examId, tsStartTime, recalculateTimes]);
 
   // 移除休息並自動重新計算
   const handleRemoveBreak = useCallback((afterGroupCode: string) => {
@@ -1739,13 +1744,12 @@ function TimetablePage({ examId }: { examId: number }) {
         recalculateTimes.mutate({
           examId,
           startTime: tsStartTime,
-          minutesPerGroup: tsMinutesPerGroup,
           breaks: newBreaks,
         });
       }, 0);
       return newBreaks;
     });
-  }, [examId, tsStartTime, tsMinutesPerGroup, recalculateTimes]);
+  }, [examId, tsStartTime, recalculateTimes]);
 
   const maxPositions = Math.max(9, ...timetableRows.map(r => r.candidates.length));
 
@@ -1834,26 +1838,27 @@ function TimetablePage({ examId }: { examId: number }) {
             <span className="text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded">根據帶級自動分組並產生時間表</span>
           </div>
           <p className="text-xs text-amber-700">系統會將考生依帶級排序，每組最多指定人數。同一帶級超過上限時自動拆分。分組後自動產生對應的時間表。</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="bg-white/60 rounded border p-2 mb-2">
+            <p className="text-[11px] text-gray-600 font-medium mb-1">⏱️ 各帶級考試時間（自動設定）：</p>
+            <p className="text-[10px] text-gray-500">考黃/黃綠/綠帶 12分鐘 ｜ 考綠藍/藍帶 15分鐘 ｜ 考藍紅/紅/紅黑帶 30分鐘 ｜ 考黑帶 45分鐘</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">🥊 綠帶以上每2組前自動加插15分鐘搏擊</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">開始時間</label>
               <Input type="time" value={agStartTime} onChange={e => setAgStartTime(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">每組時間（分鐘）</label>
-              <Input type="number" min={15} max={60} value={agMinutes} onChange={e => setAgMinutes(Number(e.target.value))} />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">每組最多人數</label>
               <Input type="number" min={4} max={20} value={agMaxPerGroup} onChange={e => setAgMaxPerGroup(Number(e.target.value))} />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">每幾組休息</label>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">每幾組休息（0=不休息）</label>
               <Input type="number" min={0} max={10} value={agBreakAfter} onChange={e => setAgBreakAfter(Number(e.target.value))} />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">休息時間（分鐘）</label>
-              <Input type="number" min={0} max={30} value={agBreakMins} onChange={e => setAgBreakMins(Number(e.target.value))} />
+              <Input type="number" min={0} max={60} value={agBreakMins} onChange={e => setAgBreakMins(Number(e.target.value))} />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">場地（選填）</label>
@@ -1865,7 +1870,6 @@ function TimetablePage({ examId }: { examId: number }) {
               onClick={() => autoGroup.mutate({
                 examId,
                 startTime: agStartTime,
-                minutesPerGroup: agMinutes,
                 maxPerGroup: agMaxPerGroup,
                 breakAfterGroups: agBreakAfter,
                 breakMinutes: agBreakMins,
@@ -1896,14 +1900,17 @@ function TimetablePage({ examId }: { examId: number }) {
             <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">調整開始時間、每組時長、小休/午餐</span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">開始時間</label>
               <Input type="time" value={tsStartTime} onChange={e => setTsStartTime(e.target.value)} />
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">每組時間（分鐘）</label>
-              <Input type="number" min={15} max={120} value={tsMinutesPerGroup} onChange={e => setTsMinutesPerGroup(Number(e.target.value))} />
+            <div className="flex items-end">
+              <div className="bg-gray-50 rounded border p-2 text-[10px] text-gray-500 w-full">
+                <p className="font-medium text-gray-600 mb-0.5">⏱️ 各帶級時間（自動）：</p>
+                <p>考黃/黃綠/綠 12min｜考綠藍/藍 15min｜考藍紅/紅/紅黑 30min｜考黑 45min</p>
+                <p>🥊 綠帶以上每2組前+15min搏擊</p>
+              </div>
             </div>
           </div>
 
@@ -1995,15 +2002,39 @@ function TimetablePage({ examId }: { examId: number }) {
             const parseT = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
             const formatT = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
             const breaksMap = new Map(tsBreaks.map(b => [b.afterGroup, b]));
+            // 依帶級自動計算時間
+            function getMinutesForBelt(belt: string): number {
+              if (['white', 'yellow', 'yellow_green'].includes(belt)) return 12;
+              if (['green', 'green_blue'].includes(belt)) return 15;
+              if (['blue', 'blue_red', 'red'].includes(belt)) return 30;
+              if (['red_black', 'black', 'black_2dan', 'black_3dan'].includes(belt)) return 45;
+              return 30;
+            }
+            function needsSparring(belt: string): boolean {
+              return ['green', 'green_blue', 'blue', 'blue_red', 'red', 'red_black', 'black', 'black_2dan', 'black_3dan'].includes(belt);
+            }
             let cur = parseT(tsStartTime);
-            const preview: { group: string; belt: string; start: string; end: string; breakAfter?: { type: string; mins: number } }[] = [];
+            let sparCount = 0;
+            const preview: { group: string; belt: string; start: string; end: string; isSparring?: boolean; breakAfter?: { type: string; mins: number } }[] = [];
             for (const sch of sortedSchedules) {
               const gc = String((sch as any).groupCode || '').toUpperCase();
+              if (gc.startsWith('SPR-')) continue; // 跳過舊搏擊時段
+              const belt = (sch as any).beltLevel || '';
+              const hasSparring = needsSparring(belt);
+              // 搏擊時段
+              if (hasSparring && sparCount % 2 === 0) {
+                const ss = formatT(cur);
+                cur += 15;
+                const se = formatT(cur);
+                preview.push({ group: `🥊`, belt, start: ss, end: se, isSparring: true });
+              }
+              if (hasSparring) sparCount++;
+              const mins = getMinutesForBelt(belt);
               const s = formatT(cur);
-              cur += tsMinutesPerGroup;
+              cur += mins;
               const e = formatT(cur);
               const brk = breaksMap.get(gc);
-              preview.push({ group: gc, belt: (sch as any).beltLevel, start: s, end: e, breakAfter: brk ? { type: brk.type, mins: brk.minutes } : undefined });
+              preview.push({ group: gc, belt, start: s, end: e, breakAfter: brk ? { type: brk.type, mins: brk.minutes } : undefined });
               if (brk) cur += brk.minutes;
             }
             const lastEnd = preview[preview.length - 1]?.end || '';
@@ -2018,7 +2049,7 @@ function TimetablePage({ examId }: { examId: number }) {
                 <div className="flex flex-wrap gap-1">
                   {preview.map((p, idx) => (
                     <React.Fragment key={idx}>
-                      <div className="inline-flex flex-col items-center px-2 py-1 bg-gray-50 rounded text-[10px] border">
+                      <div className={`inline-flex flex-col items-center px-2 py-1 rounded text-[10px] border ${p.isSparring ? 'bg-red-50 border-red-200' : 'bg-gray-50'}`}>
                         <span className="font-bold">{p.group}</span>
                         <span className="text-gray-500">{p.start}-{p.end}</span>
                       </div>
@@ -2039,7 +2070,6 @@ function TimetablePage({ examId }: { examId: number }) {
               onClick={() => recalculateTimes.mutate({
                 examId,
                 startTime: tsStartTime,
-                minutesPerGroup: tsMinutesPerGroup,
                 breaks: tsBreaks,
               })}
               disabled={recalculateTimes.isPending}
@@ -2199,6 +2229,20 @@ function TimetablePage({ examId }: { examId: number }) {
                   );
                 }
                 // 正常組別行 + 後接 drop zone
+                // 搏擊時段行
+                if (row._type === 'sparring') {
+                  return (
+                    <tr key={`spr-${rowIdx}`} className="bg-red-50">
+                      <td colSpan={colSpanFull} className="px-4 py-2 text-center">
+                        <div className="flex items-center justify-center gap-2 text-sm font-medium">
+                          <span>🥊</span>
+                          <span className="text-red-700">搏擊 — 15 分鐘</span>
+                          <span className="text-gray-500 text-xs">({row.startTime} ~ {row.endTime})</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
                 const groupCode = String(row.groupCode || '').toUpperCase();
                 // 判斷此組之後是否已有 break 行（如有則不顯示 drop zone）
                 const nextRow = timetableRowsWithBreaks[rowIdx + 1];

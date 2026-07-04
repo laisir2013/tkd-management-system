@@ -6225,9 +6225,8 @@ export const appRouter = router({
           examId: z.number(),
           maxPerGroup: z.number().min(4).max(20).default(10),
           startTime: z.string().default('10:00'),
-          minutesPerGroup: z.number().min(15).max(60).default(30),
-          breakAfterGroups: z.number().min(0).max(10).default(4),
-          breakMinutes: z.number().min(0).max(30).default(15),
+          breakAfterGroups: z.number().min(0).max(10).default(0),
+          breakMinutes: z.number().min(0).max(60).default(15),
           venue: z.string().optional(),
         }))
         .mutation(async ({ input, ctx }) => {
@@ -6282,16 +6281,60 @@ export const appRouter = router({
           // 刪除舊時間表，生成新時間表
           await db.delete(schema.examSchedules).where(eq(schema.examSchedules.examId, input.examId));
 
-          // 計算時間
+          // === 依帶級設定不同考試時間 ===
+          // targetBelt 對應的時間（以 currentBelt 判斷）
+          // 考黃/黃綠/綠 (currentBelt: white, yellow, yellow_green) → 12 分鐘
+          // 考綠藍/藍 (currentBelt: green, green_blue) → 15 分鐘
+          // 考藍紅/紅/紅黑 (currentBelt: blue, blue_red, red) → 30 分鐘
+          // 考黑帶+ (currentBelt: red_black, black, black_2dan) → 45 分鐘
+          function getMinutesForBelt(currentBelt: string): number {
+            if (['white', 'yellow', 'yellow_green'].includes(currentBelt)) return 12;
+            if (['green', 'green_blue'].includes(currentBelt)) return 15;
+            if (['blue', 'blue_red', 'red'].includes(currentBelt)) return 30;
+            if (['red_black', 'black', 'black_2dan', 'black_3dan'].includes(currentBelt)) return 45;
+            return 30; // fallback
+          }
+
+          // 綠帶以上需要搏擊（currentBelt >= green，即考綠藍及以上）
+          function needsSparring(currentBelt: string): boolean {
+            return ['green', 'green_blue', 'blue', 'blue_red', 'red', 'red_black', 'black', 'black_2dan', 'black_3dan'].includes(currentBelt);
+          }
+
           const parseTime = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
           const formatTime = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
 
           let currentMinutes = parseTime(input.startTime);
 
+          // 搏擊計數器：綠帶以上每2組前加插15分鐘搏擊
+          let sparringGroupCount = 0;
+
           for (let i = 0; i < groups.length; i++) {
             const g = groups[i];
+            const groupMinutes = getMinutesForBelt(g.belt);
+            const hasSparring = needsSparring(g.belt);
+
+            // 綠帶以上：每2組前加插15分鐘搏擊
+            if (hasSparring && sparringGroupCount % 2 === 0) {
+              // 加插搏擊時段
+              const sparStart = formatTime(currentMinutes);
+              const sparEnd = formatTime(currentMinutes + 15);
+              await db.insert(schema.examSchedules).values({
+                examId: input.examId,
+                beltLevel: g.belt,
+                groupCode: `SPR-${g.code}`,
+                startTime: sparStart,
+                endTime: sparEnd,
+                timeSlot: `${sparStart}-${sparEnd}`,
+                venue: input.venue || null,
+                notes: '搏擊',
+              });
+              currentMinutes += 15;
+            }
+
+            if (hasSparring) sparringGroupCount++;
+
             const startStr = formatTime(currentMinutes);
-            const endMinutes = currentMinutes + input.minutesPerGroup;
+            const endMinutes = currentMinutes + groupMinutes;
             const endStr = formatTime(endMinutes);
 
             await db.insert(schema.examSchedules).values({
@@ -6306,7 +6349,7 @@ export const appRouter = router({
 
             currentMinutes = endMinutes;
 
-            // 休息時間
+            // 額外休息時間（如果設定了的話）
             if (input.breakAfterGroups > 0 && (i + 1) % input.breakAfterGroups === 0 && i < groups.length - 1) {
               currentMinutes += input.breakMinutes;
             }
@@ -6874,12 +6917,12 @@ export const appRouter = router({
           return { success: true };
         }),
 
-      // 重新計算時間表：支援自定義開始時間、每組時長、小休/午餐插入
+      // 重新計算時間表：支援自定義開始時間、依帶級自動設定時長、小休/午餐插入
       recalculateTimes: protectedProcedure
         .input(z.object({
           examId: z.number(),
           startTime: z.string(), // 'HH:MM'
-          minutesPerGroup: z.number().min(15).max(120),
+          minutesPerGroup: z.number().min(5).max(120).optional(), // 如果提供則覆蓋自動計算
           breaks: z.array(z.object({
             afterGroup: z.string(), // group code, e.g. 'C', 'H'
             type: z.enum(['break', 'lunch']),
@@ -6892,15 +6935,25 @@ export const appRouter = router({
           const db = await getDb();
           if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
 
+          // 依帶級設定考試時間
+          function getMinutesForBelt(currentBelt: string): number {
+            if (['white', 'yellow', 'yellow_green'].includes(currentBelt)) return 12;
+            if (['green', 'green_blue'].includes(currentBelt)) return 15;
+            if (['blue', 'blue_red', 'red'].includes(currentBelt)) return 30;
+            if (['red_black', 'black', 'black_2dan', 'black_3dan'].includes(currentBelt)) return 45;
+            return 30;
+          }
+
           // 取得該考試的所有時間表，按 group_code 排序
           const allSchedules = await getExamSchedulesByExam(input.examId);
           if (!allSchedules || allSchedules.length === 0) {
             throw new TRPCError({ code: 'BAD_REQUEST', message: '沒有時間表可重新計算' });
           }
 
-          // 按 group_code 字母排序
-          const sorted = [...allSchedules].sort((a: any, b: any) =>
-            String(a.groupCode || '').localeCompare(String(b.groupCode || '')));
+          // 按 group_code 字母排序（排除搏擊時段 SPR-*）
+          const sorted = [...allSchedules]
+            .filter((s: any) => !String(s.groupCode || '').startsWith('SPR-'))
+            .sort((a: any, b: any) => String(a.groupCode || '').localeCompare(String(b.groupCode || '')));
 
           // 建立 breaks lookup: afterGroup → break info
           const breaksMap = new Map<string, { type: string; minutes: number }>();
@@ -6915,10 +6968,45 @@ export const appRouter = router({
           let currentMinutes = parseTime(input.startTime);
           const updates: { id: number; startTime: string; endTime: string; timeSlot: string; notes: string | null }[] = [];
 
+          // 刪除舊的搏擊時段
+          const sparringSchedules = allSchedules.filter((s: any) => String(s.groupCode || '').startsWith('SPR-'));
+          for (const spr of sparringSchedules) {
+            await deleteExamSchedule((spr as any).id);
+          }
+
+          // 綠帶以上搏擊計數器
+          let sparringGroupCount = 0;
+          function needsSparring(currentBelt: string): boolean {
+            return ['green', 'green_blue', 'blue', 'blue_red', 'red', 'red_black', 'black', 'black_2dan', 'black_3dan'].includes(currentBelt);
+          }
+
           for (let i = 0; i < sorted.length; i++) {
             const sch = sorted[i] as any;
+            const beltLevel = sch.beltLevel || '';
+            const groupMinutes = input.minutesPerGroup || getMinutesForBelt(beltLevel);
+            const hasSparring = needsSparring(beltLevel);
+
+            // 綠帶以上：每2組前加插15分鐘搏擊
+            if (hasSparring && sparringGroupCount % 2 === 0) {
+              const sparStart = formatTime(currentMinutes);
+              const sparEnd = formatTime(currentMinutes + 15);
+              await db.insert(schema.examSchedules).values({
+                examId: input.examId,
+                beltLevel: beltLevel,
+                groupCode: `SPR-${sch.groupCode}`,
+                startTime: sparStart,
+                endTime: sparEnd,
+                timeSlot: `${sparStart}-${sparEnd}`,
+                venue: sch.venue || null,
+                notes: '搏擊',
+              });
+              currentMinutes += 15;
+            }
+
+            if (hasSparring) sparringGroupCount++;
+
             const startStr = formatTime(currentMinutes);
-            const endMinutes = currentMinutes + input.minutesPerGroup;
+            const endMinutes = currentMinutes + groupMinutes;
             const endStr = formatTime(endMinutes);
 
             updates.push({
