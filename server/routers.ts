@@ -210,6 +210,12 @@ import {
   getExamRegistrationsByPhone,
   getNextBeltFromChinese,
   calculateExamFee,
+  // 工作日誌
+  insertAuditLog,
+  getAuditLogs,
+  getAuditLogById,
+  markAuditLogUndone,
+  deleteAuditLog,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -4377,15 +4383,103 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // 刪除記錄
+    // 刪除記錄（含同步刪除考試費相關資料）
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // 取得會計記錄快照
+        const acctRows = await db.select().from(schema.accountingRecords)
+          .where(eq(schema.accountingRecords.id, input.id)).limit(1);
+        const record = acctRows[0] as any;
+        if (!record) throw new TRPCError({ code: 'NOT_FOUND', message: '記錄不存在' });
+
+        let deletedPayment = false;
+        let deletedCandidate = false;
+        const childLogIds: number[] = [];
+
+        // 如果這是考試費相關的會計記錄，同步刪除繳費記錄和考生
+        if (record.examPaymentId) {
+          const payment = await getExamPaymentById(record.examPaymentId);
+          if (payment) {
+            const pmnt = payment as any;
+            // 找到對應考生
+            let candidate: any = null;
+            if (pmnt.candidateId) {
+              candidate = await getExamCandidateById(pmnt.candidateId);
+            }
+
+            // 寫入主日誌
+            const logId = await insertAuditLog({
+              action: 'delete_accounting_with_cascade',
+              entityType: 'accounting_record',
+              entityId: input.id,
+              examId: pmnt.examId,
+              description: `刪除會計記錄 #${input.id}（${record.studentName || ''} 考試費 $${record.amount}）`,
+              snapshot: { accountingRecord: record, payment: pmnt, candidate },
+              performedBy: ctx.user.name || ctx.user.phone,
+            });
+
+            // 連鎖刪除考生分數
+            if (candidate) {
+              const scores = await getExamScoresWithItemsByCandidate(candidate.id);
+              if (scores && (scores as any[]).length > 0) {
+                await deleteExamScoresByCandidate(candidate.id);
+                const sid = await insertAuditLog({
+                  action: 'cascade_delete_scores', entityType: 'exam_score', entityId: candidate.id,
+                  examId: pmnt.examId, description: `連鎖刪除考生「${candidate.name}」的評分`,
+                  performedBy: ctx.user.name || ctx.user.phone, parentLogId: logId,
+                });
+                childLogIds.push(sid);
+              }
+              await deleteExamCandidate(candidate.id);
+              const cid = await insertAuditLog({
+                action: 'cascade_delete_candidate', entityType: 'exam_candidate', entityId: candidate.id,
+                examId: pmnt.examId, description: `連鎖刪除考生「${candidate.name}」（${candidate.currentBelt}→${candidate.targetBelt}）`,
+                snapshot: { candidate },
+                performedBy: ctx.user.name || ctx.user.phone, parentLogId: logId,
+              });
+              childLogIds.push(cid);
+              deletedCandidate = true;
+            }
+
+            // 刪除繳費記錄
+            await deleteExamPayment(pmnt.id);
+            const pid = await insertAuditLog({
+              action: 'cascade_delete_payment', entityType: 'exam_payment', entityId: pmnt.id,
+              examId: pmnt.examId, description: `連鎖刪除繳費記錄 #${pmnt.id}（${pmnt.studentName} $${pmnt.amount}）`,
+              snapshot: { payment: pmnt },
+              performedBy: ctx.user.name || ctx.user.phone, parentLogId: logId,
+            });
+            childLogIds.push(pid);
+            deletedPayment = true;
+
+            // 更新主日誌
+            if (childLogIds.length > 0) {
+              await db.update(schema.auditLog).set({ relatedActions: childLogIds })
+                .where(eq(schema.auditLog.id, logId));
+            }
+          }
+        } else {
+          // 非考試費記錄，只記日誌
+          await insertAuditLog({
+            action: 'delete_accounting',
+            entityType: 'accounting_record',
+            entityId: input.id,
+            description: `刪除會計記錄 #${input.id}（${record.category} ${record.studentName || ''} $${record.amount}）`,
+            snapshot: { accountingRecord: record },
+            performedBy: ctx.user.name || ctx.user.phone,
+          });
+        }
+
+        // 刪除會計記錄本身
         await deleteAccountingRecord(input.id);
-        return { success: true };
+        return { success: true, deletedPayment, deletedCandidate };
       }),
 
     // 從已有的繳費記錄批次同步到會計記錄
@@ -6205,9 +6299,83 @@ export const appRouter = router({
 
       delete: protectedProcedure
         .input(z.object({ id: z.number() }))
-        .mutation(async ({ input }) => {
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+          // 1. 取得考生資料（快照）
+          const candidate = await getExamCandidateById(input.id);
+          if (!candidate) throw new TRPCError({ code: 'NOT_FOUND', message: '考生不存在' });
+          const cand = candidate as any;
+
+          // 2. 取得相關繳費記錄
+          const payment = await getExamPaymentByCandidate(input.id);
+          let accountingRecord: any = null;
+          if (payment) {
+            const acctRows = await db.select().from(schema.accountingRecords)
+              .where(eq(schema.accountingRecords.examPaymentId, payment.id)).limit(1);
+            accountingRecord = acctRows[0] || null;
+          }
+
+          // 3. 取得考試分數
+          const scores = await getExamScoresWithItemsByCandidate(input.id);
+
+          // 4. 寫入日誌（主操作）
+          const logId = await insertAuditLog({
+            action: 'delete_candidate',
+            entityType: 'exam_candidate',
+            entityId: input.id,
+            examId: cand.examId,
+            description: `刪除考生「${cand.name}」（${cand.currentBelt}→${cand.targetBelt}）`,
+            snapshot: { candidate: cand, payment, accountingRecord, scores },
+            performedBy: ctx.user.name || ctx.user.phone,
+          });
+
+          // 5. 連鎖刪除：分數 → 會計記錄 → 繳費記錄 → 考生
+          const childLogIds: number[] = [];
+
+          if (scores && (scores as any[]).length > 0) {
+            await deleteExamScoresByCandidate(input.id);
+            const sid = await insertAuditLog({
+              action: 'cascade_delete_scores', entityType: 'exam_score', entityId: input.id,
+              examId: cand.examId, description: `連鎖刪除考生「${cand.name}」的 ${(scores as any[]).length} 項評分`,
+              performedBy: ctx.user.name || ctx.user.phone, parentLogId: logId,
+            });
+            childLogIds.push(sid);
+          }
+
+          if (accountingRecord) {
+            await deleteAccountingRecord(accountingRecord.id);
+            const aid = await insertAuditLog({
+              action: 'cascade_delete_accounting', entityType: 'accounting_record', entityId: accountingRecord.id,
+              examId: cand.examId, description: `連鎖刪除會計記錄 #${accountingRecord.id}（${cand.name} 考試費 $${accountingRecord.amount}）`,
+              snapshot: { accountingRecord },
+              performedBy: ctx.user.name || ctx.user.phone, parentLogId: logId,
+            });
+            childLogIds.push(aid);
+          }
+
+          if (payment) {
+            await deleteExamPayment(payment.id);
+            const pid = await insertAuditLog({
+              action: 'cascade_delete_payment', entityType: 'exam_payment', entityId: payment.id,
+              examId: cand.examId, description: `連鎖刪除繳費記錄 #${payment.id}（${cand.name} $${payment.amount}）`,
+              snapshot: { payment },
+              performedBy: ctx.user.name || ctx.user.phone, parentLogId: logId,
+            });
+            childLogIds.push(pid);
+          }
+
           await deleteExamCandidate(input.id);
-          return { success: true };
+
+          // 更新主日誌的 related_actions
+          if (childLogIds.length > 0) {
+            await db.update(schema.auditLog).set({ relatedActions: childLogIds })
+              .where(eq(schema.auditLog.id, logId));
+          }
+
+          return { success: true, deletedPayment: !!payment, deletedAccounting: !!accountingRecord };
         }),
 
       // 從報名活動自動導入考生
@@ -7046,6 +7214,74 @@ export const appRouter = router({
               timeSlot: u.timeSlot,
             })),
           };
+        }),
+
+      // 新增搏擊時段
+      addSparring: protectedProcedure
+        .input(z.object({
+          examId: z.number(),
+          beforeGroupCode: z.string(), // 在此組前面加入搏擊
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+          // 找到目標組的資料
+          const schedules = await getExamSchedulesByExam(input.examId);
+          const targetSch = (schedules as any[]).find((s: any) => s.groupCode === input.beforeGroupCode);
+          if (!targetSch) throw new TRPCError({ code: 'NOT_FOUND', message: '找不到該組' });
+
+          // 檢查是否已有搏擊
+          const sparCode = `SPR-${input.beforeGroupCode}`;
+          const existing = (schedules as any[]).find((s: any) => s.groupCode === sparCode);
+          if (existing) throw new TRPCError({ code: 'BAD_REQUEST', message: '該組前已有搏擊時段' });
+
+          // 插入搏擊時段（時間先設為佔位，之後由 recalculateTimes 重算）
+          await db.insert(schema.examSchedules).values({
+            examId: input.examId,
+            beltLevel: targetSch.beltLevel,
+            groupCode: sparCode,
+            startTime: '00:00',
+            endTime: '00:15',
+            timeSlot: '搏擊（待重算）',
+            venue: targetSch.venue || null,
+            notes: '搏擊',
+          });
+
+          await insertAuditLog({
+            action: 'add_sparring', entityType: 'exam_schedule', examId: input.examId,
+            description: `在 ${input.beforeGroupCode} 組前新增搏擊時段`,
+            performedBy: ctx.user.name || ctx.user.phone,
+          });
+
+          return { success: true, groupCode: sparCode };
+        }),
+
+      // 刪除搏擊時段
+      removeSparring: protectedProcedure
+        .input(z.object({
+          examId: z.number(),
+          sparringGroupCode: z.string(), // SPR-X
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+          const deleted = await db.delete(schema.examSchedules)
+            .where(and(
+              eq(schema.examSchedules.examId, input.examId),
+              eq(schema.examSchedules.groupCode, input.sparringGroupCode),
+            ));
+
+          await insertAuditLog({
+            action: 'remove_sparring', entityType: 'exam_schedule', examId: input.examId,
+            description: `移除搏擊時段 ${input.sparringGroupCode}`,
+            performedBy: ctx.user.name || ctx.user.phone,
+          });
+
+          return { success: true };
         }),
     }),
 
@@ -8037,6 +8273,131 @@ export const appRouter = router({
             message: '已排入推播隊列等待審核',
           };
         }
+      }),
+  }),
+
+  // ==================== 工作日誌 (Audit Log) ====================
+  auditLog: router({
+    list: protectedProcedure
+      .input(z.object({
+        examId: z.number().optional(),
+        limit: z.number().min(1).max(200).default(50),
+        offset: z.number().min(0).default(0),
+      }).optional())
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        return getAuditLogs(input || {});
+      }),
+
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const log = await getAuditLogById(input.id);
+        if (!log) throw new TRPCError({ code: 'NOT_FOUND' });
+        return log;
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        await deleteAuditLog(input.id);
+        return { success: true };
+      }),
+
+    // 撤銷操作：回到上一步
+    undo: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        const log = await getAuditLogById(input.id);
+        if (!log) throw new TRPCError({ code: 'NOT_FOUND', message: '日誌不存在' });
+        if ((log as any).isUndone) throw new TRPCError({ code: 'BAD_REQUEST', message: '此操作已被撤銷' });
+
+        const snapshot = (log as any).snapshot as any;
+        if (!snapshot) throw new TRPCError({ code: 'BAD_REQUEST', message: '此操作無法撤銷（無快照數據）' });
+
+        const action = (log as any).action;
+        const restored: string[] = [];
+
+        // 還原考生
+        if (snapshot.candidate) {
+          const c = snapshot.candidate;
+          try {
+            await db.insert(schema.examCandidates).values({
+              id: c.id, examId: c.examId, studentId: c.studentId, name: c.name,
+              phone: c.phone, dojoName: c.dojoName, gender: c.gender, age: c.age,
+              ageGroup: c.ageGroup, currentBelt: c.currentBelt, targetBelt: c.targetBelt,
+              groupCode: c.groupCode, orderNumber: c.orderNumber, status: c.status,
+              isRetake: c.isRetake, prevExamId: c.prevExamId, prevCandidateId: c.prevCandidateId,
+            });
+            restored.push(`考生「${c.name}」`);
+          } catch (e: any) {
+            if (!e.message?.includes('Duplicate')) throw e;
+          }
+        }
+
+        // 還原繳費記錄
+        if (snapshot.payment) {
+          const p = snapshot.payment;
+          try {
+            await db.insert(schema.examPayments).values({
+              id: p.id, examId: p.examId, candidateId: p.candidateId, studentId: p.studentId,
+              studentName: p.studentName, targetBelt: p.targetBelt, amount: String(p.amount),
+              isRetake: p.isRetake, receiptUrl: p.receiptUrl, receiptKey: p.receiptKey,
+              bank: p.bank, receivingBank: p.receivingBank, paymentDate: p.paymentDate ? new Date(p.paymentDate) : null,
+              status: p.status, confirmedBy: p.confirmedBy, notes: p.notes,
+            });
+            restored.push(`繳費記錄 #${p.id}`);
+          } catch (e: any) {
+            if (!e.message?.includes('Duplicate')) throw e;
+          }
+        }
+
+        // 還原會計記錄
+        if (snapshot.accountingRecord) {
+          const a = snapshot.accountingRecord;
+          try {
+            await db.insert(schema.accountingRecords).values({
+              id: a.id, transactionDate: a.transactionDate ? new Date(a.transactionDate) : new Date(),
+              bank: a.bank, receivingBank: a.receivingBank, amount: String(a.amount),
+              type: a.type, category: a.category, description: a.description,
+              receiptUrl: a.receiptUrl, receiptKey: a.receiptKey,
+              paymentRecordId: a.paymentRecordId, examPaymentId: a.examPaymentId,
+              studentName: a.studentName, coachName: a.coachName, dojoName: a.dojoName,
+              source: a.source || 'manual',
+            });
+            restored.push(`會計記錄 #${a.id}`);
+          } catch (e: any) {
+            if (!e.message?.includes('Duplicate')) throw e;
+          }
+        }
+
+        // 記錄撤銷日誌
+        const undoLogId = await insertAuditLog({
+          action: 'undo',
+          entityType: (log as any).entityType,
+          entityId: (log as any).entityId,
+          examId: (log as any).examId,
+          description: `撤銷操作 #${input.id}：還原 ${restored.join('、') || '數據'}`,
+          performedBy: ctx.user.name || ctx.user.phone,
+          parentLogId: input.id,
+        });
+
+        // 標記原操作為已撤銷（包括子操作）
+        await markAuditLogUndone(input.id, undoLogId);
+        const relatedIds = (log as any).relatedActions as number[] | null;
+        if (relatedIds) {
+          for (const rid of relatedIds) {
+            await markAuditLogUndone(rid, undoLogId);
+          }
+        }
+
+        return { success: true, restored, undoLogId };
       }),
   }),
 });

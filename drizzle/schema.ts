@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json, boolean, date } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json, boolean, date, tinyint } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -725,3 +725,23 @@ export const bankStatementTransactions = mysqlTable("bank_statement_transactions
 
 export type BankStatementTransaction = typeof bankStatementTransactions.$inferSelect;
 export type InsertBankStatementTransaction = typeof bankStatementTransactions.$inferInsert;
+
+// ==================== 工作日誌 ====================
+export const auditLog = mysqlTable("audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  action: varchar("action", { length: 100 }).notNull(),
+  entityType: varchar("entity_type", { length: 50 }).notNull(),
+  entityId: int("entity_id"),
+  examId: int("exam_id"),
+  description: text("description").notNull(),
+  snapshot: json("snapshot"),
+  relatedActions: json("related_actions"),
+  performedBy: varchar("performed_by", { length: 100 }),
+  isUndone: tinyint("is_undone").notNull().default(0),
+  undoLogId: int("undo_log_id"),
+  parentLogId: int("parent_log_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type AuditLog = typeof auditLog.$inferSelect;
+export type InsertAuditLog = typeof auditLog.$inferInsert;

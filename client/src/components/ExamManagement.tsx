@@ -76,7 +76,7 @@ const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 // ==================== NAV ITEMS ====================
-type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results' | 'statistics' | 'supplies' | 'payments';
+type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results' | 'statistics' | 'supplies' | 'payments' | 'auditlog';
 const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'overview', label: '考試概覽', icon: LayoutDashboard },
   { key: 'candidates', label: '考生管理', icon: Users },
@@ -88,6 +88,7 @@ const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'statistics', label: '統計分析', icon: BarChart3 },
   { key: 'supplies', label: '物資清單', icon: Package },
   { key: 'payments', label: '考試繳費', icon: CreditCard },
+  { key: 'auditlog', label: '工作日誌', icon: FileText },
 ];
 
 // ==================== 主組件 ====================
@@ -194,6 +195,7 @@ export default function ExamManagement() {
         {navPage === 'statistics' && <StatisticsPage examId={selectedExamId} />}
         {navPage === 'supplies' && <SuppliesPage examId={selectedExamId} />}
         {navPage === 'payments' && <PaymentsPage examId={selectedExamId} />}
+        {navPage === 'auditlog' && <AuditLogPage examId={selectedExamId} />}
       </div>
     </div>
   );
@@ -1558,6 +1560,14 @@ function TimetablePage({ examId }: { examId: number }) {
 
   const createSchedule = trpc.exam.schedules.create.useMutation({ onSuccess: () => { refetch(); toast.success('已新增'); } });
   const deleteSchedule = trpc.exam.schedules.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
+  const addSparring = trpc.exam.schedules.addSparring.useMutation({
+    onSuccess: () => { refetch(); toast.success('已新增搏擊時段'); },
+    onError: (err) => toast.error(err.message),
+  });
+  const removeSparring = trpc.exam.schedules.removeSparring.useMutation({
+    onSuccess: () => { refetch(); toast.success('已移除搏擊時段'); },
+    onError: (err) => toast.error(err.message),
+  });
   const autoGroup = trpc.exam.candidates.autoGroup.useMutation({
     onSuccess: (data: any) => { refetch(); refetchCandidates(); toast.success(`已自動分為 ${data.groupCount} 組（${data.candidateCount} 人）`); setShowAutoGroup(false); },
     onError: (err) => toast.error(err.message),
@@ -2238,6 +2248,15 @@ function TimetablePage({ examId }: { examId: number }) {
                           <span>🥊</span>
                           <span className="text-red-700">搏擊 — 15 分鐘</span>
                           <span className="text-gray-500 text-xs">({row.startTime} ~ {row.endTime})</span>
+                          <button
+                            onClick={() => {
+                              if (confirm('確定移除此搏擊時段？')) {
+                                removeSparring.mutate({ examId, sparringGroupCode: row.groupCode });
+                              }
+                            }}
+                            className="ml-2 px-1.5 py-0.5 rounded text-xs font-bold text-red-400 hover:text-red-700 hover:bg-red-100 transition-colors"
+                            title="移除搏擊時段"
+                          >✕ 移除</button>
                         </div>
                       </td>
                     </tr>
@@ -2263,7 +2282,16 @@ function TimetablePage({ examId }: { examId: number }) {
                     ) : getBeltBadge(row.beltLevel)}
                   </td>
                   <td className="px-2 py-2 border-r text-center font-medium">{row.candidateCount}</td>
-                  <td className="px-2 py-2 border-r text-center text-gray-600">-</td>
+                  <td className="px-2 py-2 border-r text-center text-gray-600">
+                    {(() => {
+                      const b = row.beltLevel || '';
+                      if (['white', 'yellow', 'yellow_green'].includes(b)) return '12 min';
+                      if (['green', 'green_blue'].includes(b)) return '15 min';
+                      if (['blue', 'blue_red', 'red'].includes(b)) return '30 min';
+                      if (['red_black', 'black', 'black_2dan', 'black_3dan'].includes(b)) return '45 min';
+                      return '-';
+                    })()}
+                  </td>
                   <td className="px-2 py-2 border-r text-center">{row.startTime || '-'}</td>
                   <td className="px-2 py-2 border-r text-center">{row.endTime || '-'}</td>
                   <td className="px-2 py-2 border-r text-center">
@@ -2337,9 +2365,20 @@ function TimetablePage({ examId }: { examId: number }) {
                     );
                   })}
                   <td className="px-2 py-2 text-center">
-                    <button onClick={() => deleteSchedule.mutate({ id: row.id })} className="text-red-400 hover:text-red-600">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      {/* 可加搏擊：綠帶以上且前面沒搏擊 */}
+                      {['green', 'green_blue', 'blue', 'blue_red', 'red', 'red_black', 'black', 'black_2dan', 'black_3dan'].includes(row.beltLevel || '') &&
+                        !(timetableRowsWithBreaks[rowIdx - 1] && timetableRowsWithBreaks[rowIdx - 1]._type === 'sparring') && (
+                        <button
+                          onClick={() => addSparring.mutate({ examId, beforeGroupCode: groupCode })}
+                          className="text-red-400 hover:text-red-600 text-[10px] font-bold"
+                          title={`在 ${groupCode} 組前加入搏擊`}
+                        >🥊+</button>
+                      )}
+                      <button onClick={() => deleteSchedule.mutate({ id: row.id })} className="text-red-400 hover:text-red-600">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 {/* Drop zone: 點擊放置小休/午餐到此組之後 */}
@@ -5146,6 +5185,132 @@ function PaymentsPage({ examId }: { examId: number }) {
           收款帳戶：HSBC 484-287123-838 ｜ BOC 01269220114816 ｜ FPS ID 164577132 → BOC
         </div>
       </div>
+    </div>
+  );
+}
+
+// ==================== 工作日誌頁面 ====================
+function AuditLogPage({ examId }: { examId: number }) {
+  const { data: logs, refetch } = trpc.auditLog.list.useQuery({ examId, limit: 100 });
+  const { data: allLogs, refetch: refetchAll } = trpc.auditLog.list.useQuery({ limit: 100 });
+  const [viewMode, setViewMode] = useState<'exam' | 'all'>('exam');
+  const undoMutation = trpc.auditLog.undo.useMutation({
+    onSuccess: (data: any) => {
+      refetch(); refetchAll();
+      toast.success(`已撤銷：還原 ${data.restored?.join('、') || '數據'}`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const deleteMutation = trpc.auditLog.delete.useMutation({
+    onSuccess: () => { refetch(); refetchAll(); toast.success('日誌已刪除'); },
+  });
+
+  const displayLogs = viewMode === 'exam' ? (logs || []) : (allLogs || []);
+
+  const actionLabels: Record<string, { label: string; color: string }> = {
+    delete_candidate: { label: '刪除考生', color: 'bg-red-100 text-red-700' },
+    cascade_delete_payment: { label: '連鎖刪除繳費', color: 'bg-red-50 text-red-600' },
+    cascade_delete_accounting: { label: '連鎖刪除帳目', color: 'bg-red-50 text-red-600' },
+    cascade_delete_scores: { label: '連鎖刪除評分', color: 'bg-red-50 text-red-600' },
+    cascade_delete_candidate: { label: '連鎖刪除考生', color: 'bg-red-50 text-red-600' },
+    delete_accounting: { label: '刪除帳目', color: 'bg-orange-100 text-orange-700' },
+    delete_accounting_with_cascade: { label: '刪除帳目+連鎖', color: 'bg-orange-100 text-orange-700' },
+    add_sparring: { label: '新增搏擊', color: 'bg-blue-100 text-blue-700' },
+    remove_sparring: { label: '移除搏擊', color: 'bg-blue-100 text-blue-700' },
+    undo: { label: '撤銷操作', color: 'bg-green-100 text-green-700' },
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold flex items-center gap-2">
+          <FileText className="w-5 h-5" /> 工作日誌
+        </h2>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <button onClick={() => setViewMode('exam')}
+            className={`px-3 py-1 rounded text-sm font-medium ${viewMode === 'exam' ? 'bg-white shadow' : 'text-gray-500'}`}>
+            此考試
+          </button>
+          <button onClick={() => setViewMode('all')}
+            className={`px-3 py-1 rounded text-sm font-medium ${viewMode === 'all' ? 'bg-white shadow' : 'text-gray-500'}`}>
+            全部
+          </button>
+        </div>
+      </div>
+
+      <p className="text-xs text-gray-500">
+        系統會自動記錄所有重要操作。刪除考生時會連鎖刪除相關繳費和帳目，反之亦然。可「撤銷」操作以還原數據。
+      </p>
+
+      {(displayLogs as any[]).length === 0 ? (
+        <div className="bg-white rounded-lg border p-8 text-center text-gray-400">
+          <FileText className="w-12 h-12 mx-auto mb-2 opacity-30" />
+          <p>暫無日誌記錄</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {(displayLogs as any[]).map((log: any) => {
+            const info = actionLabels[log.action] || { label: log.action, color: 'bg-gray-100 text-gray-700' };
+            const isChild = !!log.parentLogId;
+            const isUndone = !!log.isUndone;
+
+            return (
+              <div
+                key={log.id}
+                className={`bg-white rounded-lg border p-3 ${isChild ? 'ml-6 border-l-4 border-l-gray-200' : ''} ${isUndone ? 'opacity-50' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${info.color}`}>
+                        {info.label}
+                      </span>
+                      <span className="text-[10px] text-gray-400">#{log.id}</span>
+                      {isUndone && (
+                        <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600">
+                          已撤銷
+                        </span>
+                      )}
+                      <span className="text-[10px] text-gray-400">
+                        {new Date(log.createdAt).toLocaleString('zh-TW')}
+                      </span>
+                      {log.performedBy && (
+                        <span className="text-[10px] text-gray-400">by {log.performedBy}</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-700 mt-1">{log.description}</p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!isUndone && !isChild && log.snapshot && (
+                      <button
+                        onClick={() => {
+                          if (confirm(`確定撤銷此操作？\n\n${log.description}\n\n將還原所有被刪除的數據。`)) {
+                            undoMutation.mutate({ id: log.id });
+                          }
+                        }}
+                        disabled={undoMutation.isPending}
+                        className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                      >
+                        ↩ 撤銷
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (confirm('確定刪除此日誌記錄？')) {
+                          deleteMutation.mutate({ id: log.id });
+                        }
+                      }}
+                      className="px-1.5 py-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

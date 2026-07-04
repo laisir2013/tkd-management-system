@@ -5200,3 +5200,63 @@ export async function getExamRegistrationsByPhone(phone: string) {
   }
   return results;
 }
+
+// ==================== 工作日誌 (Audit Log) ====================
+export async function insertAuditLog(data: {
+  action: string;
+  entityType: string;
+  entityId?: number | null;
+  examId?: number | null;
+  description: string;
+  snapshot?: any;
+  relatedActions?: number[];
+  performedBy?: string | null;
+  parentLogId?: number | null;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.insert(schema.auditLog).values({
+    action: data.action,
+    entityType: data.entityType,
+    entityId: data.entityId ?? null,
+    examId: data.examId ?? null,
+    description: data.description,
+    snapshot: data.snapshot ?? null,
+    relatedActions: data.relatedActions ?? null,
+    performedBy: data.performedBy ?? null,
+    parentLogId: data.parentLogId ?? null,
+  });
+  return (result as any)[0]?.insertId ?? 0;
+}
+
+export async function getAuditLogs(opts?: { examId?: number; limit?: number; offset?: number }) {
+  const db = await getDb();
+  if (!db) return [];
+  let query = db.select().from(schema.auditLog)
+    .orderBy(sql`${schema.auditLog.createdAt} DESC`);
+  if (opts?.examId) {
+    query = query.where(eq(schema.auditLog.examId, opts.examId)) as any;
+  }
+  if (opts?.limit) query = query.limit(opts.limit) as any;
+  if (opts?.offset) query = query.offset(opts.offset) as any;
+  return query;
+}
+
+export async function getAuditLogById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(schema.auditLog).where(eq(schema.auditLog.id, id)).limit(1);
+  return rows[0] || null;
+}
+
+export async function markAuditLogUndone(id: number, undoLogId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(schema.auditLog).set({ isUndone: 1, undoLogId }).where(eq(schema.auditLog.id, id));
+}
+
+export async function deleteAuditLog(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(schema.auditLog).where(eq(schema.auditLog.id, id));
+}
