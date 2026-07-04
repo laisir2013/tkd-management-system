@@ -637,7 +637,10 @@ function CandidatesPage({ examId }: { examId: number }) {
   const { data: candidates, refetch } = trpc.exam.candidates.list.useQuery({ examId });
   const { data: payments } = trpc.exam.payments.listByExam.useQuery({ examId });
   const createCandidate = trpc.exam.candidates.create.useMutation({ onSuccess: () => { refetch(); toast.success('已新增考生'); } });
-  const deleteCandidate = trpc.exam.candidates.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
+  const deleteCandidate = trpc.exam.candidates.delete.useMutation({ 
+    onSuccess: (data: any) => { refetch(); toast.success(`已刪除${data.deletedPayment ? '（含繳費和帳目）' : ''}`); },
+    onError: (err) => toast.error(`刪除失敗：${err.message}`),
+  });
   const importFromEvent = trpc.exam.candidates.importFromEvent.useMutation({ 
     onSuccess: (data: any) => { refetch(); toast.success(`已匯入 ${data.imported} 位考生`); } 
   });

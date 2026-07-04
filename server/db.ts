@@ -1,7 +1,7 @@
 import { eq, and, inArray, gte, lte, sql, or, desc, asc, isNull, between } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig, bankStatements, InsertBankStatement, BankStatement, bankStatementTransactions, InsertBankStatementTransaction, BankStatementTransaction, studentLeaveMonths, examPayments, InsertExamPayment, ExamPayment } from "../drizzle/schema";
+import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig, bankStatements, InsertBankStatement, BankStatement, bankStatementTransactions, InsertBankStatementTransaction, BankStatementTransaction, studentLeaveMonths, examPayments, InsertExamPayment, ExamPayment, auditLog } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 // 安全解析 customMonths JSON：防止 double-parse 和無效格式
@@ -5215,7 +5215,7 @@ export async function insertAuditLog(data: {
 }): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
-  const result = await db.insert(schema.auditLog).values({
+  const result = await db.insert(auditLog).values({
     action: data.action,
     entityType: data.entityType,
     entityId: data.entityId ?? null,
@@ -5232,10 +5232,10 @@ export async function insertAuditLog(data: {
 export async function getAuditLogs(opts?: { examId?: number; limit?: number; offset?: number }) {
   const db = await getDb();
   if (!db) return [];
-  let query = db.select().from(schema.auditLog)
-    .orderBy(sql`${schema.auditLog.createdAt} DESC`);
+  let query = db.select().from(auditLog)
+    .orderBy(sql`${auditLog.createdAt} DESC`);
   if (opts?.examId) {
-    query = query.where(eq(schema.auditLog.examId, opts.examId)) as any;
+    query = query.where(eq(auditLog.examId, opts.examId)) as any;
   }
   if (opts?.limit) query = query.limit(opts.limit) as any;
   if (opts?.offset) query = query.offset(opts.offset) as any;
@@ -5245,18 +5245,18 @@ export async function getAuditLogs(opts?: { examId?: number; limit?: number; off
 export async function getAuditLogById(id: number) {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(schema.auditLog).where(eq(schema.auditLog.id, id)).limit(1);
+  const rows = await db.select().from(auditLog).where(eq(auditLog.id, id)).limit(1);
   return rows[0] || null;
 }
 
 export async function markAuditLogUndone(id: number, undoLogId: number) {
   const db = await getDb();
   if (!db) return;
-  await db.update(schema.auditLog).set({ isUndone: 1, undoLogId }).where(eq(schema.auditLog.id, id));
+  await db.update(auditLog).set({ isUndone: 1, undoLogId }).where(eq(auditLog.id, id));
 }
 
 export async function deleteAuditLog(id: number) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(schema.auditLog).where(eq(schema.auditLog.id, id));
+  await db.delete(auditLog).where(eq(auditLog.id, id));
 }
