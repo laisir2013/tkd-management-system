@@ -1056,7 +1056,19 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
   const { data: retakeData } = trpc.exam.candidates.retakeInfo.useQuery({ examId });
+  const { data: schedules, refetch: refetchSchedules } = trpc.exam.schedules.list.useQuery({ examId });
   const [activeBelt, setActiveBelt] = useState<string>('');
+
+  // 真實時間自動記錄
+  const recordActualTime = trpc.exam.schedules.recordActualTime.useMutation({
+    onSuccess: () => refetchSchedules(),
+  });
+
+  // 找到當前組對應的 schedule 記錄（排除搏擊 SPR-）
+  const groupSchedule = useMemo(() => {
+    if (!schedules) return null;
+    return (schedules as any[]).find(s => s.groupCode === groupCode && !String(s.groupCode || '').startsWith('SPR-'));
+  }, [schedules, groupCode]);
 
   const groupCandidates = useMemo(() => {
     if (!candidates) return [];
@@ -1086,15 +1098,61 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
   const { data: allScores, refetch: refetchScores } = trpc.exam.scores.listByExam.useQuery({ examId });
 
   const bulkUpsert = trpc.exam.scores.bulkUpsert.useMutation({
-    onSuccess: () => { refetchScores(); refetchCandidates(); toast.success('評分已保存'); },
+    onSuccess: (data: any) => {
+      refetchScores(); refetchCandidates();
+      const r = data?.result;
+      if (r && !r.incomplete) {
+        if (r.passed && r.promoted) {
+          toast.success('✅ 合格！已自動升帶', { duration: 4000 });
+        } else if (r.passed) {
+          toast.success('✅ 合格');
+        } else if (!r.passed && r.reverted) {
+          toast.error('❌ 不合格 — 已自動退回原帶級', { duration: 4000 });
+        } else if (!r.passed) {
+          toast.error('❌ 不合格');
+        }
+      } else {
+        toast.success('評分已保存');
+      }
+      // 自動記錄真實時間
+      autoRecordTime();
+    },
   });
 
   const markAbsent = trpc.exam.attendance.markAbsent.useMutation({
     onSuccess: (_data, variables) => {
       refetchCandidates();
       toast.success(variables.absent ? '已標記缺席' : '已取消缺席');
+      // 標記缺席後也檢查是否全部完成
+      autoRecordTime();
     },
   });
+
+  // 自動記錄真實時間：第一次打分=開始時間，全部完成=結束時間
+  const autoRecordTime = useCallback(() => {
+    if (!groupSchedule || !candidates) return;
+    const gc = groupCandidates;
+    if (gc.length === 0) return;
+
+    const now = new Date().toISOString();
+
+    // 如果還沒有 actualStartTime，且有人開始被評分，記錄開始時間
+    if (!groupSchedule.actualStartTime) {
+      const hasAnyScored = gc.some(c => ['passed', 'failed', 'examining'].includes(c.status));
+      if (hasAnyScored) {
+        recordActualTime.mutate({ scheduleId: groupSchedule.id, actualStartTime: now });
+      }
+    }
+
+    // 如果還沒有 actualEndTime，且所有人都已完成（passed/failed/absent），記錄結束時間
+    if (!groupSchedule.actualEndTime && groupSchedule.actualStartTime) {
+      const allDone = gc.every(c => ['passed', 'failed', 'absent'].includes(c.status));
+      if (allDone) {
+        recordActualTime.mutate({ scheduleId: groupSchedule.id, actualEndTime: now });
+        toast.info(`📊 ${groupCode.toUpperCase()} 組評分完成，已記錄實際用時`, { duration: 3000 });
+      }
+    }
+  }, [groupSchedule, candidates, groupCandidates, groupCode, recordActualTime]);
 
   const clearScore = trpc.exam.scores.clearScore.useMutation({
     onSuccess: () => { refetchScores(); refetchCandidates(); toast.success('已取消該項評分'); },
@@ -2224,10 +2282,11 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
               <tr>
                 <th className="px-2 py-2 text-left font-medium border-r">級別</th>
                 <th className="px-2 py-2 text-center font-medium border-r w-12">人數</th>
-                <th className="px-2 py-2 text-center font-medium border-r">所需時間</th>
-                <th className="px-2 py-2 text-center font-medium border-r">開始時間</th>
-                <th className="px-2 py-2 text-center font-medium border-r">結束時間</th>
+                <th className="px-2 py-2 text-center font-medium border-r">預計時間</th>
+                <th className="px-2 py-2 text-center font-medium border-r">預計開始</th>
+                <th className="px-2 py-2 text-center font-medium border-r">預計結束</th>
                 <th className="px-2 py-2 text-center font-medium border-r">實際時間</th>
+                <th className="px-2 py-2 text-center font-medium border-r">實際用時</th>
                 <th className="px-2 py-2 text-center font-medium border-r w-10">組別</th>
                 {Array.from({ length: Math.min(maxPositions, 9) }, (_, i) => (
                   <th key={i} className="px-2 py-2 text-center font-medium border-r min-w-[60px]">位置 {i + 1}</th>
@@ -2237,7 +2296,7 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
             </thead>
             <tbody className="divide-y">
               {timetableRowsWithBreaks.map((row: any, rowIdx: number) => {
-                const colSpanFull = 7 + Math.min(maxPositions, 9) + 1;
+                const colSpanFull = 8 + Math.min(maxPositions, 9) + 1;
                 // 小休/午餐行
                 if (row._type === 'break') {
                   return (
@@ -2321,11 +2380,36 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
                   <td className="px-2 py-2 border-r text-center">{row.startTime || '-'}</td>
                   <td className="px-2 py-2 border-r text-center">{row.endTime || '-'}</td>
                   <td className="px-2 py-2 border-r text-center">
-                    {row.timeSlot ? (
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${getTimeSlotColor(row.beltLevel)}`}>
-                        {row.timeSlot}
+                    {row.actualStartTime || row.actualEndTime ? (
+                      <div className="text-[10px] leading-tight">
+                        <div className="text-green-700">{row.actualStartTime ? new Date(row.actualStartTime).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }) : '...'}</div>
+                        <div className="text-red-600">{row.actualEndTime ? new Date(row.actualEndTime).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }) : '...'}</div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 border-r text-center">
+                    {row.actualDurationMinutes != null ? (
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        (() => {
+                          const b = row.beltLevel || '';
+                          let expected = 30;
+                          if (['white', 'yellow', 'yellow_green'].includes(b)) expected = 12;
+                          else if (['green', 'green_blue'].includes(b)) expected = 15;
+                          else if (['blue', 'blue_red', 'red'].includes(b)) expected = 30;
+                          else if (['red_black', 'black', 'black_2dan', 'black_3dan'].includes(b)) expected = 45;
+                          const diff = row.actualDurationMinutes - expected;
+                          if (diff <= 0) return 'bg-green-100 text-green-800';
+                          if (diff <= 5) return 'bg-amber-100 text-amber-800';
+                          return 'bg-red-100 text-red-800';
+                        })()
+                      }`}>
+                        {row.actualDurationMinutes} min
                       </span>
-                    ) : '-'}
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
                   </td>
                   <td className="px-2 py-2 border-r text-center font-bold">{row.groupCode?.toUpperCase() || '-'}</td>
                   {Array.from({ length: Math.min(maxPositions, 9) }, (_, i) => {
@@ -2439,6 +2523,39 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
       )}
 
       {/* Groups view */}
+      {/* 真實用時統計面板 */}
+      {sortedSchedules.some((s: any) => s.actualDurationMinutes != null) && (
+        <div className="bg-white rounded-lg border p-4">
+          <h3 className="font-bold text-sm mb-3 flex items-center gap-2">
+            <span>📊</span> 真實用時 vs 預計用時
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {sortedSchedules.filter((s: any) => s.actualDurationMinutes != null && !String(s.groupCode || '').startsWith('SPR-')).map((s: any) => {
+              const b = s.beltLevel || '';
+              let expected = 30;
+              if (['white', 'yellow', 'yellow_green'].includes(b)) expected = 12;
+              else if (['green', 'green_blue'].includes(b)) expected = 15;
+              else if (['blue', 'blue_red', 'red'].includes(b)) expected = 30;
+              else if (['red_black', 'black', 'black_2dan', 'black_3dan'].includes(b)) expected = 45;
+              const diff = s.actualDurationMinutes - expected;
+              const diffColor = diff <= 0 ? 'text-green-600' : diff <= 5 ? 'text-amber-600' : 'text-red-600';
+              const diffSign = diff > 0 ? '+' : '';
+              return (
+                <div key={s.id} className="border rounded-lg p-2 text-center text-xs">
+                  <div className="font-bold">{String(s.groupCode || '').toUpperCase()} 組</div>
+                  <div className="text-gray-500">{getBeltName(b)}</div>
+                  <div className="mt-1">
+                    <span className="font-bold text-sm">{s.actualDurationMinutes}</span>
+                    <span className="text-gray-400"> / {expected} min</span>
+                  </div>
+                  <div className={`font-bold ${diffColor}`}>{diffSign}{diff} min</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {viewMode === 'groups' && (
         <div className="space-y-3">
           {sortedSchedules.map((sch: any) => {

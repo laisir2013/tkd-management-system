@@ -7121,6 +7121,68 @@ export const appRouter = router({
           return { success: true };
         }),
 
+      // 記錄組別真實開始/結束時間
+      recordActualTime: protectedProcedure
+        .input(z.object({
+          scheduleId: z.number(),
+          actualStartTime: z.string().nullable().optional(), // ISO datetime string
+          actualEndTime: z.string().nullable().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+          
+          const updateData: any = {};
+          if (input.actualStartTime !== undefined) {
+            updateData.actualStartTime = input.actualStartTime ? new Date(input.actualStartTime) : null;
+          }
+          if (input.actualEndTime !== undefined) {
+            updateData.actualEndTime = input.actualEndTime ? new Date(input.actualEndTime) : null;
+          }
+          
+          // 自動計算實際用時
+          const schedule = await db.select().from(schema.examSchedules).where(eq(schema.examSchedules.id, input.scheduleId)).limit(1);
+          if (!schedule[0]) throw new TRPCError({ code: 'NOT_FOUND' });
+          
+          const startTime = input.actualStartTime ? new Date(input.actualStartTime) : schedule[0].actualStartTime;
+          const endTime = input.actualEndTime ? new Date(input.actualEndTime) : schedule[0].actualEndTime;
+          
+          if (startTime && endTime) {
+            const diffMs = new Date(endTime).getTime() - new Date(startTime).getTime();
+            updateData.actualDurationMinutes = Math.round(diffMs / 60000);
+          }
+          
+          await db.update(schema.examSchedules).set(updateData).where(eq(schema.examSchedules.id, input.scheduleId));
+          return { success: true };
+        }),
+
+      // 取得各色帶實際用時統計（跨考試歷史）
+      beltTimeStats: publicProcedure
+        .input(z.object({ examId: z.number().optional() }))
+        .query(async ({ input }) => {
+          const db = await getDb();
+          if (!db) return [];
+          
+          const conditions = [sql`${schema.examSchedules.actualDurationMinutes} IS NOT NULL`];
+          if (input.examId) {
+            conditions.push(eq(schema.examSchedules.examId, input.examId));
+          }
+          // 排除搏擊時段
+          conditions.push(sql`(${schema.examSchedules.groupCode} IS NULL OR ${schema.examSchedules.groupCode} NOT LIKE 'SPR-%')`);
+          
+          const results = await db.select({
+            beltLevel: schema.examSchedules.beltLevel,
+            avgMinutes: sql<number>`ROUND(AVG(${schema.examSchedules.actualDurationMinutes}), 1)`,
+            minMinutes: sql<number>`MIN(${schema.examSchedules.actualDurationMinutes})`,
+            maxMinutes: sql<number>`MAX(${schema.examSchedules.actualDurationMinutes})`,
+            count: sql<number>`COUNT(*)`,
+          }).from(schema.examSchedules)
+            .where(and(...conditions))
+            .groupBy(schema.examSchedules.beltLevel);
+          
+          return results;
+        }),
+
       // 重新計算時間表：支援自定義開始時間、依帶級自動設定時長、小休/午餐插入
       recalculateTimes: protectedProcedure
         .input(z.object({

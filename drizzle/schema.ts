@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json, boolean, date, tinyint } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json, boolean, date, tinyint, datetime } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -540,6 +540,9 @@ export const examSchedules = mysqlTable("exam_schedules", {
   timeSlot: varchar("time_slot", { length: 50 }),
   venue: varchar("venue", { length: 255 }),
   notes: text("notes"),
+  actualStartTime: datetime("actual_start_time"),
+  actualEndTime: datetime("actual_end_time"),
+  actualDurationMinutes: int("actual_duration_minutes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
