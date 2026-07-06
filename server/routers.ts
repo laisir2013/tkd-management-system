@@ -4477,6 +4477,23 @@ export const appRouter = router({
           });
         }
 
+        // 刪除關聯的 journal_entry（在 accounting_record 之前）
+        if (record.journalEntryId) {
+          const jeLines = await db.select().from(schema.journalEntryLines)
+            .where(eq(schema.journalEntryLines.journalEntryId, record.journalEntryId));
+          const jeRow = await db.select().from(schema.journalEntries)
+            .where(eq(schema.journalEntries.id, record.journalEntryId)).limit(1);
+          await db.delete(schema.journalEntries)
+            .where(eq(schema.journalEntries.id, record.journalEntryId));
+          await insertAuditLog({
+            action: 'cascade_delete_journal', entityType: 'journal_entry',
+            entityId: record.journalEntryId,
+            description: `連鎖刪除日記帳 #${jeRow[0]?.entryNumber || record.journalEntryId}（${record.studentName || ''}）`,
+            snapshot: { journalEntry: jeRow[0] || null, journalEntryLines: jeLines },
+            performedBy: ctx.user.name || ctx.user.phone,
+          });
+        }
+
         // 刪除會計記錄本身
         await deleteAccountingRecord(input.id);
         return { success: true, deletedPayment, deletedCandidate };
@@ -6343,6 +6360,25 @@ export const appRouter = router({
               performedBy: ctx.user.name || ctx.user.phone, parentLogId: logId,
             });
             childLogIds.push(sid);
+          }
+
+          // 刪除 journal_entry（在 accounting_record 之前，因為 JE 引用 AR）
+          if (accountingRecord && accountingRecord.journalEntryId) {
+            const jeId = accountingRecord.journalEntryId;
+            // 取得 journal_entry_lines 快照
+            const jeLines = await db.select().from(schema.journalEntryLines)
+              .where(eq(schema.journalEntryLines.journalEntryId, jeId));
+            const jeRow = await db.select().from(schema.journalEntries)
+              .where(eq(schema.journalEntries.id, jeId)).limit(1);
+            // 強制刪除（不檢查 posted/locked，因為是連鎖操作）
+            await db.delete(schema.journalEntries).where(eq(schema.journalEntries.id, jeId));
+            const jid = await insertAuditLog({
+              action: 'cascade_delete_journal', entityType: 'journal_entry', entityId: jeId,
+              examId: cand.examId, description: `連鎖刪除日記帳 #${jeRow[0]?.entryNumber || jeId}（${cand.name}）`,
+              snapshot: { journalEntry: jeRow[0] || null, journalEntryLines: jeLines },
+              performedBy: ctx.user.name || ctx.user.phone, parentLogId: logId,
+            });
+            childLogIds.push(jid);
           }
 
           if (accountingRecord) {
