@@ -32,7 +32,7 @@ function getNavItemsForRole(role: string) {
   if (role === 'staff') {
     return ALL_NAV_ITEMS.filter(item => item.key !== 'scoring');
   }
-  // examiner 和 admin 看到全部
+  // examiner, admin, coach 看到全部（含評分表）
   return ALL_NAV_ITEMS;
 }
 
@@ -65,8 +65,8 @@ export default function StaffDashboard() {
     );
   }
 
-  // 允許 staff, examiner, admin 使用
-  if (user.role !== 'staff' && user.role !== 'examiner' && user.role !== 'admin') {
+  // 允許 staff, examiner, admin, coach 使用
+  if (user.role !== 'staff' && user.role !== 'examiner' && user.role !== 'admin' && user.role !== 'coach') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center space-y-4">
@@ -103,7 +103,7 @@ export default function StaffDashboard() {
   const currentNavItem = navItems.find(item => item.key === navPage);
 
   // 角色標籤
-  const roleLabel = user.role === 'examiner' ? '考官' : user.role === 'admin' ? '管理員' : '工作人員';
+  const roleLabel = user.role === 'coach' ? '教練/考官' : user.role === 'examiner' ? '考官' : user.role === 'admin' ? '管理員' : '工作人員';
 
   return (
     <>
@@ -194,7 +194,7 @@ export default function StaffDashboard() {
             <div className="text-xs text-gray-500 mb-2 px-1">
               {user.name || '工作人員'}
               <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                user.role === 'examiner' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                user.role === 'coach' ? 'bg-blue-100 text-blue-700' : user.role === 'examiner' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
               }`}>{roleLabel}</span>
             </div>
             <button onClick={handleLogout}
