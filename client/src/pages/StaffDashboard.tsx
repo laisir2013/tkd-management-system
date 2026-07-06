@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
-import { ClipboardCheck, ListChecks, Eye, Calendar, ChevronRight, Award, Menu, ArrowLeft, X, LogOut, Trophy } from "lucide-react";
+import { ClipboardCheck, ListChecks, Eye, Calendar, ChevronRight, Award, Menu, ArrowLeft, X, LogOut, Trophy, ShieldCheck } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { CheckInPage, ScoringPage, ScoreViewPage, TimetablePage, ResultsPage } from "@/components/ExamManagement";
 
@@ -14,15 +14,27 @@ const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   completed: { label: '已完成', color: 'bg-purple-100 text-purple-700' },
 };
 
-// 工作人員可用的頁面（5個功能）
+// 所有可用的頁面
 type StaffNavPage = 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results';
-const STAFF_NAV_ITEMS: { key: StaffNavPage; label: string; icon: any }[] = [
+const ALL_NAV_ITEMS: { key: StaffNavPage; label: string; icon: any }[] = [
   { key: 'checkin', label: '點名', icon: ListChecks },
   { key: 'scoring', label: '評分', icon: ClipboardCheck },
   { key: 'scoreview', label: '成績記錄', icon: Eye },
   { key: 'timetable', label: '時間表', icon: Calendar },
   { key: 'results', label: '合格名單', icon: Trophy },
 ];
+
+// 根據角色過濾可見頁面
+// staff(工作人員): 點名 + 成績記錄(唯讀) + 時間表(唯讀) + 合格名單 — 不能看評分表
+// examiner(考官): 全部 5 個功能（含評分表），時間表仍為唯讀
+// admin: 全部
+function getNavItemsForRole(role: string) {
+  if (role === 'staff') {
+    return ALL_NAV_ITEMS.filter(item => item.key !== 'scoring');
+  }
+  // examiner 和 admin 看到全部
+  return ALL_NAV_ITEMS;
+}
 
 export default function StaffDashboard() {
   const { user, loading, logout } = useAuth();
@@ -53,8 +65,8 @@ export default function StaffDashboard() {
     );
   }
 
-  // 允許 staff 和 admin 使用
-  if (user.role !== 'staff' && user.role !== 'admin') {
+  // 允許 staff, examiner, admin 使用
+  if (user.role !== 'staff' && user.role !== 'examiner' && user.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center space-y-4">
@@ -87,7 +99,11 @@ export default function StaffDashboard() {
     );
   }
 
-  const currentNavItem = STAFF_NAV_ITEMS.find(item => item.key === navPage);
+  const navItems = getNavItemsForRole(user.role);
+  const currentNavItem = navItems.find(item => item.key === navPage);
+
+  // 角色標籤
+  const roleLabel = user.role === 'examiner' ? '考官' : user.role === 'admin' ? '管理員' : '工作人員';
 
   return (
     <>
@@ -129,7 +145,7 @@ export default function StaffDashboard() {
                 <ArrowLeft className="w-4 h-4" /> 選擇考試
               </button>
               <nav className="flex-1 py-2">
-                {STAFF_NAV_ITEMS.map(item => (
+                {navItems.map(item => (
                   <button key={item.key}
                     onClick={() => { setNavPage(item.key); setSidebarOpen(false); }}
                     className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm transition-colors ${
@@ -163,7 +179,7 @@ export default function StaffDashboard() {
             <ArrowLeft className="w-4 h-4" /> 選擇考試
           </button>
           <nav className="flex-1 py-2">
-            {STAFF_NAV_ITEMS.map(item => (
+            {navItems.map(item => (
               <button key={item.key}
                 onClick={() => setNavPage(item.key)}
                 className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
@@ -175,7 +191,12 @@ export default function StaffDashboard() {
             ))}
           </nav>
           <div className="p-3 border-t">
-            <div className="text-xs text-gray-500 mb-2 px-1">{user.name || '工作人員'}</div>
+            <div className="text-xs text-gray-500 mb-2 px-1">
+              {user.name || '工作人員'}
+              <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                user.role === 'examiner' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+              }`}>{roleLabel}</span>
+            </div>
             <button onClick={handleLogout}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg">
               <LogOut className="w-4 h-4" /> 登出
@@ -186,9 +207,9 @@ export default function StaffDashboard() {
         {/* Main Content — 直接使用 ExamManagement 的子組件 */}
         <div className="flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 md:p-6">
           {navPage === 'checkin' && <CheckInPage examId={selectedExamId} />}
-          {navPage === 'scoring' && <ScoringPage examId={selectedExamId} />}
+          {navPage === 'scoring' && user.role !== 'staff' && <ScoringPage examId={selectedExamId} />}
           {navPage === 'scoreview' && <ScoreViewPage examId={selectedExamId} />}
-          {navPage === 'timetable' && <TimetablePage examId={selectedExamId} />}
+          {navPage === 'timetable' && <TimetablePage examId={selectedExamId} readOnly={true} />}
           {navPage === 'results' && <ResultsPage examId={selectedExamId} />}
         </div>
       </div>
@@ -215,7 +236,7 @@ function StaffExamList({ onSelectExam, user, onLogout }: {
             </div>
             <div>
               <h1 className="text-lg font-bold text-gray-900">考試工作系統</h1>
-              <p className="text-xs text-gray-500">點名 · 評分 · 成績 · 時間表</p>
+              <p className="text-xs text-gray-500">考試工作人員 / 考官專用</p>
             </div>
           </div>
           <div className="flex items-center gap-3">

@@ -1555,7 +1555,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
 }
 
 // ==================== 時間表頁 ====================
-function TimetablePage({ examId }: { examId: number }) {
+function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?: boolean }) {
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
   const { data: schedules, refetch } = trpc.exam.schedules.list.useQuery({ examId });
   const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
@@ -1609,8 +1609,9 @@ function TimetablePage({ examId }: { examId: number }) {
 
   // Click a student to select; click again to deselect
   const handleSelectCandidate = useCallback((candidate: { id: number; name: string; groupCode: string }) => {
+    if (readOnly) return;
     setSelectedCandidate(prev => prev?.id === candidate.id ? null : candidate);
-  }, []);
+  }, [readOnly]);
 
   // Click a cell to place the selected student there
   const handlePlaceCandidate = useCallback((targetGroupCode: string, targetPosition: number) => {
@@ -1833,6 +1834,7 @@ function TimetablePage({ examId }: { examId: number }) {
           <h1 className="text-xl font-bold">分組時間表</h1>
           {examData && <p className="text-sm text-gray-500">{examData.name}</p>}
         </div>
+        {!readOnly && (
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => {
             if (!examData || !candidates) return;
@@ -1858,10 +1860,11 @@ function TimetablePage({ examId }: { examId: number }) {
             <Plus className="w-4 h-4 mr-1" /> 新增時間表
           </Button>
         </div>
+        )}
       </div>
 
       {/* Auto-group configuration form */}
-      {showAutoGroup && (
+      {!readOnly && showAutoGroup && (
         <div className="bg-amber-50 rounded-lg border border-amber-200 p-4 space-y-4">
           <div className="flex items-center gap-2">
             <Zap className="w-5 h-5 text-amber-600" />
@@ -1923,7 +1926,7 @@ function TimetablePage({ examId }: { examId: number }) {
       )}
 
       {/* Time settings panel (小休/午餐/開始時間) */}
-      {showTimeSettings && sortedSchedules.length > 0 && (
+      {!readOnly && showTimeSettings && sortedSchedules.length > 0 && (
         <div className="bg-green-50 rounded-lg border border-green-200 p-4 space-y-4">
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-green-600" />
@@ -2127,7 +2130,7 @@ function TimetablePage({ examId }: { examId: number }) {
       </div>
 
       {/* Create schedule form */}
-      {showCreate && (
+      {!readOnly && showCreate && (
         <div className="bg-white rounded-lg border p-4 space-y-3">
           <h3 className="font-medium">新增時間表</h3>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -2150,7 +2153,7 @@ function TimetablePage({ examId }: { examId: number }) {
       )}
 
       {/* Move indicator */}
-      {selectedCandidate && (
+      {!readOnly && selectedCandidate && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center justify-between text-sm text-blue-700 sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4" />
@@ -2269,6 +2272,7 @@ function TimetablePage({ examId }: { examId: number }) {
                           <span>🥊</span>
                           <span className="text-red-700">搏擊 — 15 分鐘</span>
                           <span className="text-gray-500 text-xs">({row.startTime} ~ {row.endTime})</span>
+                          {!readOnly && (
                           <button
                             onClick={() => {
                               if (confirm('確定移除此搏擊時段？')) {
@@ -2278,6 +2282,7 @@ function TimetablePage({ examId }: { examId: number }) {
                             className="ml-2 px-1.5 py-0.5 rounded text-xs font-bold text-red-400 hover:text-red-700 hover:bg-red-100 transition-colors"
                             title="移除搏擊時段"
                           >✕ 移除</button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2385,6 +2390,7 @@ function TimetablePage({ examId }: { examId: number }) {
                       </td>
                     );
                   })}
+                  {!readOnly && (
                   <td className="px-2 py-2 text-center">
                     <div className="flex items-center justify-center gap-1">
                       {/* 可加搏擊：綠帶以上且前面沒搏擊 */}
@@ -2401,6 +2407,7 @@ function TimetablePage({ examId }: { examId: number }) {
                       </button>
                     </div>
                   </td>
+                  )}
                 </tr>
                 {/* Drop zone: 點擊放置小休/午餐到此組之後 */}
                 {showDropZone && (

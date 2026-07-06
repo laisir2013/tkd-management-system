@@ -72,6 +72,9 @@ export default function Home() {
           case 'staff':
             setLocation('/staff');
             break;
+          case 'examiner':
+            setLocation('/staff');
+            break;
           default:
             setError("無法識別用戶角色");
         }

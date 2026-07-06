@@ -29,9 +29,9 @@ export default function StaffLogin() {
       
       if (result?.success) {
         const role = (result as any).role;
-        // 只允許 staff 和 admin 登入（admin 可以方便測試）
-        if (role !== 'staff' && role !== 'admin') {
-          setError("此帳號不是工作人員帳號，請聯絡管理員");
+        // 允許 staff, examiner, admin 登入
+        if (role !== 'staff' && role !== 'examiner' && role !== 'admin') {
+          setError("此帳號不是工作人員/考官帳號，請聯絡管理員");
           return;
         }
         // Store session token in localStorage
@@ -57,8 +57,8 @@ export default function StaffLogin() {
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center mb-4">
             <ClipboardCheck className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">考試工作人員系統</h1>
-          <p className="text-gray-600">點名 · 評分 · 成績 · 時間表</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">考試工作系統</h1>
+          <p className="text-gray-600">工作人員 / 考官 專用入口</p>
         </div>
 
         <Card className="shadow-xl border-0">

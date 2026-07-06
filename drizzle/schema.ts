@@ -11,7 +11,7 @@ export const users = mysqlTable("users", {
   phone: varchar("phone", { length: 20 }), // 電話號碼，用於登入識別
   password: varchar("password", { length: 255 }), // 密碼(加密後),預設為電話號碼
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin", "coach", "staff"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "coach", "staff", "examiner"]).default("user").notNull(),
   coachName: varchar("coach_name", { length: 100 }), // 教練姓名，用於匹配 dojos 表中的 coachName
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

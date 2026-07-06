@@ -8,13 +8,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Users, Shield, UserCog } from "lucide-react";
+import { Users, Shield, UserCog, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export default function UserManagementContent() {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newRole, setNewRole] = useState<'user' | 'admin' | 'coach' | 'staff'>('user');
+  const [newRole, setNewRole] = useState<'user' | 'admin' | 'coach' | 'staff' | 'examiner'>('user');
   const [coachName, setCoachName] = useState('');
 
   const { data: users, refetch } = trpc.users.getAll.useQuery();
@@ -50,6 +50,7 @@ export default function UserManagementContent() {
     const badges = {
       admin: { label: '管理員', icon: Shield, color: 'bg-red-100 text-red-800' },
       coach: { label: '教練', icon: UserCog, color: 'bg-blue-100 text-blue-800' },
+      examiner: { label: '考官', icon: ShieldCheck, color: 'bg-amber-100 text-amber-800' },
       staff: { label: '工作人員', icon: UserCog, color: 'bg-green-100 text-green-800' },
       user: { label: '一般用戶', icon: Users, color: 'bg-gray-100 text-gray-800' },
     };
@@ -137,7 +138,8 @@ export default function UserManagementContent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="user">一般用戶</SelectItem>
-                  <SelectItem value="staff">工作人員（考試用）</SelectItem>
+                  <SelectItem value="staff">工作人員（點名/成績/時間表/合格）</SelectItem>
+                  <SelectItem value="examiner">考官（工作人員 + 評分表）</SelectItem>
                   <SelectItem value="coach">教練</SelectItem>
                   <SelectItem value="admin">管理員</SelectItem>
                 </SelectContent>
