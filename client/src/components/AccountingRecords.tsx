@@ -25,6 +25,9 @@ const INCOME_CATEGORIES = [
 
 // 支出類別
 const EXPENSE_CATEGORIES = [
+  { value: "coach_fee", label: "教練費" },
+  { value: "coach_commission", label: "教練用品分成" },
+  { value: "leave_deduction", label: "請假扣除" },
   { value: "competition_entry", label: "給大會的比賽報名費" },
   { value: "photography", label: "攝影" },
   { value: "promotion", label: "宣傳" },
@@ -33,7 +36,6 @@ const EXPENSE_CATEGORIES = [
   { value: "venue_rental", label: "場租" },
   { value: "office_rental", label: "office租金" },
   { value: "mpf", label: "MPF" },
-  { value: "coach_fee", label: "教練費" },
   { value: "other_expense", label: "其他支出" },
 ];
 
@@ -664,22 +666,34 @@ export default function AccountingRecords() {
               <span className="text-sm text-green-600 font-medium">總收入</span>
             </div>
             <p className="text-2xl font-bold text-green-700">{formatMoney(totalIncome)}</p>
-            {(eliteTuitionTotal > 0 || regularTuitionTotal > 0) && (
-              <div className="mt-2 pt-2 border-t border-green-200 space-y-1">
-                {regularTuitionTotal > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-green-600">恆常班學費</span>
-                    <span className="font-medium text-green-700">{formatMoney(regularTuitionTotal)}</span>
-                  </div>
-                )}
-                {eliteTuitionTotal > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-amber-600">精英班學費</span>
-                    <span className="font-medium text-amber-700">{formatMoney(eliteTuitionTotal)}</span>
-                  </div>
-                )}
-              </div>
-            )}
+            {(() => {
+              const incomeItems = summary?.filter(s => s.type === 'income' && parseFloat(s.total || '0') > 0) || [];
+              if (incomeItems.length === 0) return null;
+              return (
+                <div className="mt-2 pt-2 border-t border-green-200 space-y-1">
+                  {/* 學費拆分恆常/精英 */}
+                  {regularTuitionTotal > 0 && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-green-600">恆常班學費</span>
+                      <span className="font-medium text-green-700">{formatMoney(regularTuitionTotal)}</span>
+                    </div>
+                  )}
+                  {eliteTuitionTotal > 0 && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-amber-600">精英班學費</span>
+                      <span className="font-medium text-amber-700">{formatMoney(eliteTuitionTotal)}</span>
+                    </div>
+                  )}
+                  {/* 其他收入類別（排除已拆分的 tuition） */}
+                  {incomeItems.filter(s => s.category !== 'tuition').map(s => (
+                    <div key={s.category} className="flex items-center justify-between text-xs">
+                      <span className="text-green-600">{CATEGORY_MAP[s.category] || s.category}</span>
+                      <span className="font-medium text-green-700">{formatMoney(s.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
         <Card className="border-red-200 bg-red-50/50">
@@ -689,6 +703,20 @@ export default function AccountingRecords() {
               <span className="text-sm text-red-600 font-medium">總支出</span>
             </div>
             <p className="text-2xl font-bold text-red-700">{formatMoney(totalExpense)}</p>
+            {(() => {
+              const expenseItems = summary?.filter(s => s.type === 'expense' && parseFloat(s.total || '0') > 0) || [];
+              if (expenseItems.length === 0) return null;
+              return (
+                <div className="mt-2 pt-2 border-t border-red-200 space-y-1">
+                  {expenseItems.map(s => (
+                    <div key={s.category} className="flex items-center justify-between text-xs">
+                      <span className="text-red-600">{CATEGORY_MAP[s.category] || s.category}</span>
+                      <span className="font-medium text-red-700">{formatMoney(s.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
         <Card className={balance >= 0 ? "border-blue-200 bg-blue-50/50" : "border-orange-200 bg-orange-50/50"}>
