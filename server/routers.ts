@@ -619,11 +619,13 @@ export const appRouter = router({
             
             // Strip password from response
             const { password: _userPw, ...safeUser } = user as any;
+            const userRoles = (user as any).roles || [(user as any).role];
             return {
               success: true,
               // @ts-ignore
               role: user.role,
-              user: safeUser,
+              roles: userRoles,
+              user: { ...safeUser, roles: userRoles },
               // @ts-ignore
               needPasswordChange: !user.password,
               sessionToken, // 回傳 token 讓前端可以存到 localStorage 作為備用
@@ -2904,6 +2906,7 @@ export const appRouter = router({
       .input(z.object({
         userId: z.number(),
         role: z.enum(['user', 'admin', 'coach', 'staff', 'examiner']),
+        roles: z.array(z.enum(['user', 'admin', 'coach', 'staff', 'examiner'])).optional(),
         coachName: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -2913,8 +2916,9 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '資料庫不可用' });
         
-        const updateData: Record<string, any> = { role: input.role };
-        if (input.role === 'coach' && input.coachName) {
+        const rolesArray = input.roles || [input.role];
+        const updateData: Record<string, any> = { role: input.role, roles: rolesArray };
+        if (rolesArray.includes('coach') && input.coachName) {
           updateData.coach_name = input.coachName;
         }
         await db.update(schema.users)

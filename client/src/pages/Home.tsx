@@ -2,9 +2,24 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogIn } from "lucide-react";
+import { LogIn, GraduationCap, ClipboardCheck, Shield, CreditCard } from "lucide-react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+
+// 根據角色陣列決定可用入口
+function getPortals(roles: string[]) {
+  const portals: { key: string; label: string; desc: string; icon: any; path: string; color: string }[] = [];
+  if (roles.includes('admin')) {
+    portals.push({ key: 'admin', label: '管理後台', desc: '系統全功能管理', icon: Shield, path: '/admin', color: 'from-purple-600 to-indigo-600' });
+  }
+  if (roles.includes('coach')) {
+    portals.push({ key: 'coach', label: '教練系統', desc: '學生管理・點名・收據', icon: GraduationCap, path: '/coach', color: 'from-green-600 to-teal-600' });
+  }
+  if (roles.includes('staff') || roles.includes('examiner') || roles.includes('coach')) {
+    portals.push({ key: 'exam', label: '考試系統', desc: '點名・評分・時間表', icon: ClipboardCheck, path: '/staff', color: 'from-amber-500 to-orange-600' });
+  }
+  return portals;
+}
 
 export default function Home() {
   const [phone, setPhone] = useState("");
@@ -12,6 +27,7 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [loggedInUser, setLoggedInUser] = useState<{ name: string; roles: string[]; role: string } | null>(null);
 
   const utils = trpc.useUtils();
   const loginMutation = trpc.auth.login.useMutation();
@@ -32,11 +48,7 @@ export default function Home() {
       });
       
       if (result.success && result.role) {
-        // 登入成功後，直接將 user 資料寫入 auth.me 的 query cache
-        // 這樣跳轉後 Admin/Coach/Parent 頁面可以立即獲取到 user 資料
-        // 不需要等 cookie 請求回來（sandbox proxy 環境下 cookie 可能延遲）
-        
-        // 儲存 session token 到 localStorage，作為 cookie 的備用方案
+        // 儲存 session token
         if ((result as any).sessionToken) {
           localStorage.setItem("session_token", (result as any).sessionToken);
         }
@@ -44,7 +56,6 @@ export default function Home() {
         if (result.user) {
           utils.auth.me.setData(undefined, result.user as any);
         } else if ((result as any).student) {
-          // 家長登入返回的是 student 欄位，轉為 User 格式
           const s = (result as any).student;
           utils.auth.me.setData(undefined, {
             id: s.id,
@@ -52,32 +63,32 @@ export default function Home() {
             name: s.name,
             email: null,
             role: 'user',
+            roles: ['user'],
             loginMethod: 'phone',
             createdAt: s.createdAt,
             lastSignedIn: new Date(),
           } as any);
         }
         
-        // 根據角色自動跳轉
-        switch (result.role) {
-          case 'parent':
-            setLocation(`/payment?phone=${encodeURIComponent(phone)}`);
-            break;
-          case 'coach':
-            setLocation('/coach');
-            break;
-          case 'admin':
-            setLocation('/admin');
-            break;
-          case 'staff':
-            setLocation('/staff');
-            break;
-          case 'examiner':
-            setLocation('/staff');
-            break;
-          default:
-            setError("無法識別用戶角色");
+        // 取得多角色
+        const roles: string[] = (result as any).roles || [result.role];
+        const userName = (result.user as any)?.name || phone;
+        
+        // 家長直接跳轉繳費頁
+        if (result.role === 'parent' || (roles.length === 1 && roles[0] === 'user')) {
+          setLocation(`/payment?phone=${encodeURIComponent(phone)}`);
+          return;
         }
+        
+        // 單一角色且只有一個入口：直接跳轉
+        const portals = getPortals(roles);
+        if (portals.length === 1) {
+          setLocation(portals[0].path);
+          return;
+        }
+        
+        // 多入口：顯示選擇畫面
+        setLoggedInUser({ name: userName, roles, role: result.role });
       } else {
         setError(result.error || "登入失敗,請確認電話號碼和密碼是否正確");
       }
@@ -88,6 +99,42 @@ export default function Home() {
       setIsLoading(false);
     }
   };
+
+  // 登入後的入口選擇畫面
+  if (loggedInUser) {
+    const portals = getPortals(loggedInUser.roles);
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-6">
+            <div className="mx-auto w-20 h-20 mb-3 flex items-center justify-center">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">創武管理系統</h1>
+            <p className="text-gray-600">歡迎，<span className="font-semibold text-blue-700">{loggedInUser.name}</span></p>
+          </div>
+
+          <div className="space-y-3">
+            {portals.map(portal => (
+              <button
+                key={portal.key}
+                onClick={() => setLocation(portal.path)}
+                className="w-full flex items-center gap-4 p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-100 hover:border-gray-200 group"
+              >
+                <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${portal.color} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
+                  <portal.icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-gray-900 text-lg">{portal.label}</div>
+                  <div className="text-sm text-gray-500">{portal.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 flex items-center justify-center p-4">

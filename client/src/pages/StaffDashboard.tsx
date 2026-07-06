@@ -65,8 +65,10 @@ export default function StaffDashboard() {
     );
   }
 
-  // 允許 staff, examiner, admin, coach 使用
-  if (user.role !== 'staff' && user.role !== 'examiner' && user.role !== 'admin' && user.role !== 'coach') {
+  // 允許 staff, examiner, admin, coach 使用（支援多角色）
+  const userRoles: string[] = (user as any).roles || [user.role];
+  const canAccessStaff = userRoles.some(r => ['staff', 'examiner', 'admin', 'coach'].includes(r));
+  if (!canAccessStaff) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center space-y-4">
@@ -99,11 +101,18 @@ export default function StaffDashboard() {
     );
   }
 
-  const navItems = getNavItemsForRole(user.role);
+  // 用 roles 判斷可見功能
+  const effectiveRole = userRoles.includes('admin') ? 'admin' :
+    userRoles.includes('examiner') || userRoles.includes('coach') ? 'examiner' : 
+    userRoles.includes('staff') ? 'staff' : 'staff';
+  const navItems = getNavItemsForRole(effectiveRole);
   const currentNavItem = navItems.find(item => item.key === navPage);
 
   // 角色標籤
-  const roleLabel = user.role === 'coach' ? '教練/考官' : user.role === 'examiner' ? '考官' : user.role === 'admin' ? '管理員' : '工作人員';
+  const roleLabel = userRoles.includes('admin') ? '管理員' :
+    (userRoles.includes('coach') && userRoles.includes('examiner')) ? '教練/考官' :
+    userRoles.includes('coach') ? '教練/考官' :
+    userRoles.includes('examiner') ? '考官' : '工作人員';
 
   return (
     <>
@@ -194,10 +203,10 @@ export default function StaffDashboard() {
             <div className="text-xs text-gray-500 mb-2 px-1">
               {user.name || '工作人員'}
               <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                user.role === 'coach' ? 'bg-blue-100 text-blue-700' : user.role === 'examiner' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                userRoles.includes('coach') ? 'bg-blue-100 text-blue-700' : userRoles.includes('examiner') ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
               }`}>{roleLabel}</span>
             </div>
-            {user.role === 'coach' && (
+            {userRoles.includes('coach') && (
               <button onClick={() => setLocation('/coach')}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg mb-1">
                 <ArrowLeft className="w-4 h-4" /> 返回教練系統
@@ -213,7 +222,7 @@ export default function StaffDashboard() {
         {/* Main Content — 直接使用 ExamManagement 的子組件 */}
         <div className="flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 md:p-6">
           {navPage === 'checkin' && <CheckInPage examId={selectedExamId} />}
-          {navPage === 'scoring' && user.role !== 'staff' && <ScoringPage examId={selectedExamId} />}
+          {navPage === 'scoring' && effectiveRole !== 'staff' && <ScoringPage examId={selectedExamId} />}
           {navPage === 'scoreview' && <ScoreViewPage examId={selectedExamId} />}
           {navPage === 'timetable' && <TimetablePage examId={selectedExamId} readOnly={true} />}
           {navPage === 'results' && <ResultsPage examId={selectedExamId} />}

@@ -29,8 +29,10 @@ export default function StaffLogin() {
       
       if (result?.success) {
         const role = (result as any).role;
-        // 允許 staff, examiner, admin, coach 登入
-        if (role !== 'staff' && role !== 'examiner' && role !== 'admin' && role !== 'coach') {
+        // 允許 staff, examiner, admin, coach 登入（支援多角色）
+        const roles: string[] = (result as any).roles || [role];
+        const canAccess = roles.some((r: string) => ['staff', 'examiner', 'admin', 'coach'].includes(r));
+        if (!canAccess) {
           setError("此帳號不是工作人員/考官帳號，請聯絡管理員");
           return;
         }

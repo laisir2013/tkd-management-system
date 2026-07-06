@@ -36,7 +36,7 @@ export default function CoachDashboard() {
     );
   }
 
-  if (!user || user.role !== 'coach') {
+  if (!user || (user.role !== 'coach' && !((user as any).roles || []).includes('coach'))) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="w-96">
