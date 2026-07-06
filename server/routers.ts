@@ -7118,10 +7118,17 @@ export const appRouter = router({
             throw new TRPCError({ code: 'BAD_REQUEST', message: '沒有時間表可重新計算' });
           }
 
-          // 按 group_code 字母排序（排除搏擊時段 SPR-*）
-          const sorted = [...allSchedules]
+          // 分開普通組和搏擊時段
+          const normalGroups = [...allSchedules]
             .filter((s: any) => !String(s.groupCode || '').startsWith('SPR-'))
             .sort((a: any, b: any) => String(a.groupCode || '').localeCompare(String(b.groupCode || '')));
+
+          // 已存在的搏擊時段 — 建立 lookup: "SPR-X" → schedule object
+          const existingSparring = new Map<string, any>();
+          for (const s of allSchedules) {
+            const gc = String((s as any).groupCode || '');
+            if (gc.startsWith('SPR-')) existingSparring.set(gc, s);
+          }
 
           // 建立 breaks lookup: afterGroup → break info
           const breaksMap = new Map<string, { type: string; minutes: number }>();
@@ -7136,42 +7143,27 @@ export const appRouter = router({
           let currentMinutes = parseTime(input.startTime);
           const updates: { id: number; startTime: string; endTime: string; timeSlot: string; notes: string | null }[] = [];
 
-          // 刪除舊的搏擊時段
-          const sparringSchedules = allSchedules.filter((s: any) => String(s.groupCode || '').startsWith('SPR-'));
-          for (const spr of sparringSchedules) {
-            await deleteExamSchedule((spr as any).id);
-          }
+          // 保留現有搏擊（不刪除不重建），只更新時間
+          // 搏擊由 autoGroup 自動建立，或由手動 addSparring / removeSparring 管理
 
-          // 綠帶以上搏擊計數器
-          let sparringGroupCount = 0;
-          function needsSparring(currentBelt: string): boolean {
-            return ['green', 'green_blue', 'blue', 'blue_red', 'red', 'red_black', 'black', 'black_2dan', 'black_3dan'].includes(currentBelt);
-          }
-
-          for (let i = 0; i < sorted.length; i++) {
-            const sch = sorted[i] as any;
+          for (let i = 0; i < normalGroups.length; i++) {
+            const sch = normalGroups[i] as any;
             const beltLevel = sch.beltLevel || '';
             const groupMinutes = input.minutesPerGroup || getMinutesForBelt(beltLevel);
-            const hasSparring = needsSparring(beltLevel);
 
-            // 綠帶以上：每2組前加插15分鐘搏擊
-            if (hasSparring && sparringGroupCount % 2 === 0) {
+            // 如果此組前有搏擊時段 SPR-X，先分配搏擊時間
+            const sprKey = `SPR-${String(sch.groupCode || '').toUpperCase()}`;
+            const existingSpr = existingSparring.get(sprKey);
+            if (existingSpr) {
               const sparStart = formatTime(currentMinutes);
               const sparEnd = formatTime(currentMinutes + 15);
-              await db.insert(schema.examSchedules).values({
-                examId: input.examId,
-                beltLevel: beltLevel,
-                groupCode: `SPR-${sch.groupCode}`,
+              await updateExamSchedule(existingSpr.id, {
                 startTime: sparStart,
                 endTime: sparEnd,
                 timeSlot: `${sparStart}-${sparEnd}`,
-                venue: sch.venue || null,
-                notes: '搏擊',
               });
               currentMinutes += 15;
             }
-
-            if (hasSparring) sparringGroupCount++;
 
             const startStr = formatTime(currentMinutes);
             const endMinutes = currentMinutes + groupMinutes;
@@ -7190,7 +7182,7 @@ export const appRouter = router({
             // 檢查此組後是否有小休/午餐
             const groupCode = String(sch.groupCode || '').toUpperCase();
             const breakInfo = breaksMap.get(groupCode);
-            if (breakInfo && i < sorted.length - 1) {
+            if (breakInfo && i < normalGroups.length - 1) {
               currentMinutes += breakInfo.minutes;
             }
           }

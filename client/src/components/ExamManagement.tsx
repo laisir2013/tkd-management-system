@@ -1564,11 +1564,29 @@ function TimetablePage({ examId }: { examId: number }) {
   const createSchedule = trpc.exam.schedules.create.useMutation({ onSuccess: () => { refetch(); toast.success('已新增'); } });
   const deleteSchedule = trpc.exam.schedules.delete.useMutation({ onSuccess: () => { refetch(); toast.success('已刪除'); } });
   const addSparring = trpc.exam.schedules.addSparring.useMutation({
-    onSuccess: () => { refetch(); toast.success('已新增搏擊時段'); },
+    onSuccess: () => {
+      // 新增搏擊後自動重算時間
+      recalculateTimes.mutate({
+        examId,
+        startTime: tsStartTime,
+        breaks: tsBreaks,
+      });
+      refetch();
+      toast.success('已新增搏擊時段');
+    },
     onError: (err) => toast.error(err.message),
   });
   const removeSparring = trpc.exam.schedules.removeSparring.useMutation({
-    onSuccess: () => { refetch(); toast.success('已移除搏擊時段'); },
+    onSuccess: () => {
+      // 移除搏擊後自動重算時間（讓後續組往前填補空隙）
+      recalculateTimes.mutate({
+        examId,
+        startTime: tsStartTime,
+        breaks: tsBreaks,
+      });
+      refetch();
+      toast.success('已移除搏擊時段');
+    },
     onError: (err) => toast.error(err.message),
   });
   const autoGroup = trpc.exam.candidates.autoGroup.useMutation({
