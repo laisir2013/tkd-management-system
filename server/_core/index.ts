@@ -290,12 +290,15 @@ if not exam:
     sys.exit(0)
 exam_date = exam['exam_date'].strftime('%Y-%m-%d')
 exam_name = exam['name']
-# Get candidates ordered by group_code and order_number (timetable order)
+# Get candidates ordered by timetable schedule (start_time, then order_number)
 cursor.execute("""
     SELECT ec.id, ec.name, ec.current_belt, ec.target_belt, ec.group_code, ec.order_number, ec.age, ec.status
     FROM exam_candidates ec
+    LEFT JOIN exam_schedules es 
+        ON es.exam_id = ec.exam_id AND es.group_code = ec.group_code
+        AND es.group_code NOT LIKE 'SPR-%%'
     WHERE ec.exam_id = %s AND ec.status != 'absent'
-    ORDER BY ec.group_code ASC, ec.order_number ASC, ec.id ASC
+    ORDER BY es.start_time ASC, ec.order_number ASC, ec.id ASC
 """, (${examId},))
 candidates = cursor.fetchall()
 cursor.close()

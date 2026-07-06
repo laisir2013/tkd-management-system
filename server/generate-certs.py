@@ -106,17 +106,22 @@ def get_exam_candidates(exam_id):
     
     exam_date = exam['exam_date'].strftime('%Y年%-m月%-d日') if exam['exam_date'] else ''
     
-    # Get ALL non-absent candidates (certificates prepared in advance for everyone)
-    # exam_candidates uses: name (直接存), target_belt, current_belt, student_id (nullable)
+    # Get ALL non-absent candidates ordered by timetable (group schedule order)
+    # JOIN exam_schedules to sort by start_time, then order_number within each group
     cursor.execute("""
         SELECT 
             ec.id,
             ec.student_id,
             ec.target_belt,
-            ec.name as student_name
+            ec.name as student_name,
+            ec.group_code,
+            ec.order_number
         FROM exam_candidates ec
+        LEFT JOIN exam_schedules es 
+            ON es.exam_id = ec.exam_id AND es.group_code = ec.group_code
+            AND es.group_code NOT LIKE 'SPR-%%'
         WHERE ec.exam_id = %s AND ec.status != 'absent'
-        ORDER BY ec.target_belt, ec.name
+        ORDER BY es.start_time ASC, ec.order_number ASC, ec.id ASC
     """, (exam_id,))
     
     candidates = cursor.fetchall()
