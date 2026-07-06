@@ -62,8 +62,8 @@ export default function CoachDashboard() {
           </div>
           <div className="flex gap-2 shrink-0">
             <Button onClick={() => setLocation('/staff')} variant="outline" size="sm" className="text-xs sm:text-sm bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100">
-              <Award className="w-4 h-4 sm:mr-1" />
-              <span className="hidden sm:inline">考試系統</span>
+              <Award className="w-4 h-4 mr-1" />
+              考試系統
             </Button>
             <Button onClick={() => setShowChangePassword(true)} variant="outline" size="sm" className="text-xs sm:text-sm">
               <KeyRound className="w-4 h-4 sm:mr-1" />

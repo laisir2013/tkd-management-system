@@ -95,6 +95,7 @@ export default function StaffDashboard() {
         <StaffExamList
           onSelectExam={(id) => { setSelectedExamId(id); setNavPage('checkin'); }}
           user={user}
+          userRoles={userRoles}
           onLogout={handleLogout}
         />
       </>
@@ -165,7 +166,19 @@ export default function StaffDashboard() {
                   </button>
                 ))}
               </nav>
-              <div className="p-3 border-t">
+              <div className="p-3 border-t space-y-1">
+                {userRoles.includes('coach') && (
+                  <button onClick={() => { setSidebarOpen(false); setLocation('/coach'); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg">
+                    <ArrowLeft className="w-4 h-4" /> 教練系統
+                  </button>
+                )}
+                {userRoles.includes('admin') && (
+                  <button onClick={() => { setSidebarOpen(false); setLocation('/admin'); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-purple-600 hover:bg-purple-50 rounded-lg">
+                    <ShieldCheck className="w-4 h-4" /> 管理後台
+                  </button>
+                )}
                 <button onClick={handleLogout}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg">
                   <LogOut className="w-4 h-4" /> 登出
@@ -233,11 +246,13 @@ export default function StaffDashboard() {
 }
 
 // ==================== 考試列表（工作人員版：只讀，不能新增/刪除考試） ====================
-function StaffExamList({ onSelectExam, user, onLogout }: {
+function StaffExamList({ onSelectExam, user, userRoles, onLogout }: {
   onSelectExam: (id: number) => void;
   user: any;
+  userRoles: string[];
   onLogout: () => void;
 }) {
+  const [, setLocation] = useLocation();
   const { data: exams } = trpc.exam.list.useQuery();
 
   return (
@@ -254,11 +269,23 @@ function StaffExamList({ onSelectExam, user, onLogout }: {
               <p className="text-xs text-gray-500">考試工作人員 / 考官專用</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <span className="text-sm text-gray-600 hidden sm:inline">{user.name || '工作人員'}</span>
+            {userRoles.includes('coach') && (
+              <button onClick={() => setLocation('/coach')}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200">
+                <ArrowLeft className="w-3.5 h-3.5" /><span className="hidden sm:inline">教練系統</span><span className="sm:hidden">教練</span>
+              </button>
+            )}
+            {userRoles.includes('admin') && !userRoles.includes('coach') && (
+              <button onClick={() => setLocation('/admin')}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-purple-600 hover:bg-purple-50 rounded-lg border border-purple-200">
+                <ShieldCheck className="w-3.5 h-3.5" /><span className="hidden sm:inline">管理後台</span><span className="sm:hidden">管理</span>
+              </button>
+            )}
             <button onClick={onLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200">
-              <LogOut className="w-3.5 h-3.5" /> 登出
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200">
+              <LogOut className="w-3.5 h-3.5" /><span className="hidden sm:inline">登出</span>
             </button>
           </div>
         </div>
