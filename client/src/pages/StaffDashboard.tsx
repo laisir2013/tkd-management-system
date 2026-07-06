@@ -197,6 +197,12 @@ export default function StaffDashboard() {
                 user.role === 'coach' ? 'bg-blue-100 text-blue-700' : user.role === 'examiner' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
               }`}>{roleLabel}</span>
             </div>
+            {user.role === 'coach' && (
+              <button onClick={() => setLocation('/coach')}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg mb-1">
+                <ArrowLeft className="w-4 h-4" /> 返回教練系統
+              </button>
+            )}
             <button onClick={handleLogout}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg">
               <LogOut className="w-4 h-4" /> 登出
