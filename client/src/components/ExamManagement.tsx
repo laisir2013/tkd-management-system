@@ -5335,3 +5335,6 @@ function AuditLogPage({ examId }: { examId: number }) {
     </div>
   );
 }
+
+// ==================== 匯出子組件供工作人員系統使用 ====================
+export { CheckInPage, ScoringPage, ScoreViewPage, TimetablePage, ResultsPage };

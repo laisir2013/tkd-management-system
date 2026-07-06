@@ -2903,7 +2903,7 @@ export const appRouter = router({
     updateRole: protectedProcedure
       .input(z.object({
         userId: z.number(),
-        role: z.enum(['user', 'admin', 'coach']),
+        role: z.enum(['user', 'admin', 'coach', 'staff']),
         coachName: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {

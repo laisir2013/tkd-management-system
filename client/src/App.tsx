@@ -17,6 +17,8 @@ import Parent from "./pages/Parent";
 import EliteManagement from "./pages/EliteManagement";
 import ParentAttendance from "./pages/ParentAttendance";
 import ExamAttendance from "./pages/ExamAttendance";
+import StaffLogin from "./pages/StaffLogin";
+import StaffDashboard from "./pages/StaffDashboard";
 
 function Router() {
   return (
@@ -33,6 +35,8 @@ function Router() {
       <Route path={"/elite"} component={EliteManagement} />
       <Route path={"/parent-attendance"} component={ParentAttendance} />
       <Route path={"/exam/:examId/attendance"} component={ExamAttendance} />
+      <Route path={"/staff-login"} component={StaffLogin} />
+      <Route path={"/staff"} component={StaffDashboard} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
