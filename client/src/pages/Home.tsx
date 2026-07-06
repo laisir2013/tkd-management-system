@@ -94,9 +94,9 @@ export default function Home() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="mx-auto w-32 h-32 mb-4 flex items-center justify-center">
-            <img src="/logo.png" alt="跆拳道館 Logo" className="w-full h-full object-contain" />
+            <img src="/logo.png" alt="創武管理系統 Logo" className="w-full h-full object-contain" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">跆拳道館管理系統</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">創武管理系統</h1>
           <p className="text-gray-600">請輸入您的電話號碼和密碼登入</p>
         </div>
 
