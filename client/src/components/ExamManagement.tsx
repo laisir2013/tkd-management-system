@@ -1098,21 +1098,23 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
   const { data: allScores, refetch: refetchScores } = trpc.exam.scores.listByExam.useQuery({ examId });
 
   const bulkUpsert = trpc.exam.scores.bulkUpsert.useMutation({
-    onSuccess: (data: any) => {
-      refetchScores(); refetchCandidates();
+    onSuccess: async (data: any) => {
       const r = data?.result;
       if (r && !r.incomplete) {
+        // 評分完整 — 已自動判定結果，強制即時刷新
+        await Promise.all([refetchScores(), refetchCandidates()]);
         if (r.passed && r.promoted) {
-          toast.success('✅ 合格！已自動升帶', { duration: 4000 });
+          toast.success('✅ 合格！已自動升帶', { duration: 5000 });
         } else if (r.passed) {
-          toast.success('✅ 合格');
+          toast.success('✅ 合格！', { duration: 4000 });
         } else if (!r.passed && r.reverted) {
-          toast.error('❌ 不合格 — 已自動退回原帶級', { duration: 4000 });
+          toast.error('❌ 不合格 — 已自動退回原帶級', { duration: 5000 });
         } else if (!r.passed) {
-          toast.error('❌ 不合格');
+          toast.error('❌ 不合格', { duration: 4000 });
         }
       } else {
-        toast.success('評分已保存');
+        // 評分未完整 — 靜默刷新，不彈 toast
+        refetchScores();
       }
       // 自動記錄真實時間
       autoRecordTime();

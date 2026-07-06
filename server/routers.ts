@@ -6781,6 +6781,9 @@ export const appRouter = router({
           let calcResult: any = null;
           try {
             calcResult = await calculateExamResult(input.candidateId);
+            if (calcResult && !calcResult.incomplete) {
+              console.log(`[Exam] Candidate ${input.candidateId}: passed=${calcResult.passed}, promoted=${calcResult.promoted}, reverted=${calcResult.reverted}`);
+            }
           } catch (e) {
             console.warn('[Exam] Auto-calculate failed:', e);
           }
