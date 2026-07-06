@@ -28,7 +28,7 @@ export default function UserManagementContent() {
 
   const handleOpenDialog = (user: any) => {
     setSelectedUser(user);
-    const roles = user.roles || [user.role];
+    const roles = Array.isArray(user.roles) ? user.roles : [user.role];
     setSelectedRoles(roles.filter((r: string) => r !== 'user'));
     setCoachName(user.coachName || '');
     setIsDialogOpen(true);
@@ -68,7 +68,7 @@ export default function UserManagementContent() {
   };
 
   const getRoleBadges = (user: any) => {
-    const roles: string[] = user.roles || [user.role];
+    const roles: string[] = Array.isArray(user.roles) ? user.roles : [user.role];
     const badges: Record<string, { label: string; icon: any; color: string }> = {
       admin: { label: '管理員', icon: Shield, color: 'bg-red-100 text-red-800' },
       coach: { label: '教練', icon: UserCog, color: 'bg-blue-100 text-blue-800' },

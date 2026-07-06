@@ -71,7 +71,7 @@ export default function Home() {
         }
         
         // 取得多角色
-        const roles: string[] = (result as any).roles || [result.role];
+        const roles: string[] = Array.isArray((result as any).roles) ? (result as any).roles : [result.role];
         const userName = (result.user as any)?.name || phone;
         
         // 家長直接跳轉繳費頁

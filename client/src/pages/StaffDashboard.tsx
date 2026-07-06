@@ -66,7 +66,7 @@ export default function StaffDashboard() {
   }
 
   // 允許 staff, examiner, admin, coach 使用（支援多角色）
-  const userRoles: string[] = (user as any).roles || [user.role];
+  const userRoles: string[] = Array.isArray((user as any).roles) ? (user as any).roles : [user.role];
   const canAccessStaff = userRoles.some(r => ['staff', 'examiner', 'admin', 'coach'].includes(r));
   if (!canAccessStaff) {
     return (
