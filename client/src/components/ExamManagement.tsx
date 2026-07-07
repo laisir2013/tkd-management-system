@@ -1845,6 +1845,32 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
 
   const maxPositions = Math.max(9, ...timetableRows.map(r => r.candidates.length));
 
+  // 通知時間段計算：每2組為1個時間段，開始向下取整到15分，結束向上取整到15分
+  const notifySlotMap = useMemo(() => {
+    const map: Record<string, { start: string; end: string; isFirst: boolean; span: number }> = {};
+    // 只取非搏擊的正式組
+    const mainGroups = timetableRows.filter(r => !r.isSparring);
+    const parseT = (t: string) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
+    const formatT = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+    const floor15Before = (mins: number) => Math.floor((mins - 1) / 15) * 15; // 最貼近又早少少
+    const ceil15After = (mins: number) => mins % 15 === 0 ? mins : Math.ceil(mins / 15) * 15; // 最貼近又遲一點點（剛好在邊界=不變）
+
+    for (let i = 0; i < mainGroups.length; i += 2) {
+      const g1 = mainGroups[i];
+      const g2 = mainGroups[i + 1]; // 可能為 undefined（奇數組）
+      const startMins = parseT(g1.startTime);
+      const endMins = g2 ? parseT(g2.endTime) : parseT(g1.endTime);
+      const notifyStart = formatT(floor15Before(startMins));
+      const notifyEnd = formatT(ceil15After(endMins));
+      const span = g2 ? 2 : 1;
+      map[g1.groupCode] = { start: notifyStart, end: notifyEnd, isFirst: true, span };
+      if (g2) {
+        map[g2.groupCode] = { start: notifyStart, end: notifyEnd, isFirst: false, span };
+      }
+    }
+    return map;
+  }, [timetableRows]);
+
   // Time slot color mapping
   const getTimeSlotColor = (belt: string) => {
     const level = BELT_LEVELS[belt];
@@ -2290,6 +2316,7 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
                 <th className="px-2 py-2 text-center font-medium border-r">實際時間</th>
                 <th className="px-2 py-2 text-center font-medium border-r">實際用時</th>
                 <th className="px-2 py-2 text-center font-medium border-r w-10">組別</th>
+                <th className="px-2 py-2 text-center font-medium border-r">通知時間段</th>
                 {Array.from({ length: Math.min(maxPositions, 9) }, (_, i) => (
                   <th key={i} className="px-2 py-2 text-center font-medium border-r min-w-[60px]">位置 {i + 1}</th>
                 ))}
@@ -2298,7 +2325,7 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
             </thead>
             <tbody className="divide-y">
               {timetableRowsWithBreaks.map((row: any, rowIdx: number) => {
-                const colSpanFull = 8 + Math.min(maxPositions, 9) + 1;
+                const colSpanFull = 9 + Math.min(maxPositions, 9) + 1;
                 // 小休/午餐行
                 if (row._type === 'break') {
                   return (
@@ -2414,6 +2441,16 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
                     )}
                   </td>
                   <td className="px-2 py-2 border-r text-center font-bold">{row.groupCode?.toUpperCase() || '-'}</td>
+                  {/* 通知時間段 */}
+                  {(() => {
+                    const slot = notifySlotMap[row.groupCode];
+                    if (!slot) return <td className="px-2 py-2 border-r text-center text-gray-300">—</td>;
+                    return (
+                      <td className="px-2 py-2 border-r text-center bg-indigo-50/50">
+                        <span className="text-[11px] font-semibold text-indigo-700">{slot.start}~{slot.end}</span>
+                      </td>
+                    );
+                  })()}
                   {Array.from({ length: Math.min(maxPositions, 9) }, (_, i) => {
                     const c = row.candidates[i];
                     const isSelected = selectedCandidate && c && selectedCandidate.id === c.id;
