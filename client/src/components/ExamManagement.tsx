@@ -1074,7 +1074,7 @@ function generateTimetableWhatsAppMessage(exam: any, schedules: any[], candidate
     // 若通知時間段變了，印出新的時間段標題
     const currentSlot = notifyMap[sch.groupCode] || '';
     if (currentSlot && currentSlot !== lastNotifySlot) {
-      msg += `⏰ 到場時間: ${currentSlot}\n`;
+      msg += `⏰ 到場時間: ${currentSlot}（請提早5分鐘到場報到和熱身準備）\n`;
       msg += `─────────────\n`;
       lastNotifySlot = currentSlot;
     }
@@ -1982,7 +1982,7 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
     msg += `👤 ${candidate.name} 同學\n`;
     msg += `🥋 報考: ${beltFrom} → ${beltTo}\n`;
     msg += `📅 日期: ${dateStr}\n`;
-    msg += `⏰ 到場時間: ${notifyTimeStr || timeStr}\n`;
+    msg += `⏰ 到場時間: ${notifyTimeStr || timeStr}（請提早5分鐘到場報到和熱身準備）\n`;
     if (location) msg += `📍 地點: ${location}\n`;
     msg += `📌 組別: ${(candidate.groupCode || '').toUpperCase()} 組 第${candidate.orderNumber || '-'}位\n`;
     msg += `\n請準時到場，遲到者可能會被安排到較後組別。\n`;
