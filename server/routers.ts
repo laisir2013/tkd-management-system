@@ -8014,6 +8014,67 @@ export const appRouter = router({
         return { success: true, decision: input.decision };
       }),
 
+    // 查看同學生的繳費記錄及收據（用於審查時參考）
+    studentPayments: protectedProcedure
+      .input(z.object({
+        studentId: z.number(),
+        paymentType: z.enum(['regular', 'elite']),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getRawPool } = await import("./db");
+        const pool = await getRawPool();
+        if (!pool) return [];
+        try {
+          if (input.paymentType === 'elite') {
+            const [rows] = await pool.execute(
+              `SELECT p.id, p.amount, p.class_count, p.payment_date, p.status, p.receipt_url,
+                      p.review_status, p.confirmed_by, p.created_at
+               FROM elite_payments p
+               WHERE p.student_id = ?
+               ORDER BY p.payment_date DESC`,
+              [input.studentId]
+            ) as any;
+            return (rows || []).map((r: any) => ({
+              id: r.id,
+              amount: r.amount,
+              period: `${r.class_count}堂`,
+              paymentDate: r.payment_date,
+              status: r.status,
+              receiptUrl: r.receipt_url,
+              reviewStatus: r.review_status,
+              confirmedBy: r.confirmed_by,
+              createdAt: r.created_at,
+            }));
+          } else {
+            const [rows] = await pool.execute(
+              `SELECT p.id, p.amount, p.paymentPeriod, p.paymentDate, p.status, p.receiptUrl,
+                      p.review_status, p.confirmedBy, p.createdAt
+               FROM paymentRecords p
+               WHERE p.studentId = ?
+               ORDER BY p.paymentDate DESC`,
+              [input.studentId]
+            ) as any;
+            return (rows || []).map((r: any) => ({
+              id: r.id,
+              amount: r.amount,
+              period: r.paymentPeriod,
+              paymentDate: r.paymentDate,
+              status: r.status,
+              receiptUrl: r.receiptUrl,
+              reviewStatus: r.review_status,
+              confirmedBy: r.confirmedBy,
+              createdAt: r.createdAt,
+            }));
+          }
+        } catch (err) {
+          console.error("[ReceiptReview] studentPayments error:", err);
+          return [];
+        }
+      }),
+
     // 統計待審查數量（管理員看全部，教練只看自己的）
     pendingCount: protectedProcedure
       .query(async ({ ctx }) => {

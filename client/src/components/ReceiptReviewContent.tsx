@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { AlertTriangle, CheckCircle2, XCircle, Eye, Clock, ImageIcon, UserCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle, Eye, Clock, ImageIcon, UserCheck, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 const matchTypeLabels: Record<string, string> = {
@@ -49,12 +49,18 @@ export default function ReceiptReviewContent() {
   const [selectedType, setSelectedType] = useState<"regular" | "elite">("regular");
   const [showCompare, setShowCompare] = useState(false);
   const [showImage, setShowImage] = useState<string | null>(null);
+  const [showStudentPayments, setShowStudentPayments] = useState<{ studentId: number; studentName: string; paymentType: "regular" | "elite" } | null>(null);
 
   const { data: reviews, isLoading, refetch } = trpc.receiptReview.list.useQuery(
     { status: activeTab as any }
   );
 
   const { data: pendingCount } = trpc.receiptReview.pendingCount.useQuery();
+
+  const { data: studentPayments, isLoading: studentPaymentsLoading } = trpc.receiptReview.studentPayments.useQuery(
+    { studentId: showStudentPayments?.studentId ?? 0, paymentType: showStudentPayments?.paymentType ?? 'regular' },
+    { enabled: !!showStudentPayments }
+  );
 
   const { data: compareData, isLoading: compareLoading } = trpc.receiptReview.compare.useQuery(
     { paymentId: selectedId ?? 0, paymentType: selectedType },
@@ -170,6 +176,19 @@ export default function ReceiptReviewContent() {
                             收據
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-7"
+                          onClick={() => setShowStudentPayments({
+                            studentId: item.studentId,
+                            studentName: item.studentName || '未知',
+                            paymentType: item.paymentType,
+                          })}
+                        >
+                          <FileText className="w-3 h-3 mr-1" />
+                          繳費記錄
+                        </Button>
                         {item.review_match_payment_id && (
                           <Button
                             size="sm"
@@ -224,6 +243,60 @@ export default function ReceiptReviewContent() {
           </DialogHeader>
           {showImage && (
             <img src={showImage} alt="收據" className="w-full rounded" />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 學生繳費記錄 Modal */}
+      <Dialog open={!!showStudentPayments} onOpenChange={(open) => { if (!open) setShowStudentPayments(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              {showStudentPayments?.studentName} — 繳費記錄
+            </DialogTitle>
+            <DialogDescription>
+              {showStudentPayments?.paymentType === 'elite' ? '精英班' : '恆常班'}所有繳費及收據
+            </DialogDescription>
+          </DialogHeader>
+          {studentPaymentsLoading ? (
+            <div className="text-center py-8">載入中...</div>
+          ) : !studentPayments?.length ? (
+            <div className="text-center py-8 text-muted-foreground">沒有繳費記錄</div>
+          ) : (
+            <div className="space-y-2">
+              {(studentPayments as any[]).map((p: any) => (
+                <div key={p.id} className={`border rounded-lg p-3 text-xs space-y-1 ${
+                  p.reviewStatus === 'pending_review' ? 'border-yellow-300 bg-yellow-50/50' : 'border-gray-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">${p.amount}</span>
+                      <span className="text-muted-foreground">{p.period}</span>
+                      <Badge variant="outline" className={`text-[10px] ${
+                        p.status === 'confirmed' ? 'border-green-300 text-green-700' : 'border-yellow-300 text-yellow-700'
+                      }`}>
+                        {p.status === 'confirmed' ? '已確認' : '待確認'}
+                      </Badge>
+                      {p.reviewStatus && p.reviewStatus !== 'normal' && (
+                        <Badge className={`text-[10px] ${statusColors[p.reviewStatus] || ''}`}>
+                          {statusLabels[p.reviewStatus] || p.reviewStatus}
+                        </Badge>
+                      )}
+                    </div>
+                    {p.receiptUrl && (
+                      <Button size="sm" variant="outline" className="text-xs h-6 px-2" onClick={() => setShowImage(p.receiptUrl)}>
+                        <ImageIcon className="w-3 h-3 mr-1" /> 收據
+                      </Button>
+                    )}
+                  </div>
+                  <div className="text-muted-foreground">
+                    繳費日期: {formatDate(p.paymentDate)} | 建立: {formatDate(p.createdAt)}
+                    {p.confirmedBy && ` | ${p.confirmedBy === 'coach_approved' ? '教練核准' : p.confirmedBy === 'parent_upload' ? '家長上傳' : '管理員'}`}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </DialogContent>
       </Dialog>

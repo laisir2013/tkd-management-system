@@ -1369,7 +1369,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
       return;
     }
     const phone = candidate.phone.startsWith('852') ? candidate.phone : `852${candidate.phone}`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`, '_blank');
   }
 
   function sendBulkScoringResults() {
@@ -1991,7 +1991,7 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
     msg += EXAM_NOTICE_FOOTER;
 
     const phone = candidate.phone.startsWith('852') ? candidate.phone : `852${candidate.phone}`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`, '_blank');
   }
 
   return (
@@ -2012,7 +2012,7 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
           <Button size="sm" variant="outline" onClick={() => {
             if (!examData || !candidates) return;
             const msg = generateTimetableWhatsAppMessage(examData, sortedSchedules, candidates as any[]);
-            const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+            const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
             window.open(url, '_blank');
           }}><Send className="w-4 h-4 mr-1" /> WhatsApp 通知</Button>
           {sortedSchedules.length > 0 && (
@@ -3633,7 +3633,7 @@ function ResultsPage({ examId }: { examId: number }) {
     }
     const msg = generateResultMessage(candidate, examData?.name || '升級試');
     const phone = candidate.phone.startsWith('852') ? candidate.phone : `852${candidate.phone}`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`, '_blank');
   }
 
   function sendBulkWhatsAppResults() {
