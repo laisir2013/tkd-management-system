@@ -1846,10 +1846,19 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
   const maxPositions = Math.max(9, ...timetableRows.map(r => r.candidates.length));
 
   // 通知時間段計算：每2組為1個時間段，開始向下取整到15分，結束向上取整到15分
+  // 若該配對有搏擊時段，也要納入計算
   const notifySlotMap = useMemo(() => {
     const map: Record<string, { start: string; end: string; isFirst: boolean; span: number }> = {};
     // 只取非搏擊的正式組
     const mainGroups = timetableRows.filter(r => !r.isSparring);
+    // 搏擊時段 map: SPR-E → { startTime, endTime }
+    const sparringMap: Record<string, { startTime: string; endTime: string }> = {};
+    timetableRows.filter(r => r.isSparring).forEach(r => {
+      // SPR-E → 對應 E 組
+      const baseGroup = String(r.groupCode || '').replace('SPR-', '');
+      sparringMap[baseGroup] = { startTime: r.startTime, endTime: r.endTime };
+    });
+
     const parseT = (t: string) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
     const formatT = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
     const floor15Before = (mins: number) => Math.floor((mins - 1) / 15) * 15; // 最貼近又早少少
@@ -1858,9 +1867,23 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
     for (let i = 0; i < mainGroups.length; i += 2) {
       const g1 = mainGroups[i];
       const g2 = mainGroups[i + 1]; // 可能為 undefined（奇數組）
-      const startMins = parseT(g1.startTime);
+      const g1Code = String(g1.groupCode || '').toUpperCase();
+      const g2Code = g2 ? String(g2.groupCode || '').toUpperCase() : '';
+
+      // 開始時間：考慮該配對中第一組的搏擊（SPR-X 在 X 組前面）
+      let earliestStart = parseT(g1.startTime);
+      if (sparringMap[g1Code]) {
+        earliestStart = Math.min(earliestStart, parseT(sparringMap[g1Code].startTime));
+      }
+      // 也考慮第二組的搏擊（雖然通常搏擊只在第一組前，但以防萬一）
+      if (g2 && sparringMap[g2Code]) {
+        earliestStart = Math.min(earliestStart, parseT(sparringMap[g2Code].startTime));
+      }
+
+      // 結束時間
       const endMins = g2 ? parseT(g2.endTime) : parseT(g1.endTime);
-      const notifyStart = formatT(floor15Before(startMins));
+
+      const notifyStart = formatT(floor15Before(earliestStart));
       const notifyEnd = formatT(ceil15After(endMins));
       const span = g2 ? 2 : 1;
       map[g1.groupCode] = { start: notifyStart, end: notifyEnd, isFirst: true, span };
