@@ -1030,17 +1030,55 @@ function generateTimetableWhatsAppMessage(exam: any, schedules: any[], candidate
   msg += `📅 ${new Date(exam.examDate + 'T00:00:00').toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}\n`;
   if (exam.location) msg += `📍 ${exam.location}\n`;
   msg += `\n`;
-  
+
+  // 計算通知時間段（與 TimetablePage 中相同邏輯）
+  const parseT = (t: string) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
+  const formatT = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+  const floor15Before = (mins: number) => Math.floor((mins - 1) / 15) * 15;
+  const ceil15After = (mins: number) => mins % 15 === 0 ? mins : Math.ceil(mins / 15) * 15;
+
   const sorted = [...schedules].sort((a: any, b: any) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+  const mainGroups = sorted.filter((s: any) => !String(s.groupCode || '').startsWith('SPR-'));
+  const sparringMap: Record<string, { startTime: string; endTime: string }> = {};
+  sorted.filter((s: any) => String(s.groupCode || '').startsWith('SPR-')).forEach((s: any) => {
+    const baseGroup = String(s.groupCode || '').replace('SPR-', '');
+    sparringMap[baseGroup] = { startTime: s.startTime, endTime: s.endTime };
+  });
+
+  // 建立通知時間段 map
+  const notifyMap: Record<string, string> = {};
+  for (let i = 0; i < mainGroups.length; i += 2) {
+    const g1 = mainGroups[i];
+    const g2 = mainGroups[i + 1];
+    const g1Code = String(g1.groupCode || '').toUpperCase();
+    const g2Code = g2 ? String(g2.groupCode || '').toUpperCase() : '';
+    let earliestStart = parseT(g1.startTime);
+    if (sparringMap[g1Code]) earliestStart = Math.min(earliestStart, parseT(sparringMap[g1Code].startTime));
+    if (g2 && sparringMap[g2Code]) earliestStart = Math.min(earliestStart, parseT(sparringMap[g2Code].startTime));
+    const endMins = g2 ? parseT(g2.endTime) : parseT(g1.endTime);
+    const slotStr = `${formatT(floor15Before(earliestStart))}~${formatT(ceil15After(endMins))}`;
+    notifyMap[g1.groupCode] = slotStr;
+    if (g2) notifyMap[g2.groupCode] = slotStr;
+  }
+
+  // 產生訊息：每2組一段，顯示通知時間段
+  let lastNotifySlot = '';
   for (const sch of sorted) {
     const gc = String(sch.groupCode || '');
-    // 搏擊時段
-    if (gc.startsWith('SPR-')) {
-      msg += `🥊 搏擊 | ${sch.timeSlot || `${sch.startTime}-${sch.endTime}`}\n\n`;
-      continue;
-    }
+    // 搏擊時段跳過（已包含在通知時間段中）
+    if (gc.startsWith('SPR-')) continue;
+
     const groupCandidates = candidates.filter((c: any) => c.groupCode === sch.groupCode);
     if (groupCandidates.length === 0) continue;
+
+    // 若通知時間段變了，印出新的時間段標題
+    const currentSlot = notifyMap[sch.groupCode] || '';
+    if (currentSlot && currentSlot !== lastNotifySlot) {
+      msg += `⏰ 到場時間: ${currentSlot}\n`;
+      msg += `─────────────\n`;
+      lastNotifySlot = currentSlot;
+    }
+
     msg += `【${sch.groupCode?.toUpperCase() || '-'} 組】${getBeltName(sch.beltLevel)} | ${sch.timeSlot || `${sch.startTime}-${sch.endTime}`}\n`;
     msg += groupCandidates.map((c: any) => `  ${c.orderNumber || '-'}. ${c.name}`).join('\n');
     msg += '\n\n';
@@ -1914,6 +1952,9 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
     // Find the schedule for this candidate's group
     const sch = sortedSchedules.find((s: any) => s.groupCode === candidate.groupCode);
     const timeStr = sch?.timeSlot || (sch?.startTime && sch?.endTime ? `${sch.startTime}-${sch.endTime}` : '待定');
+    // 通知時間段
+    const notifySlot = notifySlotMap[candidate.groupCode];
+    const notifyTimeStr = notifySlot ? `${notifySlot.start}~${notifySlot.end}` : '';
     const dateStr = examData?.examDate
       ? new Date(examData.examDate + 'T00:00:00').toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
       : '待定';
@@ -1925,7 +1966,7 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
     msg += `👤 ${candidate.name} 同學\n`;
     msg += `🥋 報考: ${beltFrom} → ${beltTo}\n`;
     msg += `📅 日期: ${dateStr}\n`;
-    msg += `⏰ 時間: ${timeStr}\n`;
+    msg += `⏰ 到場時間: ${notifyTimeStr || timeStr}\n`;
     if (location) msg += `📍 地點: ${location}\n`;
     msg += `📌 組別: ${(candidate.groupCode || '').toUpperCase()} 組 第${candidate.orderNumber || '-'}位\n`;
     msg += `\n請準時到場，遲到者可能會被安排到較後組別。\n`;
