@@ -1267,6 +1267,42 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
     return cats;
   }, [items]);
 
+  // 踢木板左右腳配對顏色區分
+  const boardPairColorMap = useMemo(() => {
+    const map = new Map<number, string>();
+    const boardCat = categorizedItems.find(c => c.category === 'board');
+    if (!boardCat) return map;
+    // Group items by base name (strip （左）/（右）)
+    const pairGroups = new Map<string, number[]>();
+    for (const item of boardCat.items) {
+      const baseName = item.name.replace(/（[左右]）$/, '');
+      if (baseName !== item.name) { // Has left/right suffix
+        if (!pairGroups.has(baseName)) pairGroups.set(baseName, []);
+        pairGroups.get(baseName)!.push(item.id);
+      }
+    }
+    // Assign alternating color pairs - left gets one shade, right gets another
+    const pairColors = [
+      ['bg-rose-50', 'bg-rose-100'],
+      ['bg-sky-50', 'bg-sky-100'],
+      ['bg-amber-50', 'bg-amber-100'],
+      ['bg-emerald-50', 'bg-emerald-100'],
+      ['bg-violet-50', 'bg-violet-100'],
+      ['bg-cyan-50', 'bg-cyan-100'],
+      ['bg-orange-50', 'bg-orange-100'],
+    ];
+    let pairIdx = 0;
+    pairGroups.forEach((ids) => {
+      if (ids.length === 2) {
+        const colors = pairColors[pairIdx % pairColors.length];
+        map.set(ids[0], colors[0]); // 左
+        map.set(ids[1], colors[1]); // 右
+        pairIdx++;
+      }
+    });
+    return map;
+  }, [categorizedItems]);
+
   const handleScoreClick = (candidateId: number, scoringItemId: number, score: string) => {
     bulkUpsert.mutate({ candidateId, scores: [{ scoringItemId, score }] });
   };
@@ -1470,12 +1506,15 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
               </tr>
               {/* Item name row */}
               <tr className="border-b bg-gray-50">
-                {categorizedItems.flatMap(cat => cat.items.map(item => (
-                  <th key={item.id} className="px-1 py-1 text-center border-r min-w-[80px]">
+                {categorizedItems.flatMap(cat => cat.items.map(item => {
+                  const pairColor = boardPairColorMap.get(item.id);
+                  return (
+                  <th key={item.id} className={`px-1 py-1 text-center border-r min-w-[80px] ${pairColor || ''}`}>
                     <div className="font-medium text-[10px] leading-tight">{item.name}</div>
                     {item.description && <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{item.description}</div>}
                   </th>
-                )))}
+                  );
+                }))}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -1555,6 +1594,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                       const isGrade = item.type === 'grade';
                       const isPassFail = item.type === 'pass_fail';
                       const isYesNo = item.type === 'yes_no';
+                      const pairColor = boardPairColorMap.get(item.id) || '';
                       // Previous score for retake students
                       const prevScore = isRetake ? prevScores.find(ps => ps.scoringItemId === item.id)?.score || '' : '';
                       const prevFailed = prevScore && ['f', 'fail', 'false', '未達標', '否', '不合格', '沒有'].includes(prevScore.toLowerCase());
@@ -1563,7 +1603,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
 
                       if (isAbsent) {
                         return (
-                          <td key={item.id} className="px-1 py-1 border-r text-center">
+                          <td key={item.id} className={`px-1 py-1 border-r text-center ${pairColor}`}>
                             <span className="text-[10px] text-gray-300">—</span>
                           </td>
                         );
@@ -1572,7 +1612,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                       // 補考生已合格項目 — 顯示鎖定狀態，不可修改
                       if (isLockedByRetake) {
                         return (
-                          <td key={item.id} className="px-1 py-1 border-r text-center bg-green-50/60 relative">
+                          <td key={item.id} className={`px-1 py-1 border-r text-center relative ${pairColor || 'bg-green-50/60'}`}>
                             <div className="flex flex-col items-center justify-center gap-0.5">
                               <span className="text-[10px] font-bold text-green-600">{prevScore.toUpperCase()}</span>
                               <span className="text-[8px] text-green-500">🔒已合格</span>
@@ -1582,7 +1622,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                       }
 
                       return (
-                        <td key={item.id} className={`px-1 py-1 border-r text-center relative group/cell ${isRetake && prevFailed ? 'bg-red-50/30' : ''}`}>
+                        <td key={item.id} className={`px-1 py-1 border-r text-center relative group/cell ${pairColor || (isRetake && prevFailed ? 'bg-red-50/30' : '')}`}>
                           {/* Previous failed score indicator for retake students */}
                           {isRetake && prevFailed && !currentScore && (
                             <div className="absolute top-0 right-0 pointer-events-none">
@@ -2874,6 +2914,40 @@ function ScoreViewPage({ examId }: { examId: number }) {
     return cats;
   }, [items]);
 
+  // 踢木板左右腳配對顏色區分 (read-only view)
+  const boardPairColorMap = useMemo(() => {
+    const map = new Map<number, string>();
+    const boardCat = categorizedItems.find(c => c.category === 'board');
+    if (!boardCat) return map;
+    const pairGroups = new Map<string, number[]>();
+    for (const item of boardCat.items) {
+      const baseName = item.name.replace(/（[左右]）$/, '');
+      if (baseName !== item.name) {
+        if (!pairGroups.has(baseName)) pairGroups.set(baseName, []);
+        pairGroups.get(baseName)!.push(item.id);
+      }
+    }
+    const pairColors = [
+      ['bg-rose-50', 'bg-rose-100'],
+      ['bg-sky-50', 'bg-sky-100'],
+      ['bg-amber-50', 'bg-amber-100'],
+      ['bg-emerald-50', 'bg-emerald-100'],
+      ['bg-violet-50', 'bg-violet-100'],
+      ['bg-cyan-50', 'bg-cyan-100'],
+      ['bg-orange-50', 'bg-orange-100'],
+    ];
+    let pairIdx = 0;
+    pairGroups.forEach((ids) => {
+      if (ids.length === 2) {
+        const colors = pairColors[pairIdx % pairColors.length];
+        map.set(ids[0], colors[0]);
+        map.set(ids[1], colors[1]);
+        pairIdx++;
+      }
+    });
+    return map;
+  }, [categorizedItems]);
+
   // Stats
   const scoredCount = beltCandidates.filter(c => ['passed', 'failed'].includes(c.status)).length;
   const totalItems = items.length;
@@ -3014,11 +3088,14 @@ function ScoreViewPage({ examId }: { examId: number }) {
               </tr>
               {/* Item name row */}
               <tr className="border-b bg-gray-50">
-                {categorizedItems.flatMap(cat => cat.items.map(item => (
-                  <th key={item.id} className="px-1 py-1 text-center border-r min-w-[70px]">
+                {categorizedItems.flatMap(cat => cat.items.map(item => {
+                  const pairColor = boardPairColorMap.get(item.id);
+                  return (
+                  <th key={item.id} className={`px-1 py-1 text-center border-r min-w-[70px] ${pairColor || ''}`}>
                     <div className="font-medium text-[10px] leading-tight">{item.name}</div>
                   </th>
-                )))}
+                  );
+                }))}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -3049,15 +3126,16 @@ function ScoreViewPage({ examId }: { examId: number }) {
                     </td>
                     {categorizedItems.flatMap(cat => cat.items.map(item => {
                       const currentScore = candidateScores.get(item.id) || '';
+                      const pairColor = boardPairColorMap.get(item.id) || '';
                       if (isAbsent) {
                         return (
-                          <td key={item.id} className="px-1 py-2 border-r text-center">
+                          <td key={item.id} className={`px-1 py-2 border-r text-center ${pairColor}`}>
                             <span className="text-gray-300">—</span>
                           </td>
                         );
                       }
                       return (
-                        <td key={item.id} className="px-1 py-2 border-r text-center">
+                        <td key={item.id} className={`px-1 py-2 border-r text-center ${pairColor}`}>
                           {currentScore ? renderScore(currentScore, item.type) : <span className="text-gray-200">⋯</span>}
                         </td>
                       );
