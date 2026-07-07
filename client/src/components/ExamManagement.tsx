@@ -1083,8 +1083,24 @@ function generateTimetableWhatsAppMessage(exam: any, schedules: any[], candidate
     msg += groupCandidates.map((c: any) => `  ${c.orderNumber || '-'}. ${c.name}`).join('\n');
     msg += '\n\n';
   }
+  msg += EXAM_NOTICE_FOOTER;
   return msg;
 }
+
+const EXAM_NOTICE_FOOTER = `❇為免過多人群聚集，家長不可進場，不便之處，敬請原諒。
+❇考生必須穿著整齊跆拳道服和帶上跆拳道腰帶，否則將不能應考
+❇綠帶以上考生，需 自備大膠袋 處理木板碎，因當天有大量木板碎，麻煩離開場館後才掉進垃圾桶
+❇綠帶或以上需帶備 全套搏擊護具
+
+📣考試注意事項📣
+
+💡考生須穿著整齊道袍及色帶，不能穿著品勢袍及黃色館Tee，風褸考試。
+💡如有需要，只可穿白色內衣。
+💡請根據指定時間到場，逾時者作不合格論。
+💡綠帶或以上考生，必須帶齊所有搏擊護具。
+💡考生必須預先修剪好手甲, 腳甲。
+💡考生穿著護甲時必須佩戴色帶。
+`;
 
 // ==================== 批量評分表格 (A/B/C 矩陣) ====================
 function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap, onNavigate }: {
@@ -1971,7 +1987,8 @@ function TimetablePage({ examId, readOnly = false }: { examId: number; readOnly?
     msg += `📌 組別: ${(candidate.groupCode || '').toUpperCase()} 組 第${candidate.orderNumber || '-'}位\n`;
     msg += `\n請準時到場，遲到者可能會被安排到較後組別。\n`;
     msg += `如有任何查詢，請聯絡我們。\n\n`;
-    msg += `— 創武跆拳道`;
+    msg += `— 創武跆拳道\n\n`;
+    msg += EXAM_NOTICE_FOOTER;
 
     const phone = candidate.phone.startsWith('852') ? candidate.phone : `852${candidate.phone}`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
