@@ -653,16 +653,129 @@ function CandidatesPage({ examId }: { examId: number }) {
   }, [payments]);
 
   const [showAdd, setShowAdd] = useState(false);
-  const [addName, setAddName] = useState('');
-  const [addPhone, setAddPhone] = useState('');
-  const [addGender, setAddGender] = useState<'male' | 'female'>('male');
-  const [addAge, setAddAge] = useState('');
-  const [addDojoName, setAddDojoName] = useState('');
-  const [addCurrentBelt, setAddCurrentBelt] = useState('white');
-  const [addTargetBelt, setAddTargetBelt] = useState('yellow');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [venueFilter, setVenueFilter] = useState('');
+  const [beltLevelFilter, setBeltLevelFilter] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [addTargetBelt, setAddTargetBelt] = useState('');
+  const [addIsRetake, setAddIsRetake] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentBank, setPaymentBank] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [searchQuery, setSearchQuery] = useState('');
   const [beltFilter, setBeltFilter] = useState('all');
   const [showImport, setShowImport] = useState(false);
+
+  // Chinese → English belt mapping
+  const BELT_CN_TO_EN: Record<string, string> = {
+    '白帶': 'white', '黃帶': 'yellow', '黃綠帶': 'yellow_green',
+    '綠帶': 'green', '綠藍帶': 'green_blue', '藍帶': 'blue',
+    '藍紅帶': 'blue_red', '紅帶': 'red', '紅黑帶': 'red_black',
+    '黑帶': 'black', '黑帶2段': 'black_2dan', '黑帶二段': 'black_2dan',
+    '黑帶3段': 'black_3dan', '黑帶三段': 'black_3dan',
+  };
+
+  // Get next belt (target) based on current belt
+  const getNextBelt = (currentKey: string) => {
+    const idx = BELT_ORDER_KEYS.indexOf(currentKey);
+    return idx >= 0 && idx < BELT_ORDER_KEYS.length - 1 ? BELT_ORDER_KEYS[idx + 1] : currentKey;
+  };
+
+  // Student search query
+  const { data: searchResults, isLoading: searchLoading } = trpc.students.search.useQuery(
+    { query: studentSearch || undefined, venue: venueFilter || undefined, beltLevel: beltLevelFilter || undefined, status: 'active', limit: 50 },
+    { enabled: showAdd && (studentSearch.length >= 1 || !!venueFilter || !!beltLevelFilter) }
+  );
+
+  // Get unique venues for filter
+  const { data: allDojos } = trpc.dojos.getAll.useQuery();
+  const venueOptions = useMemo(() => {
+    if (!allDojos) return [];
+    return (allDojos as any[]).map(d => d.name);
+  }, [allDojos]);
+
+  // Upload receipt handler
+  const handleReceiptSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setReceiptFile(file);
+      const reader = new FileReader();
+      reader.onload = (ev) => setReceiptPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadReceipt = trpc.exam.payments.uploadReceipt.useMutation();
+
+  const handleAddCandidate = async () => {
+    if (!selectedStudent) { toast.error('請先選擇學生'); return; }
+    if (!addTargetBelt) { toast.error('請選擇升級目標'); return; }
+
+    try {
+      // 1. Create candidate
+      const result = await createCandidate.mutateAsync({
+        examId,
+        studentId: selectedStudent.id,
+        name: selectedStudent.name,
+        phone: selectedStudent.phone || undefined,
+        gender: selectedStudent.gender || 'male',
+        dojoName: selectedStudent.venue || undefined,
+        currentBelt: BELT_CN_TO_EN[selectedStudent.beltLevel] || selectedStudent.beltLevel || 'white',
+        targetBelt: addTargetBelt,
+      });
+
+      // 2. Create payment record if amount specified
+      if (paymentAmount && parseFloat(paymentAmount) > 0) {
+        let receiptBase64: string | undefined;
+        let receiptMimeType: string | undefined;
+        if (receiptFile) {
+          const base64 = receiptPreview?.split(',')[1];
+          receiptBase64 = base64;
+          receiptMimeType = receiptFile.type;
+        }
+
+        const paymentResult = await createPaymentMutation.mutateAsync({
+          examId,
+          candidateId: result.id,
+          studentId: selectedStudent.id,
+          studentName: selectedStudent.name,
+          targetBelt: addTargetBelt,
+          amount: paymentAmount,
+          isRetake: addIsRetake,
+          bank: paymentBank || undefined,
+          paymentDate: paymentDate || undefined,
+          status: 'confirmed',
+        });
+
+        // 3. Upload receipt if provided
+        if (receiptBase64 && paymentResult.id) {
+          await uploadReceipt.mutateAsync({
+            examPaymentId: paymentResult.id,
+            receiptBase64,
+            receiptMimeType: receiptMimeType || 'image/jpeg',
+          });
+        }
+      }
+
+      // Reset form
+      setSelectedStudent(null);
+      setStudentSearch('');
+      setAddTargetBelt('');
+      setAddIsRetake(false);
+      setReceiptFile(null);
+      setReceiptPreview(null);
+      setPaymentAmount('');
+      setPaymentBank('');
+      setPaymentDate(new Date().toISOString().slice(0, 10));
+      toast.success('已新增考生' + (paymentAmount ? '（含繳費記錄）' : ''));
+    } catch (e: any) {
+      toast.error(`新增失敗：${e.message}`);
+    }
+  };
+
+  const createPaymentMutation = trpc.exam.payments.create.useMutation();
 
   const { data: allEvents } = trpc.events.getAll.useQuery({ type: 'exam' });
 
@@ -716,36 +829,163 @@ function CandidatesPage({ examId }: { examId: number }) {
         </div>
       )}
 
-      {/* Add candidate form */}
+      {/* Add candidate form - search from DB */}
       {showAdd && (
-        <div className="bg-white rounded-lg border p-4 space-y-3">
-          <h3 className="font-medium">新增考生</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Input placeholder="姓名*" value={addName} onChange={e => setAddName(e.target.value)} />
-            <Input placeholder="電話" value={addPhone} onChange={e => setAddPhone(e.target.value)} />
-            <select value={addGender} onChange={e => setAddGender(e.target.value as any)} className="border rounded-md px-3 py-2 text-sm">
-              <option value="male">男</option>
-              <option value="female">女</option>
-            </select>
-            <Input placeholder="年齡" type="number" value={addAge} onChange={e => setAddAge(e.target.value)} />
-            <Input placeholder="道場" value={addDojoName} onChange={e => setAddDojoName(e.target.value)} />
-            <select value={addCurrentBelt} onChange={e => setAddCurrentBelt(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
-              {BELT_ORDER_KEYS.map(b => <option key={b} value={b}>{getBeltName(b)}</option>)}
-            </select>
-            <select value={addTargetBelt} onChange={e => setAddTargetBelt(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
-              {BELT_ORDER_KEYS.map(b => <option key={b} value={b}>{getBeltName(b)}</option>)}
-            </select>
+        <div className="bg-white rounded-lg border p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium text-lg">新增考生（從學生資料庫搜尋）</h3>
+            <button onClick={() => { setShowAdd(false); setSelectedStudent(null); setStudentSearch(''); }} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => {
-              if (!addName) { toast.error('請填寫姓名'); return; }
-              createCandidate.mutate({ examId, name: addName, phone: addPhone || undefined, gender: addGender, age: addAge ? parseInt(addAge) : undefined, dojoName: addDojoName || undefined, currentBelt: addCurrentBelt, targetBelt: addTargetBelt });
-              setAddName(''); setAddPhone(''); setAddAge(''); setAddDojoName('');
-            }} className="bg-blue-600 text-white" disabled={createCandidate.isPending}>
-              {createCandidate.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : '新增'}
-            </Button>
-            <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
-          </div>
+
+          {!selectedStudent ? (
+            <>
+              {/* Search bar + filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-2 relative">
+                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                  <Input placeholder="輸入姓名或電話搜尋..." value={studentSearch} onChange={e => setStudentSearch(e.target.value)} className="pl-9" autoFocus />
+                </div>
+                <select value={venueFilter} onChange={e => setVenueFilter(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
+                  <option value="">全部道場</option>
+                  {venueOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+                <select value={beltLevelFilter} onChange={e => setBeltLevelFilter(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
+                  <option value="">全部帶級</option>
+                  {Object.entries(BELT_CN_TO_EN).map(([cn]) => <option key={cn} value={cn}>{cn}</option>)}
+                </select>
+              </div>
+
+              {/* Search results */}
+              {searchLoading && <div className="text-center py-4"><Loader2 className="w-5 h-5 animate-spin mx-auto text-blue-500" /></div>}
+              {searchResults && (searchResults as any[]).length > 0 ? (
+                <div className="border rounded-lg max-h-[300px] overflow-y-auto divide-y">
+                  {(searchResults as any[]).map((s: any) => {
+                    // Check if already a candidate
+                    const alreadyAdded = (candidates as any[])?.some(c => c.studentId === s.id);
+                    return (
+                      <div key={s.id} className={`flex items-center justify-between px-3 py-2 hover:bg-blue-50 transition-colors ${alreadyAdded ? 'opacity-50 bg-gray-50' : 'cursor-pointer'}`}
+                        onClick={() => { if (!alreadyAdded) {
+                          setSelectedStudent(s);
+                          const currentKey = BELT_CN_TO_EN[s.beltLevel] || 'white';
+                          setAddTargetBelt(getNextBelt(currentKey));
+                        }}}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-600">
+                            {s.name?.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">{s.name}</div>
+                            <div className="text-xs text-gray-500">{s.phone} · {s.venue} · {s.beltLevel || '未設定'}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {alreadyAdded ? (
+                            <span className="text-xs text-orange-500 font-medium">已報名</span>
+                          ) : (
+                            <span className="text-xs text-blue-500 font-medium">選擇 →</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : studentSearch.length >= 1 && !searchLoading ? (
+                <div className="text-center py-4 text-sm text-gray-400">找不到符合條件的學生</div>
+              ) : !studentSearch && !venueFilter && !beltLevelFilter ? (
+                <div className="text-center py-6 text-sm text-gray-400">
+                  <UserPlus className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                  請輸入姓名/電話或選擇條件篩選學生
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {/* Selected student info + target belt + payment */}
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-200 flex items-center justify-center text-base font-bold text-blue-700">
+                      {selectedStudent.name?.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="font-bold text-base">{selectedStudent.name}</div>
+                      <div className="text-sm text-gray-600">
+                        {selectedStudent.phone} · {selectedStudent.venue} · {selectedStudent.beltLevel || '未設定'}
+                        {selectedStudent.gender && ` · ${selectedStudent.gender === 'male' ? '男' : '女'}`}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedStudent(null)} className="text-sm text-blue-600 hover:underline">重新選擇</button>
+                </div>
+              </div>
+
+              {/* Target belt & retake */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">目前帶級</label>
+                  <div className="border rounded-md px-3 py-2 text-sm bg-gray-50">
+                    {selectedStudent.beltLevel || getBeltName(BELT_CN_TO_EN[selectedStudent.beltLevel] || 'white')}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">升級目標 *</label>
+                  <select value={addTargetBelt} onChange={e => setAddTargetBelt(e.target.value)} className="border rounded-md px-3 py-2 text-sm w-full">
+                    {BELT_ORDER_KEYS.map(b => <option key={b} value={b}>{getBeltName(b)}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={addIsRetake} onChange={e => setAddIsRetake(e.target.checked)} className="rounded" />
+                    <span className="text-sm font-medium text-orange-600">補考生</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Payment section */}
+              <div className="border-t pt-3">
+                <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                  <CreditCard className="w-4 h-4" /> 繳費資料（選填）
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">金額 (HKD)</label>
+                    <Input type="number" placeholder="例：400" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">付款銀行</label>
+                    <Input placeholder="例：恒生" value={paymentBank} onChange={e => setPaymentBank(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">付款日期</label>
+                    <Input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">收據圖片</label>
+                    <label className="flex items-center gap-1 px-3 py-2 border rounded-md text-sm cursor-pointer hover:bg-gray-50 transition-colors">
+                      <Upload className="w-4 h-4 text-gray-400" />
+                      <span className="truncate">{receiptFile ? receiptFile.name : '上傳收據'}</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleReceiptSelect} />
+                    </label>
+                  </div>
+                </div>
+                {receiptPreview && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <img src={receiptPreview} alt="收據預覽" className="h-16 rounded border" />
+                    <button onClick={() => { setReceiptFile(null); setReceiptPreview(null); }} className="text-xs text-red-500 hover:underline">移除</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-2">
+                <Button onClick={handleAddCandidate} className="bg-blue-600 text-white" disabled={createCandidate.isPending || createPaymentMutation.isPending || uploadReceipt.isPending}>
+                  {(createCandidate.isPending || createPaymentMutation.isPending || uploadReceipt.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                  確認新增考生{paymentAmount ? '（含繳費）' : ''}
+                </Button>
+                <Button variant="outline" onClick={() => { setShowAdd(false); setSelectedStudent(null); }}>取消</Button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

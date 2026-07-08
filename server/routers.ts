@@ -782,6 +782,52 @@ export const appRouter = router({
         return getAllStudents();
       }),
 
+    /** 搜尋學生（用於考試報名選擇學生） */
+    search: protectedProcedure
+      .input(z.object({
+        query: z.string().optional(),
+        venue: z.string().optional(),
+        beltLevel: z.string().optional(),
+        status: z.enum(['active', 'inactive', 'suspended']).optional(),
+        limit: z.number().default(50),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        let conditions: any[] = [];
+        if (input.status) {
+          conditions.push(eq(schema.students.status, input.status));
+        }
+        if (input.venue) {
+          conditions.push(eq(schema.students.venue, input.venue));
+        }
+        if (input.beltLevel) {
+          conditions.push(eq(schema.students.beltLevel, input.beltLevel));
+        }
+        let query = db.select({
+          id: schema.students.id,
+          name: schema.students.name,
+          phone: schema.students.phone,
+          venue: schema.students.venue,
+          beltLevel: schema.students.beltLevel,
+          gender: schema.students.gender,
+          birthDate: schema.students.birthDate,
+          status: schema.students.status,
+          coach: schema.students.coach,
+        }).from(schema.students);
+        if (input.query) {
+          const q = `%${input.query}%`;
+          conditions.push(
+            sql`(${schema.students.name} LIKE ${q} OR ${schema.students.phone} LIKE ${q})`
+          );
+        }
+        if (conditions.length > 0) {
+          query = query.where(and(...conditions)) as any;
+        }
+        const results = await (query as any).limit(input.limit);
+        return results;
+      }),
+
     // 新增單個學生
     create: protectedProcedure
       .input(z.object({
