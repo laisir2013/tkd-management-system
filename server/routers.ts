@@ -6286,6 +6286,39 @@ export const appRouter = router({
           orderNumber: z.number().optional(),
         }))
         .mutation(async ({ input }) => {
+          // Auto-assign group if not provided
+          let groupCode = input.groupCode || null;
+          let orderNumber = input.orderNumber || null;
+
+          if (!groupCode) {
+            const db = await getDb();
+            if (db) {
+              // Find existing groups for this belt level in this exam
+              const existingCandidates = await db.select({
+                groupCode: schema.examCandidates.groupCode,
+                orderNumber: schema.examCandidates.orderNumber,
+                currentBelt: schema.examCandidates.currentBelt,
+              }).from(schema.examCandidates)
+                .where(and(
+                  eq(schema.examCandidates.examId, input.examId),
+                  eq(schema.examCandidates.currentBelt, input.currentBelt),
+                  sql`${schema.examCandidates.groupCode} IS NOT NULL`
+                ));
+
+              if (existingCandidates.length > 0) {
+                // Find the last group for this belt level (by group code alphabetically last)
+                const groupsForBelt = [...new Set(existingCandidates.map(c => c.groupCode!))].sort();
+                const lastGroup = groupsForBelt[groupsForBelt.length - 1];
+                // Get max order number in that group
+                const maxOrder = existingCandidates
+                  .filter(c => c.groupCode === lastGroup)
+                  .reduce((max, c) => Math.max(max, c.orderNumber || 0), 0);
+                groupCode = lastGroup;
+                orderNumber = maxOrder + 1;
+              }
+            }
+          }
+
           const result = await insertExamCandidate({
             examId: input.examId,
             studentId: input.studentId || null,
@@ -6297,8 +6330,8 @@ export const appRouter = router({
             ageGroup: input.ageGroup || null,
             currentBelt: input.currentBelt,
             targetBelt: input.targetBelt,
-            groupCode: input.groupCode || null,
-            orderNumber: input.orderNumber || null,
+            groupCode,
+            orderNumber,
             status: 'registered',
             hasLakLakAward: false,
           });
