@@ -1797,6 +1797,10 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         name: z.string(),
+        scheduleDay: z.string().optional(),
+        scheduleTime: z.string().optional(),
+        coachName: z.string().optional(),
+        color: z.string().optional(),
         address: z.string().optional(),
         phone: z.string().optional(),
         email: z.string().optional(),
@@ -1815,6 +1819,10 @@ export const appRouter = router({
       .input(z.object({
         id: z.number(),
         name: z.string().optional(),
+        scheduleDay: z.string().optional(),
+        scheduleTime: z.string().optional(),
+        coachName: z.string().optional(),
+        color: z.string().optional(),
         address: z.string().optional(),
         phone: z.string().optional(),
         email: z.string().optional(),
