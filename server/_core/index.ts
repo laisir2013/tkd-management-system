@@ -134,11 +134,11 @@ async function startServer() {
 
   // ── Certificate Generation Endpoint ─────────────────────────────────
   // POST /api/exam/certificates - Generate certificates for passed candidates
-  // Body: { examId: number } OR { students: [{name, belt_level, exam_date}] }
+  // Body: { examId: number, candidateIds?: number[] } OR { students: [{name, belt_level, exam_date}] }
   app.post('/api/exam/certificates', async (req, res) => {
-    console.log('[Certificate] Request received:', { examId: req.body?.examId, hasStudents: !!req.body?.students });
+    console.log('[Certificate] Request received:', { examId: req.body?.examId, candidateIds: req.body?.candidateIds, hasStudents: !!req.body?.students });
     try {
-      const { examId, students } = req.body;
+      const { examId, students, candidateIds } = req.body;
       
       if (!examId && !students) {
         return res.status(400).json({ error: 'Must provide examId or students array' });
@@ -158,7 +158,10 @@ async function startServer() {
       console.log('[Certificate] Script path:', scriptPath, 'exists:', fs.existsSync(scriptPath));
       
       let args: string[];
-      if (examId) {
+      if (examId && candidateIds && candidateIds.length > 0) {
+        // Individual candidate(s) — pass candidate IDs via temp JSON
+        args = ['--exam-id', String(examId), '--candidate-ids', candidateIds.join(','), '--output', outputPath];
+      } else if (examId) {
         args = ['--exam-id', String(examId), '--output', outputPath];
       } else {
         // Write students data to temp JSON file
@@ -273,10 +276,16 @@ print(json.dumps({"examDate": exam_date, "candidates": candidates}, default=str)
   });
 
   // POST /api/exam/scoresheets - Generate score sheets PDF
+  // Body: { examId: number, candidateIds?: number[] }
   app.post('/api/exam/scoresheets', async (req, res) => {
     try {
-      const { examId } = req.body;
+      const { examId, candidateIds } = req.body;
       if (!examId) return res.status(400).json({ error: 'examId required' });
+
+      // Build candidate filter
+      const candidateFilter = candidateIds && candidateIds.length > 0
+        ? `AND ec.id IN (${candidateIds.map((id: number) => parseInt(String(id))).join(',')})`
+        : `AND ec.status != 'absent'`;
 
       // Get exam info and candidates ordered by schedule groups
       const queryScript = `
@@ -297,7 +306,7 @@ cursor.execute("""
     LEFT JOIN exam_schedules es 
         ON es.exam_id = ec.exam_id AND es.group_code = ec.group_code
         AND es.group_code NOT LIKE 'SPR-%%'
-    WHERE ec.exam_id = %s AND ec.status != 'absent'
+    WHERE ec.exam_id = %s ${candidateFilter}
     ORDER BY es.start_time ASC, ec.order_number ASC, ec.id ASC
 """, (${examId},))
 candidates = cursor.fetchall()

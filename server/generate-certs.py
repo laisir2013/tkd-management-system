@@ -93,8 +93,8 @@ def get_db_connection():
     )
 
 
-def get_exam_candidates(exam_id):
-    """Get ALL non-absent candidates for an exam (certificates are prepared before exam)."""
+def get_exam_candidates(exam_id, candidate_ids=None):
+    """Get candidates for an exam. If candidate_ids provided, only those; otherwise ALL non-absent."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
@@ -106,23 +106,41 @@ def get_exam_candidates(exam_id):
     
     exam_date = exam['exam_date'].strftime('%Y年%-m月%-d日') if exam['exam_date'] else ''
     
-    # Get ALL non-absent candidates ordered by timetable (group schedule order)
-    # JOIN exam_schedules to sort by start_time, then order_number within each group
-    cursor.execute("""
-        SELECT 
-            ec.id,
-            ec.student_id,
-            ec.target_belt,
-            ec.name as student_name,
-            ec.group_code,
-            ec.order_number
-        FROM exam_candidates ec
-        LEFT JOIN exam_schedules es 
-            ON es.exam_id = ec.exam_id AND es.group_code = ec.group_code
-            AND es.group_code NOT LIKE 'SPR-%%'
-        WHERE ec.exam_id = %s AND ec.status != 'absent'
-        ORDER BY es.start_time ASC, ec.order_number ASC, ec.id ASC
-    """, (exam_id,))
+    if candidate_ids:
+        # Get specific candidates by IDs
+        placeholders = ','.join(['%s'] * len(candidate_ids))
+        cursor.execute(f"""
+            SELECT 
+                ec.id,
+                ec.student_id,
+                ec.target_belt,
+                ec.name as student_name,
+                ec.group_code,
+                ec.order_number
+            FROM exam_candidates ec
+            LEFT JOIN exam_schedules es 
+                ON es.exam_id = ec.exam_id AND es.group_code = ec.group_code
+                AND es.group_code NOT LIKE 'SPR-%%'
+            WHERE ec.exam_id = %s AND ec.id IN ({placeholders})
+            ORDER BY es.start_time ASC, ec.order_number ASC, ec.id ASC
+        """, (exam_id, *candidate_ids))
+    else:
+        # Get ALL non-absent candidates ordered by timetable (group schedule order)
+        cursor.execute("""
+            SELECT 
+                ec.id,
+                ec.student_id,
+                ec.target_belt,
+                ec.name as student_name,
+                ec.group_code,
+                ec.order_number
+            FROM exam_candidates ec
+            LEFT JOIN exam_schedules es 
+                ON es.exam_id = ec.exam_id AND es.group_code = ec.group_code
+                AND es.group_code NOT LIKE 'SPR-%%'
+            WHERE ec.exam_id = %s AND ec.status != 'absent'
+            ORDER BY es.start_time ASC, ec.order_number ASC, ec.id ASC
+        """, (exam_id,))
     
     candidates = cursor.fetchall()
     cursor.close()
@@ -217,6 +235,7 @@ def generate_certificates(students, output_path):
 def main():
     parser = argparse.ArgumentParser(description='Generate Taekwondo Certificates')
     parser.add_argument('--exam-id', type=int, help='Exam ID to generate certificates for')
+    parser.add_argument('--candidate-ids', type=str, help='Comma-separated candidate IDs (for individual export)')
     parser.add_argument('--json', type=str, help='JSON string with student data')
     parser.add_argument('--json-file', type=str, help='Path to JSON file with student data')
     parser.add_argument('--output', type=str, required=True, help='Output PDF path')
@@ -224,8 +243,12 @@ def main():
     args = parser.parse_args()
     
     if args.exam_id:
+        # Parse candidate IDs if provided
+        candidate_ids = None
+        if args.candidate_ids:
+            candidate_ids = [int(x.strip()) for x in args.candidate_ids.split(',') if x.strip()]
         # Get data from database
-        candidates, exam_date = get_exam_candidates(args.exam_id)
+        candidates, exam_date = get_exam_candidates(args.exam_id, candidate_ids)
         students = [{
             'name': c['student_name'],
             'belt_level': c['target_belt'],
