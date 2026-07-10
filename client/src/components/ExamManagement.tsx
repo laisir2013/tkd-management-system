@@ -667,6 +667,65 @@ function CandidatesPage({ examId }: { examId: number }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [beltFilter, setBeltFilter] = useState('all');
   const [showImport, setShowImport] = useState(false);
+  const [individualExportingCand, setIndividualExportingCand] = useState<number | null>(null);
+
+  // Individual export — certificate (考生管理頁)
+  async function handleCandExportCert(candidate: any) {
+    setIndividualExportingCand(candidate.id);
+    try {
+      const response = await fetch('/api/exam/certificates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ examId, candidateIds: [candidate.id] }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: '匯出失敗' }));
+        throw new Error(err.error || '匯出失敗');
+      }
+      const data = await response.json();
+      if (!data.success || !data.downloadUrl) throw new Error(data.error || '生成失敗');
+      const a = document.createElement('a');
+      a.href = data.downloadUrl;
+      a.download = `證書_${candidate.name}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success(`已匯出 ${candidate.name} 的證書`);
+    } catch (err: any) {
+      toast.error(err.message || '證書匯出失敗');
+    } finally {
+      setIndividualExportingCand(null);
+    }
+  }
+
+  // Individual export — score sheet (考生管理頁)
+  async function handleCandExportSheet(candidate: any) {
+    setIndividualExportingCand(candidate.id);
+    try {
+      const response = await fetch('/api/exam/scoresheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ examId, candidateIds: [candidate.id] }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: '匯出失敗' }));
+        throw new Error(err.error || '匯出失敗');
+      }
+      const data = await response.json();
+      if (!data.success || !data.url) throw new Error(data.error || '生成失敗');
+      const a = document.createElement('a');
+      a.href = data.url;
+      a.download = `成績表_${candidate.name}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success(`已匯出 ${candidate.name} 的成績表`);
+    } catch (err: any) {
+      toast.error(err.message || '成績表匯出失敗');
+    } finally {
+      setIndividualExportingCand(null);
+    }
+  }
 
   // Chinese → English belt mapping
   const BELT_CN_TO_EN: Record<string, string> = {
@@ -1035,7 +1094,25 @@ function CandidatesPage({ examId }: { examId: number }) {
                   <tr key={c.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2"><input type="checkbox" className="rounded" /></td>
                     <td className="px-3 py-2 font-medium text-gray-700">{code}</td>
-                    <td className="px-3 py-2 font-medium text-blue-700">{c.name}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium text-blue-700">{c.name}</span>
+                        <button
+                          className="p-0.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-40"
+                          onClick={() => handleCandExportSheet(c)}
+                          disabled={individualExportingCand === c.id}
+                          title="匯出成績表">
+                          {individualExportingCand === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          className="p-0.5 text-amber-400 hover:text-amber-600 hover:bg-amber-50 rounded disabled:opacity-40"
+                          onClick={() => handleCandExportCert(c)}
+                          disabled={individualExportingCand === c.id}
+                          title="匯出證書">
+                          {individualExportingCand === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ScrollText className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-3 py-2 text-gray-600">{c.phone || '-'}</td>
                     <td className="px-3 py-2 text-gray-600">{GENDER_MAP[c.gender] || '-'}</td>
                     <td className="px-3 py-2 text-gray-600">{c.age ?? '-'}</td>
@@ -3845,70 +3922,11 @@ function ResultsPage({ examId }: { examId: number }) {
   const [activeTab, setActiveTab] = useState<'passed' | 'failed' | 'absent'>('passed');
   const [beltFilter, setBeltFilter] = useState('all');
   const [certGenerating, setCertGenerating] = useState(false);
-  const [individualExporting, setIndividualExporting] = useState<number | null>(null);
 
   const allCandidates = (candidates as any[]) || [];
   const passed = allCandidates.filter(c => c.status === 'passed');
   const failed = allCandidates.filter(c => c.status === 'failed');
   const absent = allCandidates.filter(c => c.status === 'absent');
-
-  // Individual candidate export — certificate
-  async function handleExportIndividualCert(candidate: any) {
-    setIndividualExporting(candidate.id);
-    try {
-      const response = await fetch('/api/exam/certificates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ examId, candidateIds: [candidate.id] }),
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: '匯出失敗' }));
-        throw new Error(err.error || '匯出失敗');
-      }
-      const data = await response.json();
-      if (!data.success || !data.downloadUrl) throw new Error(data.error || '生成失敗');
-      const a = document.createElement('a');
-      a.href = data.downloadUrl;
-      a.download = `證書_${candidate.name}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      toast.success(`已匯出 ${candidate.name} 的證書`);
-    } catch (err: any) {
-      toast.error(err.message || '證書匯出失敗');
-    } finally {
-      setIndividualExporting(null);
-    }
-  }
-
-  // Individual candidate export — score sheet
-  async function handleExportIndividualSheet(candidate: any) {
-    setIndividualExporting(candidate.id);
-    try {
-      const response = await fetch('/api/exam/scoresheets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ examId, candidateIds: [candidate.id] }),
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: '匯出失敗' }));
-        throw new Error(err.error || '匯出失敗');
-      }
-      const data = await response.json();
-      if (!data.success || !data.url) throw new Error(data.error || '生成失敗');
-      const a = document.createElement('a');
-      a.href = data.url;
-      a.download = `成績表_${candidate.name}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      toast.success(`已匯出 ${candidate.name} 的成績表`);
-    } catch (err: any) {
-      toast.error(err.message || '成績表匯出失敗');
-    } finally {
-      setIndividualExporting(null);
-    }
-  }
 
   // Certificate export handler
   async function handleExportCertificates() {
@@ -4142,20 +4160,6 @@ function ResultsPage({ examId }: { examId: number }) {
                         <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50"
                           onClick={() => promoteSingle.mutate({ candidateId: c.id })} disabled={promoteSingle.isPending}>
                           <ArrowUpCircle className="w-3 h-3 mr-1" /> 升帶
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" className="text-blue-600 hover:bg-blue-50"
-                        onClick={() => handleExportIndividualSheet(c)}
-                        disabled={individualExporting === c.id}
-                        title="匯出成績表">
-                        {individualExporting === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
-                      </Button>
-                      {activeTab === 'passed' && (
-                        <Button size="sm" variant="ghost" className="text-amber-600 hover:bg-amber-50"
-                          onClick={() => handleExportIndividualCert(c)}
-                          disabled={individualExporting === c.id}
-                          title="匯出證書">
-                          {individualExporting === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScrollText className="w-3 h-3" />}
                         </Button>
                       )}
                       <Button size="sm" variant="ghost" className="text-green-600 hover:bg-green-50"
