@@ -76,7 +76,7 @@ const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 // ==================== NAV ITEMS ====================
-type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results' | 'statistics' | 'supplies' | 'payments' | 'auditlog';
+type NavPage = 'overview' | 'candidates' | 'checkin' | 'scoring' | 'scoreview' | 'timetable' | 'results' | 'statistics' | 'supplies' | 'payments' | 'balance' | 'auditlog';
 const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'overview', label: '考試概覽', icon: LayoutDashboard },
   { key: 'candidates', label: '考生管理', icon: Users },
@@ -88,6 +88,7 @@ const NAV_ITEMS: { key: NavPage; label: string; icon: any }[] = [
   { key: 'statistics', label: '統計分析', icon: BarChart3 },
   { key: 'supplies', label: '物資清單', icon: Package },
   { key: 'payments', label: '考試繳費', icon: CreditCard },
+  { key: 'balance', label: '收支平衡', icon: DollarSign },
   { key: 'auditlog', label: '工作日誌', icon: FileText },
 ];
 
@@ -195,6 +196,7 @@ export default function ExamManagement() {
         {navPage === 'statistics' && <StatisticsPage examId={selectedExamId} />}
         {navPage === 'supplies' && <SuppliesPage examId={selectedExamId} />}
         {navPage === 'payments' && <PaymentsPage examId={selectedExamId} />}
+        {navPage === 'balance' && <BalancePage examId={selectedExamId} />}
         {navPage === 'auditlog' && <AuditLogPage examId={selectedExamId} />}
       </div>
     </div>
@@ -5845,6 +5847,294 @@ function PaymentsPage({ examId }: { examId: number }) {
           收款帳戶：HSBC 484-287123-838 ｜ BOC 01269220114816 ｜ FPS ID 164577132 → BOC
         </div>
       </div>
+    </div>
+  );
+}
+
+// ==================== 收支平衡表頁面 ====================
+const EXPENSE_CATEGORIES = [
+  { key: 'staff', label: '工作人員', icon: '👷' },
+  { key: 'photography', label: '攝影', icon: '📷' },
+  { key: 'venue', label: '場租', icon: '🏟️' },
+  { key: 'miscellaneous', label: '雜費', icon: '📎' },
+  { key: 'other', label: '其他費用', icon: '💰' },
+] as const;
+
+function BalancePage({ examId }: { examId: number }) {
+  const { data: summary, refetch: refetchSummary } = trpc.exam.expenses.summary.useQuery({ examId });
+  const { data: expenses, refetch: refetchExpenses } = trpc.exam.expenses.list.useQuery({ examId });
+  const createExpense = trpc.exam.expenses.create.useMutation({
+    onSuccess: () => { refetchExpenses(); refetchSummary(); toast.success('已新增開支'); setShowAdd(false); resetForm(); },
+    onError: (err) => toast.error(`新增失敗：${err.message}`),
+  });
+  const deleteExpense = trpc.exam.expenses.delete.useMutation({
+    onSuccess: () => { refetchExpenses(); refetchSummary(); toast.success('已刪除開支'); },
+    onError: (err) => toast.error(`刪除失敗：${err.message}`),
+  });
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [addCategory, setAddCategory] = useState<string>('staff');
+  const [addDescription, setAddDescription] = useState('');
+  const [addAmount, setAddAmount] = useState('');
+  const [addDate, setAddDate] = useState(new Date().toISOString().slice(0, 10));
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  function resetForm() {
+    setAddCategory('staff');
+    setAddDescription('');
+    setAddAmount('');
+    setAddDate(new Date().toISOString().slice(0, 10));
+    setReceiptFile(null);
+    setReceiptPreview(null);
+  }
+
+  async function handleReceiptSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReceiptFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setReceiptPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function uploadReceipt(): Promise<{ url: string; key: string } | null> {
+    if (!receiptFile) return null;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', receiptFile);
+      formData.append('type', 'exam_expense');
+      const resp = await fetch('/api/upload/receipt', { method: 'POST', body: formData });
+      if (!resp.ok) throw new Error('上傳失敗');
+      const data = await resp.json();
+      return { url: data.url, key: data.key };
+    } catch (err) {
+      toast.error('收據上傳失敗');
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleSubmit() {
+    if (!addAmount || Number(addAmount) <= 0) { toast.error('請輸入金額'); return; }
+    let receiptUrl: string | undefined;
+    let receiptKey: string | undefined;
+    if (receiptFile) {
+      const uploaded = await uploadReceipt();
+      if (uploaded) { receiptUrl = uploaded.url; receiptKey = uploaded.key; }
+    }
+    createExpense.mutate({
+      examId,
+      category: addCategory as any,
+      description: addDescription || undefined,
+      amount: addAmount,
+      receiptUrl,
+      receiptKey,
+      expenseDate: addDate,
+    });
+  }
+
+  const s = summary as any;
+  const totalIncome = s?.totalIncome ?? 0;
+  const totalExpense = s?.totalExpense ?? 0;
+  const balance = s?.balance ?? 0;
+  const expenseList = (expenses || []) as any[];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">收支平衡表</h1>
+        <Button onClick={() => setShowAdd(true)} className="gap-1">
+          <Plus className="w-4 h-4" /> 新增開支
+        </Button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="text-sm text-green-600 font-medium">收入（考試費）</div>
+          <div className="text-2xl font-bold text-green-700 mt-1">${totalIncome.toLocaleString()}</div>
+          <div className="text-xs text-green-500 mt-1">{s?.incomeCount ?? 0} 筆繳費</div>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="text-sm text-red-600 font-medium">支出</div>
+          <div className="text-2xl font-bold text-red-700 mt-1">${totalExpense.toLocaleString()}</div>
+          <div className="text-xs text-red-500 mt-1">{expenseList.length} 筆開支</div>
+        </div>
+        <div className={`border rounded-lg p-4 ${balance >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'}`}>
+          <div className={`text-sm font-medium ${balance >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>結餘</div>
+          <div className={`text-2xl font-bold mt-1 ${balance >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>${balance.toLocaleString()}</div>
+          <div className={`text-xs mt-1 ${balance >= 0 ? 'text-blue-500' : 'text-orange-500'}`}>{balance >= 0 ? '盈餘' : '虧損'}</div>
+        </div>
+      </div>
+
+      {/* Expense by Category Breakdown */}
+      {s?.expensesByCategory && Object.keys(s.expensesByCategory).length > 0 && (
+        <div className="bg-white border rounded-lg p-4">
+          <h3 className="font-medium text-gray-700 mb-3">開支分類</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {EXPENSE_CATEGORIES.map(cat => {
+              const catData = s.expensesByCategory[cat.key];
+              if (!catData) return null;
+              return (
+                <div key={cat.key} className="bg-gray-50 rounded-lg p-3 text-center">
+                  <div className="text-lg">{cat.icon}</div>
+                  <div className="text-xs text-gray-500 mt-1">{cat.label}</div>
+                  <div className="text-sm font-bold text-gray-800">${catData.total.toLocaleString()}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Expense List */}
+      <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="px-4 py-3 border-b bg-gray-50">
+          <h3 className="font-medium text-gray-700">開支明細</h3>
+        </div>
+        {expenseList.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            <DollarSign className="w-12 h-12 mx-auto mb-2 opacity-30" />
+            <p>暫無開支記錄</p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">日期</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">分類</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">描述</th>
+                <th className="px-3 py-2 text-right font-medium text-gray-600">金額</th>
+                <th className="px-3 py-2 text-center font-medium text-gray-600">收據</th>
+                <th className="px-3 py-2 text-center font-medium text-gray-600">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {expenseList.map((exp: any) => {
+                const cat = EXPENSE_CATEGORIES.find(c => c.key === exp.category);
+                return (
+                  <tr key={exp.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-gray-600">{new Date(exp.expense_date).toLocaleDateString('zh-TW')}</td>
+                    <td className="px-3 py-2">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 px-2 py-0.5 rounded-full">
+                        {cat?.icon} {cat?.label || exp.category}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-gray-700">{exp.description || '-'}</td>
+                    <td className="px-3 py-2 text-right font-medium text-red-600">${Number(exp.amount).toLocaleString()}</td>
+                    <td className="px-3 py-2 text-center">
+                      {exp.receipt_url ? (
+                        <a href={exp.receipt_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
+                          <Eye className="w-4 h-4 inline" />
+                        </a>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <button
+                        className="p-1 text-gray-400 hover:text-red-500"
+                        onClick={() => { if (confirm(`確定刪除此開支？`)) deleteExpense.mutate({ id: exp.id }); }}>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Add Expense Modal */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAdd(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-bold">新增開支</h3>
+              <button onClick={() => setShowAdd(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              {/* Category */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">分類</label>
+                <select
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                  value={addCategory}
+                  onChange={e => setAddCategory(e.target.value)}>
+                  {EXPENSE_CATEGORIES.map(c => (
+                    <option key={c.key} value={c.key}>{c.icon} {c.label}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">描述（可選）</label>
+                <Input
+                  placeholder="例如：張教練助手費"
+                  value={addDescription}
+                  onChange={e => setAddDescription(e.target.value)}
+                />
+              </div>
+              {/* Amount */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">金額 (HKD)</label>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={addAmount}
+                  onChange={e => setAddAmount(e.target.value)}
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              {/* Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">日期</label>
+                <Input
+                  type="date"
+                  value={addDate}
+                  onChange={e => setAddDate(e.target.value)}
+                />
+              </div>
+              {/* Receipt Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">收據（可選）</label>
+                <div className="border-2 border-dashed rounded-lg p-3">
+                  {receiptPreview ? (
+                    <div className="relative">
+                      <img src={receiptPreview} alt="receipt" className="max-h-32 mx-auto rounded" />
+                      <button
+                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-0.5"
+                        onClick={() => { setReceiptFile(null); setReceiptPreview(null); }}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center cursor-pointer text-gray-400 hover:text-gray-600">
+                      <Upload className="w-6 h-6 mb-1" />
+                      <span className="text-xs">點擊上傳收據圖片</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleReceiptSelect} />
+                    </label>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
+              <Button onClick={handleSubmit} disabled={createExpense.isPending || uploading}>
+                {(createExpense.isPending || uploading) ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                新增
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
