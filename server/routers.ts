@@ -7972,6 +7972,49 @@ export const appRouter = router({
           return { success: true };
         }),
 
+      /** 上傳收據到已有開支項目 */
+      uploadReceipt: protectedProcedure
+        .input(z.object({
+          id: z.number(),
+          receiptBase64: z.string(),
+          receiptFilename: z.string(),
+        }))
+        .mutation(async ({ input, ctx }) => {
+          if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+          const { getRawPool } = await import("./db");
+          const pool = await getRawPool();
+          const { storagePut } = await import('./storage');
+
+          // Get existing expense
+          const [existing] = await pool.execute(`SELECT * FROM exam_expenses WHERE id = ?`, [input.id]);
+          const expense = (existing as any[])[0];
+          if (!expense) throw new TRPCError({ code: 'NOT_FOUND', message: '找不到該開支記錄' });
+
+          // Upload receipt
+          const base64Data = input.receiptBase64.replace(/^data:image\/\w+;base64,/, '').replace(/^data:application\/pdf;base64,/, '');
+          const buffer = Buffer.from(base64Data, 'base64');
+          const ext = input.receiptFilename.split('.').pop() || 'jpg';
+          const key = `receipts/exam-expense/${expense.exam_id}-${input.id}-${Date.now()}.${ext}`;
+          const contentType = ext === 'png' ? 'image/png' : ext === 'pdf' ? 'application/pdf' : 'image/jpeg';
+          const uploaded = await storagePut(key, buffer, contentType);
+
+          // Update exam_expenses
+          await pool.execute(
+            `UPDATE exam_expenses SET receipt_url = ?, receipt_key = ? WHERE id = ?`,
+            [uploaded.url, uploaded.key, input.id]
+          );
+
+          // Sync to accounting_records
+          if (expense.accounting_record_id) {
+            await pool.execute(
+              `UPDATE accounting_records SET receipt_url = ?, receipt_key = ? WHERE id = ?`,
+              [uploaded.url, uploaded.key, expense.accounting_record_id]
+            );
+          }
+
+          return { success: true, receiptUrl: uploaded.url };
+        }),
+
       /** 刪除考試開支 */
       delete: protectedProcedure
         .input(z.object({ id: z.number() }))

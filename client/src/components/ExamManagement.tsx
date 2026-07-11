@@ -5871,6 +5871,28 @@ function BalancePage({ examId }: { examId: number }) {
     onSuccess: () => { refetchExpenses(); refetchSummary(); toast.success('已刪除開支'); },
     onError: (err) => toast.error(`刪除失敗：${err.message}`),
   });
+  const uploadReceiptMut = trpc.exam.expenses.uploadReceipt.useMutation({
+    onSuccess: () => { refetchExpenses(); toast.success('收據已上傳'); },
+    onError: (err) => toast.error(`上傳失敗：${err.message}`),
+  });
+  const [uploadingExpenseId, setUploadingExpenseId] = useState<number | null>(null);
+
+  async function handleUploadReceiptForExpense(expenseId: number, file: File) {
+    setUploadingExpenseId(expenseId);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      uploadReceiptMut.mutate({ id: expenseId, receiptBase64: base64, receiptFilename: file.name });
+    } catch {
+      toast.error('讀取檔案失敗');
+    } finally {
+      setUploadingExpenseId(null);
+    }
+  }
 
   const [showAdd, setShowAdd] = useState(false);
   const [addCategory, setAddCategory] = useState<string>('staff');
@@ -6022,7 +6044,13 @@ function BalancePage({ examId }: { examId: number }) {
                           <Eye className="w-4 h-4 inline" />
                         </a>
                       ) : (
-                        <span className="text-gray-300">-</span>
+                        <label className="cursor-pointer inline-flex items-center gap-0.5 text-orange-400 hover:text-orange-600">
+                          {(uploadingExpenseId === exp.id || uploadReceiptMut.isPending) && uploadingExpenseId === exp.id
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <Upload className="w-4 h-4" />}
+                          <input type="file" accept="image/*,application/pdf" className="hidden"
+                            onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadReceiptForExpense(exp.id, f); e.target.value = ''; }} />
+                        </label>
                       )}
                     </td>
                     <td className="px-3 py-2 text-center">
