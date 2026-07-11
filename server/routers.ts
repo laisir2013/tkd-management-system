@@ -7846,8 +7846,8 @@ export const appRouter = router({
           category: z.enum(['staff', 'photography', 'venue', 'miscellaneous', 'other']),
           description: z.string().optional(),
           amount: z.string(),
-          receiptUrl: z.string().optional(),
-          receiptKey: z.string().optional(),
+          receiptBase64: z.string().optional(),
+          receiptFilename: z.string().optional(),
           expenseDate: z.string().optional(),
         }))
         .mutation(async ({ input, ctx }) => {
@@ -7874,6 +7874,21 @@ export const appRouter = router({
           const accountingCategory = CATEGORY_ACCOUNTING_MAP[input.category];
           const desc = input.description || CATEGORY_LABEL[input.category];
 
+          // Handle receipt upload if provided
+          let receiptUrl: string | null = null;
+          let receiptKey: string | null = null;
+          if (input.receiptBase64) {
+            const { storagePut } = await import('./storage');
+            const base64Data = input.receiptBase64.replace(/^data:image\/\w+;base64,/, '').replace(/^data:application\/pdf;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
+            const ext = input.receiptFilename?.split('.').pop() || 'jpg';
+            const key = `receipts/exam-expense/${input.examId}-${Date.now()}.${ext}`;
+            const contentType = ext === 'png' ? 'image/png' : ext === 'pdf' ? 'application/pdf' : 'image/jpeg';
+            const uploaded = await storagePut(key, buffer, contentType);
+            receiptUrl = uploaded.url;
+            receiptKey = uploaded.key;
+          }
+
           // Get exam name for description
           const [examRows] = await pool.execute(`SELECT name FROM exam_sessions WHERE id = ?`, [input.examId]);
           const examName = (examRows as any[])[0]?.name || `考試#${input.examId}`;
@@ -7882,7 +7897,7 @@ export const appRouter = router({
           const [acctResult] = await pool.execute(
             `INSERT INTO accounting_records (transaction_date, amount, type, category, description, receipt_url, receipt_key, source)
              VALUES (?, ?, 'expense', ?, ?, ?, ?, 'auto_sync')`,
-            [expenseDate, input.amount, accountingCategory, `${examName} - ${desc}`, input.receiptUrl || null, input.receiptKey || null]
+            [expenseDate, input.amount, accountingCategory, `${examName} - ${desc}`, receiptUrl, receiptKey]
           );
           const accountingRecordId = (acctResult as any).insertId;
 
@@ -7890,7 +7905,7 @@ export const appRouter = router({
           const [result] = await pool.execute(
             `INSERT INTO exam_expenses (exam_id, category, description, amount, receipt_url, receipt_key, expense_date, accounting_record_id)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [input.examId, input.category, desc, input.amount, input.receiptUrl || null, input.receiptKey || null, expenseDate, accountingRecordId]
+            [input.examId, input.category, desc, input.amount, receiptUrl, receiptKey, expenseDate, accountingRecordId]
           );
 
           return { id: (result as any).insertId, accountingRecordId };

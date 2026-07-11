@@ -5879,7 +5879,6 @@ function BalancePage({ examId }: { examId: number }) {
   const [addDate, setAddDate] = useState(new Date().toISOString().slice(0, 10));
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   function resetForm() {
     setAddCategory('staff');
@@ -5899,40 +5898,30 @@ function BalancePage({ examId }: { examId: number }) {
     reader.readAsDataURL(file);
   }
 
-  async function uploadReceipt(): Promise<{ url: string; key: string } | null> {
-    if (!receiptFile) return null;
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', receiptFile);
-      formData.append('type', 'exam_expense');
-      const resp = await fetch('/api/upload/receipt', { method: 'POST', body: formData });
-      if (!resp.ok) throw new Error('上傳失敗');
-      const data = await resp.json();
-      return { url: data.url, key: data.key };
-    } catch (err) {
-      toast.error('收據上傳失敗');
-      return null;
-    } finally {
-      setUploading(false);
-    }
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 
   async function handleSubmit() {
     if (!addAmount || Number(addAmount) <= 0) { toast.error('請輸入金額'); return; }
-    let receiptUrl: string | undefined;
-    let receiptKey: string | undefined;
+    let receiptBase64: string | undefined;
+    let receiptFilename: string | undefined;
     if (receiptFile) {
-      const uploaded = await uploadReceipt();
-      if (uploaded) { receiptUrl = uploaded.url; receiptKey = uploaded.key; }
+      receiptBase64 = await fileToBase64(receiptFile);
+      receiptFilename = receiptFile.name;
     }
     createExpense.mutate({
       examId,
       category: addCategory as any,
       description: addDescription || undefined,
       amount: addAmount,
-      receiptUrl,
-      receiptKey,
+      receiptBase64,
+      receiptFilename,
       expenseDate: addDate,
     });
   }
@@ -6127,8 +6116,8 @@ function BalancePage({ examId }: { examId: number }) {
             </div>
             <div className="px-6 py-4 border-t flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
-              <Button onClick={handleSubmit} disabled={createExpense.isPending || uploading}>
-                {(createExpense.isPending || uploading) ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+              <Button onClick={handleSubmit} disabled={createExpense.isPending}>
+                {createExpense.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
                 新增
               </Button>
             </div>
