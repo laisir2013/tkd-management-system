@@ -7830,9 +7830,9 @@ export const appRouter = router({
       list: protectedProcedure
         .input(z.object({ examId: z.number() }))
         .query(async ({ input }) => {
-          const db = await getDb();
-          if (!db) return [];
-          const [rows] = await db.execute(
+          const { getRawPool } = await import("./db");
+          const pool = await getRawPool();
+          const [rows] = await pool.execute(
             `SELECT * FROM exam_expenses WHERE exam_id = ? ORDER BY expense_date DESC`,
             [input.examId]
           );
@@ -7852,8 +7852,8 @@ export const appRouter = router({
         }))
         .mutation(async ({ input, ctx }) => {
           if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+          const { getRawPool } = await import("./db");
+          const pool = await getRawPool();
 
           const CATEGORY_ACCOUNTING_MAP: Record<string, string> = {
             staff: 'exam_staff_fee',
@@ -7870,16 +7870,16 @@ export const appRouter = router({
             other: '其他費用',
           };
 
-          const expenseDate = input.expenseDate ? new Date(input.expenseDate) : new Date();
+          const expenseDate = input.expenseDate || new Date().toISOString().slice(0, 10);
           const accountingCategory = CATEGORY_ACCOUNTING_MAP[input.category];
           const desc = input.description || CATEGORY_LABEL[input.category];
 
           // Get exam name for description
-          const [examRows] = await db.execute(`SELECT name FROM exam_sessions WHERE id = ?`, [input.examId]);
+          const [examRows] = await pool.execute(`SELECT name FROM exam_sessions WHERE id = ?`, [input.examId]);
           const examName = (examRows as any[])[0]?.name || `考試#${input.examId}`;
 
           // 1. Insert into accounting_records for full system sync
-          const [acctResult] = await db.execute(
+          const [acctResult] = await pool.execute(
             `INSERT INTO accounting_records (transaction_date, amount, type, category, description, receipt_url, receipt_key, source)
              VALUES (?, ?, 'expense', ?, ?, ?, ?, 'auto_sync')`,
             [expenseDate, input.amount, accountingCategory, `${examName} - ${desc}`, input.receiptUrl || null, input.receiptKey || null]
@@ -7887,7 +7887,7 @@ export const appRouter = router({
           const accountingRecordId = (acctResult as any).insertId;
 
           // 2. Insert into exam_expenses
-          const [result] = await db.execute(
+          const [result] = await pool.execute(
             `INSERT INTO exam_expenses (exam_id, category, description, amount, receipt_url, receipt_key, expense_date, accounting_record_id)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [input.examId, input.category, desc, input.amount, input.receiptUrl || null, input.receiptKey || null, expenseDate, accountingRecordId]
@@ -7909,8 +7909,8 @@ export const appRouter = router({
         }))
         .mutation(async ({ input, ctx }) => {
           if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+          const { getRawPool } = await import("./db");
+          const pool = await getRawPool();
 
           const CATEGORY_ACCOUNTING_MAP: Record<string, string> = {
             staff: 'exam_staff_fee',
@@ -7928,27 +7928,27 @@ export const appRouter = router({
           };
 
           // Get current expense
-          const [existing] = await db.execute(`SELECT * FROM exam_expenses WHERE id = ?`, [input.id]);
+          const [existing] = await pool.execute(`SELECT * FROM exam_expenses WHERE id = ?`, [input.id]);
           const expense = (existing as any[])[0];
           if (!expense) throw new TRPCError({ code: 'NOT_FOUND', message: '找不到該開支記錄' });
 
           const category = input.category || expense.category;
           const desc = input.description || CATEGORY_LABEL[category];
           const amount = input.amount || expense.amount;
-          const expenseDate = input.expenseDate ? new Date(input.expenseDate) : expense.expense_date;
+          const expenseDate = input.expenseDate || expense.expense_date;
           const accountingCategory = CATEGORY_ACCOUNTING_MAP[category];
 
           // Update exam_expenses
-          await db.execute(
+          await pool.execute(
             `UPDATE exam_expenses SET category = ?, description = ?, amount = ?, receipt_url = ?, receipt_key = ?, expense_date = ? WHERE id = ?`,
             [category, desc, amount, input.receiptUrl ?? expense.receipt_url, input.receiptKey ?? expense.receipt_key, expenseDate, input.id]
           );
 
           // Sync to accounting_records
           if (expense.accounting_record_id) {
-            const [examRows] = await db.execute(`SELECT name FROM exam_sessions WHERE id = ?`, [expense.exam_id]);
+            const [examRows] = await pool.execute(`SELECT name FROM exam_sessions WHERE id = ?`, [expense.exam_id]);
             const examName = (examRows as any[])[0]?.name || `考試#${expense.exam_id}`;
-            await db.execute(
+            await pool.execute(
               `UPDATE accounting_records SET transaction_date = ?, amount = ?, category = ?, description = ?, receipt_url = ?, receipt_key = ? WHERE id = ?`,
               [expenseDate, amount, accountingCategory, `${examName} - ${desc}`, input.receiptUrl ?? expense.receipt_url, input.receiptKey ?? expense.receipt_key, expense.accounting_record_id]
             );
@@ -7962,21 +7962,21 @@ export const appRouter = router({
         .input(z.object({ id: z.number() }))
         .mutation(async ({ input, ctx }) => {
           if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+          const { getRawPool } = await import("./db");
+          const pool = await getRawPool();
 
           // Get expense to find linked accounting record
-          const [existing] = await db.execute(`SELECT * FROM exam_expenses WHERE id = ?`, [input.id]);
+          const [existing] = await pool.execute(`SELECT * FROM exam_expenses WHERE id = ?`, [input.id]);
           const expense = (existing as any[])[0];
           if (!expense) throw new TRPCError({ code: 'NOT_FOUND', message: '找不到該開支記錄' });
 
           // Delete from accounting_records
           if (expense.accounting_record_id) {
-            await db.execute(`DELETE FROM accounting_records WHERE id = ?`, [expense.accounting_record_id]);
+            await pool.execute(`DELETE FROM accounting_records WHERE id = ?`, [expense.accounting_record_id]);
           }
 
           // Delete expense
-          await db.execute(`DELETE FROM exam_expenses WHERE id = ?`, [input.id]);
+          await pool.execute(`DELETE FROM exam_expenses WHERE id = ?`, [input.id]);
 
           return { success: true };
         }),
@@ -7985,11 +7985,11 @@ export const appRouter = router({
       summary: protectedProcedure
         .input(z.object({ examId: z.number() }))
         .query(async ({ input }) => {
-          const db = await getDb();
-          if (!db) return { totalIncome: 0, totalExpense: 0, balance: 0, incomeCount: 0, expensesByCategory: {} };
+          const { getRawPool } = await import("./db");
+          const pool = await getRawPool();
 
           // Income: sum of confirmed exam_payments
-          const [incomeRows] = await db.execute(
+          const [incomeRows] = await pool.execute(
             `SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS cnt FROM exam_payments WHERE exam_id = ? AND status = 'confirmed'`,
             [input.examId]
           );
@@ -7997,7 +7997,7 @@ export const appRouter = router({
           const incomeCount = Number((incomeRows as any[])[0]?.cnt || 0);
 
           // Expenses: sum by category
-          const [expenseRows] = await db.execute(
+          const [expenseRows] = await pool.execute(
             `SELECT category, COALESCE(SUM(amount), 0) AS total, COUNT(*) AS cnt FROM exam_expenses WHERE exam_id = ? GROUP BY category`,
             [input.examId]
           );
