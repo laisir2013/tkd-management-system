@@ -6725,7 +6725,7 @@ export const appRouter = router({
           }
 
           // Broadcast SSE update so scoring pages refresh
-          broadcastCandidateUpdate(examId, input.candidateId, { groupCode: input.targetGroupCode, orderNumber: input.targetPosition });
+          broadcastCandidateUpdate(examId, { candidateId: input.candidateId, status: 'registered' });
 
           return { success: true, oldGroup, newGroup: input.targetGroupCode };
         }),
@@ -6950,7 +6950,23 @@ export const appRouter = router({
           );
           // Recalculate result after clearing
           await calculateExamResult(input.candidateId);
-          broadcastScoreUpdate(input.candidateId, input.scoringItemId, '');
+          // SSE 廣播 — 正確簽名：broadcastScoreUpdate(examId, data)
+          try {
+            const updatedCandidate = await getExamCandidateById(input.candidateId);
+            if (updatedCandidate) {
+              broadcastScoreUpdate(updatedCandidate.examId, {
+                candidateId: input.candidateId,
+                scores: [{ scoringItemId: input.scoringItemId, itemName: '', score: '' }],
+                candidateStatus: updatedCandidate.status,
+                hasLakLakAward: updatedCandidate.hasLakLakAward ?? false,
+                updatedBy: ctx.user?.name || 'admin',
+              });
+              const stats = await getExamStatistics(updatedCandidate.examId);
+              if (stats) broadcastStatsUpdate(updatedCandidate.examId, stats);
+            }
+          } catch (e) {
+            console.warn('[SSE] clearScore broadcast failed:', e);
+          }
           return { success: true };
         }),
 
@@ -6990,8 +7006,7 @@ export const appRouter = router({
 
           broadcastCandidateUpdate(
             prevCandidate?.examId || 0,
-            input.candidateId,
-            { status: 'registered', hasLakLakAward: false }
+            { candidateId: input.candidateId, status: 'registered', hasLakLakAward: false }
           );
           return { success: true };
         }),

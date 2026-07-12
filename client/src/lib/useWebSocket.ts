@@ -186,7 +186,10 @@ export function useWebSocket() {
       const keysToInvalidate = ROUTER_INVALIDATION_MAP[data.router];
       if (keysToInvalidate) {
         for (const key of keysToInvalidate) {
-          queryClient.invalidateQueries({ queryKey: key });
+          // tRPC v11 queryKey 格式: [["router", "procedure"], { input, type }]
+          // 第一個元素是路徑陣列，所以 invalidateQueries 需要 queryKey: [pathArray]
+          // key 已經是 ["router"] 格式，需要包成 [["router"]] 才能匹配 tRPC queryKey
+          queryClient.invalidateQueries({ queryKey: [key] });
         }
       } else {
         // 未知 router → invalidate 該 router 下所有 query
