@@ -3710,15 +3710,15 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
   
   const expectedItems = await getExamScoringItemsByBelt(candidate.currentBelt);
   
-  // 白帶幼稚園（≤6歲）免旋踢 — 排除該項目
-  const isKinderWhite = candidate.currentBelt === 'white' && candidate.age != null && candidate.age <= 6;
-  const effectiveItems = isKinderWhite
+  // 幼稚園（≤6歲）免旋踢 — 排除該項目（不限帶別）
+  const isKindergarten = candidate.age != null && candidate.age <= 6;
+  const effectiveItems = isKindergarten
     ? expectedItems.filter((item: any) => item.name !== '旋踢')
     : expectedItems;
   
   const expectedCount = effectiveItems.length;
   const scoredCount = scoresWithItems.filter(({ item }: any) => {
-    if (isKinderWhite && item.name === '旋踢') return false;
+    if (isKindergarten && item.name === '旋踢') return false;
     return true;
   }).length;
   
@@ -3744,8 +3744,8 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
   let gradeACount = 0;
   
   for (const { score, item } of scoresWithItems) {
-    // 白帶幼稚園免旋踢 — 跳過該項目的合格判定
-    if (isKinderWhite && item.name === '旋踢') continue;
+    // 幼稚園免旋踢 — 跳過該項目的合格判定
+    if (isKindergarten && item.name === '旋踢') continue;
     if (isItemFailed(score.score)) hasAnyFailed = true;
     if (item.type === 'grade') {
       totalGradableItems++;

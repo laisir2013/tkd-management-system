@@ -1920,8 +1920,8 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                       // 補考生已合格項目鎖定不可改
                       const isLockedByRetake = isRetake && prevScore && !prevFailed;
 
-                      // 白帶幼稚園（≤6歲）免旋踢
-                      const isExempt = c.currentBelt === 'white' && c.age != null && c.age <= 6 && item.name === '旋踢';
+                      // 幼稚園（≤6歲）免旋踢（不限帶別）
+                      const isExempt = c.age != null && c.age <= 6 && item.name === '旋踢';
 
                       if (isAbsent || isExempt) {
                         return (
@@ -3449,7 +3449,7 @@ function ScoreViewPage({ examId }: { examId: number }) {
                     {categorizedItems.flatMap(cat => cat.items.map(item => {
                       const currentScore = candidateScores.get(item.id) || '';
                       const pairColor = boardPairColorMap.get(item.id) || '';
-                      const isExempt = c.currentBelt === 'white' && c.age != null && c.age <= 6 && item.name === '旋踢';
+                      const isExempt = c.age != null && c.age <= 6 && item.name === '旋踢';
                       if (isAbsent || isExempt) {
                         return (
                           <td key={item.id} className={`px-1 py-2 border-r text-center ${pairColor}`}>
