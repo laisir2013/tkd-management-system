@@ -185,7 +185,7 @@ export default function ExamManagement() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 md:p-6">
+      <div className={`flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 ${navPage === 'scoring' || navPage === 'scoreview' ? 'md:p-3' : 'md:p-6'}`}>
         {navPage === 'overview' && <OverviewPage examId={selectedExamId} />}
         {navPage === 'candidates' && <CandidatesPage examId={selectedExamId} />}
         {navPage === 'checkin' && <CheckInPage examId={selectedExamId} />}
@@ -1750,29 +1750,27 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Top navigation */}
       <GroupNavBar />
 
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-3">
-          <Button size="sm" variant="ghost" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> 返回</Button>
-          <div>
-            <h2 className="text-lg font-bold">{groupCode === 'ungrouped' ? '未分組' : `${groupCode.toUpperCase()} 組`} 批量評分表</h2>
-            <p className="text-sm text-gray-500">
-              共 {beltCandidates.length} 位考生（{scoredCount} 位已評分{absentCount > 0 ? `，${absentCount} 位缺席` : ''}）級別：{getBeltName(currentBelt)}
-            </p>
-          </div>
-        </div>
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50" onClick={sendBulkScoringResults}>
-            <Send className="w-4 h-4 mr-1" /> WhatsApp 通知成績
+          <Button size="sm" variant="ghost" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> 返回</Button>
+          <h2 className="text-sm font-bold">{groupCode === 'ungrouped' ? '未分組' : `${groupCode.toUpperCase()} 組`}</h2>
+          <span className="text-xs text-gray-500">
+            {beltCandidates.length}人（{scoredCount}已評{absentCount > 0 ? `/${absentCount}缺席` : ''}）{getBeltName(currentBelt)}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50 h-7 text-xs" onClick={sendBulkScoringResults}>
+            <Send className="w-3.5 h-3.5 mr-1" /> 通知
           </Button>
-          <Button size="sm" variant="outline" onClick={() => exportScoringToCSV(beltCandidates, categorizedItems, scoreMap, groupCode, getBeltName(currentBelt))}><Download className="w-4 h-4 mr-1" /> 匯出 Excel</Button>
-          <Button size="sm" variant="outline" onClick={() => printScoringTable(beltCandidates, categorizedItems, scoreMap, groupCode, getBeltName(currentBelt))}><Printer className="w-4 h-4 mr-1" /> 列印評分表</Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => exportScoringToCSV(beltCandidates, categorizedItems, scoreMap, groupCode, getBeltName(currentBelt))}><Download className="w-3.5 h-3.5 mr-1" /> 匯出</Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => printScoringTable(beltCandidates, categorizedItems, scoreMap, groupCode, getBeltName(currentBelt))}><Printer className="w-3.5 h-3.5 mr-1" /> 列印</Button>
           {currentBelt && items.length === 0 && (
-            <Button size="sm" variant="outline" onClick={() => initForBelt.mutate({ beltLevel: currentBelt })} disabled={initForBelt.isPending}>
-              {initForBelt.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null} 初始化評分項目
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => initForBelt.mutate({ beltLevel: currentBelt })} disabled={initForBelt.isPending}>
+              {initForBelt.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null} 初始化
             </Button>
           )}
         </div>
@@ -1795,7 +1793,7 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
 
       {/* Scoring Matrix Table */}
       {items.length > 0 ? (
-        <div className="bg-white rounded-lg border overflow-auto max-h-[calc(100vh-280px)]">
+        <div className="bg-white rounded-lg border overflow-auto max-h-[calc(100vh-180px)]">
           <table className="w-full text-xs border-collapse">
             <thead>
               {/* Category header row */}
@@ -3381,7 +3379,7 @@ function ScoreViewPage({ examId }: { examId: number }) {
       {(<>
       {/* Scoring Matrix - READ ONLY */}
       {items.length > 0 ? (
-        <div className="bg-white rounded-lg border overflow-auto max-h-[calc(100vh-280px)]">
+        <div className="bg-white rounded-lg border overflow-auto max-h-[calc(100vh-180px)]">
           <table className="w-full text-xs border-collapse">
             <thead>
               {/* Category header row */}
