@@ -3401,9 +3401,9 @@ function ScoreViewPage({ examId }: { examId: number }) {
                   </th>
                 ))}
                 <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[50px]" rowSpan={2}>結果</th>
-                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[36px]" rowSpan={2} title="成績表派發">成</th>
-                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[36px]" rowSpan={2} title="證書派發">證</th>
-                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[36px]" rowSpan={2} title="叻叻獎派發">叻</th>
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px]" rowSpan={2} title="成績表派發">📄成</th>
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px]" rowSpan={2} title="證書派發">🏅證</th>
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px]" rowSpan={2} title="叻叻獎派發">⭐叻</th>
               </tr>
               {/* Item name row */}
               <tr className="border-b bg-gray-50">
