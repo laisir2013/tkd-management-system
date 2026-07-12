@@ -7044,7 +7044,7 @@ export const appRouter = router({
                   eq(schema.examCandidates.currentBelt, beltInfo.currentBelt),
                   eq(schema.examCandidates.targetBelt, beltInfo.targetBelt),
                   sql`${schema.examCandidates.examId} < ${input.examId}`,
-                  sql`${schema.examCandidates.status} IN ('failed', 'absent')`
+                  sql`${schema.examCandidates.status} = 'failed'`
                 ))
                 .orderBy(sql`${schema.examCandidates.examId} DESC`)
                 .limit(1);

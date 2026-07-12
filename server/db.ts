@@ -3337,7 +3337,7 @@ export async function getRetakeInfo(examId: number): Promise<{
   for (const curr of currentCandidates) {
     if (!curr.name || !curr.phone) continue;
 
-    // Find matching candidate in previous exams with same belt transition who failed/absent
+    // Find matching candidate in previous exams with same belt transition who failed (absent 不算補考)
     const prevCandidates = await db.select().from(examCandidates)
       .where(and(
         eq(examCandidates.name, curr.name),
@@ -3345,7 +3345,7 @@ export async function getRetakeInfo(examId: number): Promise<{
         eq(examCandidates.currentBelt, curr.currentBelt),
         eq(examCandidates.targetBelt, curr.targetBelt),
         sql`${examCandidates.examId} < ${examId}`,
-        sql`${examCandidates.status} IN ('failed', 'absent')`
+        sql`${examCandidates.status} = 'failed'`
       ))
       .orderBy(sql`${examCandidates.examId} DESC`)
       .limit(1);
@@ -3756,7 +3756,7 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
   const passed = !hasAnyFailed;
   const gradeAPercentage = totalGradableItems > 0 ? (gradeACount / totalGradableItems) * 100 : 0;
   
-  // 補考生不能獲得叻叻獎 — 檢查是否有上次考試同帶同目標不合格/缺席記錄
+  // 補考生不能獲得叻叻獎 — 檢查是否有上次考試同帶同目標不合格記錄（缺席不算補考）
   let isRetake = false;
   if (candidate.name && candidate.phone) {
     const db = await getDb();
@@ -3767,7 +3767,7 @@ export async function calculateExamResult(candidateId: number): Promise<{ passed
         eq(examCandidates.currentBelt, candidate.currentBelt),
         eq(examCandidates.targetBelt, candidate.targetBelt),
         sql`${examCandidates.examId} < ${candidate.examId}`,
-        sql`${examCandidates.status} IN ('failed', 'absent')`
+        sql`${examCandidates.status} = 'failed'`
       ))
       .limit(1);
     isRetake = prevRetake.length > 0;
