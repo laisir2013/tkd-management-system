@@ -1431,6 +1431,8 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
   const { data: retakeData } = trpc.exam.candidates.retakeInfo.useQuery({ examId });
   const { data: schedules, refetch: refetchSchedules } = trpc.exam.schedules.list.useQuery({ examId });
   const [activeBelt, setActiveBelt] = useState<string>('');
+  // 抽籤踢腳的本地選擇狀態（key: "candidateId-itemId" → value: 選的腳名）
+  const [lotteryKickSelections, setLotteryKickSelections] = useState<Record<string, string>>({});
 
   // 真實時間自動記錄
   const recordActualTime = trpc.exam.schedules.recordActualTime.useMutation({
@@ -1968,20 +1970,20 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                           )}
                           {isGrade ? (
                             <div className="flex flex-col items-center gap-0.5">
-                              {/* 抽籤踢腳下拉選單 — description 含 | 表示有可選項 */}
+                              {/* 抽籤踢腳下拉選單 — description 含 | 表示有可選項，選腳只記到 local state，評分時帶上 */}
                               {item.description && item.description.includes('|') && (() => {
                                 const options = item.description.split('|');
-                                const selectedKick = commentMap.get(c.id)?.get(item.id) || '';
+                                const savedKick = commentMap.get(c.id)?.get(item.id) || '';
+                                const localKey = `${c.id}-${item.id}`;
+                                const localKick = lotteryKickSelections[localKey];
+                                const displayKick = localKick !== undefined ? localKick : savedKick;
                                 return (
                                   <select
-                                    value={selectedKick}
+                                    value={displayKick}
                                     onChange={(e) => {
-                                      const kick = e.target.value;
-                                      if (kick) {
-                                        bulkUpsert.mutate({ candidateId: c.id, scores: [{ scoringItemId: item.id, score: currentScore || 'B', comment: kick }] });
-                                      }
+                                      setLotteryKickSelections(prev => ({ ...prev, [localKey]: e.target.value }));
                                     }}
-                                    className={`w-full text-[9px] px-0.5 py-0.5 rounded border mb-0.5 ${selectedKick ? 'border-blue-400 bg-blue-50 font-medium' : 'border-gray-300 text-gray-400'}`}
+                                    className={`w-full text-[9px] px-0.5 py-0.5 rounded border mb-0.5 ${displayKick ? 'border-blue-400 bg-blue-50 font-medium' : 'border-gray-300 text-gray-400'}`}
                                   >
                                     <option value="">選腳...</option>
                                     {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -1992,7 +1994,8 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                                 {['A', 'B', 'C'].map(grade => (
                                   <button key={grade}
                                     onClick={() => {
-                                      const comment = commentMap.get(c.id)?.get(item.id) || '';
+                                      const lk = lotteryKickSelections[`${c.id}-${item.id}`];
+                                      const comment = lk !== undefined ? lk : (commentMap.get(c.id)?.get(item.id) || '');
                                       bulkUpsert.mutate({ candidateId: c.id, scores: [{ scoringItemId: item.id, score: grade, comment }] });
                                     }}
                                     className={`w-6 h-6 rounded-full text-[10px] font-bold transition-all ${
@@ -2008,7 +2011,8 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                               </div>
                               <button
                                 onClick={() => {
-                                  const comment = commentMap.get(c.id)?.get(item.id) || '';
+                                  const lk = lotteryKickSelections[`${c.id}-${item.id}`];
+                                  const comment = lk !== undefined ? lk : (commentMap.get(c.id)?.get(item.id) || '');
                                   bulkUpsert.mutate({ candidateId: c.id, scores: [{ scoringItemId: item.id, score: 'F', comment }] });
                                 }}
                                 className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-all ${
