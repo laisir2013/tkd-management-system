@@ -1569,6 +1569,23 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
     return map;
   }, [allScores]);
 
+  // commentMap: candidateId → scoringItemId → comment（用於抽籤踢腳記錄選了哪一腳）
+  const commentMap = useMemo(() => {
+    if (!allScores) return new Map<number, Map<number, string>>();
+    const map = new Map<number, Map<number, string>>();
+    (allScores as any[]).forEach((entry: any) => {
+      const s = entry.score || entry;
+      const cid = s.candidateId;
+      const itemId = s.scoringItemId;
+      const comment = s.comment;
+      if (cid && itemId && comment) {
+        if (!map.has(cid)) map.set(cid, new Map());
+        map.get(cid)!.set(itemId, comment);
+      }
+    });
+    return map;
+  }, [allScores]);
+
   const items = (scoringItems as any[]) || [];
 
   // Group items by category
@@ -1951,10 +1968,33 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                           )}
                           {isGrade ? (
                             <div className="flex flex-col items-center gap-0.5">
+                              {/* 抽籤踢腳下拉選單 — description 含 | 表示有可選項 */}
+                              {item.description && item.description.includes('|') && (() => {
+                                const options = item.description.split('|');
+                                const selectedKick = commentMap.get(c.id)?.get(item.id) || '';
+                                return (
+                                  <select
+                                    value={selectedKick}
+                                    onChange={(e) => {
+                                      const kick = e.target.value;
+                                      if (kick) {
+                                        bulkUpsert.mutate({ candidateId: c.id, scores: [{ scoringItemId: item.id, score: currentScore || 'B', comment: kick }] });
+                                      }
+                                    }}
+                                    className={`w-full text-[9px] px-0.5 py-0.5 rounded border mb-0.5 ${selectedKick ? 'border-blue-400 bg-blue-50 font-medium' : 'border-gray-300 text-gray-400'}`}
+                                  >
+                                    <option value="">選腳...</option>
+                                    {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                  </select>
+                                );
+                              })()}
                               <div className="flex items-center justify-center gap-1">
                                 {['A', 'B', 'C'].map(grade => (
                                   <button key={grade}
-                                    onClick={() => handleScoreClick(c.id, item.id, grade)}
+                                    onClick={() => {
+                                      const comment = commentMap.get(c.id)?.get(item.id) || '';
+                                      bulkUpsert.mutate({ candidateId: c.id, scores: [{ scoringItemId: item.id, score: grade, comment }] });
+                                    }}
                                     className={`w-6 h-6 rounded-full text-[10px] font-bold transition-all ${
                                       currentScore === grade
                                         ? grade === 'A' ? 'bg-green-500 text-white shadow'
@@ -1967,7 +2007,10 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                                 ))}
                               </div>
                               <button
-                                onClick={() => handleScoreClick(c.id, item.id, 'F')}
+                                onClick={() => {
+                                  const comment = commentMap.get(c.id)?.get(item.id) || '';
+                                  bulkUpsert.mutate({ candidateId: c.id, scores: [{ scoringItemId: item.id, score: 'F', comment }] });
+                                }}
                                 className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-all ${
                                   currentScore === 'F' ? 'bg-red-600 text-white shadow' : 'bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-500'
                                 }`}>
