@@ -1920,10 +1920,13 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                       // 補考生已合格項目鎖定不可改
                       const isLockedByRetake = isRetake && prevScore && !prevFailed;
 
-                      if (isAbsent) {
+                      // 白帶幼稚園（≤6歲）免旋踢
+                      const isExempt = c.currentBelt === 'white' && c.age != null && c.age <= 6 && item.name === '旋踢';
+
+                      if (isAbsent || isExempt) {
                         return (
                           <td key={item.id} className={`px-1 py-1 border-r text-center ${pairColor}`}>
-                            <span className="text-[10px] text-gray-300">—</span>
+                            {isExempt ? <span className="text-[10px] text-gray-400 font-medium">免考</span> : <span className="text-[10px] text-gray-300">—</span>}
                           </td>
                         );
                       }
@@ -3446,10 +3449,11 @@ function ScoreViewPage({ examId }: { examId: number }) {
                     {categorizedItems.flatMap(cat => cat.items.map(item => {
                       const currentScore = candidateScores.get(item.id) || '';
                       const pairColor = boardPairColorMap.get(item.id) || '';
-                      if (isAbsent) {
+                      const isExempt = c.currentBelt === 'white' && c.age != null && c.age <= 6 && item.name === '旋踢';
+                      if (isAbsent || isExempt) {
                         return (
                           <td key={item.id} className={`px-1 py-2 border-r text-center ${pairColor}`}>
-                            <span className="text-gray-300">—</span>
+                            {isExempt ? <span className="text-[10px] text-gray-400 font-medium">免考</span> : <span className="text-gray-300">—</span>}
                           </td>
                         );
                       }
