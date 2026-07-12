@@ -1795,21 +1795,21 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
 
       {/* Scoring Matrix Table */}
       {items.length > 0 ? (
-        <div className="bg-white rounded-lg border overflow-x-auto">
-          <table className="w-full text-xs">
+        <div className="bg-white rounded-lg border overflow-auto max-h-[calc(100vh-280px)]">
+          <table className="w-full text-xs border-collapse">
             <thead>
               {/* Category header row */}
               <tr className="border-b">
-                <th className="px-2 py-1 border-r bg-gray-50 min-w-[40px]" rowSpan={2}>編號</th>
-                <th className="px-2 py-1 border-r bg-gray-50 min-w-[60px]" rowSpan={2}>姓名</th>
-                <th className="px-2 py-1 border-r bg-gray-50 min-w-[50px]" rowSpan={2}>色帶</th>
-                <th className="px-2 py-1 border-r bg-gray-50 min-w-[60px]" rowSpan={2}>狀態</th>
-                <th className="px-1 py-1 border-r bg-red-50 min-w-[32px]" rowSpan={2} title="清除全部評分">
+                <th className="px-2 py-1 border-r bg-gray-50 min-w-[40px] sticky top-0 left-0 z-30" rowSpan={2}>編號</th>
+                <th className="px-2 py-1 border-r bg-gray-50 min-w-[80px] sticky top-0 left-[40px] z-30" rowSpan={2}>姓名</th>
+                <th className="px-2 py-1 border-r bg-gray-50 min-w-[50px] sticky top-0 z-20" rowSpan={2}>色帶</th>
+                <th className="px-2 py-1 border-r bg-gray-50 min-w-[60px] sticky top-0 z-20" rowSpan={2}>狀態</th>
+                <th className="px-1 py-1 border-r bg-red-50 min-w-[32px] sticky top-0 z-20" rowSpan={2} title="清除全部評分">
                   <Trash2 className="w-3 h-3 text-red-400 mx-auto" />
                 </th>
                 {categorizedItems.map(cat => (
                   <th key={cat.category} colSpan={cat.items.length}
-                    className={`px-2 py-1.5 text-center text-white text-xs font-bold ${
+                    className={`px-2 py-1.5 text-center text-white text-xs font-bold sticky top-0 z-20 ${
                       cat.category === 'fitness' ? 'bg-green-600' :
                       cat.category === 'technique' ? 'bg-blue-600' :
                       cat.category === 'poomsae' ? 'bg-purple-600' :
@@ -1824,11 +1824,11 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                 ))}
               </tr>
               {/* Item name row */}
-              <tr className="border-b bg-gray-50">
+              <tr className="border-b">
                 {categorizedItems.flatMap(cat => cat.items.map(item => {
                   const pairColor = boardPairColorMap.get(item.id);
                   return (
-                  <th key={item.id} className={`px-1 py-1 text-center border-r min-w-[80px] ${pairColor || ''}`}>
+                  <th key={item.id} className={`px-1 py-1 text-center border-r min-w-[80px] sticky top-[29px] z-20 ${pairColor || 'bg-gray-50'}`}>
                     <div className="font-medium text-[10px] leading-tight">{item.name}</div>
                     {item.description && <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{item.description}</div>}
                   </th>
@@ -1846,14 +1846,14 @@ function BatchScoringTable({ examId, groupCode, onBack, groupCodes, groupInfoMap
                 const prevScores = isRetake ? (retakeData?.previousScores?.[c.id]?.scores || []) : [];
                 return (
                   <tr key={c.id} className={
-                    isAbsent ? 'bg-red-50/60 opacity-70' :
-                    c.status === 'failed' ? 'bg-red-100/60' :
-                    c.hasLakLakAward ? 'bg-amber-100/60' :
-                    isRetake ? 'bg-blue-50/60' :
-                    'hover:bg-gray-50'
+                    isAbsent ? 'bg-red-50 opacity-70' :
+                    c.status === 'failed' ? 'bg-red-100' :
+                    c.hasLakLakAward ? 'bg-amber-100' :
+                    isRetake ? 'bg-blue-50' :
+                    'bg-white hover:bg-gray-50'
                   }>
-                    <td className="px-2 py-2 border-r font-medium text-center">{code}</td>
-                    <td className="px-2 py-2 border-r">
+                    <td className="px-2 py-2 border-r font-medium text-center sticky left-0 z-10 bg-inherit">{code}</td>
+                    <td className="px-2 py-2 border-r sticky left-[40px] z-10 bg-inherit">
                       <div className={`font-medium ${isAbsent ? 'line-through text-gray-400' : ''}`}>
                         {c.name}
                         {isRetake && <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 border border-blue-300">補考</span>}
@@ -3381,17 +3381,17 @@ function ScoreViewPage({ examId }: { examId: number }) {
       {(<>
       {/* Scoring Matrix - READ ONLY */}
       {items.length > 0 ? (
-        <div className="bg-white rounded-lg border overflow-x-auto">
-          <table className="w-full text-xs">
+        <div className="bg-white rounded-lg border overflow-auto max-h-[calc(100vh-280px)]">
+          <table className="w-full text-xs border-collapse">
             <thead>
               {/* Category header row */}
               <tr className="border-b">
-                <th className="px-2 py-1.5 border-r bg-gray-50 min-w-[40px] sticky left-0 z-10" rowSpan={2}>編號</th>
-                <th className="px-2 py-1.5 border-r bg-gray-50 min-w-[70px] sticky left-[40px] z-10" rowSpan={2}>姓名</th>
-                <th className="px-2 py-1.5 border-r bg-gray-50 min-w-[50px]" rowSpan={2}>狀態</th>
+                <th className="px-2 py-1.5 border-r bg-gray-50 min-w-[40px] sticky top-0 left-0 z-30" rowSpan={2}>編號</th>
+                <th className="px-2 py-1.5 border-r bg-gray-50 min-w-[70px] sticky top-0 left-[40px] z-30" rowSpan={2}>姓名</th>
+                <th className="px-2 py-1.5 border-r bg-gray-50 min-w-[50px] sticky top-0 z-20" rowSpan={2}>狀態</th>
                 {categorizedItems.map(cat => (
                   <th key={cat.category} colSpan={cat.items.length}
-                    className={`px-2 py-1.5 text-center text-white text-xs font-bold ${
+                    className={`px-2 py-1.5 text-center text-white text-xs font-bold sticky top-0 z-20 ${
                       cat.category === 'fitness' ? 'bg-green-600' :
                       cat.category === 'technique' ? 'bg-blue-600' :
                       cat.category === 'poomsae' ? 'bg-purple-600' :
@@ -3404,17 +3404,17 @@ function ScoreViewPage({ examId }: { examId: number }) {
                     {cat.name}
                   </th>
                 ))}
-                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[50px]" rowSpan={2}>結果</th>
-                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px]" rowSpan={2} title="成績表派發">📄成</th>
-                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px]" rowSpan={2} title="證書派發">🏅證</th>
-                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px]" rowSpan={2} title="叻叻獎派發">⭐叻</th>
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[50px] sticky top-0 z-20" rowSpan={2}>結果</th>
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px] sticky top-0 z-20" rowSpan={2} title="成績表派發">📄成</th>
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px] sticky top-0 z-20" rowSpan={2} title="證書派發">🏅證</th>
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px] sticky top-0 z-20" rowSpan={2} title="叻叻獎派發">⭐叻</th>
               </tr>
               {/* Item name row */}
-              <tr className="border-b bg-gray-50">
+              <tr className="border-b">
                 {categorizedItems.flatMap(cat => cat.items.map(item => {
                   const pairColor = boardPairColorMap.get(item.id);
                   return (
-                  <th key={item.id} className={`px-1 py-1 text-center border-r min-w-[70px] ${pairColor || ''}`}>
+                  <th key={item.id} className={`px-1 py-1 text-center border-r min-w-[70px] sticky top-[29px] z-20 ${pairColor || 'bg-gray-50'}`}>
                     <div className="font-medium text-[10px] leading-tight">{item.name}</div>
                   </th>
                   );
@@ -3434,10 +3434,10 @@ function ScoreViewPage({ examId }: { examId: number }) {
 
                 return (
                   <tr key={c.id} className={`${
-                    isAbsent ? 'bg-red-50/60 opacity-60' : 
-                    isRetake ? 'bg-blue-50/60' :
-                    allScored ? 'bg-green-50/40' : 
-                    scoredItems > 0 ? 'bg-yellow-50/30' : ''
+                    isAbsent ? 'bg-red-50 opacity-60' : 
+                    isRetake ? 'bg-blue-50' :
+                    allScored ? 'bg-green-50' : 
+                    scoredItems > 0 ? 'bg-yellow-50' : 'bg-white'
                   }`}>
                     <td className="px-2 py-2 border-r font-mono font-bold text-center text-sm sticky left-0 bg-inherit z-10">{code}</td>
                     <td className="px-2 py-2 border-r sticky left-[40px] bg-inherit z-10">
