@@ -4311,9 +4311,9 @@ function StatisticsPage({ examId }: { examId: number }) {
     };
     allCandidates.forEach(c => {
       if (c.status === 'absent') return;
-      const cert = c.certificateIssued || c.certificate_issued || 'not_issued';
-      const report = c.reportCardIssued || c.report_card_issued || 'not_issued';
-      const lak = c.lakLakAwardIssued || c.lak_lak_award_issued || 'not_issued';
+      const cert = c.certificateIssued || c.certificate_issued || 'out_of_stock';
+      const report = c.reportCardIssued || c.report_card_issued || 'out_of_stock';
+      const lak = c.lakLakAwardIssued || c.lak_lak_award_issued || 'out_of_stock';
       if (cert in result.certificate) result.certificate[cert as keyof typeof result.certificate]++;
       if (report in result.report_card) result.report_card[report as keyof typeof result.report_card]++;
       if (c.hasLakLakAward) {
