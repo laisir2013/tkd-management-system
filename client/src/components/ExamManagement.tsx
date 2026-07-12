@@ -3148,6 +3148,7 @@ function ScoreViewPage({ examId }: { examId: number }) {
   const { data: candidates, refetch: refetchCandidates } = trpc.exam.candidates.list.useQuery({ examId });
   const { data: allScores } = trpc.exam.scores.listByExam.useQuery({ examId });
   const { data: exam } = trpc.exam.get.useQuery({ id: examId });
+  const { data: retakeData } = trpc.exam.candidates.retakeInfo.useQuery({ examId });
 
   // SSE: real-time score updates auto-invalidate queries
   useExamSSE({ examId, enabled: true, autoInvalidate: true });
@@ -3428,16 +3429,22 @@ function ScoreViewPage({ examId }: { examId: number }) {
                 const code = c.groupCode && c.orderNumber ? `${c.groupCode.toUpperCase()}${c.orderNumber}` : `${idx + 1}`;
                 const scoredItems = candidateScores.size;
                 const allScored = scoredItems >= totalItems && totalItems > 0;
+                const isRetake = retakeData?.retakeCandidateIds?.includes(c.id) || false;
+                const prevScores = isRetake ? (retakeData?.previousScores?.[c.id]?.scores || []) : [];
 
                 return (
                   <tr key={c.id} className={`${
                     isAbsent ? 'bg-red-50/60 opacity-60' : 
+                    isRetake ? 'bg-blue-50/60' :
                     allScored ? 'bg-green-50/40' : 
                     scoredItems > 0 ? 'bg-yellow-50/30' : ''
                   }`}>
                     <td className="px-2 py-2 border-r font-mono font-bold text-center text-sm sticky left-0 bg-inherit z-10">{code}</td>
                     <td className="px-2 py-2 border-r sticky left-[40px] bg-inherit z-10">
-                      <div className={`font-medium text-sm ${isAbsent ? 'line-through text-gray-400' : ''}`}>{c.name}</div>
+                      <div className={`font-medium text-sm ${isAbsent ? 'line-through text-gray-400' : ''}`}>
+                        {c.name}
+                        {isRetake && <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 border border-blue-300">補考</span>}
+                      </div>
                       <div className="text-[10px] text-gray-400">{c.dojoName || ''}</div>
                     </td>
                     <td className="px-2 py-2 border-r text-center">
@@ -3457,8 +3464,30 @@ function ScoreViewPage({ examId }: { examId: number }) {
                           </td>
                         );
                       }
+                      // 補考生上次分數
+                      const prevScore = isRetake ? prevScores.find(ps => ps.scoringItemId === item.id)?.score || '' : '';
+                      const prevFailed = prevScore && ['f', 'fail', 'false', '未達標', '否', '不合格', '沒有'].includes(prevScore.toLowerCase());
+                      const isLockedByRetake = isRetake && prevScore && !prevFailed;
+
+                      // 補考生已合格項目 — 顯示上次成績 + 鎖定標記
+                      if (isLockedByRetake) {
+                        return (
+                          <td key={item.id} className={`px-1 py-2 border-r text-center ${pairColor || 'bg-green-50/60'}`}>
+                            <div className="flex flex-col items-center justify-center gap-0.5">
+                              <span className="text-[10px] font-bold text-green-600">{prevScore.toUpperCase()}</span>
+                              <span className="text-[8px] text-green-500">🔒已合格</span>
+                            </div>
+                          </td>
+                        );
+                      }
                       return (
-                        <td key={item.id} className={`px-1 py-2 border-r text-center ${pairColor}`}>
+                        <td key={item.id} className={`px-1 py-2 border-r text-center relative ${pairColor || (isRetake && prevFailed ? 'bg-red-50/30' : '')}`}>
+                          {/* 補考生上次不合格標記 */}
+                          {isRetake && prevFailed && (
+                            <div className="absolute top-0 right-0 pointer-events-none">
+                              <span className="text-[8px] text-red-400 font-medium">重考</span>
+                            </div>
+                          )}
                           {currentScore ? renderScore(currentScore, item.type) : <span className="text-gray-200">⋯</span>}
                         </td>
                       );
