@@ -3401,9 +3401,9 @@ function ScoreViewPage({ examId }: { examId: number }) {
                   </th>
                 ))}
                 <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[50px]" rowSpan={2}>結果</th>
-                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px]" rowSpan={2} title="成績表派發">📄</th>
-                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px]" rowSpan={2} title="證書派發">🏅</th>
-                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[42px]" rowSpan={2} title="叻叻獎派發">⭐</th>
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[36px]" rowSpan={2} title="成績表派發">成</th>
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[36px]" rowSpan={2} title="證書派發">證</th>
+                <th className="px-2 py-1.5 border-l bg-gray-50 min-w-[36px]" rowSpan={2} title="叻叻獎派發">叻</th>
               </tr>
               {/* Item name row */}
               <tr className="border-b bg-gray-50">
@@ -3472,9 +3472,9 @@ function ScoreViewPage({ examId }: { examId: number }) {
                     {/* 派發記錄 — 三狀態循環按鈕：未派→已派→待定→未派 */}
                     {(() => {
                       const cycle = [
+                        { key: 'out_of_stock', label: '待定', bg: 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200' },
                         { key: 'not_issued', label: '未派', bg: 'bg-orange-100 border-orange-400 text-orange-800 hover:bg-orange-200' },
                         { key: 'issued',     label: '已派', bg: 'bg-green-100 border-green-500 text-green-800 hover:bg-green-200' },
-                        { key: 'out_of_stock', label: '待定', bg: 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200' },
                       ];
                       const CycleBtn = ({ field, value }: { field: 'certificateIssued' | 'reportCardIssued' | 'lakLakAwardIssued'; value: string }) => {
                         const curIdx = cycle.findIndex(s => s.key === value);
@@ -3494,13 +3494,13 @@ function ScoreViewPage({ examId }: { examId: number }) {
                       return (
                         <>
                           <td className="px-1 py-2 border-l text-center">
-                            {!isAbsent ? <CycleBtn field="reportCardIssued" value={c.reportCardIssued || 'not_issued'} /> : <span className="text-gray-300">—</span>}
+                            {!isAbsent ? <CycleBtn field="reportCardIssued" value={c.reportCardIssued || 'out_of_stock'} /> : <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-1 py-2 border-l text-center">
-                            {!isAbsent ? <CycleBtn field="certificateIssued" value={c.certificateIssued || 'not_issued'} /> : <span className="text-gray-300">—</span>}
+                            {!isAbsent ? <CycleBtn field="certificateIssued" value={c.certificateIssued || 'out_of_stock'} /> : <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-1 py-2 border-l text-center">
-                            {!isAbsent && c.hasLakLakAward ? <CycleBtn field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'not_issued'} /> : <span className="text-gray-300">—</span>}
+                            {!isAbsent && c.hasLakLakAward ? <CycleBtn field="lakLakAwardIssued" value={c.lakLakAwardIssued || 'out_of_stock'} /> : <span className="text-gray-300">—</span>}
                           </td>
                         </>
                       );
@@ -3572,34 +3572,34 @@ function ScoreViewPage({ examId }: { examId: number }) {
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div className="border rounded-lg p-2.5">
-                <div className="font-medium text-gray-700 mb-1">📄 成績表</div>
+                <div className="font-medium text-gray-700 mb-1">成績表（成）</div>
                 <div className="flex items-center gap-2">
                   <span className="text-green-600">已派: {reportIssued}/{done.length}</span>
-                  {reportOOS > 0 && <span className="text-red-500">缺貨: {reportOOS}</span>}
+                  <span className="text-gray-400">待定: {done.length - reportIssued - done.filter(c => c.reportCardIssued === 'not_issued').length}</span>
                 </div>
               </div>
               <div className="border rounded-lg p-2.5">
-                <div className="font-medium text-gray-700 mb-1">🏅 證書</div>
+                <div className="font-medium text-gray-700 mb-1">證書（證）</div>
                 <div className="flex items-center gap-2">
                   <span className="text-green-600">已派: {certIssued}/{passed.length}</span>
-                  {certOOS > 0 && <span className="text-red-500">缺貨: {certOOS}</span>}
+                  <span className="text-gray-400">待定: {passed.length - certIssued - passed.filter(c => c.certificateIssued === 'not_issued').length}</span>
                 </div>
               </div>
               <div className="border rounded-lg p-2.5">
-                <div className="font-medium text-gray-700 mb-1">⭐ 叻叻獎</div>
+                <div className="font-medium text-gray-700 mb-1">叻叻獎（叻）</div>
                 <div className="flex items-center gap-2">
                   <span className="text-green-600">已派: {awardIssued}/{withAward.length}</span>
-                  {awardOOS > 0 && <span className="text-red-500">缺貨: {awardOOS}</span>}
+                  <span className="text-gray-400">待定: {withAward.length - awardIssued - withAward.filter(c => c.lakLakAwardIssued === 'not_issued').length}</span>
                 </div>
               </div>
             </div>
             <div className="mt-3 text-[10px] text-gray-400 flex flex-wrap items-center gap-2">
               <span>派發欄操作：</span>
+              <span className="px-1.5 py-0.5 rounded border-2 border-gray-400 bg-gray-100 text-gray-600 text-[10px] font-bold">待定</span>
+              <span>→</span>
               <span className="px-1.5 py-0.5 rounded border-2 border-orange-400 bg-orange-100 text-orange-800 text-[10px] font-bold">未派</span>
               <span>→</span>
               <span className="px-1.5 py-0.5 rounded border-2 border-green-500 bg-green-100 text-green-800 text-[10px] font-bold">已派</span>
-              <span>→</span>
-              <span className="px-1.5 py-0.5 rounded border-2 border-gray-400 bg-gray-100 text-gray-600 text-[10px] font-bold">待定</span>
               <span>→ 循環（點擊按鈕切換）</span>
             </div>
           </div>
