@@ -301,6 +301,8 @@ export const eliteTrainingSchedules = mysqlTable("elite_schedules", {
   scheduleDay: varchar("schedule_day", { length: 50 }).notNull(),
   scheduleTime: varchar("schedule_time", { length: 50 }).notNull(),
   status: mysqlEnum("status", ["active", "cancelled"]).default("active").notNull(),
+  statusA: mysqlEnum("status_a", ["active", "cancelled"]).default("active").notNull(),
+  statusB: mysqlEnum("status_b", ["active", "cancelled"]).default("active").notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

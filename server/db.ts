@@ -1775,10 +1775,29 @@ export async function insertEliteTrainingSchedule(data: InsertEliteTrainingSched
   return result[0].insertId;
 }
 
-export async function updateEliteTrainingScheduleStatus(id: number, status: 'active' | 'cancelled') {
+export async function updateEliteTrainingScheduleStatus(id: number, status: 'active' | 'cancelled', classGroup?: 'A' | 'B') {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.update(eliteTrainingSchedules).set({ status }).where(eq(eliteTrainingSchedules.id, id));
+  if (classGroup === 'A') {
+    // 只更新 A 班狀態，同時更新全局 status（兩班都取消才算全局取消）
+    await db.update(eliteTrainingSchedules).set({ statusA: status }).where(eq(eliteTrainingSchedules.id, id));
+    // 更新全局 status：如果兩班都 cancelled → 全局 cancelled；否則 active
+    const [record] = await db.select().from(eliteTrainingSchedules).where(eq(eliteTrainingSchedules.id, id));
+    if (record) {
+      const globalStatus = (status === 'cancelled' && record.statusB === 'cancelled') ? 'cancelled' : 'active';
+      await db.update(eliteTrainingSchedules).set({ status: globalStatus }).where(eq(eliteTrainingSchedules.id, id));
+    }
+  } else if (classGroup === 'B') {
+    await db.update(eliteTrainingSchedules).set({ statusB: status }).where(eq(eliteTrainingSchedules.id, id));
+    const [record] = await db.select().from(eliteTrainingSchedules).where(eq(eliteTrainingSchedules.id, id));
+    if (record) {
+      const globalStatus = (record.statusA === 'cancelled' && status === 'cancelled') ? 'cancelled' : 'active';
+      await db.update(eliteTrainingSchedules).set({ status: globalStatus }).where(eq(eliteTrainingSchedules.id, id));
+    }
+  } else {
+    // 相容：無指定班別 → 全部更新
+    return db.update(eliteTrainingSchedules).set({ status, statusA: status, statusB: status }).where(eq(eliteTrainingSchedules.id, id));
+  }
 }
 
 export async function generateEliteTrainingSchedules(params: {

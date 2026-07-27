@@ -778,8 +778,10 @@ function EliteAttendanceTab() {
   const classStudents = students.filter((s: any) => s.status === 'active' && s.scheduleTime === currentClassTime);
   // 訓練日期兩班共用（DB 中為 '12:00-6:30pm'），不按 scheduleTime 過濾
   const classSchedules = schedules;
-  const activeSchedules = classSchedules.filter((s: any) => s.status === 'active');
-  const cancelledCount = classSchedules.filter((s: any) => s.status === 'cancelled').length;
+  // 根據當前班別判斷 cancelled 狀態
+  const getClassStatus = (s: any) => activeClass === 'A' ? (s.statusA || s.status) : (s.statusB || s.status);
+  const activeSchedules = classSchedules.filter((s: any) => getClassStatus(s) === 'active');
+  const cancelledCount = classSchedules.filter((s: any) => getClassStatus(s) === 'cancelled').length;
 
   // 建立出席記錄 map (server data)
   const serverAttendanceMap = useMemo(() => {
@@ -978,7 +980,8 @@ function EliteAttendanceTab() {
               <TableRow>
                 <TableHead className="sticky left-0 bg-background z-10 min-w-[100px]">學生</TableHead>
                 {classSchedules.map((s: any) => {
-                  const isCancelled = s.status === "cancelled";
+                  const classStatus = getClassStatus(s);
+                  const isCancelled = classStatus === "cancelled";
                   const date = new Date(s.trainingDate);
                   return (
                     <TableHead key={s.id} className={`text-center min-w-[60px] ${isCancelled ? "bg-red-50" : ""}`}>
@@ -987,13 +990,13 @@ function EliteAttendanceTab() {
                           {date.getUTCDate()}/{currentMonth}
                         </span>
                         {isCancelled ? (
-                          <button onClick={() => activateScheduleMutation.mutate({ id: s.id })} className="text-green-600 hover:text-green-800 text-[10px] font-bold px-1 py-0.5 rounded hover:bg-green-50 border border-green-300" title="恢復課堂">
-                            【恢復】
+                          <button onClick={() => activateScheduleMutation.mutate({ id: s.id, classGroup: activeClass })} className="text-green-600 hover:text-green-800 text-[10px] font-bold px-1 py-0.5 rounded hover:bg-green-50 border border-green-300" title={`恢復${activeClass}班課堂`}>
+                            【恢復{activeClass}班】
                           </button>
                         ) : (
                           <>
-                            <button onClick={() => cancelScheduleMutation.mutate({ id: s.id })} className="text-red-500 hover:text-red-700 text-[10px] font-bold px-1 py-0.5 rounded hover:bg-red-50 border border-red-300" title="取消課堂">
-                              【取消】
+                            <button onClick={() => cancelScheduleMutation.mutate({ id: s.id, classGroup: activeClass })} className="text-red-500 hover:text-red-700 text-[10px] font-bold px-1 py-0.5 rounded hover:bg-red-50 border border-red-300" title={`取消${activeClass}班課堂`}>
+                              【取消{activeClass}班】
                             </button>
                             <button
                               onClick={() => handleMarkUnmarkedAbsent(s.id)}
@@ -1010,7 +1013,7 @@ function EliteAttendanceTab() {
                             </button>
                           </>
                         )}
-                        {isCancelled && <span className="text-[10px] text-red-400 font-medium">休息</span>}
+                        {isCancelled && <span className="text-[10px] text-red-400 font-medium">{activeClass}班休息</span>}
                       </div>
                     </TableHead>
                   );
@@ -1032,7 +1035,7 @@ function EliteAttendanceTab() {
                   new Date(a.trainingDate).getTime() - new Date(b.trainingDate).getTime()
                 );
                 for (const s of sortedSchedules) {
-                  if (s.status === 'cancelled') continue;
+                  if (getClassStatus(s) === 'cancelled') continue;
                   const status = attendanceMap[`${s.id}-${student.id}`];
                   if (status === 'present' || status === 'late') {
                     runningCount++;
@@ -1049,7 +1052,7 @@ function EliteAttendanceTab() {
                       </div>
                     </TableCell>
                     {classSchedules.map((s: any) => {
-                      const isCancelled = s.status === "cancelled";
+                      const isCancelled = getClassStatus(s) === "cancelled";
                       const key = `${s.id}-${student.id}`;
                       const status = attendanceMap[key];
                       if (isCancelled) {

@@ -3766,17 +3766,17 @@ export const appRouter = router({
         return getEliteTrainingSchedules(input || {});
       }),
     cancelSchedule: protectedProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({ id: z.number(), classGroup: z.enum(['A', 'B']).optional() }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
-        await updateEliteTrainingScheduleStatus(input.id, 'cancelled');
+        await updateEliteTrainingScheduleStatus(input.id, 'cancelled', input.classGroup);
         return { success: true };
       }),
     activateSchedule: protectedProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({ id: z.number(), classGroup: z.enum(['A', 'B']).optional() }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
-        await updateEliteTrainingScheduleStatus(input.id, 'active');
+        await updateEliteTrainingScheduleStatus(input.id, 'active', input.classGroup);
         return { success: true };
       }),
     generateSchedules: protectedProcedure
