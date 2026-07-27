@@ -908,21 +908,20 @@ function EliteAttendanceTab() {
             {cancelledCount > 0 && <span className="text-red-500"> · 已取消 {cancelledCount} 天</span>}
           </p>
         </div>
-        <Button variant="outline" size="icon" onClick={() => handleMonthChange("next")}><ChevronRight className="h-4 w-4" /></Button>
-      </div>
-
-      {/* 生成訓練日按鈕 */}
-      {classSchedules.length === 0 && !schedulesLoading && (
-        <div className="flex justify-center">
+        <div className="flex items-center gap-1">
           <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowGenerateDialog(true)}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="text-xs"
+            title="生成訓練日"
           >
-            <Plus className="h-4 w-4 mr-1" />
-            生成訓練日
+            <Plus className="h-3.5 w-3.5 mr-0.5" />
+            生成
           </Button>
+          <Button variant="outline" size="icon" onClick={() => handleMonthChange("next")}><ChevronRight className="h-4 w-4" /></Button>
         </div>
-      )}
+      </div>
 
       {/* 生成訓練日 Dialog */}
       <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
