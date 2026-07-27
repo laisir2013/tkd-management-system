@@ -696,6 +696,16 @@ function EliteAttendanceTab() {
   const activateScheduleMutation = trpc.elite.activateSchedule.useMutation({
     onSuccess: () => { utils.elite.getSchedules.invalidate(); toast.success("已恢復課堂"); },
   });
+  // 生成訓練日 mutation
+  const generateSchedulesMutation = trpc.elite.generateSchedules.useMutation({
+    onSuccess: (data) => { utils.elite.getSchedules.invalidate(); toast.success(`已生成 ${data.count} 個訓練日`); },
+    onError: (err) => toast.error(`生成失敗: ${err.message}`),
+  });
+  const generateYearSchedulesMutation = trpc.elite.generateYearSchedules.useMutation({
+    onSuccess: (data) => { utils.elite.getSchedules.invalidate(); toast.success(`已生成全年 ${data.count} 個訓練日`); },
+    onError: (err) => toast.error(`生成失敗: ${err.message}`),
+  });
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   // Optimistic update state
   const [optimisticUpdates, setOptimisticUpdates] = useState<Record<string, string>>({});
   const [markingAbsentScheduleId, setMarkingAbsentScheduleId] = useState<number | null>(null);
@@ -899,6 +909,67 @@ function EliteAttendanceTab() {
         <Button variant="outline" size="icon" onClick={() => handleMonthChange("next")}><ChevronRight className="h-4 w-4" /></Button>
       </div>
 
+      {/* 生成訓練日按鈕 */}
+      {classSchedules.length === 0 && !schedulesLoading && (
+        <div className="flex justify-center">
+          <Button
+            onClick={() => setShowGenerateDialog(true)}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            生成訓練日
+          </Button>
+        </div>
+      )}
+
+      {/* 生成訓練日 Dialog */}
+      <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>生成訓練日</DialogTitle>
+            <DialogDescription>
+              精英班訓練日為每個星期日，請選擇生成範圍。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={() => {
+                generateSchedulesMutation.mutate({
+                  year: currentYear,
+                  month: currentMonth,
+                  scheduleDay: '星期日',
+                  scheduleTime: '12:00-6:30pm',
+                });
+                setShowGenerateDialog(false);
+              }}
+              disabled={generateSchedulesMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Calendar className="h-4 w-4 mr-1" />
+              生成 {currentYear}年{currentMonth}月 訓練日
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                generateYearSchedulesMutation.mutate({
+                  year: currentYear,
+                  scheduleDay: '星期日',
+                  scheduleTime: '12:00-6:30pm',
+                });
+                setShowGenerateDialog(false);
+              }}
+              disabled={generateYearSchedulesMutation.isPending}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              生成 {currentYear}年全年 訓練日
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowGenerateDialog(false)}>取消</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 點名表格 */}
       {classSchedules.length > 0 ? (
         <div className="border rounded-lg overflow-hidden">
@@ -1035,7 +1106,15 @@ function EliteAttendanceTab() {
       ) : (
         <Card>
           <CardContent className="py-8 text-center">
-            <p className="text-muted-foreground">本月尚無訓練日期</p>
+            <Calendar className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-muted-foreground mb-3">本月尚無訓練日期</p>
+            <Button
+              onClick={() => setShowGenerateDialog(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              生成訓練日
+            </Button>
           </CardContent>
         </Card>
       )}
