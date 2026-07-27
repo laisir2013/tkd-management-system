@@ -380,10 +380,11 @@ export interface QuarterlyPaymentStatus {
   venue: string;
   coach: string;
   feePerQuarter: string;
-  Q1: 'paid' | 'unpaid' | 'not_due'; // 1-3月
-  Q2: 'paid' | 'unpaid' | 'not_due'; // 4-6月
-  Q3: 'paid' | 'unpaid' | 'not_due'; // 7-9月
-  Q4: 'paid' | 'unpaid' | 'not_due'; // 10-12月
+  Q1: 'paid' | 'unpaid' | 'not_due' | 'not_enrolled'; // 1-3月
+  Q2: 'paid' | 'unpaid' | 'not_due' | 'not_enrolled'; // 4-6月
+  Q3: 'paid' | 'unpaid' | 'not_due' | 'not_enrolled'; // 7-9月
+  Q4: 'paid' | 'unpaid' | 'not_due' | 'not_enrolled'; // 10-12月
+  joinDate?: string | null; // 入學日期
   Q1PaymentDate?: string | null;
   Q2PaymentDate?: string | null;
   Q3PaymentDate?: string | null;
@@ -481,7 +482,27 @@ export async function getQuarterlyPaymentStatuses(year?: number): Promise<Quarte
       }
     });
 
+    // 取得入學日期（用於判斷未入學月份）
+    const joinDate = (student as any).joinDate || (student as any).join_date || null;
+    const joinDateObj = joinDate ? new Date(joinDate) : null;
+    const joinYear = joinDateObj ? joinDateObj.getFullYear() : null;
+    const joinMonth = joinDateObj ? joinDateObj.getMonth() + 1 : null; // 1-12
+    status.joinDate = joinDate ? new Date(joinDate).toISOString().split('T')[0] : null;
+
     (['Q1', 'Q2', 'Q3', 'Q4'] as const).forEach(quarter => {
+      // 判斷該季度是否已入學（季度的最後一個月 >= 入學月份才算已入學）
+      const quarterLastMonth: Record<string, number> = { Q1: 3, Q2: 6, Q3: 9, Q4: 12 };
+      const quarterFirstMonth: Record<string, number> = { Q1: 1, Q2: 4, Q3: 7, Q4: 10 };
+      if (joinDateObj) {
+        // 如果查詢年份早於入學年份 → 整季未入學
+        // 如果同年，季度最後一個月 < 入學月份 → 該季未入學
+        if (targetYear < (joinYear || 0) || 
+            (targetYear === joinYear && quarterLastMonth[quarter] < (joinMonth || 1))) {
+          status[quarter] = 'not_enrolled';
+          return;
+        }
+      }
+
       // 只有查詢當前年份時才判斷是否到期，查詢歷史年份時全部視為已到期
       const isDue = targetYear < currentYear || (targetYear === currentYear && isQuarterDue(quarter));
       
@@ -562,7 +583,7 @@ export interface MonthlyPaymentStatus {
   feePerQuarter: string; // 季度學費（用於計算月費 = feePerQuarter / 3）
   months: {
     [key: number]: { // 1-12
-      status: 'paid' | 'unpaid' | 'not_due' | 'pending' | 'leave';
+      status: 'paid' | 'unpaid' | 'not_due' | 'pending' | 'leave' | 'not_enrolled';
       paymentDate?: string | null;
       confirmedBy?: string | null;
       receiptUrl?: string | null;
@@ -574,6 +595,7 @@ export interface MonthlyPaymentStatus {
       leaveClasses?: number; // 請假堂數（0=整月, 1-5=具體堂數）
     };
   };
+  joinDate?: string | null; // 入學日期
 }
 
 export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyPaymentStatus[]> {
@@ -643,9 +665,24 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
         }
       });
       
+      // 取得入學日期（用於判斷未入學月份）
+      const joinDate = (student as any).joinDate || (student as any).join_date || null;
+      const joinDateObj = joinDate ? new Date(joinDate) : null;
+      const joinYear = joinDateObj ? joinDateObj.getFullYear() : null;
+      const joinMonth = joinDateObj ? joinDateObj.getMonth() + 1 : null; // 1-12
+
       // 建立 12 個月的狀態
       const months: MonthlyPaymentStatus['months'] = {};
       for (let m = 1; m <= 12; m++) {
+        // 判斷該月是否已入學：如果查詢年份 < 入學年，或同年但月份 < 入學月 → 未入學
+        if (joinDateObj && (
+          targetYear < (joinYear || 0) ||
+          (targetYear === joinYear && m < (joinMonth || 1))
+        )) {
+          months[m] = { status: 'not_enrolled' };
+          continue;
+        }
+
         const paid = paidMonths.get(m);
         if (paid) {
           months[m] = {
@@ -680,6 +717,7 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
         coach: (student as any).coach || '',
         feePerQuarter: String(student.feePerQuarter || '0'),
         months,
+        joinDate: joinDate ? new Date(joinDate).toISOString().split('T')[0] : null,
       };
     });
   

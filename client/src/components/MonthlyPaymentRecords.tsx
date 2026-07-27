@@ -490,6 +490,14 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
           )}
         </div>
       );
+    } else if (monthData.status === 'not_enrolled') {
+      return (
+        <div className="text-center">
+          <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-400 border border-slate-200">
+            未入學
+          </div>
+        </div>
+      );
     } else if (monthData.status === 'unpaid') {
       return (
         <div className="text-center space-y-0.5">
@@ -649,6 +657,10 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-gray-400"></div>
               <span>未到期</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-slate-300"></div>
+              <span>未入學</span>
             </div>
             <div className="flex items-center gap-1 border-l pl-3">
               <Upload className="w-3 h-3 text-blue-500" />

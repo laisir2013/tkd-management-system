@@ -128,7 +128,7 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
   };
 
   const getStatusBadge = (
-    status: 'paid' | 'unpaid' | 'not_due', 
+    status: 'paid' | 'unpaid' | 'not_due' | 'not_enrolled', 
     paymentDate?: string | null,
     confirmedBy?: string | null,
     receiptUrlVal?: string | null,
@@ -140,6 +140,15 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
     bank?: string | null,
     receivingBank?: string | null,
   ) => {
+    if (status === 'not_enrolled') {
+      return (
+        <div className="text-center">
+          <div className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-slate-100 text-slate-400 border border-slate-200">
+            未入學
+          </div>
+        </div>
+      );
+    }
     if (status === 'paid') {
       return (
         <div className="text-center space-y-1">
