@@ -409,6 +409,14 @@ export interface QuarterlyPaymentStatus {
   Q2ReceivingBank?: string | null;
   Q3ReceivingBank?: string | null;
   Q4ReceivingBank?: string | null;
+  Q1LeaveInfo?: string | null; // 請假摘要（如 "7月請假2堂, 8月請假1堂"）
+  Q2LeaveInfo?: string | null;
+  Q3LeaveInfo?: string | null;
+  Q4LeaveInfo?: string | null;
+  Q1LeaveDeduction?: number | null; // 請假扣減金額
+  Q2LeaveDeduction?: number | null;
+  Q3LeaveDeduction?: number | null;
+  Q4LeaveDeduction?: number | null;
 }
 
 export async function getQuarterlyPaymentStatuses(year?: number): Promise<QuarterlyPaymentStatus[]> {
@@ -426,9 +434,12 @@ export async function getQuarterlyPaymentStatuses(year?: number): Promise<Quarte
   // 載入該年份的請假記錄
   const allLeaves = await getLeaveMonths(targetYear);
   const leaveMap = new Map<number, Set<number>>();
+  const leaveDetailMap = new Map<number, Map<number, number>>(); // studentId → month → leaveClasses
   for (const lv of allLeaves) {
     if (!leaveMap.has(lv.studentId)) leaveMap.set(lv.studentId, new Set());
     leaveMap.get(lv.studentId)!.add(lv.month);
+    if (!leaveDetailMap.has(lv.studentId)) leaveDetailMap.set(lv.studentId, new Map());
+    leaveDetailMap.get(lv.studentId)!.set(lv.month, lv.leaveClasses);
   }
   
   // 判斷季度是否到期
@@ -564,6 +575,29 @@ export async function getQuarterlyPaymentStatuses(year?: number): Promise<Quarte
         // 未到期
         status[quarter] = 'not_due';
       }
+
+      // 附加請假摘要（無論 paid/unpaid/not_due 都附上）
+      const studentLeaveDetail = leaveDetailMap.get(student.id);
+      if (studentLeaveDetail) {
+        const qMonths = quarterMonthsMap[quarter];
+        const leaveInQuarter: string[] = [];
+        let totalDeduction = 0;
+        const feePerQuarter = parseFloat(String(student.feePerQuarter || '0'));
+        const perClassFee = feePerQuarter / 3 / 4;
+        for (const m of qMonths) {
+          const lc = studentLeaveDetail.get(m);
+          if (lc !== undefined) {
+            const actualClasses = lc === 0 ? 4 : lc;
+            const deduction = Math.round(perClassFee * actualClasses);
+            totalDeduction += deduction;
+            leaveInQuarter.push(lc === 0 ? `${m}月整月請假` : `${m}月請假${lc}堂`);
+          }
+        }
+        if (leaveInQuarter.length > 0) {
+          (status as any)[`${quarter}LeaveInfo`] = leaveInQuarter.join(', ');
+          (status as any)[`${quarter}LeaveDeduction`] = totalDeduction;
+        }
+      }
     });
     
     return status;
@@ -685,6 +719,8 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
 
         const paid = paidMonths.get(m);
         if (paid) {
+          // 即使已繳，也附帶請假資訊（讓前端能顯示請假扣減詳情）
+          const leaveClassesForPaid = leaveMap.get(student.id)?.get(m);
           months[m] = {
             status: paid.isPending ? 'pending' : 'paid',
             paymentDate: paid.paymentDate,
@@ -695,6 +731,7 @@ export async function getMonthlyPaymentStatuses(year?: number): Promise<MonthlyP
             paymentRecordId: paid.paymentRecordId,
             bank: paid.bank,
             receivingBank: paid.receivingBank,
+            ...(leaveClassesForPaid !== undefined ? { leaveClasses: leaveClassesForPaid } : {}),
           };
         } else {
           // 判斷是否到期：查過去年份全部到期；查當年只有當月或之前的到期

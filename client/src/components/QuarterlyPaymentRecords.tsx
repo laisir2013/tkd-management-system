@@ -139,6 +139,8 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
     paymentRecordId?: number | null,
     bank?: string | null,
     receivingBank?: string | null,
+    leaveInfo?: string | null,
+    leaveDeduction?: number | null,
   ) => {
     if (status === 'not_enrolled') {
       return (
@@ -155,6 +157,14 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
           <div className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-green-100 text-green-700 border border-green-300">
             已繳
           </div>
+          {leaveInfo && (
+            <div className="px-1.5 py-0.5 rounded bg-orange-50 border border-orange-200 text-[10px] text-orange-700 mx-auto inline-block">
+              📋 {leaveInfo}
+              {leaveDeduction != null && leaveDeduction > 0 && (
+                <span className="font-semibold ml-0.5">(-${leaveDeduction})</span>
+              )}
+            </div>
+          )}
           {paymentDate && (
             <div className="text-xs text-gray-500">{paymentDate}</div>
           )}
@@ -350,6 +360,8 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
                           (student as any)[`${q}PaymentRecordId`],
                           (student as any)[`${q}Bank`],
                           (student as any)[`${q}ReceivingBank`],
+                          (student as any)[`${q}LeaveInfo`],
+                          (student as any)[`${q}LeaveDeduction`],
                         )}
                       </TableCell>
                     ))}

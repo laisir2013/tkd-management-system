@@ -361,12 +361,29 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     studentId: number,
   ) => {
     if (monthData.status === 'paid') {
+      // 檢查此已繳月份是否有請假記錄
+      const paidLeaveClasses = (monthData as any).leaveClasses;
+      const hasPaidLeave = paidLeaveClasses !== undefined && paidLeaveClasses !== null;
+      const studentRecord = hasPaidLeave ? filteredStatuses.find((s: any) => s.studentId === studentId) : null;
+      let paidLeaveDeduct = 0;
+      if (hasPaidLeave && studentRecord) {
+        const fq = parseFloat(studentRecord.feePerQuarter || '0');
+        const perClass = fq / 3 / 4;
+        paidLeaveDeduct = Math.round(perClass * (paidLeaveClasses === 0 ? 4 : paidLeaveClasses));
+      }
       return (
         <div className="text-center space-y-0.5">
           <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700 border border-green-300">
             已繳
           </div>
-          {monthData.paymentType && (
+          {hasPaidLeave && (
+            <div className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-600 border border-orange-200">
+              <PauseCircle className="w-2 h-2 mr-0.5" />
+              {paidLeaveClasses === 0 ? '整月假' : `假${paidLeaveClasses}堂`}
+              {paidLeaveDeduct > 0 && <span className="ml-0.5">-${paidLeaveDeduct}</span>}
+            </div>
+          )}
+          {monthData.paymentType && !hasPaidLeave && (
             <div className="text-[9px] text-gray-400">
               {monthData.paymentType === 'quarterly' ? '季繳' : '月繳'}
             </div>
