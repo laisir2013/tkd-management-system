@@ -853,6 +853,7 @@ export const appRouter = router({
           paymentDate: z.string(), // yyyy-mm-dd
           receiptBase64: z.string().optional(),
           receiptMimeType: z.string().optional(),
+          receivingBank: z.string().optional(), // 收款銀行: BOC / HSBC
         }).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -902,6 +903,11 @@ export const appRouter = router({
             const quarter = payMonth <= 3 ? 'Q1' : payMonth <= 6 ? 'Q2' : payMonth <= 9 ? 'Q3' : 'Q4';
             const payYear = paymentDate.getFullYear();
 
+            // 收款銀行名稱標準化
+            const receivingBankLabel = fp.receivingBank === 'BOC' ? '中銀香港 (BOC)'
+              : fp.receivingBank === 'HSBC' ? '滙豐銀行 (HSBC)'
+              : null;
+
             // 插入 paymentRecords
             const paymentResult = await db.insert(schema.paymentRecords).values({
               studentId: studentId,
@@ -913,6 +919,7 @@ export const appRouter = router({
               confirmedBy: 'admin_approved',
               receiptUrl,
               receiptKey,
+              receivingBank: receivingBankLabel,
             });
             const paymentRecordId = paymentResult[0].insertId;
 
@@ -931,6 +938,7 @@ export const appRouter = router({
               coachName: input.coach || '賴政堡教練',
               dojoName: input.venue,
               source: 'auto_sync',
+              receivingBank: receivingBankLabel,
             });
           }
 
@@ -940,6 +948,10 @@ export const appRouter = router({
             const items: string[] = [];
             if (fp.includeDobok) items.push(`道袍$${fp.dobokAmount}`);
             if (fp.includeMitt) items.push(`手把$${fp.mittAmount}`);
+
+            const equipRecvBank = fp.receivingBank === 'BOC' ? '中銀香港 (BOC)'
+              : fp.receivingBank === 'HSBC' ? '滙豐銀行 (HSBC)'
+              : null;
 
             await insertAccountingRecord({
               transactionDate: paymentDate,
@@ -955,6 +967,7 @@ export const appRouter = router({
               coachName: input.coach || '賴政堡教練',
               dojoName: input.venue,
               source: 'auto_sync',
+              receivingBank: equipRecvBank,
             });
           }
 

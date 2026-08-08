@@ -48,6 +48,7 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
     includeDobok: false, // 道袍 $400
     includeMitt: false,  // 手把 $150
     paymentDate: new Date().toISOString().slice(0, 10),
+    receivingBank: '' as '' | 'BOC' | 'HSBC',
   });
   const [receiptFile, setReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
 
@@ -114,7 +115,7 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
         coach: "賴政堡教練",
         joinDate: "",
       });
-      setFirstPayment({ enabled: false, includeTuition: true, includeDobok: false, includeMitt: false, paymentDate: new Date().toISOString().slice(0, 10) });
+      setFirstPayment({ enabled: false, includeTuition: true, includeDobok: false, includeMitt: false, paymentDate: new Date().toISOString().slice(0, 10), receivingBank: '' });
       setReceiptFile(null);
     },
     onError: (error) => {
@@ -159,6 +160,7 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
         paymentDate: firstPayment.paymentDate,
         receiptBase64: receiptFile?.base64,
         receiptMimeType: receiptFile?.mimeType,
+        receivingBank: firstPayment.receivingBank || undefined,
       } : undefined,
     });
   };
@@ -476,6 +478,28 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
                     </div>
                   </div>
                 )}
+
+                {/* 收款銀行 */}
+                <div className="space-y-1">
+                  <Label className="text-xs">收款銀行（入數到哪間銀行）</Label>
+                  <Select
+                    value={firstPayment.receivingBank || '_none'}
+                    onValueChange={(value) => setFirstPayment(p => ({ ...p, receivingBank: (value === '_none' ? '' : value) as '' | 'BOC' | 'HSBC' }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="選擇收款銀行" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">未指定</SelectItem>
+                      <SelectItem value="BOC">
+                        <span className="flex items-center gap-2">🏦 中銀香港 (BOC)</span>
+                      </SelectItem>
+                      <SelectItem value="HSBC">
+                        <span className="flex items-center gap-2">🏦 滙豐銀行 (HSBC)</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 {/* 付款日期 */}
                 <div className="space-y-1">
