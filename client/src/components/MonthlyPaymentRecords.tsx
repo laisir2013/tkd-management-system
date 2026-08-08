@@ -471,12 +471,22 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       // 請假月份
       const lc = (monthData as any).leaveClasses;
       const leaveLabel = lc && lc > 0 ? `請假${lc}堂` : '整月請假';
+      // 計算扣減金額
+      const studentRecord = filteredStatuses.find((s: any) => s.studentId === studentId);
+      const fqFee = studentRecord ? parseFloat(studentRecord.feePerQuarter || '0') : 0;
+      const monthlyFee = fqFee / 3;
+      const perClass = monthlyFee / 4;
+      const deductClasses = lc && lc > 0 ? lc : 4;
+      const deductAmt = Math.round(perClass * deductClasses);
       return (
         <div className="text-center space-y-0.5">
           <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-300">
             <PauseCircle className="w-2.5 h-2.5 mr-0.5" />
             {leaveLabel}
           </div>
+          {deductAmt > 0 && (
+            <div className="text-[9px] text-orange-600">-${deductAmt}</div>
+          )}
           {/* 取消請假按鈕（僅管理員可見） */}
           {!readOnly && (
             <button
@@ -882,13 +892,36 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   );
                 })}
               </div>
-              {/* ★ 顯示多季 × 多學生總金額 */}
-              <div className="mt-2 text-sm font-medium text-purple-800">
-                💰 入帳金額：{totalStudents > 1 
-                  ? `${totalStudents} 位學生 × ${totalQuarters} 季 = `
-                  : `${totalQuarters} 季 × $${feePerQuarter.toLocaleString()} = `
-                }<strong className="text-lg">${grandTotal.toLocaleString()}</strong>
-              </div>
+              {/* ★ 顯示多季 × 多學生總金額（考慮請假扣減） */}
+              {(() => {
+                // 計算每位學生的 adjustedFee（如果有請假扣減）
+                const allStudentIdsForFee = [confirmDialog.studentId, ...confirmExtraStudentIds];
+                let grandTotalAdj = 0;
+                const hasAdjustment = allStudentIdsForFee.some(sid => {
+                  const nq = allNextUnpaidQuarters?.[sid];
+                  return nq?.adjustedFee !== undefined && nq.adjustedFee !== parseFloat(filteredStatuses.find((s: any) => s.studentId === sid)?.feePerQuarter || '0');
+                });
+                allStudentIdsForFee.forEach(sid => {
+                  const s = filteredStatuses.find((st: any) => st.studentId === sid);
+                  const stdFee = s ? parseFloat(s.feePerQuarter || '0') : feePerQuarter;
+                  const nq = allNextUnpaidQuarters?.[sid];
+                  // 首季使用 adjustedFee，額外季度用標準費用
+                  const firstQFee = (nq?.adjustedFee !== undefined) ? nq.adjustedFee : stdFee;
+                  grandTotalAdj += firstQFee + stdFee * (totalQuarters - 1);
+                });
+                return (
+                  <div className="mt-2 text-sm font-medium text-purple-800">
+                    💰 入帳金額：{hasAdjustment ? (
+                      <><strong className="text-lg">${grandTotalAdj.toLocaleString()}</strong><span className="text-xs ml-1">（含請假扣減）</span></>
+                    ) : (
+                      <>{totalStudents > 1 
+                        ? `${totalStudents} 位學生 × ${totalQuarters} 季 = `
+                        : `${totalQuarters} 季 × $${feePerQuarter.toLocaleString()} = `
+                      }<strong className="text-lg">${grandTotal.toLocaleString()}</strong></>
+                    )}
+                  </div>
+                );
+              })()}
               {(confirmExtraQuarters.length > 0 || confirmExtraStudentIds.length > 0) && (
                 <div className="text-xs text-purple-700">
                   📌 共建立 {totalStudents * totalQuarters} 筆季繳記錄{totalStudents > 1 ? `（${totalStudents} 位學生各 ${totalQuarters} 季）` : ''}
@@ -964,6 +997,39 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             </div>
             );
           })()}
+          {/* 請假扣減明細（季繳且有 adjustedFee 時顯示） */}
+          {confirmDialog && (() => {
+            const allSids = [confirmDialog.studentId, ...confirmExtraStudentIds];
+            const leaveInfos = allSids.map(sid => {
+              const nq = allNextUnpaidQuarters?.[sid];
+              const s = filteredStatuses.find((st: any) => st.studentId === sid);
+              const stdFee = s ? parseFloat(s.feePerQuarter || '0') : 0;
+              if (!nq?.feeNote || nq.adjustedFee === undefined || nq.adjustedFee === stdFee) return null;
+              return { name: s?.studentName || '—', stdFee, adjustedFee: nq.adjustedFee, note: nq.feeNote, breakdown: nq.feeBreakdown };
+            }).filter(Boolean) as { name: string; stdFee: number; adjustedFee: number; note: string; breakdown?: string }[];
+            if (leaveInfos.length === 0) return null;
+            return (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg space-y-2">
+                <div className="text-sm font-medium text-yellow-800 flex items-center gap-1">
+                  <Calendar className="w-4 h-4" /> 請假 / 按比例調整明細
+                </div>
+                {leaveInfos.map((info, i) => (
+                  <div key={i} className="text-xs text-yellow-700 space-y-0.5">
+                    {allSids.length > 1 && <div className="font-medium">{info.name}：</div>}
+                    <div>原價：${info.stdFee.toLocaleString()} → 調整後：<strong className="text-yellow-900">${info.adjustedFee.toLocaleString()}</strong></div>
+                    <div className="text-yellow-600">{info.note}</div>
+                    {info.breakdown && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-yellow-700 hover:text-yellow-900">📊 完整計算明細</summary>
+                        <pre className="mt-1 whitespace-pre-wrap text-[11px] text-yellow-700 bg-yellow-100 p-2 rounded">{info.breakdown}</pre>
+                      </details>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
           {/* 請假月排除（僅季繳時顯示） */}
           {confirmDialog?.paymentType === 'quarterly' && confirmDialog.months.length > 1 && (
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
@@ -1116,13 +1182,24 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               {confirmMonthlyPayment.isPending ? '處理中...' : (() => {
                 const totalStudents = 1 + confirmExtraStudentIds.length;
                 const totalQuarters = 1 + confirmExtraQuarters.length;
-                const currentStudent = filteredStatuses.find((s: any) => s.studentId === confirmDialog?.studentId);
-                const baseFee = currentStudent ? parseFloat(currentStudent.feePerQuarter || '0') : 0;
-                const allFees = [baseFee, ...confirmExtraStudentIds.map(id => {
-                  const s = filteredStatuses.find((st: any) => st.studentId === id);
-                  return s ? parseFloat(s.feePerQuarter || '0') : baseFee;
-                })];
-                const grandTotal = allFees.reduce((sum, fee) => sum + fee * totalQuarters, 0);
+                const allSids = [confirmDialog?.studentId || 0, ...confirmExtraStudentIds];
+                let grandTotal = 0;
+                allSids.forEach(sid => {
+                  const s = filteredStatuses.find((st: any) => st.studentId === sid);
+                  const stdFee = s ? parseFloat(s.feePerQuarter || '0') : 0;
+                  const nq = allNextUnpaidQuarters?.[sid];
+                  // 首季使用 adjustedFee（考慮請假扣減），額外季度用標準費用
+                  const firstQFee = (nq?.adjustedFee !== undefined) ? nq.adjustedFee : stdFee;
+                  // 如有排除月份，按排除後的月數計算（月繳費率）
+                  if (confirmExcludedMonths.length > 0) {
+                    const monthlyFee = stdFee / 3;
+                    const paidMonths = 3 - confirmExcludedMonths.length;
+                    grandTotal += monthlyFee * paidMonths + stdFee * (totalQuarters - 1);
+                  } else {
+                    grandTotal += firstQFee + stdFee * (totalQuarters - 1);
+                  }
+                });
+                grandTotal = Math.round(grandTotal);
                 const label = confirmDialog?.paymentType === 'quarterly' ? '季繳' : '月繳';
                 const parts = [];
                 if (totalStudents > 1) parts.push(`${totalStudents}位`);
