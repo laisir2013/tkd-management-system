@@ -2734,6 +2734,11 @@ export function normalizeBankName(rawBank: string | null | undefined): string | 
     return 'boc';
   }
 
+  // 現金 Cash
+  if (b.includes('CASH') || b === '現金' || b === '现金') {
+    return 'cash';
+  }
+
   // HSBC 滙豐銀行
   if (b.includes('HSBC') || b.includes('滙豐') || b.includes('汇丰') || b.includes('匯豐') || b.includes('HONGKONG AND SHANGHAI')) {
     return 'hsbc';
@@ -2746,20 +2751,20 @@ export function normalizeBankName(rawBank: string | null | undefined): string | 
 
   // 其他銀行名稱全部 fallback 到 'boc'（公司主要收款帳戶）
   // 包含：渣打、恒生、ZA Bank、Mox 等——都是家長的付款銀行，收款方預設是 BOC
-  console.log(`[normalizeBankName] 非 BOC/HSBC 銀行: "${rawBank}" → fallback to 'boc'`);
+  console.log(`[normalizeBankName] 非 BOC/HSBC/現金: "${rawBank}" → fallback to 'boc'`);
   return 'boc';
 }
 
 /**
- * 將 paymentMethod 映射回顯示用的中文銀行名稱
- * 公司只有 BOC 和 HSBC
+ * 將 paymentMethod 映射回顯示用的中文名稱
+ * 收款方式：BOC、HSBC、現金
  */
 export function paymentMethodToDisplayName(pm: string | null): string {
   const map: Record<string, string> = {
     'hsbc': '滙豐銀行 (HSBC)',
     'boc': '中銀香港 (BOC)',
     'fps': '中銀香港 (BOC)',  // FPS 歸類到 BOC
-    'cash': '中銀香港 (BOC)',  // 現金預設歸 BOC
+    'cash': '現金',
     'bank': '中銀香港 (BOC)',  // 未知銀行預設歸 BOC
     'scb': '中銀香港 (BOC)',
     'hangseng': '中銀香港 (BOC)',

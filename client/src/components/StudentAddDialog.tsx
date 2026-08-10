@@ -48,7 +48,7 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
     includeDobok: false, // 道袍 $400
     includeMitt: false,  // 手把 $150
     paymentDate: new Date().toISOString().slice(0, 10),
-    receivingBank: '' as '' | 'BOC' | 'HSBC',
+    receivingBank: '' as '' | 'BOC' | 'HSBC' | 'CASH',
   });
   const [receiptFile, setReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
 
@@ -484,7 +484,7 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
                   <Label className="text-xs">收款銀行（入數到哪間銀行）</Label>
                   <Select
                     value={firstPayment.receivingBank || '_none'}
-                    onValueChange={(value) => setFirstPayment(p => ({ ...p, receivingBank: (value === '_none' ? '' : value) as '' | 'BOC' | 'HSBC' }))}
+                    onValueChange={(value) => setFirstPayment(p => ({ ...p, receivingBank: (value === '_none' ? '' : value) as '' | 'BOC' | 'HSBC' | 'CASH' }))}
                   >
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="選擇收款銀行" />
@@ -496,6 +496,9 @@ export function StudentAddDialog({ open, onOpenChange, onSuccess }: StudentAddDi
                       </SelectItem>
                       <SelectItem value="HSBC">
                         <span className="flex items-center gap-2">🏦 滙豐銀行 (HSBC)</span>
+                      </SelectItem>
+                      <SelectItem value="CASH">
+                        <span className="flex items-center gap-2">💵 現金</span>
                       </SelectItem>
                     </SelectContent>
                   </Select>

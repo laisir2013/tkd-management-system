@@ -98,9 +98,10 @@ export function MarkAsPaidButton({
               <SelectContent>
                 <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
                 <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                <SelectItem value="現金">💵 現金</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>
+            <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？現金則選「現金」</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowDialog(false); setBank(""); setReceivingBank(""); }}>取消</Button>

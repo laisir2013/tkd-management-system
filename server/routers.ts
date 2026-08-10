@@ -853,7 +853,7 @@ export const appRouter = router({
           paymentDate: z.string(), // yyyy-mm-dd
           receiptBase64: z.string().optional(),
           receiptMimeType: z.string().optional(),
-          receivingBank: z.string().optional(), // 收款銀行: BOC / HSBC
+          receivingBank: z.string().optional(), // 收款方式: BOC / HSBC / CASH
         }).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -906,6 +906,7 @@ export const appRouter = router({
             // 收款銀行名稱標準化
             const receivingBankLabel = fp.receivingBank === 'BOC' ? '中銀香港 (BOC)'
               : fp.receivingBank === 'HSBC' ? '滙豐銀行 (HSBC)'
+              : fp.receivingBank === 'CASH' ? '現金'
               : null;
 
             // 插入 paymentRecords
@@ -951,6 +952,7 @@ export const appRouter = router({
 
             const equipRecvBank = fp.receivingBank === 'BOC' ? '中銀香港 (BOC)'
               : fp.receivingBank === 'HSBC' ? '滙豐銀行 (HSBC)'
+              : fp.receivingBank === 'CASH' ? '現金'
               : null;
 
             await insertAccountingRecord({
