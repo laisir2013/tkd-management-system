@@ -1177,15 +1177,37 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   }
                   // 合併所有學生 ID（主要學生 + 額外選中的學生）
                   const allStudentIds = [confirmDialog.studentId, ...confirmExtraStudentIds];
+
+                  // 組裝每位學生的 adjustedFee + feeNote（請假扣減後的實際金額）
+                  const effectivePaymentType = confirmExcludedMonths.length > 0 ? 'monthly' : confirmDialog.paymentType;
+                  const overrideAmounts: { studentId: number; amount: number; note: string }[] = [];
+                  if (effectivePaymentType === 'quarterly') {
+                    for (const sid of allStudentIds) {
+                      const nq = allNextUnpaidQuarters?.[sid];
+                      if (nq?.adjustedFee !== undefined) {
+                        const s = filteredStatuses.find((st: any) => st.studentId === sid);
+                        const stdFee = s ? parseFloat(s.feePerQuarter || '0') : 0;
+                        if (nq.adjustedFee !== stdFee) {
+                          overrideAmounts.push({
+                            studentId: sid,
+                            amount: nq.adjustedFee,
+                            note: nq.feeNote || '',
+                          });
+                        }
+                      }
+                    }
+                  }
+
                   confirmMonthlyPayment.mutate({
                     studentIds: allStudentIds,
                     year: selectedYear,
                     months: actualMonths,
-                    paymentType: confirmExcludedMonths.length > 0 ? 'monthly' : confirmDialog.paymentType,
+                    paymentType: effectivePaymentType,
                     receivingBank: confirmReceivingBank || undefined,
                     paymentDate: confirmPaymentDate ? new Date(confirmPaymentDate) : undefined,
                     receiptBase64: confirmReceiptFile?.base64,
                     receiptMimeType: confirmReceiptFile?.mimeType,
+                    overrideAmounts: overrideAmounts.length > 0 ? overrideAmounts : undefined,
                   });
                   setConfirmExcludedMonths([]);
                   setConfirmReceivingBank("");

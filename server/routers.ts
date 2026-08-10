@@ -2689,6 +2689,12 @@ export const appRouter = router({
         // 收據上傳（可選）
         receiptBase64: z.string().optional(),
         receiptMimeType: z.string().optional(),
+        // 請假扣減後的實際金額覆蓋（前端已計算好 adjustedFee）
+        overrideAmounts: z.array(z.object({
+          studentId: z.number(),
+          amount: z.number(),     // 扣減後的實際金額
+          note: z.string(),       // 備註（如「7月請假2堂、8月請假1堂，扣$450」）
+        })).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         // 管理員或教練皆可確認繳費
@@ -2702,6 +2708,14 @@ export const appRouter = router({
           : (input.studentId ? [input.studentId] : []);
         if (allStudentIds.length === 0) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: '至少需要一位學生' });
+        }
+
+        // 建立 overrideAmounts 查找 Map（studentId → {amount, note}）
+        const overrideMap = new Map<number, { amount: number; note: string }>();
+        if (input.overrideAmounts) {
+          for (const oa of input.overrideAmounts) {
+            overrideMap.set(oa.studentId, { amount: oa.amount, note: oa.note });
+          }
         }
 
         // 取得所有學生資料
@@ -2729,6 +2743,8 @@ export const appRouter = router({
         // 為每位學生建立繳費記錄
         for (const student of studentsData) {
           const feePerQuarter = parseFloat(student.feePerQuarter);
+          // 查找該學生的 override（請假扣減後金額）— 僅對首季適用
+          const override = overrideMap.get(student.id);
 
           if (input.paymentType === 'quarterly') {
             // 季繳：將月份按季度分組，每個季度建立一筆繳費記錄（支援多季一次登記）
@@ -2745,15 +2761,25 @@ export const appRouter = router({
             }
 
             // 為每個季度建立繳費記錄
-            for (const [quarter, _months] of Object.entries(quarterGroups)) {
+            const quarterKeys = Object.keys(quarterGroups).sort();
+            let isFirstQuarter = true;
+            for (const quarter of quarterKeys) {
               const qtrTxDate = input.paymentDate || new Date();
+              // 首季且有 override → 使用扣減後金額；其餘季度用標準費用
+              const actualAmount = (isFirstQuarter && override) ? override.amount : feePerQuarter;
+              const leaveNote = (isFirstQuarter && override) ? override.note : '';
+              const description = leaveNote
+                ? `${student.name} 學費（${leaveNote}）`
+                : `${student.name} 學費`;
+              isFirstQuarter = false;
+
               const qtrPmtId = await insertPaymentRecord({
                 studentId: student.id,
                 year: input.year,
                 paymentPeriod: quarter as 'Q1' | 'Q2' | 'Q3' | 'Q4',
                 customMonths: null,
                 paymentMonth: null,
-                amount: String(feePerQuarter),
+                amount: String(actualAmount),
                 classCount: null,
                 receiptUrl,
                 receiptKey,
@@ -2763,13 +2789,14 @@ export const appRouter = router({
                 paymentDate: qtrTxDate,
                 status: 'confirmed',
                 confirmedBy,
+                notes: leaveNote || null,
               });
 
               try {
                 await syncPaymentToAccounting({
                   paymentRecordId: qtrPmtId,
                   transactionDate: qtrTxDate,
-                  amount: String(feePerQuarter),
+                  amount: String(actualAmount),
                   bank: input.bank || null,
                   receivingBank: input.receivingBank || null,
                   studentName: student.name,
@@ -2778,6 +2805,7 @@ export const appRouter = router({
                   category: 'tuition',
                   receiptUrl,
                   receiptKey,
+                  description,
                 });
               } catch (e) {
                 console.error(`Auto sync to accounting after quarterly confirmMonthlyPayment failed (student=${student.name}, ${quarter}):`, e);
@@ -2827,7 +2855,7 @@ export const appRouter = router({
           }
         }
 
-        console.log(`[confirmMonthlyPayment] 完成：學生=${studentsData.map(s => s.name).join(', ')}, 月份=${input.months.join(',')}, 類型=${input.paymentType}`);
+        console.log(`[confirmMonthlyPayment] 完成：學生=${studentsData.map(s => s.name).join(', ')}, 月份=${input.months.join(',')}, 類型=${input.paymentType}${overrideMap.size > 0 ? `, 含請假扣減${overrideMap.size}位` : ''}`);
         return { success: true };
       }),
 

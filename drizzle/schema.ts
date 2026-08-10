@@ -156,6 +156,7 @@ export const paymentRecords = mysqlTable("paymentRecords", {
   reviewMatchPaymentId: int("review_match_payment_id"),
   reviewedBy: varchar("reviewed_by", { length: 50 }),
   reviewedAt: timestamp("reviewed_at"),
+  notes: varchar("notes", { length: 500 }), // 備註（如請假扣減明細）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

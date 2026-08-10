@@ -846,136 +846,47 @@ function calculateLeaveDeduction(
   return { deduction, actualClasses, totalClasses, leaveDates, description };
 }
 
-/** 標記請假（leaveClasses: 0=整月, 1-4=具體堂數）+ 自動同步會計紀錄 */
+/**
+ * 標記請假（leaveClasses: 0=整月, 1-4=具體堂數）
+ * 
+ * 會計處理方式：不再在標記請假時建立獨立的 leave_deduction AR/JE。
+ * 扣減金額直接反映在確認繳費時的 paymentRecords.amount（adjustedFee），
+ * 備註寫在 paymentRecords.notes 和 accounting_records.description 中。
+ * 這樣每筆繳費記錄的金額 = 實際收款金額，帳目更清晰。
+ */
 export async function insertLeaveMonth(studentId: number, year: number, month: number, leaveClasses: number = 0, notes?: string) {
   const db = await getDb();
   if (!db) return;
 
-  // 1. upsert leave record
+  // upsert leave record
   await db.insert(studentLeaveMonths).values({ studentId, year, month, leaveClasses, notes: notes || null })
     .onDuplicateKeyUpdate({ set: { leaveClasses, notes: notes || null } });
 
-  // 2. 同步會計紀錄 (accounting_records + journal_entries)
+  // 計算扣減金額（僅用於 log，不建立會計紀錄）
   try {
     const student = await getStudentById(studentId);
     if (!student) return;
 
     const feePerQuarter = parseFloat(String(student.feePerQuarter || '0'));
-    if (feePerQuarter <= 0) return; // 無學費設定，跳過
+    if (feePerQuarter <= 0) return;
 
     const scheduleDay = (student as any).scheduleDay || (student as any).schedule_day;
-    const { deduction, actualClasses, totalClasses, leaveDates, description: leaveDesc } = calculateLeaveDeduction(
+    const { deduction, actualClasses } = calculateLeaveDeduction(
       feePerQuarter, scheduleDay, year, month, leaveClasses
     );
 
-    if (deduction <= 0) return;
-
-    const studentName = student.name;
-    const dateStr = leaveDates.length > 0 ? ` (${leaveDates.join(', ')})` : '';
-    const arDescription = `${studentName} ${year}年${month}月請假扣減 — ${leaveClasses === 0 ? '整月' : `${actualClasses}堂`}${dateStr}`;
-
-    // 先刪除舊的同步紀錄（如果有）— 避免重複
-    const existingAr = await db.select().from(accountingRecords)
-      .where(and(
-        eq(accountingRecords.studentName, studentName),
-        eq(accountingRecords.category, 'leave_deduction'),
-        sql`YEAR(${accountingRecords.transactionDate}) = ${year}`,
-        sql`MONTH(${accountingRecords.transactionDate}) = ${month}`,
-      )).limit(1);
-
-    if (existingAr.length > 0) {
-      const oldAr = existingAr[0];
-      // 刪除舊的 JE 和 JEL
-      if (oldAr.journalEntryId) {
-        await db.delete(journalEntryLines).where(eq(journalEntryLines.journalEntryId, oldAr.journalEntryId));
-        await db.delete(journalEntries).where(eq(journalEntries.id, oldAr.journalEntryId));
-      }
-      await db.delete(accountingRecords).where(eq(accountingRecords.id, oldAr.id));
-    }
-
-    // 插入 AR（type=expense, category=leave_deduction）
-    const transactionDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const arResult = await db.insert(accountingRecords).values({
-      transactionDate,
-      amount: deduction.toString(),
-      type: 'expense',
-      category: 'leave_deduction',
-      description: arDescription,
-      studentName,
-      source: 'auto_sync',
-    } as any);
-    const arId = Number((arResult as any)[0].insertId);
-
-    // 插入 JE + JEL：Dr. 4001 (沖銷學費收入) / Cr. 2003 (應付請假扣減)
-    const fiscalYear = year;
-    const fiscalMonth = month;
-
-    const jeId = await db.transaction(async (tx: any) => {
-      // 生成 entry number
-      const yearMonth = `${fiscalYear}${fiscalMonth.toString().padStart(2, '0')}`;
-      const result = await tx.execute(sql`
-        SELECT entry_number FROM journal_entries
-        WHERE fiscal_year = ${fiscalYear} AND fiscal_month = ${fiscalMonth}
-        ORDER BY id DESC
-        LIMIT 1
-        FOR UPDATE
-      `);
-      let seq = 1;
-      const rows = (result[0] as Array<{ entry_number: string }>);
-      if (rows.length > 0) {
-        const parts = rows[0].entry_number.split('-');
-        const lastSeq = parseInt(parts[2], 10);
-        if (!isNaN(lastSeq)) seq = lastSeq + 1;
-      }
-      const entryNumber = `JE-${yearMonth}-${seq.toString().padStart(4, '0')}`;
-
-      const insertResult = await tx.insert(journalEntries).values({
-        entryNumber,
-        entryDate: transactionDate,
-        description: arDescription,
-        sourceType: 'auto_sync',
-        sourceId: arId,
-        sourceTable: 'accounting_records',
-        fiscalYear,
-        fiscalMonth,
-        isPosted: true,
-        postedAt: new Date(),
-        postedBy: 'system',
-      });
-      const newJeId = Number(insertResult[0].insertId);
-
-      // Dr. 4001 學費收入（沖銷）/ Cr. 1001 銀行（未來少收）
-      await tx.insert(journalEntryLines).values([
-        {
-          journalEntryId: newJeId,
-          accountCode: '4001',
-          debit: deduction.toString(),
-          credit: '0.00',
-          description: `請假扣減 — ${studentName} ${year}年${month}月`,
-        },
-        {
-          journalEntryId: newJeId,
-          accountCode: '1001',
-          debit: '0.00',
-          credit: deduction.toString(),
-          description: `請假扣減 — ${studentName} ${year}年${month}月`,
-        },
-      ]);
-
-      return newJeId;
-    });
-
-    // 連結 AR → JE
-    await db.update(accountingRecords).set({ journalEntryId: jeId } as any).where(eq(accountingRecords.id, arId));
-
-    console.log(`[LeaveSync] ${studentName} ${year}年${month}月請假 → AR#${arId} + JE#${jeId}，扣$${deduction}`);
+    console.log(`[Leave] ${student.name} ${year}年${month}月請假${leaveClasses === 0 ? '整月' : `${actualClasses}堂`}，預計扣$${deduction}（將在確認繳費時直接反映於金額）`);
   } catch (err) {
-    console.error('[LeaveSync] 同步會計紀錄失敗:', err);
-    // 不阻擋請假紀錄本身的儲存
+    console.error('[Leave] 計算扣減失敗:', err);
   }
 }
 
-/** 取消請假 + 自動刪除對應會計紀錄 */
+/**
+ * 取消請假
+ * 
+ * 不再需要刪除獨立的 leave_deduction AR/JE（新流程已不建立）。
+ * 若資料庫中仍有舊的 leave_deduction 紀錄，也一併清理。
+ */
 export async function deleteLeaveMonth(studentId: number, year: number, month: number) {
   const db = await getDb();
   if (!db) return;
@@ -989,7 +900,7 @@ export async function deleteLeaveMonth(studentId: number, year: number, month: n
     )
   );
 
-  // 2. 刪除對應的會計紀錄
+  // 2. 清理舊的 leave_deduction AR/JE（兼容舊資料）
   try {
     const student = await getStudentById(studentId);
     if (!student) return;
@@ -1004,17 +915,17 @@ export async function deleteLeaveMonth(studentId: number, year: number, month: n
 
     if (existingAr.length > 0) {
       const ar = existingAr[0];
-      // 刪除 JE + JEL
       if (ar.journalEntryId) {
         await db.delete(journalEntryLines).where(eq(journalEntryLines.journalEntryId, ar.journalEntryId));
         await db.delete(journalEntries).where(eq(journalEntries.id, ar.journalEntryId));
       }
-      // 刪除 AR
       await db.delete(accountingRecords).where(eq(accountingRecords.id, ar.id));
-      console.log(`[LeaveSync] 取消 ${student.name} ${year}年${month}月請假 → 已刪除 AR#${ar.id}`);
+      console.log(`[Leave] 取消 ${student.name} ${year}年${month}月請假 → 已清理舊 AR#${ar.id}`);
     }
+
+    console.log(`[Leave] 取消 ${student.name} ${year}年${month}月請假`);
   } catch (err) {
-    console.error('[LeaveSync] 刪除會計紀錄失敗:', err);
+    console.error('[Leave] 取消請假失敗:', err);
   }
 }
 
@@ -2871,6 +2782,7 @@ export async function syncPaymentToAccounting(params: {
   category?: string;
   receiptUrl?: string | null;
   receiptKey?: string | null;
+  description?: string; // 自訂描述（如含請假扣減備註）
 }): Promise<void> {
   const existing = await getAccountingRecordByPaymentId(params.paymentRecordId);
   if (existing) return;
@@ -2898,7 +2810,7 @@ export async function syncPaymentToAccounting(params: {
     amount: params.amount,
     type: 'income',
     category: params.category || 'tuition',
-    description: `${params.studentName} 學費`,
+    description: params.description || `${params.studentName} 學費`,
     receiptUrl: params.receiptUrl || null,
     receiptKey: params.receiptKey || null,
     paymentRecordId: params.paymentRecordId,
