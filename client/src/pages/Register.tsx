@@ -81,7 +81,7 @@ export default function Register() {
     return options;
   }, [dojosQuery.data]);
 
-  // 計算首堂日期選項：根據選擇的道場星期，給出前後3週的對應日期
+  // 計算首堂日期選項：根據選擇的道場星期，給出前3週+後3週的對應日期
   const firstClassDateOptions = useMemo(() => {
     if (!selectedDojoId) return [];
     const selected = dojoScheduleOptions.find(o => o.id === selectedDojoId);
@@ -98,16 +98,16 @@ export default function Register() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 找到今天或之後的第一個目標星期
+    // 找到本週（或最近的下一個）目標星期幾
     const todayDay = today.getDay();
-    let diff = targetDayNum - todayDay;
-    if (diff < 0) diff += 7;
+    let diffToNext = targetDayNum - todayDay;
+    if (diffToNext < 0) diffToNext += 7;
 
     const dates: { value: string; label: string }[] = [];
-    // 給出前後3週（包含本週共4個日期）
-    for (let i = 0; i < 4; i++) {
+    // 前3週 + 本週(或最近) + 後2週 = 共6個日期
+    for (let i = -3; i <= 3; i++) {
       const d = new Date(today);
-      d.setDate(today.getDate() + diff + i * 7);
+      d.setDate(today.getDate() + diffToNext + i * 7);
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const dd = String(d.getDate()).padStart(2, '0');
