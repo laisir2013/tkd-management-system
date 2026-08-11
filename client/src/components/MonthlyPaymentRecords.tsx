@@ -591,6 +591,17 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                 <CreditCard className="w-2.5 h-2.5" />
                 季繳
               </button>
+              <button
+                onClick={() => {
+                  setLeaveClassesInput(0);
+                  setLeaveDialog({ studentId, studentName, month });
+                }}
+                className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-400 text-white hover:bg-orange-500 transition-colors"
+                title="提前標記請假"
+              >
+                <PauseCircle className="w-2.5 h-2.5" />
+                請假
+              </button>
             </div>
           )}
         </div>
