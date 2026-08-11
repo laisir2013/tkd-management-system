@@ -25,7 +25,7 @@ export function MarkAsPaidButton({
   const [isMarking, setIsMarking] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [bank, setBank] = useState<string>("");
-  const [receivingBank, setReceivingBank] = useState<string>("");
+  const [receivingBank, setReceivingBank] = useState<string>("中銀香港 (BOC)");
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
   const markAsPaid = trpc.payments.markAsPaid.useMutation({
@@ -34,7 +34,7 @@ export function MarkAsPaidButton({
       setIsMarking(false);
       setShowDialog(false);
       setBank("");
-      setReceivingBank("");
+      setReceivingBank("中銀香港 (BOC)");
       setPaymentDate(new Date().toISOString().split('T')[0]);
       onSuccess?.();
     },
@@ -69,7 +69,7 @@ export function MarkAsPaidButton({
         {isMarking ? "處理中..." : "標記已繳"}
       </Button>
 
-      <Dialog open={showDialog} onOpenChange={(open) => { if (!open) { setShowDialog(false); setBank(""); setReceivingBank(""); setPaymentDate(new Date().toISOString().split('T')[0]); } }}>
+      <Dialog open={showDialog} onOpenChange={(open) => { if (!open) { setShowDialog(false); setBank(""); setReceivingBank("中銀香港 (BOC)"); setPaymentDate(new Date().toISOString().split('T')[0]); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>標記已繳</DialogTitle>
@@ -104,7 +104,7 @@ export function MarkAsPaidButton({
             <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？現金則選「現金」</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowDialog(false); setBank(""); setReceivingBank(""); }}>取消</Button>
+            <Button variant="outline" onClick={() => { setShowDialog(false); setBank(""); setReceivingBank("中銀香港 (BOC)"); }}>取消</Button>
             <Button
               className="bg-blue-600 hover:bg-blue-700"
               disabled={isMarking}

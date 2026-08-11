@@ -2,12 +2,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Image, Upload, ShieldCheck, Check, X, Building2 } from "lucide-react";
+import { Image, Upload, ShieldCheck, Check, X, Building2, Pencil } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coachName?: string; showConfirmButton?: boolean } = {}) {
@@ -42,16 +43,18 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
     },
   });
 
-  // 修改銀行 dialog state
+  // 修改付款資訊 dialog state（銀行 + 日期）
   const [editBankDialog, setEditBankDialog] = useState<{
     paymentRecordId: number;
     studentName: string;
     quarterLabel: string;
     currentBank: string;
     currentReceivingBank: string;
+    currentPaymentDate: string;
   } | null>(null);
   const [editBank, setEditBank] = useState("");
   const [editReceivingBank, setEditReceivingBank] = useState("");
+  const [editPaymentDate, setEditPaymentDate] = useState("");
   const updatePaymentBank = trpc.payments.updatePaymentBank.useMutation({
     onSuccess: () => {
       toast.success('已更新銀行資訊');
@@ -192,21 +195,28 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
           {paymentRecordId && showConfirmButton && (
             <button
               onClick={() => {
+                const dateStr = paymentDate
+                  ? (typeof paymentDate === 'string'
+                      ? paymentDate.slice(0, 10)
+                      : new Date(paymentDate).toISOString().slice(0, 10))
+                  : new Date().toISOString().slice(0, 10);
                 setEditBankDialog({
                   paymentRecordId,
                   studentName: studentName || '',
                   quarterLabel: quarterLabel || '',
                   currentBank: bank || '',
                   currentReceivingBank: receivingBank || '',
+                  currentPaymentDate: dateStr,
                 });
                 setEditBank(bank || '');
                 setEditReceivingBank(receivingBank || '');
+                setEditPaymentDate(dateStr);
               }}
               className="flex items-center justify-center gap-0.5 text-[10px] text-blue-600 hover:text-blue-800 hover:underline cursor-pointer mx-auto mt-0.5"
-              title="修改付款/收款銀行"
+              title="修改付款日期/收款銀行"
             >
-              <Building2 className="w-3 h-3" />
-              修改銀行
+              <Pencil className="w-3 h-3" />
+              修改
             </button>
           )}
         </div>
@@ -480,16 +490,26 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
         </DialogContent>
       </Dialog>
 
-      {/* 修改轉入銀行對話框 */}
+      {/* 修改付款資訊對話框（日期 + 銀行） */}
       <Dialog open={!!editBankDialog} onOpenChange={(open) => { if (!open) { setEditBankDialog(null); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>修改轉入銀行</DialogTitle>
+            <DialogTitle>修改付款資訊</DialogTitle>
             <DialogDescription>
               {editBankDialog?.studentName} — {selectedYear}年 {editBankDialog?.quarterLabel}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            <div>
+              <Label className="text-sm font-medium">付款日期（入數日期）</Label>
+              <Input
+                type="date"
+                className="mt-1"
+                value={editPaymentDate}
+                onChange={(e) => setEditPaymentDate(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">實際入數 / 付款日期（會同步更新會計記錄）</p>
+            </div>
             <div>
               <Label className="text-sm font-medium">轉入銀行（入數到哪間公司帳戶）</Label>
               <Select value={editReceivingBank} onValueChange={setEditReceivingBank}>
@@ -499,9 +519,10 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
                 <SelectContent>
                   <SelectItem value="中銀香港 (BOC)">中銀香港 (BOC)</SelectItem>
                   <SelectItem value="滙豐銀行 (HSBC)">滙豐銀行 (HSBC)</SelectItem>
+                  <SelectItem value="現金">💵 現金</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？用於銀行月結單對帳</p>
+              <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？現金則選「現金」</p>
             </div>
           </div>
           <DialogFooter>
@@ -511,15 +532,25 @@ export function QuarterlyPaymentRecords({ coachName, showConfirmButton }: { coac
               disabled={updatePaymentBank.isPending}
               onClick={() => {
                 if (editBankDialog) {
-                  updatePaymentBank.mutate({
+                  const mutateData: any = {
                     paymentRecordId: editBankDialog.paymentRecordId,
-                    bank: editBank || undefined,
-                    receivingBank: editReceivingBank || undefined,
-                  });
+                  };
+                  if (editReceivingBank && editReceivingBank !== editBankDialog.currentReceivingBank) {
+                    mutateData.receivingBank = editReceivingBank;
+                  }
+                  if (editPaymentDate && editPaymentDate !== editBankDialog.currentPaymentDate) {
+                    mutateData.paymentDate = editPaymentDate;
+                  }
+                  if (!mutateData.receivingBank && !mutateData.paymentDate) {
+                    toast.info('沒有修改任何資訊');
+                    setEditBankDialog(null);
+                    return;
+                  }
+                  updatePaymentBank.mutate(mutateData);
                 }
               }}
             >
-              <Building2 className="w-4 h-4 mr-1" />
+              <Pencil className="w-4 h-4 mr-1" />
               {updatePaymentBank.isPending ? '處理中...' : '確認修改'}
             </Button>
           </DialogFooter>

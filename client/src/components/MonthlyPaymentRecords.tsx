@@ -74,7 +74,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   // 付款銀行（教練/管理員確認時選擇）
   const [confirmBank, setConfirmBank] = useState<string>("");
   // 收款銀行（入數到哪間銀行，用於銀行月結單對帳）
-  const [confirmReceivingBank, setConfirmReceivingBank] = useState<string>("");
+  const [confirmReceivingBank, setConfirmReceivingBank] = useState<string>("中銀香港 (BOC)");
   // 付款日期（管理員輸入，會計記帳用）
   const [confirmPaymentDate, setConfirmPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
@@ -812,7 +812,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmReceivingBank(""); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); } }}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmReceivingBank("中銀香港 (BOC)"); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -1166,7 +1166,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             <p className="text-xs text-muted-foreground mt-1">管理員/教練上傳收據直接確認，無需額外審批</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmReceivingBank(""); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); setConfirmExcludedMonths([]); }}>取消</Button>
+            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmReceivingBank("中銀香港 (BOC)"); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); setConfirmExcludedMonths([]); }}>取消</Button>
             <Button
               className={confirmDialog?.paymentType === 'quarterly' ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
               disabled={confirmMonthlyPayment.isPending}
@@ -1222,7 +1222,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                     overrideAmounts: overrideAmounts.length > 0 ? overrideAmounts : undefined,
                   });
                   setConfirmExcludedMonths([]);
-                  setConfirmReceivingBank("");
+                  setConfirmReceivingBank("中銀香港 (BOC)");
                   setConfirmPaymentDate(new Date().toISOString().split('T')[0]);
                   setConfirmExtraStudentIds([]);
                   setConfirmExtraQuarters([]);
@@ -1428,16 +1428,26 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
         </DialogContent>
       </Dialog>
 
-      {/* 修改銀行對話框 */}
+      {/* 修改付款資訊對話框（日期 + 銀行） */}
       <Dialog open={!!editBankDialog} onOpenChange={(open) => { if (!open) { setEditBankDialog(null); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>修改轉入銀行</DialogTitle>
+            <DialogTitle>修改付款資訊</DialogTitle>
             <DialogDescription>
               {editBankDialog?.studentName} — {selectedYear}年{editBankDialog?.month}月
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            <div>
+              <Label className="text-sm font-medium">付款日期（入數日期）</Label>
+              <Input
+                type="date"
+                className="mt-1"
+                value={editPaymentDate}
+                onChange={(e) => setEditPaymentDate(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">實際入數 / 付款日期（會同步更新會計記錄）</p>
+            </div>
             <div>
               <Label className="text-sm font-medium">轉入銀行（入數到哪間公司帳戶）</Label>
               <Select value={editReceivingBank} onValueChange={setEditReceivingBank}>
@@ -1460,14 +1470,25 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               disabled={updatePaymentBank.isPending}
               onClick={() => {
                 if (editBankDialog) {
-                  updatePaymentBank.mutate({
+                  const mutateData: any = {
                     paymentRecordId: editBankDialog.paymentRecordId,
-                    receivingBank: editReceivingBank || undefined,
-                  });
+                  };
+                  if (editReceivingBank && editReceivingBank !== editBankDialog.currentReceivingBank) {
+                    mutateData.receivingBank = editReceivingBank;
+                  }
+                  if (editPaymentDate && editPaymentDate !== editBankDialog.currentPaymentDate) {
+                    mutateData.paymentDate = editPaymentDate;
+                  }
+                  if (!mutateData.receivingBank && !mutateData.paymentDate) {
+                    toast.info('沒有修改任何資訊');
+                    setEditBankDialog(null);
+                    return;
+                  }
+                  updatePaymentBank.mutate(mutateData);
                 }
               }}
             >
-              <Building2 className="w-4 h-4 mr-1" />
+              <Pencil className="w-4 h-4 mr-1" />
               {updatePaymentBank.isPending ? '處理中...' : '確認修改'}
             </Button>
           </DialogFooter>

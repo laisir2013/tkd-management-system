@@ -2935,12 +2935,13 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // 事後修改付款記錄的銀行資訊（收款銀行 / 付款銀行）
+    // 事後修改付款記錄的銀行資訊及付款日期（收款銀行 / 付款銀行 / 付款日期）
     updatePaymentBank: protectedProcedure
       .input(z.object({
         paymentRecordId: z.number(),
         bank: z.string().optional(),
         receivingBank: z.string().optional(),
+        paymentDate: z.string().optional(), // ISO date string e.g. '2026-07-09'
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
@@ -2954,6 +2955,7 @@ export const appRouter = router({
         const updateData: Record<string, any> = {};
         if (input.bank !== undefined) updateData.bank = input.bank;
         if (input.receivingBank !== undefined) updateData.receivingBank = input.receivingBank;
+        if (input.paymentDate !== undefined) updateData.paymentDate = new Date(input.paymentDate);
 
         if (Object.keys(updateData).length === 0) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: '請提供至少一個要修改的欄位' });
@@ -2963,21 +2965,30 @@ export const appRouter = router({
           .set(updateData)
           .where(eq(schema.paymentRecords.id, input.paymentRecordId));
 
-        // 同步更新 accounting_records
+        // 同步更新 accounting_records + journal_entries
         try {
           const acctRecord = await getAccountingRecordByPaymentId(input.paymentRecordId);
           if (acctRecord) {
             const acctUpdate: Record<string, any> = {};
             if (input.bank !== undefined) acctUpdate.bank = input.bank;
             if (input.receivingBank !== undefined) acctUpdate.receivingBank = input.receivingBank;
+            if (input.paymentDate !== undefined) acctUpdate.transactionDate = new Date(input.paymentDate);
             await updateAccountingRecord(acctRecord.id, acctUpdate);
             console.log(`[updatePaymentBank] 已同步 accounting_records id=${acctRecord.id}`);
+
+            // 同步更新 journal_entries 的 entryDate
+            if (input.paymentDate !== undefined && acctRecord.journalEntryId) {
+              await dbInst.update(schema.journalEntries)
+                .set({ entryDate: input.paymentDate })
+                .where(eq(schema.journalEntries.id, acctRecord.journalEntryId));
+              console.log(`[updatePaymentBank] 已同步 journal_entries id=${acctRecord.journalEntryId}, entryDate=${input.paymentDate}`);
+            }
           }
         } catch (e) {
-          console.error("[updatePaymentBank] 同步 accounting_records 失敗:", e);
+          console.error("[updatePaymentBank] 同步 accounting_records/journal_entries 失敗:", e);
         }
 
-        console.log(`[updatePaymentBank] paymentRecordId=${input.paymentRecordId}, bank=${input.bank}, receivingBank=${input.receivingBank}`);
+        console.log(`[updatePaymentBank] paymentRecordId=${input.paymentRecordId}, bank=${input.bank}, receivingBank=${input.receivingBank}, paymentDate=${input.paymentDate}`);
         return { success: true };
       }),
   }),
