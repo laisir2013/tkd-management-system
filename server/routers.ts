@@ -898,10 +898,44 @@ export const appRouter = router({
 
           // 1. 學費 → 繳費記錄 + 會計（tuition）
           if (fp.includeTuition && fp.tuitionAmount > 0) {
-            // 根據付款日期判斷季度
-            const payMonth = paymentDate.getMonth() + 1; // 1-12
-            const quarter = payMonth <= 3 ? 'Q1' : payMonth <= 6 ? 'Q2' : payMonth <= 9 ? 'Q3' : 'Q4';
             const payYear = paymentDate.getFullYear();
+
+            // --- 根據入學日期計算實際覆蓋月份 ---
+            // 起始月 = 入學月份（優先）或付款月份
+            const joinDateObj = input.joinDate ? new Date(input.joinDate + 'T00:00:00') : paymentDate;
+            const startMonth = joinDateObj.getMonth() + 1; // 1-12
+            const startYear = joinDateObj.getFullYear();
+
+            // 計算覆蓋月數 = 繳費金額 / 月費
+            const feePerQuarterNum = parseFloat(input.feePerQuarter) || 0;
+            const monthlyFee = feePerQuarterNum > 0 ? feePerQuarterNum / 3 : 0;
+            const monthCount = monthlyFee > 0 ? Math.round(fp.tuitionAmount / monthlyFee) : 3;
+
+            // 產生實際覆蓋的月份陣列（可能跨年）
+            const coveredMonths: number[] = [];
+            for (let i = 0; i < monthCount; i++) {
+              const m = ((startMonth - 1 + i) % 12) + 1; // 1-12, wraps around
+              coveredMonths.push(m);
+            }
+
+            // 判斷是否恰好對應一個完整季度
+            const quarterDefs: Record<string, number[]> = {
+              Q1: [1, 2, 3], Q2: [4, 5, 6], Q3: [7, 8, 9], Q4: [10, 11, 12],
+            };
+            let matchedQuarter: string | null = null;
+            for (const [qName, qMonths] of Object.entries(quarterDefs)) {
+              if (coveredMonths.length === 3 &&
+                  coveredMonths[0] === qMonths[0] &&
+                  coveredMonths[1] === qMonths[1] &&
+                  coveredMonths[2] === qMonths[2]) {
+                matchedQuarter = qName;
+                break;
+              }
+            }
+
+            // 決定 paymentPeriod 和 customMonths
+            const paymentPeriod = matchedQuarter || 'CUSTOM';
+            const customMonths = matchedQuarter ? null : JSON.stringify(coveredMonths.map(String));
 
             // 收款銀行名稱標準化
             const receivingBankLabel = fp.receivingBank === 'BOC' ? '中銀香港 (BOC)'
@@ -913,7 +947,8 @@ export const appRouter = router({
             const paymentResult = await db.insert(schema.paymentRecords).values({
               studentId: studentId,
               year: payYear,
-              paymentPeriod: quarter as any,
+              paymentPeriod: paymentPeriod as any,
+              customMonths: customMonths as any,
               amount: String(fp.tuitionAmount) as any,
               paymentDate: paymentDate,
               status: 'confirmed',
@@ -925,12 +960,13 @@ export const appRouter = router({
             const paymentRecordId = paymentResult[0].insertId;
 
             // 同步到會計記錄
+            const monthsLabel = coveredMonths.map(m => `${m}月`).join('、');
             await insertAccountingRecord({
               transactionDate: paymentDate,
               amount: String(fp.tuitionAmount) as any,
               type: 'income',
               category: 'tuition',
-              description: `${input.name} 新生首期學費`,
+              description: `${input.name} 新生首期學費 (${monthsLabel})`,
               receiptUrl,
               receiptKey,
               paymentRecordId,
