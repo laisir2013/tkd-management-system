@@ -124,14 +124,16 @@ export default function RegistrationManagement() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">{reg.studentName}</span>
+                        {reg.englishName && <span className="text-xs text-gray-500">({reg.englishName})</span>}
                         {reg.studentGender && <span className="text-xs text-gray-400">{reg.studentGender === 'male' ? '♂' : '♀'}</span>}
+                        {reg.beltLevel && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100">{reg.beltLevel}</span>}
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs border ${statusInfo.color}`}>{statusInfo.label}</span>
                       </div>
                       <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-3">
-                        <span>{reg.parentName} ({reg.relationship || '家長'})</span>
                         <span>{reg.parentPhone}</span>
                         <span>{reg.preferredDojo || '未選道場'}</span>
-                        {reg.firstClassDate && <span>首堂：{reg.firstClassDate}</span>}
+                        {reg.classSchedule && <span>{reg.classSchedule}</span>}
+                        {reg.firstClassDate && <span>入學：{reg.firstClassDate}</span>}
                         <span>{reg.createdAt ? new Date(reg.createdAt).toLocaleDateString('zh-HK') : ''}</span>
                       </div>
                     </div>
@@ -145,14 +147,22 @@ export default function RegistrationManagement() {
                     <div className="mt-4 pt-4 border-t space-y-4">
                       {/* Detail fields */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        {reg.englishName && <div><span className="text-gray-400">英文名：</span>{reg.englishName}</div>}
+                        {reg.referrer && <div><span className="text-gray-400">介紹人：</span>{reg.referrer}</div>}
+                        {reg.beltLevel && <div><span className="text-gray-400">色帶：</span>{reg.beltLevel}</div>}
                         {reg.studentBirthDate && <div><span className="text-gray-400">出生日期：</span>{reg.studentBirthDate}</div>}
+                        {reg.parentName && <div><span className="text-gray-400">家長：</span>{reg.parentName}</div>}
                         {reg.parentPhone2 && <div><span className="text-gray-400">第二電話：</span>{reg.parentPhone2}</div>}
                         {reg.parentEmail && <div><span className="text-gray-400">電郵：</span>{reg.parentEmail}</div>}
-                        {reg.preferredSchedule && <div><span className="text-gray-400">時段：</span>{reg.preferredSchedule}</div>}
+                        {reg.facebook && <div><span className="text-gray-400">Facebook：</span>{reg.facebook}</div>}
+                        {reg.address && <div className="sm:col-span-2"><span className="text-gray-400">住址：</span>{reg.address}</div>}
+                        {reg.classSchedule && <div><span className="text-gray-400">上課時間：</span>{reg.classSchedule}</div>}
+                        {reg.preferredSchedule && <div><span className="text-gray-400">時段(舊)：</span>{reg.preferredSchedule}</div>}
+                        {reg.dobokSize && <div><span className="text-gray-400">道袍尺寸：</span>{reg.dobokSize}</div>}
                         {reg.tuitionAmount && <div><span className="text-gray-400">繳費金額：</span>${Number(reg.tuitionAmount).toLocaleString()}</div>}
                         {reg.receivingBank && <div><span className="text-gray-400">收款方式：</span>{reg.receivingBank}</div>}
                         {reg.previousExperience && <div><span className="text-gray-400">經驗：</span>{reg.previousExperience}</div>}
-                        {reg.medicalConditions && <div><span className="text-gray-400">身體狀況：</span>{reg.medicalConditions}</div>}
+                        {reg.medicalConditions && <div className="sm:col-span-2"><span className="text-gray-400">身體狀況：</span>{reg.medicalConditions}</div>}
                         {reg.howDidYouHear && <div><span className="text-gray-400">得知途徑：</span>{reg.howDidYouHear}</div>}
                         {reg.remarks && <div className="sm:col-span-2"><span className="text-gray-400">備註：</span>{reg.remarks}</div>}
                       </div>
@@ -303,6 +313,12 @@ export default function RegistrationManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+                {approveDialog.beltLevel && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">色帶</Label>
+                    <Input value={approveDialog.beltLevel} readOnly className="bg-gray-50" />
+                  </div>
+                )}
 
                 {/* Preview: calculated months */}
                 {approveDialog.firstClassDate && approveDialog.feePerQuarter > 0 && approveDialog.tuitionAmount > 0 && (
@@ -333,12 +349,15 @@ export default function RegistrationManagement() {
                     parentPhone: approveDialog.parentPhone,
                     preferredDojo: approveDialog.preferredDojo,
                     preferredSchedule: approveDialog.preferredSchedule || undefined,
+                    classSchedule: approveDialog.classSchedule || undefined,
                     firstClassDate: approveDialog.firstClassDate,
                     tuitionAmount: approveDialog.tuitionAmount,
                     feePerQuarter: approveDialog.feePerQuarter,
                     receivingBank: approveDialog.receivingBank,
                     studentGender: approveDialog.studentGender || null,
                     studentBirthDate: approveDialog.studentBirthDate || null,
+                    beltLevel: approveDialog.beltLevel || null,
+                    englishName: approveDialog.englishName || null,
                   });
                 }}
               >
@@ -357,8 +376,16 @@ export default function RegistrationManagement() {
             <DialogHeader><DialogTitle>修改報名資料</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
               <div className="space-y-1">
-                <Label className="text-xs">學生姓名</Label>
+                <Label className="text-xs">學生姓名(中文)</Label>
                 <Input value={editDialog.studentName} onChange={e => setEditDialog({ ...editDialog, studentName: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">學生姓名(英文)</Label>
+                <Input value={editDialog.englishName || ''} onChange={e => setEditDialog({ ...editDialog, englishName: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">色帶</Label>
+                <Input value={editDialog.beltLevel || ''} onChange={e => setEditDialog({ ...editDialog, beltLevel: e.target.value })} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">家長姓名</Label>
@@ -373,7 +400,11 @@ export default function RegistrationManagement() {
                 <Input value={editDialog.preferredDojo || ''} onChange={e => setEditDialog({ ...editDialog, preferredDojo: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">首堂日期</Label>
+                <Label className="text-xs">上課日期及時間</Label>
+                <Input value={editDialog.classSchedule || ''} onChange={e => setEditDialog({ ...editDialog, classSchedule: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">入學日期</Label>
                 <Input type="date" value={editDialog.firstClassDate || ''} onChange={e => setEditDialog({ ...editDialog, firstClassDate: e.target.value })} />
               </div>
               <div className="space-y-1">
@@ -391,9 +422,12 @@ export default function RegistrationManagement() {
                 updateMutation.mutate({
                   id: editDialog.id,
                   studentName: editDialog.studentName,
+                  englishName: editDialog.englishName || null,
+                  beltLevel: editDialog.beltLevel || null,
                   parentName: editDialog.parentName,
                   parentPhone: editDialog.parentPhone,
-                  preferredDojo: editDialog.preferredDojo,
+                  preferredDojo: editDialog.preferredDojo || null,
+                  classSchedule: editDialog.classSchedule || null,
                   firstClassDate: editDialog.firstClassDate || null,
                   tuitionAmount: editDialog.tuitionAmount || null,
                   adminNotes: editDialog.adminNotes || null,

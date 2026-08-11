@@ -187,19 +187,27 @@ export const registrations = mysqlTable("registrations", {
   id: int("id").autoincrement().primaryKey(),
   // 學生資料
   studentName: varchar("student_name", { length: 100 }).notNull(),
+  englishName: varchar("english_name", { length: 200 }), // 學生姓名(英文)
+  referrer: varchar("referrer", { length: 200 }), // 介紹人
   studentGender: mysqlEnum("student_gender", ["male", "female"]),
   studentBirthDate: date("student_birth_date"),
-  // 家長/監護人
+  // 家長/監護人（聯絡人）
   parentName: varchar("parent_name", { length: 100 }).notNull(),
   parentPhone: varchar("parent_phone", { length: 50 }).notNull(),
   parentPhone2: varchar("parent_phone2", { length: 50 }), // 第二聯絡電話
   parentEmail: varchar("parent_email", { length: 320 }),
-  relationship: varchar("relationship", { length: 50 }), // 與學生的關係：父/母/監護人
+  relationship: varchar("relationship", { length: 50 }), // 與學生的關係
   // 道場選擇
-  preferredDojo: varchar("preferred_dojo", { length: 200 }), // 首選道場名稱
-  preferredSchedule: varchar("preferred_schedule", { length: 200 }), // 首選時段
+  preferredDojo: varchar("preferred_dojo", { length: 200 }), // 上課地點（場館名）
+  preferredSchedule: varchar("preferred_schedule", { length: 200 }), // 上課時段（舊，保留）
+  classSchedule: varchar("class_schedule", { length: 500 }), // 上課日期及時間（自由填寫）
+  // 新增表格欄位
+  beltLevel: varchar("belt_level", { length: 50 }), // 現時色帶
+  address: text("address"), // 住址
+  facebook: varchar("facebook", { length: 500 }), // Facebook
+  dobokSize: varchar("dobok_size", { length: 200 }), // 跆拳道袍尺寸
   // 繳費相關
-  firstClassDate: date("first_class_date"), // 首堂日期（即入學日期，用於計算覆蓋月份）
+  firstClassDate: date("first_class_date"), // 入學日期
   tuitionAmount: decimal("tuition_amount", { precision: 10, scale: 2 }), // 繳費金額
   receiptUrl: text("receipt_url"), // 收據圖片URL
   receiptKey: text("receipt_key"), // 收據儲存key
@@ -207,7 +215,7 @@ export const registrations = mysqlTable("registrations", {
   // 其他
   previousExperience: text("previous_experience"), // 是否有跆拳道經驗
   medicalConditions: text("medical_conditions"), // 特殊身體狀況/過敏
-  howDidYouHear: varchar("how_did_you_hear", { length: 200 }), // 從何處得知
+  howDidYouHear: varchar("how_did_you_hear", { length: 200 }), // 請問在那裡知道我們既課程？
   remarks: text("remarks"), // 其他備註
   // 狀態管理
   status: mysqlEnum("status", ["pending", "contacted", "enrolled", "rejected"]).default("pending").notNull(),

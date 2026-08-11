@@ -9061,16 +9061,23 @@ export const appRouter = router({
     submit: publicProcedure
       .input(z.object({
         studentName: z.string().min(1, '請輸入學生姓名'),
+        englishName: z.string().optional(), // 學生姓名(英文)
+        referrer: z.string().optional(), // 介紹人
         studentGender: z.enum(['male', 'female']).optional(),
         studentBirthDate: z.string().optional(), // yyyy-mm-dd
-        parentName: z.string().min(1, '請輸入家長姓名'),
+        parentName: z.string().min(1, '請輸入聯絡人姓名'),
         parentPhone: z.string().min(1, '請輸入聯絡電話'),
         parentPhone2: z.string().optional(),
         parentEmail: z.string().optional(),
         relationship: z.string().optional(),
-        preferredDojo: z.string().optional(),
+        preferredDojo: z.string().optional(), // 上課地點
         preferredSchedule: z.string().optional(),
-        firstClassDate: z.string().optional(), // yyyy-mm-dd 首堂日期
+        classSchedule: z.string().optional(), // 上課日期及時間（自由填寫）
+        beltLevel: z.string().optional(), // 現時色帶
+        address: z.string().optional(), // 住址
+        facebook: z.string().optional(), // Facebook
+        dobokSize: z.string().optional(), // 跆拳道袍尺寸
+        firstClassDate: z.string().optional(), // yyyy-mm-dd 入學日期
         tuitionAmount: z.number().optional(), // 繳費金額
         receivingBank: z.string().optional(), // 收款銀行: BOC/HSBC/CASH
         receiptBase64: z.string().optional(), // 收據base64
@@ -9104,6 +9111,8 @@ export const appRouter = router({
 
         await dbInst.insert(schema.registrations).values({
           studentName: input.studentName,
+          englishName: input.englishName || null,
+          referrer: input.referrer || null,
           studentGender: input.studentGender as any || null,
           studentBirthDate: input.studentBirthDate || null,
           parentName: input.parentName,
@@ -9113,6 +9122,11 @@ export const appRouter = router({
           relationship: input.relationship || null,
           preferredDojo: input.preferredDojo || null,
           preferredSchedule: input.preferredSchedule || null,
+          classSchedule: input.classSchedule || null,
+          beltLevel: input.beltLevel || null,
+          address: input.address || null,
+          facebook: input.facebook || null,
+          dobokSize: input.dobokSize || null,
           firstClassDate: input.firstClassDate || null,
           tuitionAmount: input.tuitionAmount ? String(input.tuitionAmount) as any : null,
           receiptUrl,
@@ -9144,6 +9158,8 @@ export const appRouter = router({
       .input(z.object({
         id: z.number(),
         studentName: z.string().optional(),
+        englishName: z.string().nullable().optional(),
+        referrer: z.string().nullable().optional(),
         studentGender: z.enum(['male', 'female']).nullable().optional(),
         studentBirthDate: z.string().nullable().optional(),
         parentName: z.string().optional(),
@@ -9153,11 +9169,17 @@ export const appRouter = router({
         relationship: z.string().nullable().optional(),
         preferredDojo: z.string().nullable().optional(),
         preferredSchedule: z.string().nullable().optional(),
+        classSchedule: z.string().nullable().optional(),
+        beltLevel: z.string().nullable().optional(),
+        address: z.string().nullable().optional(),
+        facebook: z.string().nullable().optional(),
+        dobokSize: z.string().nullable().optional(),
         firstClassDate: z.string().nullable().optional(),
         tuitionAmount: z.number().nullable().optional(),
         receivingBank: z.string().nullable().optional(),
         previousExperience: z.string().nullable().optional(),
         medicalConditions: z.string().nullable().optional(),
+        howDidYouHear: z.string().nullable().optional(),
         remarks: z.string().nullable().optional(),
         adminNotes: z.string().nullable().optional(),
         status: z.enum(['pending', 'contacted', 'enrolled', 'rejected']).optional(),
@@ -9196,12 +9218,15 @@ export const appRouter = router({
         parentPhone: z.string(),
         preferredDojo: z.string(),
         preferredSchedule: z.string().optional(),
+        classSchedule: z.string().optional(),
         firstClassDate: z.string(), // yyyy-mm-dd（必填）
         tuitionAmount: z.number(), // 繳費金額（必填）
         feePerQuarter: z.number(), // 季費標準（用於計算月數）
         receivingBank: z.string().optional(),
         studentGender: z.enum(['male', 'female']).nullable().optional(),
         studentBirthDate: z.string().nullable().optional(),
+        beltLevel: z.string().nullable().optional(),
+        englishName: z.string().nullable().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
@@ -9257,7 +9282,7 @@ export const appRouter = router({
           scheduleDay: scheduleDay,
           scheduleTime: scheduleTime,
           feePerQuarter: String(input.feePerQuarter) as any,
-          beltLevel: null,
+          beltLevel: input.beltLevel || null,
           birthDate: input.studentBirthDate || null,
           coach: coachName,
           joinDate: firstClassDate,
