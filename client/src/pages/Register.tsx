@@ -8,9 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, Loader2, Camera, X } from "lucide-react";
-
-
+import { CheckCircle2, Loader2, Camera, X, User, MapPin, BookOpen, Phone, CreditCard, HelpCircle } from "lucide-react";
 
 // ── 色帶列表 ──
 const BELT_LEVELS = [
@@ -18,27 +16,25 @@ const BELT_LEVELS = [
   "藍帶", "藍紅帶", "紅帶", "紅黑帶", "黑帶",
 ];
 
-// ── 道袍尺寸列表 ──
+// ── 道袍尺寸 ──
 const DOBOK_SIZES = [
   "90CM", "100CM", "110CM", "120CM", "130CM", "140CM",
   "150CM", "160CM", "170CM", "180CM", "190CM", "200CM",
 ];
 
-// ── 從何得知列表 ──
-const HOW_KNOW_OPTIONS = [
-  "朋友介紹", "FACEBOOK", "傳單", "街招", "Google",
-];
+// ── 從何得知 ──
+const HOW_KNOW_OPTIONS = ["朋友介紹", "FACEBOOK", "傳單", "街招", "Google"];
 
 export default function Register() {
   const [submitted, setSubmitted] = useState(false);
 
-  // Form state — matching Google Form field order
+  // Form state
   const [studentName, setStudentName] = useState("");
   const [englishName, setEnglishName] = useState("");
   const [referrer, setReferrer] = useState("");
   const [firstClassDate, setFirstClassDate] = useState("");
-  const [firstClassDateCustom, setFirstClassDateCustom] = useState(""); // 自選日期
-  const [selectedDojoId, setSelectedDojoId] = useState(""); // 選中的道場時段 ID
+  const [firstClassDateCustom, setFirstClassDateCustom] = useState("");
+  const [selectedDojoId, setSelectedDojoId] = useState("");
   const [beltLevel, setBeltLevel] = useState("");
   const [studentBirthYear, setStudentBirthYear] = useState("");
   const [studentBirthMonth, setStudentBirthMonth] = useState("");
@@ -51,8 +47,6 @@ export default function Register() {
   const [dobokSizes, setDobokSizes] = useState<string[]>([]);
   const [howDidYouHear, setHowDidYouHear] = useState("");
   const [howDidYouHearOther, setHowDidYouHearOther] = useState("");
-
-  // Additional fields (kept from our enhanced version)
   const [parentName, setParentName] = useState("");
   const [parentPhone2, setParentPhone2] = useState("");
   const [tuitionAmount, setTuitionAmount] = useState("");
@@ -81,13 +75,12 @@ export default function Register() {
     return options;
   }, [dojosQuery.data]);
 
-  // 計算首堂日期選項：根據選擇的道場星期，給出前3週+後3週的對應日期
+  // 計算首堂日期選項：前3週 + 後3週
   const firstClassDateOptions = useMemo(() => {
     if (!selectedDojoId) return [];
     const selected = dojoScheduleOptions.find(o => o.id === selectedDojoId);
     if (!selected) return [];
 
-    // 星期對應表
     const dayMap: Record<string, number> = {
       '星期日': 0, '星期一': 1, '星期二': 2, '星期三': 3,
       '星期四': 4, '星期五': 5, '星期六': 6,
@@ -97,14 +90,11 @@ export default function Register() {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    // 找到本週（或最近的下一個）目標星期幾
     const todayDay = today.getDay();
     let diffToNext = targetDayNum - todayDay;
     if (diffToNext < 0) diffToNext += 7;
 
     const dates: { value: string; label: string }[] = [];
-    // 前3週 + 本週(或最近) + 後2週 = 共6個日期
     for (let i = -3; i <= 3; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + diffToNext + i * 7);
@@ -112,7 +102,7 @@ export default function Register() {
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const dd = String(d.getDate()).padStart(2, '0');
       const value = `${yyyy}-${mm}-${dd}`;
-      const label = `${yyyy}年${d.getMonth() + 1}月${d.getDate()}日 (${selected.day})`;
+      const label = `${d.getDate()}/${d.getMonth() + 1} (${selected.day})`;
       dates.push({ value, label });
     }
     return dates;
@@ -132,11 +122,7 @@ export default function Register() {
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = (reader.result as string).split(',')[1];
-      setReceiptFile({
-        base64,
-        mimeType: file.type,
-        preview: URL.createObjectURL(file),
-      });
+      setReceiptFile({ base64, mimeType: file.type, preview: URL.createObjectURL(file) });
       setErrors(prev => { const { receipt, ...rest } = prev; return rest; });
     };
     reader.readAsDataURL(file);
@@ -144,29 +130,24 @@ export default function Register() {
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!studentName.trim()) errs.studentName = "請輸入學生姓名(中文)";
-    if (!englishName.trim()) errs.englishName = "請輸入學生姓名(英文)";
+    if (!studentName.trim()) errs.studentName = "必填";
+    if (!englishName.trim()) errs.englishName = "必填";
     if (!selectedDojoId) errs.preferredDojo = "請選擇上課地點及時間";
-    if (!beltLevel) errs.beltLevel = "請選擇現時色帶";
-    if (!studentBirthYear || !studentBirthMonth || !studentBirthDay) errs.birthDate = "請選擇出生日期";
-    if (!parentPhone.trim()) errs.parentPhone = "請輸入聯絡電話";
-    else if (!/^\d{8}$/.test(parentPhone.trim())) errs.parentPhone = "請輸入8位數字電話號碼";
-    if (!studentGender) errs.studentGender = "請選擇性別";
-    if (!parentEmail.trim()) errs.parentEmail = "請輸入EMAIL";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail.trim())) errs.parentEmail = "電郵格式不正確";
-    if (!facebook.trim()) errs.facebook = "請填寫FACEBOOK（如沒有請填「沒有」）";
-    if (!address.trim()) errs.address = "請輸入住址";
-    if (dobokSizes.length === 0) errs.dobokSize = "請選擇跆拳道袍尺寸";
-    if (!howDidYouHear && !howDidYouHearOther.trim()) errs.howDidYouHear = "請選擇從何得知課程";
-    if (!selectedDojoId) {
-      // skip firstClassDate check if no dojo selected
-    } else if (!firstClassDate) {
-      errs.firstClassDate = "請選擇首堂日期";
-    } else if (firstClassDate === '__custom__' && !firstClassDateCustom) {
-      errs.firstClassDate = "請選擇自選日期";
-    }
-    if (!receiptFile) errs.receipt = "請上傳繳費收據";
-    if (!parentName.trim()) errs.parentName = "請輸入家長/監護人姓名";
+    if (selectedDojoId && !firstClassDate) errs.firstClassDate = "請選擇首堂日期";
+    else if (firstClassDate === '__custom__' && !firstClassDateCustom) errs.firstClassDate = "請選擇日期";
+    if (!beltLevel) errs.beltLevel = "必填";
+    if (!studentBirthYear || !studentBirthMonth || !studentBirthDay) errs.birthDate = "必填";
+    if (!parentPhone.trim()) errs.parentPhone = "必填";
+    else if (!/^\d{8}$/.test(parentPhone.trim())) errs.parentPhone = "請輸入8位數字";
+    if (!studentGender) errs.studentGender = "必填";
+    if (!parentEmail.trim()) errs.parentEmail = "必填";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail.trim())) errs.parentEmail = "格式不正確";
+    if (!facebook.trim()) errs.facebook = "必填（如沒有請填「沒有」）";
+    if (!address.trim()) errs.address = "必填";
+    if (dobokSizes.length === 0) errs.dobokSize = "必填";
+    if (!howDidYouHear && !howDidYouHearOther.trim()) errs.howDidYouHear = "必填";
+    if (!receiptFile) errs.receipt = "請上傳收據";
+    if (!parentName.trim()) errs.parentName = "必填";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -174,17 +155,14 @@ export default function Register() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) {
-      // Scroll to first error
-      const firstErr = document.querySelector('.border-red-400, .text-red-500');
-      firstErr?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        document.querySelector('[data-error]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
       return;
     }
 
-    // Build birth date
     const birthDate = `${studentBirthYear}-${studentBirthMonth.padStart(2, '0')}-${studentBirthDay.padStart(2, '0')}`;
     const finalHowKnow = howDidYouHear === '其他' ? howDidYouHearOther.trim() : howDidYouHear;
-
-    // Get selected dojo info
     const selectedOption = dojoScheduleOptions.find(o => o.id === selectedDojoId);
 
     submitMutation.mutate({
@@ -215,27 +193,26 @@ export default function Register() {
     });
   };
 
-  // Success screen
+  // ── Success screen ──
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-xl border-0">
-          <CardContent className="pt-10 pb-10 text-center space-y-6">
-            <div className="mx-auto w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-              <CheckCircle2 className="w-12 h-12 text-green-600" />
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-2xl border-0 rounded-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-6 text-center">
+            <div className="mx-auto w-16 h-16 bg-white/20 backdrop-blur rounded-full flex items-center justify-center mb-3">
+              <CheckCircle2 className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900">報名成功！</h2>
-            <p className="text-gray-600 leading-relaxed">
-              感謝您的報名！我們已收到 <span className="font-semibold text-gray-900">{studentName}</span> 的報名資料及繳費收據。
+            <h2 className="text-xl font-bold text-white">報名成功！</h2>
+          </div>
+          <CardContent className="pt-6 pb-8 text-center space-y-4">
+            <p className="text-gray-600">
+              已收到 <strong>{studentName}</strong> 的報名資料及繳費收據。
             </p>
-            <div className="bg-blue-50 rounded-lg p-4 text-left">
-              <p className="text-sm text-blue-800 leading-relaxed">
-                <strong>後續安排：</strong><br />
-                管理員將於 1-2 個工作天內核實收據並確認報名。<br />
-                確認後會透過 WhatsApp 通知您入學詳情。
-              </p>
+            <div className="bg-slate-50 rounded-xl p-4 text-left text-sm text-slate-700 leading-relaxed">
+              <p className="font-medium mb-1">後續安排：</p>
+              <p>管理員將於 1-2 個工作天內核實收據並確認報名，確認後會透過 WhatsApp 通知您。</p>
             </div>
-            <Button onClick={() => window.location.reload()} variant="outline" className="mt-2">
+            <Button onClick={() => window.location.reload()} variant="outline" className="mt-2 rounded-full px-6">
               再報名另一位學生
             </Button>
           </CardContent>
@@ -246,518 +223,370 @@ export default function Register() {
 
   const currentYear = new Date().getFullYear();
 
+  // ── Error indicator helper ──
+  const FieldError = ({ name }: { name: string }) =>
+    errors[name] ? <p className="text-red-500 text-xs mt-1" data-error>{errors[name]}</p> : null;
+
   return (
-    <div className="min-h-screen bg-[#fce4ec]">
-      {/* Header — matching Google Form style */}
-      <div className="max-w-2xl mx-auto px-4 pt-6">
-        <Card className="border-t-[10px] border-t-red-700 shadow-md mb-4">
-          <CardContent className="pt-6 pb-4">
-            <h1 className="text-2xl font-bold text-gray-900 mb-3">創武跆拳道館-報名表</h1>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p>聯絡電話 / WhatsApp / Wechat：9483 9882</p>
-              <p>FACEBOOK：<a href="https://www.facebook.com/chongmotkd" target="_blank" rel="noopener" className="text-blue-600 underline">www.facebook.com/chongmotkd</a></p>
-              <p>Email：<a href="mailto:laisir2013@gmail.com" className="text-blue-600 underline">laisir2013@gmail.com</a></p>
-            </div>
-            <div className="mt-4 pt-3 border-t text-xs text-gray-500">
-              <p>只用作重新整理資料 和 通知閣下有關我們的所有活動和課堂資訊，所有資料必定保密。</p>
-            </div>
-            <p className="mt-3 text-red-500 text-sm">* 表示必填問題</p>
-          </CardContent>
-        </Card>
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgMGg2MHY2MEgweiIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjMwIiBjeT0iMzAiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IGZpbGw9InVybCgjZykiIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiLz48L3N2Zz4=')] opacity-50" />
+        <div className="relative max-w-2xl mx-auto px-4 pt-10 pb-8 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-red-500 to-orange-500 rounded-2xl shadow-lg shadow-red-500/30 mb-4">
+            <span className="text-3xl">🥋</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">創武跆拳道館</h1>
+          <p className="text-slate-300 text-base">新生報名表</p>
+          <div className="mt-4 flex flex-wrap justify-center gap-3 text-xs text-slate-400">
+            <span>📱 9483 9882</span>
+            <span>•</span>
+            <a href="https://www.facebook.com/chongmotkd" target="_blank" rel="noopener" className="hover:text-white transition-colors">Facebook</a>
+          </div>
+        </div>
       </div>
 
       {/* Form */}
-      <div className="max-w-2xl mx-auto px-4 pb-16">
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="max-w-2xl mx-auto px-4 pb-12 -mt-2">
+        <form onSubmit={handleSubmit} className="space-y-5">
 
-          {/* 學生姓名(中文) */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                學生姓名(中文) <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                placeholder="您的答案"
-                value={studentName}
-                onChange={e => setStudentName(e.target.value)}
-                className={`mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600 ${errors.studentName ? "border-red-400" : ""}`}
-              />
-              {errors.studentName && <p className="text-red-500 text-xs mt-1">{errors.studentName}</p>}
-            </CardContent>
-          </Card>
-
-          {/* 學生姓名(英文) */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                學生姓名(英文) <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                placeholder="您的答案"
-                value={englishName}
-                onChange={e => setEnglishName(e.target.value)}
-                className={`mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600 ${errors.englishName ? "border-red-400" : ""}`}
-              />
-              {errors.englishName && <p className="text-red-500 text-xs mt-1">{errors.englishName}</p>}
-            </CardContent>
-          </Card>
-
-          {/* 介紹人(如有) */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">介紹人(如有)</Label>
-              <Input
-                placeholder="您的答案"
-                value={referrer}
-                onChange={e => setReferrer(e.target.value)}
-                className="mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600"
-              />
-            </CardContent>
-          </Card>
-
-          {/* 上課地點及時間 — from system dojos */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                上課地點及時間 <span className="text-red-500">*</span>
-              </Label>
-              {dojosQuery.isLoading ? (
-                <div className="flex items-center gap-2 text-gray-400 text-sm py-3">
-                  <Loader2 className="w-4 h-4 animate-spin" /> 載入中...
+          {/* ═══ Section 1: 學生資料 ═══ */}
+          <Card className="rounded-2xl shadow-xl border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 pb-3 pt-4 px-5">
+              <CardTitle className="flex items-center gap-2 text-white text-base font-semibold">
+                <User className="w-4 h-4" /> 學生資料
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              {/* 中文名 + 英文名 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">中文姓名 <span className="text-red-500">*</span></Label>
+                  <Input placeholder="陳大文" value={studentName} onChange={e => setStudentName(e.target.value)}
+                    className={`mt-1.5 rounded-lg ${errors.studentName ? 'border-red-400 bg-red-50/50' : ''}`} />
+                  <FieldError name="studentName" />
                 </div>
-              ) : (
-                <RadioGroup
-                  value={selectedDojoId}
-                  onValueChange={v => { setSelectedDojoId(v); setFirstClassDate(''); setFirstClassDateCustom(''); }}
-                  className="mt-3 space-y-3"
-                >
-                  {dojoScheduleOptions.map(opt => (
-                    <div key={opt.id} className="flex items-center space-x-3">
-                      <RadioGroupItem value={opt.id} id={`dojo-${opt.id}`} />
-                      <Label htmlFor={`dojo-${opt.id}`} className="font-normal cursor-pointer text-sm">{opt.label}</Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              )}
-              {errors.preferredDojo && <p className="text-red-500 text-xs mt-1">{errors.preferredDojo}</p>}
-            </CardContent>
-          </Card>
-
-          {/* 首堂日期 — 根據選擇的道場星期自動配對 */}
-          {selectedDojoId && (
-            <Card className="shadow-sm">
-              <CardContent className="pt-5 pb-5">
-                <Label className="text-base font-normal">
-                  首堂日期（入學日） <span className="text-red-500">*</span>
-                </Label>
-                <p className="text-xs text-gray-400 mt-1 mb-2">請選擇第一次上課的日期</p>
-                <RadioGroup
-                  value={firstClassDate}
-                  onValueChange={v => { setFirstClassDate(v); if (v !== '__custom__') setFirstClassDateCustom(''); }}
-                  className="space-y-3"
-                >
-                  {firstClassDateOptions.map(opt => (
-                    <div key={opt.value} className="flex items-center space-x-3">
-                      <RadioGroupItem value={opt.value} id={`fcd-${opt.value}`} />
-                      <Label htmlFor={`fcd-${opt.value}`} className="font-normal cursor-pointer text-sm">{opt.label}</Label>
-                    </div>
-                  ))}
-                  <div className="flex items-center space-x-3">
-                    <RadioGroupItem value="__custom__" id="fcd-custom" />
-                    <Label htmlFor="fcd-custom" className="font-normal cursor-pointer text-sm">自選日期：</Label>
-                    <Input
-                      type="date"
-                      value={firstClassDateCustom}
-                      onChange={e => { setFirstClassDateCustom(e.target.value); setFirstClassDate('__custom__'); }}
-                      className="flex-1 border-0 border-b border-gray-300 rounded-none px-0 h-8 focus-visible:ring-0 focus-visible:border-blue-600"
-                    />
-                  </div>
-                </RadioGroup>
-                {errors.firstClassDate && <p className="text-red-500 text-xs mt-1">{errors.firstClassDate}</p>}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* 現時色帶 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                現時色帶 <span className="text-red-500">*</span>
-              </Label>
-              <RadioGroup
-                value={beltLevel}
-                onValueChange={setBeltLevel}
-                className="mt-3 space-y-3"
-              >
-                {BELT_LEVELS.map(belt => (
-                  <div key={belt} className="flex items-center space-x-3">
-                    <RadioGroupItem value={belt} id={`belt-${belt}`} />
-                    <Label htmlFor={`belt-${belt}`} className="font-normal cursor-pointer text-sm">{belt}</Label>
-                  </div>
-                ))}
-              </RadioGroup>
-              {errors.beltLevel && <p className="text-red-500 text-xs mt-1">{errors.beltLevel}</p>}
-            </CardContent>
-          </Card>
-
-          {/* 出生日期 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                出生日期 <span className="text-red-500">*</span>
-              </Label>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                <Select value={studentBirthYear} onValueChange={setStudentBirthYear}>
-                  <SelectTrigger className={errors.birthDate ? "border-red-400" : ""}><SelectValue placeholder="年份" /></SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 30 }, (_, i) => currentYear - i).map(y => (
-                      <SelectItem key={y} value={String(y)}>{y}年</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={studentBirthMonth} onValueChange={setStudentBirthMonth}>
-                  <SelectTrigger className={errors.birthDate ? "border-red-400" : ""}><SelectValue placeholder="月" /></SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                      <SelectItem key={m} value={String(m)}>{m}月</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={studentBirthDay} onValueChange={setStudentBirthDay}>
-                  <SelectTrigger className={errors.birthDate ? "border-red-400" : ""}><SelectValue placeholder="日" /></SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                      <SelectItem key={d} value={String(d)}>{d}日</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">英文姓名 <span className="text-red-500">*</span></Label>
+                  <Input placeholder="Chan Tai Man" value={englishName} onChange={e => setEnglishName(e.target.value)}
+                    className={`mt-1.5 rounded-lg ${errors.englishName ? 'border-red-400 bg-red-50/50' : ''}`} />
+                  <FieldError name="englishName" />
+                </div>
               </div>
-              {errors.birthDate && <p className="text-red-500 text-xs mt-1">{errors.birthDate}</p>}
-            </CardContent>
-          </Card>
 
-          {/* 聯絡電話 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                聯絡電話 <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                type="tel"
-                inputMode="numeric"
-                placeholder="您的答案"
-                value={parentPhone}
-                onChange={e => setParentPhone(e.target.value.replace(/\D/g, ''))}
-                maxLength={8}
-                className={`mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600 ${errors.parentPhone ? "border-red-400" : ""}`}
-              />
-              {errors.parentPhone && <p className="text-red-500 text-xs mt-1">{errors.parentPhone}</p>}
-            </CardContent>
-          </Card>
-
-          {/* 性別 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                性別 <span className="text-red-500">*</span>
-              </Label>
-              <RadioGroup
-                value={studentGender}
-                onValueChange={setStudentGender}
-                className="mt-3 space-y-3"
-              >
-                <div className="flex items-center space-x-3">
-                  <RadioGroupItem value="male" id="gender-male" />
-                  <Label htmlFor="gender-male" className="font-normal cursor-pointer text-sm">男</Label>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <RadioGroupItem value="female" id="gender-female" />
-                  <Label htmlFor="gender-female" className="font-normal cursor-pointer text-sm">女</Label>
-                </div>
-              </RadioGroup>
-              {errors.studentGender && <p className="text-red-500 text-xs mt-1">{errors.studentGender}</p>}
-            </CardContent>
-          </Card>
-
-          {/* EMAIL */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                EMAIL <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                type="email"
-                placeholder="您的答案"
-                value={parentEmail}
-                onChange={e => setParentEmail(e.target.value)}
-                className={`mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600 ${errors.parentEmail ? "border-red-400" : ""}`}
-              />
-              {errors.parentEmail && <p className="text-red-500 text-xs mt-1">{errors.parentEmail}</p>}
-            </CardContent>
-          </Card>
-
-          {/* FACEBOOK */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                FACEBOOK（如果沒有，請填寫沒有） <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                placeholder="您的答案"
-                value={facebook}
-                onChange={e => setFacebook(e.target.value)}
-                className={`mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600 ${errors.facebook ? "border-red-400" : ""}`}
-              />
-              {errors.facebook && <p className="text-red-500 text-xs mt-1">{errors.facebook}</p>}
-            </CardContent>
-          </Card>
-
-          {/* 住址 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                住址 <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                placeholder="您的答案"
-                value={address}
-                onChange={e => setAddress(e.target.value)}
-                className={`mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600 ${errors.address ? "border-red-400" : ""}`}
-              />
-              {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
-            </CardContent>
-          </Card>
-
-          {/* 跆拳道袍尺寸(新生專用) — checkbox (multi-select) */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                跆拳道袍尺寸(新生專用) <span className="text-red-500">*</span>
-              </Label>
-              <div className="mt-3 space-y-3">
-                {DOBOK_SIZES.map(size => (
-                  <div key={size} className="flex items-center space-x-3">
-                    <Checkbox
-                      id={`dobok-${size}`}
-                      checked={dobokSizes.includes(size)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setDobokSizes(prev => [...prev, size]);
-                        } else {
-                          setDobokSizes(prev => prev.filter(s => s !== size));
-                        }
-                      }}
-                    />
-                    <Label htmlFor={`dobok-${size}`} className="font-normal cursor-pointer text-sm">{size}</Label>
+              {/* 性別 + 出生日期 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">性別 <span className="text-red-500">*</span></Label>
+                  <div className="flex gap-3 mt-2">
+                    {[{ v: 'male', l: '男' }, { v: 'female', l: '女' }].map(g => (
+                      <button key={g.v} type="button"
+                        onClick={() => setStudentGender(g.v)}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-medium border-2 transition-all ${studentGender === g.v ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                        {g.l}
+                      </button>
+                    ))}
                   </div>
-                ))}
+                  <FieldError name="studentGender" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">出生日期 <span className="text-red-500">*</span></Label>
+                  <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                    <Select value={studentBirthYear} onValueChange={setStudentBirthYear}>
+                      <SelectTrigger className={`rounded-lg text-xs ${errors.birthDate ? 'border-red-400' : ''}`}><SelectValue placeholder="年" /></SelectTrigger>
+                      <SelectContent>{Array.from({ length: 30 }, (_, i) => currentYear - i).map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <Select value={studentBirthMonth} onValueChange={setStudentBirthMonth}>
+                      <SelectTrigger className={`rounded-lg text-xs ${errors.birthDate ? 'border-red-400' : ''}`}><SelectValue placeholder="月" /></SelectTrigger>
+                      <SelectContent>{Array.from({ length: 12 }, (_, i) => i + 1).map(m => <SelectItem key={m} value={String(m)}>{m}月</SelectItem>)}</SelectContent>
+                    </Select>
+                    <Select value={studentBirthDay} onValueChange={setStudentBirthDay}>
+                      <SelectTrigger className={`rounded-lg text-xs ${errors.birthDate ? 'border-red-400' : ''}`}><SelectValue placeholder="日" /></SelectTrigger>
+                      <SelectContent>{Array.from({ length: 31 }, (_, i) => i + 1).map(d => <SelectItem key={d} value={String(d)}>{d}日</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <FieldError name="birthDate" />
+                </div>
               </div>
-              {errors.dobokSize && <p className="text-red-500 text-xs mt-1">{errors.dobokSize}</p>}
+
+              {/* 色帶 */}
+              <div>
+                <Label className="text-sm font-medium text-slate-700">現時色帶 <span className="text-red-500">*</span></Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                  {BELT_LEVELS.map(belt => (
+                    <button key={belt} type="button"
+                      onClick={() => setBeltLevel(belt)}
+                      className={`py-2 px-3 rounded-lg text-xs font-medium border-2 transition-all ${beltLevel === belt ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}>
+                      {belt}
+                    </button>
+                  ))}
+                </div>
+                <FieldError name="beltLevel" />
+              </div>
+
+              {/* 道袍尺寸 */}
+              <div>
+                <Label className="text-sm font-medium text-slate-700">跆拳道袍尺寸 <span className="text-red-500">*</span></Label>
+                <p className="text-xs text-slate-400 mt-0.5">新生專用，可多選</p>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mt-2">
+                  {DOBOK_SIZES.map(size => (
+                    <button key={size} type="button"
+                      onClick={() => setDobokSizes(prev => prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size])}
+                      className={`py-2 rounded-lg text-xs font-medium border-2 transition-all ${dobokSizes.includes(size) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}>
+                      {size}
+                    </button>
+                  ))}
+                </div>
+                <FieldError name="dobokSize" />
+              </div>
             </CardContent>
           </Card>
 
-          {/* 請問在那裡知道我們既課程？ */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                請問在那裡知道我們既課程？ <span className="text-red-500">*</span>
-              </Label>
-              <RadioGroup
-                value={howDidYouHear}
-                onValueChange={v => { setHowDidYouHear(v); if (v !== '其他') setHowDidYouHearOther(''); }}
-                className="mt-3 space-y-3"
-              >
-                {HOW_KNOW_OPTIONS.map(opt => (
-                  <div key={opt} className="flex items-center space-x-3">
-                    <RadioGroupItem value={opt} id={`how-${opt}`} />
-                    <Label htmlFor={`how-${opt}`} className="font-normal cursor-pointer text-sm">{opt}</Label>
+          {/* ═══ Section 2: 上課安排 ═══ */}
+          <Card className="rounded-2xl shadow-xl border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 pb-3 pt-4 px-5">
+              <CardTitle className="flex items-center gap-2 text-white text-base font-semibold">
+                <MapPin className="w-4 h-4" /> 上課安排
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              {/* 上課地點及時間 */}
+              <div>
+                <Label className="text-sm font-medium text-slate-700">上課地點及時間 <span className="text-red-500">*</span></Label>
+                {dojosQuery.isLoading ? (
+                  <div className="flex items-center gap-2 text-slate-400 text-sm py-4"><Loader2 className="w-4 h-4 animate-spin" /> 載入中...</div>
+                ) : (
+                  <div className="mt-2 space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                    {dojoScheduleOptions.map(opt => (
+                      <button key={opt.id} type="button"
+                        onClick={() => { setSelectedDojoId(opt.id); setFirstClassDate(''); setFirstClassDateCustom(''); }}
+                        className={`w-full text-left px-4 py-3 rounded-xl text-sm border-2 transition-all ${selectedDojoId === opt.id ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm' : 'border-slate-100 text-slate-600 hover:border-slate-200 hover:bg-slate-50'}`}>
+                        <span className="font-medium">{opt.dojoName}</span>
+                        <span className="text-slate-400 ml-2">{opt.schedule}</span>
+                      </button>
+                    ))}
                   </div>
-                ))}
-                <div className="flex items-center space-x-3">
-                  <RadioGroupItem value="其他" id="how-other" />
-                  <Label htmlFor="how-other" className="font-normal cursor-pointer text-sm">其他：</Label>
-                  <Input
-                    placeholder=""
-                    value={howDidYouHearOther}
-                    onChange={e => { setHowDidYouHearOther(e.target.value); setHowDidYouHear('其他'); }}
-                    className="flex-1 border-0 border-b border-gray-300 rounded-none px-0 h-8 focus-visible:ring-0 focus-visible:border-blue-600"
-                  />
-                </div>
-              </RadioGroup>
-              {errors.howDidYouHear && <p className="text-red-500 text-xs mt-1">{errors.howDidYouHear}</p>}
-            </CardContent>
-          </Card>
+                )}
+                <FieldError name="preferredDojo" />
+              </div>
 
-          {/* ═══ 以下為本系統額外欄位（繳費 + 家長） ═══ */}
-          <div className="pt-4 pb-2">
-            <p className="text-center text-sm text-gray-600 font-medium">── 以下為繳費及家長資料 ──</p>
-          </div>
-
-          {/* 家長/監護人姓名 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                家長/監護人姓名 <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                placeholder="您的答案"
-                value={parentName}
-                onChange={e => setParentName(e.target.value)}
-                className={`mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600 ${errors.parentName ? "border-red-400" : ""}`}
-              />
-              {errors.parentName && <p className="text-red-500 text-xs mt-1">{errors.parentName}</p>}
-            </CardContent>
-          </Card>
-
-          {/* 第二聯絡電話 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">第二聯絡電話（選填）</Label>
-              <Input
-                type="tel"
-                inputMode="numeric"
-                placeholder="您的答案"
-                value={parentPhone2}
-                onChange={e => setParentPhone2(e.target.value.replace(/\D/g, ''))}
-                maxLength={8}
-                className="mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600"
-              />
-            </CardContent>
-          </Card>
-
-          {/* 繳費金額 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">繳費金額 (HKD)</Label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                placeholder="例：1800"
-                value={tuitionAmount}
-                onChange={e => setTuitionAmount(e.target.value)}
-                className="mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600"
-              />
-              <p className="text-xs text-gray-400 mt-1">請輸入已轉帳的金額</p>
-            </CardContent>
-          </Card>
-
-          {/* 轉帳至 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">轉帳至</Label>
-              <RadioGroup
-                value={receivingBank}
-                onValueChange={setReceivingBank}
-                className="mt-3 space-y-3"
-              >
-                <div className="flex items-center space-x-3">
-                  <RadioGroupItem value="BOC" id="bank-boc" />
-                  <Label htmlFor="bank-boc" className="font-normal cursor-pointer text-sm">中銀香港 (BOC)</Label>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <RadioGroupItem value="HSBC" id="bank-hsbc" />
-                  <Label htmlFor="bank-hsbc" className="font-normal cursor-pointer text-sm">滙豐銀行 (HSBC)</Label>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <RadioGroupItem value="CASH" id="bank-cash" />
-                  <Label htmlFor="bank-cash" className="font-normal cursor-pointer text-sm">現金</Label>
-                </div>
-              </RadioGroup>
-            </CardContent>
-          </Card>
-
-          {/* 繳費收據 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                繳費收據 <span className="text-red-500">*</span>
-              </Label>
-              {receiptFile ? (
-                <div className="relative mt-3 border rounded-lg overflow-hidden">
-                  <img
-                    src={receiptFile.preview}
-                    alt="收據預覽"
-                    className="w-full max-h-64 object-contain bg-gray-50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => { setReceiptFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`mt-3 border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors ${errors.receipt ? 'border-red-400 bg-red-50/50' : 'border-gray-300'}`}
-                >
-                  <Camera className="w-10 h-10 mx-auto text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600 font-medium">點擊上傳收據照片</p>
-                  <p className="text-xs text-gray-400 mt-1">支援 JPG、PNG，最大 10MB</p>
+              {/* 首堂日期 */}
+              {selectedDojoId && (
+                <div className="pt-2 border-t">
+                  <Label className="text-sm font-medium text-slate-700">首堂日期 <span className="text-red-500">*</span></Label>
+                  <p className="text-xs text-slate-400 mt-0.5 mb-2">選擇第一次上課的日期</p>
+                  <div className="flex flex-wrap gap-2">
+                    {firstClassDateOptions.map(opt => (
+                      <button key={opt.value} type="button"
+                        onClick={() => { setFirstClassDate(opt.value); setFirstClassDateCustom(''); }}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${firstClassDate === opt.value ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}>
+                        {opt.label}
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-2">
+                      <button type="button"
+                        onClick={() => setFirstClassDate('__custom__')}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${firstClassDate === '__custom__' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}>
+                        自選
+                      </button>
+                      {firstClassDate === '__custom__' && (
+                        <Input type="date" value={firstClassDateCustom}
+                          onChange={e => setFirstClassDateCustom(e.target.value)}
+                          className="w-40 h-9 rounded-lg text-sm" />
+                      )}
+                    </div>
+                  </div>
+                  <FieldError name="firstClassDate" />
                 </div>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              {errors.receipt && <p className="text-red-500 text-xs mt-1">{errors.receipt}</p>}
             </CardContent>
           </Card>
 
-          {/* 特殊身體狀況 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">特殊身體狀況 / 過敏（選填）</Label>
-              <Textarea
-                placeholder="如有任何身體狀況、過敏或需要特別注意的事項"
-                value={medicalConditions}
-                onChange={e => setMedicalConditions(e.target.value)}
-                rows={2}
-                className="mt-2"
-              />
+          {/* ═══ Section 3: 聯絡資料 ═══ */}
+          <Card className="rounded-2xl shadow-xl border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-violet-600 to-purple-600 pb-3 pt-4 px-5">
+              <CardTitle className="flex items-center gap-2 text-white text-base font-semibold">
+                <Phone className="w-4 h-4" /> 聯絡資料
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">家長/監護人姓名 <span className="text-red-500">*</span></Label>
+                  <Input placeholder="姓名" value={parentName} onChange={e => setParentName(e.target.value)}
+                    className={`mt-1.5 rounded-lg ${errors.parentName ? 'border-red-400 bg-red-50/50' : ''}`} />
+                  <FieldError name="parentName" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">聯絡電話 <span className="text-red-500">*</span></Label>
+                  <Input type="tel" inputMode="numeric" placeholder="98765432" maxLength={8}
+                    value={parentPhone} onChange={e => setParentPhone(e.target.value.replace(/\D/g, ''))}
+                    className={`mt-1.5 rounded-lg ${errors.parentPhone ? 'border-red-400 bg-red-50/50' : ''}`} />
+                  <FieldError name="parentPhone" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">第二聯絡電話</Label>
+                  <Input type="tel" inputMode="numeric" placeholder="選填" maxLength={8}
+                    value={parentPhone2} onChange={e => setParentPhone2(e.target.value.replace(/\D/g, ''))}
+                    className="mt-1.5 rounded-lg" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">Email <span className="text-red-500">*</span></Label>
+                  <Input type="email" placeholder="example@email.com"
+                    value={parentEmail} onChange={e => setParentEmail(e.target.value)}
+                    className={`mt-1.5 rounded-lg ${errors.parentEmail ? 'border-red-400 bg-red-50/50' : ''}`} />
+                  <FieldError name="parentEmail" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">Facebook <span className="text-red-500">*</span></Label>
+                  <Input placeholder="如沒有請填「沒有」" value={facebook} onChange={e => setFacebook(e.target.value)}
+                    className={`mt-1.5 rounded-lg ${errors.facebook ? 'border-red-400 bg-red-50/50' : ''}`} />
+                  <FieldError name="facebook" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">介紹人</Label>
+                  <Input placeholder="選填" value={referrer} onChange={e => setReferrer(e.target.value)}
+                    className="mt-1.5 rounded-lg" />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-slate-700">住址 <span className="text-red-500">*</span></Label>
+                <Input placeholder="完整住址" value={address} onChange={e => setAddress(e.target.value)}
+                  className={`mt-1.5 rounded-lg ${errors.address ? 'border-red-400 bg-red-50/50' : ''}`} />
+                <FieldError name="address" />
+              </div>
             </CardContent>
           </Card>
 
-          {/* 其他備註 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">其他備註（選填）</Label>
-              <Textarea
-                placeholder="如有其他問題或特別要求"
-                value={remarks}
-                onChange={e => setRemarks(e.target.value)}
-                rows={2}
-                className="mt-2"
-              />
+          {/* ═══ Section 4: 繳費 ═══ */}
+          <Card className="rounded-2xl shadow-xl border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-amber-500 to-orange-500 pb-3 pt-4 px-5">
+              <CardTitle className="flex items-center gap-2 text-white text-base font-semibold">
+                <CreditCard className="w-4 h-4" /> 繳費資料
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">繳費金額 (HKD)</Label>
+                  <Input type="number" inputMode="numeric" placeholder="例：1800"
+                    value={tuitionAmount} onChange={e => setTuitionAmount(e.target.value)}
+                    className="mt-1.5 rounded-lg" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">轉帳至</Label>
+                  <div className="flex gap-2 mt-1.5">
+                    {[{ v: 'BOC', l: '中銀' }, { v: 'HSBC', l: '滙豐' }, { v: 'CASH', l: '現金' }].map(b => (
+                      <button key={b.v} type="button" onClick={() => setReceivingBank(b.v)}
+                        className={`flex-1 py-2.5 rounded-lg text-xs font-medium border-2 transition-all ${receivingBank === b.v ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                        {b.l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 收據上傳 */}
+              <div>
+                <Label className="text-sm font-medium text-slate-700">繳費收據 <span className="text-red-500">*</span></Label>
+                {receiptFile ? (
+                  <div className="relative mt-2 rounded-xl overflow-hidden border">
+                    <img src={receiptFile.preview} alt="收據" className="w-full max-h-52 object-contain bg-slate-50" />
+                    <button type="button"
+                      onClick={() => { setReceiptFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 shadow-lg hover:bg-red-600 transition-colors">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div onClick={() => fileInputRef.current?.click()}
+                    className={`mt-2 border-2 border-dashed rounded-xl p-6 text-center cursor-pointer hover:bg-slate-50 transition-all ${errors.receipt ? 'border-red-300 bg-red-50/30' : 'border-slate-200'}`}>
+                    <Camera className="w-8 h-8 mx-auto text-slate-400 mb-1.5" />
+                    <p className="text-sm text-slate-600 font-medium">點擊上傳收據</p>
+                    <p className="text-xs text-slate-400 mt-0.5">JPG、PNG，最大 10MB</p>
+                  </div>
+                )}
+                <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
+                <FieldError name="receipt" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ═══ Section 5: 其他 ═══ */}
+          <Card className="rounded-2xl shadow-xl border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-slate-600 to-slate-700 pb-3 pt-4 px-5">
+              <CardTitle className="flex items-center gap-2 text-white text-base font-semibold">
+                <HelpCircle className="w-4 h-4" /> 其他資料
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              {/* 從何得知 */}
+              <div>
+                <Label className="text-sm font-medium text-slate-700">請問在那裡知道我們既課程？ <span className="text-red-500">*</span></Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {HOW_KNOW_OPTIONS.map(opt => (
+                    <button key={opt} type="button" onClick={() => { setHowDidYouHear(opt); setHowDidYouHearOther(''); }}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${howDidYouHear === opt ? 'border-slate-700 bg-slate-100 text-slate-800' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                      {opt}
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setHowDidYouHear('其他')}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${howDidYouHear === '其他' ? 'border-slate-700 bg-slate-100 text-slate-800' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                      其他
+                    </button>
+                    {howDidYouHear === '其他' && (
+                      <Input placeholder="請說明" value={howDidYouHearOther}
+                        onChange={e => setHowDidYouHearOther(e.target.value)}
+                        className="w-32 h-9 rounded-lg text-sm" />
+                    )}
+                  </div>
+                </div>
+                <FieldError name="howDidYouHear" />
+              </div>
+
+              {/* 身體狀況 */}
+              <div>
+                <Label className="text-sm font-medium text-slate-700">特殊身體狀況 / 過敏</Label>
+                <Textarea placeholder="選填，如有任何需注意事項" value={medicalConditions}
+                  onChange={e => setMedicalConditions(e.target.value)} rows={2}
+                  className="mt-1.5 rounded-lg resize-none" />
+              </div>
+
+              {/* 備註 */}
+              <div>
+                <Label className="text-sm font-medium text-slate-700">其他備註</Label>
+                <Textarea placeholder="選填" value={remarks} onChange={e => setRemarks(e.target.value)}
+                  rows={2} className="mt-1.5 rounded-lg resize-none" />
+              </div>
             </CardContent>
           </Card>
 
           {/* Submit */}
-          <Button
-            type="submit"
-            className="w-full h-12 text-lg font-bold bg-red-700 hover:bg-red-800 shadow-lg"
-            disabled={submitMutation.isPending}
-          >
+          <Button type="submit"
+            className="w-full h-13 text-base font-bold rounded-2xl bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 shadow-xl shadow-red-500/20 transition-all"
+            disabled={submitMutation.isPending}>
             {submitMutation.isPending ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                提交中...
-              </span>
-            ) : (
-              "提交報名"
-            )}
+              <span className="flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />提交中...</span>
+            ) : "提交報名"}
           </Button>
 
           {submitMutation.isError && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm text-center">
-              提交失敗，請稍後再試。{submitMutation.error?.message}
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm text-center">
+              提交失敗：{submitMutation.error?.message || '請稍後再試'}
             </div>
           )}
+
+          <p className="text-center text-xs text-slate-500 pb-4">
+            所有資料只用作報名用途，絕對保密
+          </p>
         </form>
       </div>
     </div>
