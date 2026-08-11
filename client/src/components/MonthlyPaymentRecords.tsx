@@ -59,8 +59,8 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const [confirmExtraStudentIds, setConfirmExtraStudentIds] = useState<number[]>([]);
   // 額外選中的季度（多季登記，例如一次交2季或以上）
   const [confirmExtraQuarters, setConfirmExtraQuarters] = useState<string[]>([]);
-  // 確認繳費時的收據上傳
-  const [confirmReceiptFile, setConfirmReceiptFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
+  // 確認繳費時的收據上傳（支援多張）
+  const [confirmReceiptFiles, setConfirmReceiptFiles] = useState<{ base64: string; mimeType: string; name: string }[]>([]);
   // 請假月份排除（僅教練/管理員確認季繳時使用）
   const [confirmExcludedMonths, setConfirmExcludedMonths] = useState<number[]>([]);
   // 請假對話框
@@ -116,7 +116,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       toast.success('已確認繳費');
       refetch();
       setConfirmDialog(null);
-      setConfirmReceiptFile(null);
+      setConfirmReceiptFiles([]);
       setConfirmPaymentDate(new Date().toISOString().split('T')[0]);
     },
     onError: (err: any) => {
@@ -286,8 +286,22 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     setTimeout(() => setSendingWhatsApp(null), 1000);
   };
 
+  // 支援多張收據查看：解析 JSON 陣列或單一 URL
+  const parseReceiptUrls = (url: string): string[] => {
+    if (!url) return [];
+    try {
+      const parsed = JSON.parse(url);
+      if (Array.isArray(parsed)) return parsed;
+    } catch { /* not JSON, single URL */ }
+    return [url];
+  };
+  const [receiptUrls, setReceiptUrls] = useState<string[]>([]);
+  const [receiptIndex, setReceiptIndex] = useState(0);
   const handleViewReceipt = (url: string, studentName: string, month: string) => {
-    setReceiptUrl(url);
+    const urls = parseReceiptUrls(url);
+    setReceiptUrls(urls);
+    setReceiptIndex(0);
+    setReceiptUrl(urls[0] || '');
     setReceiptInfo({ studentName, month });
     setReceiptDialogOpen(true);
   };
@@ -794,9 +808,14 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
           <DialogHeader>
             <DialogTitle>
               {receiptInfo?.studentName} — {receiptInfo?.month} 繳費收據
+              {receiptUrls.length > 1 && (
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  ({receiptIndex + 1} / {receiptUrls.length})
+                </span>
+              )}
             </DialogTitle>
           </DialogHeader>
-          <div className="flex justify-center">
+          <div className="flex justify-center relative">
             {receiptUrl ? (
               <img 
                 src={receiptUrl} 
@@ -807,6 +826,34 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               <p className="text-gray-500 py-8">無法載入收據圖片</p>
             )}
           </div>
+          {receiptUrls.length > 1 && (
+            <div className="flex justify-center gap-3 mt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={receiptIndex === 0}
+                onClick={() => {
+                  const ni = receiptIndex - 1;
+                  setReceiptIndex(ni);
+                  setReceiptUrl(receiptUrls[ni]);
+                }}
+              >
+                ← 上一張
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={receiptIndex >= receiptUrls.length - 1}
+                onClick={() => {
+                  const ni = receiptIndex + 1;
+                  setReceiptIndex(ni);
+                  setReceiptUrl(receiptUrls[ni]);
+                }}
+              >
+                下一張 →
+              </Button>
+            </div>
+          )}
           <div className="flex justify-end gap-2 mt-2">
             <Button variant="outline" size="sm" onClick={() => setReceiptDialogOpen(false)}>
               關閉
@@ -821,7 +868,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
       </Dialog>
 
       {/* 確認繳費對話框 */}
-      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmExcludedMonths([]); setConfirmReceivingBank("中銀香港 (BOC)"); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); } }}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setConfirmReceiptFiles([]); setConfirmExcludedMonths([]); setConfirmReceivingBank("中銀香港 (BOC)"); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -1136,46 +1183,51 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             </Select>
             <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？現金則選「現金」</p>
           </div>
-          {/* 收據上傳（可選） */}
+          {/* 收據上傳（可選，支援多張） */}
           <div className="px-0">
-            <Label className="text-sm font-medium">上傳收據（可選）</Label>
-            <div className="mt-1">
-              {confirmReceiptFile ? (
-                <div className="flex items-center gap-2 p-2 border rounded-lg bg-green-50">
+            <Label className="text-sm font-medium">上傳收據（可選，可多張）</Label>
+            <div className="mt-1 space-y-1">
+              {confirmReceiptFiles.map((f, idx) => (
+                <div key={idx} className="flex items-center gap-2 p-2 border rounded-lg bg-green-50">
                   <Check className="h-4 w-4 text-green-600 shrink-0" />
-                  <span className="text-sm text-green-700 flex-1 truncate">{confirmReceiptFile.name}</span>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setConfirmReceiptFile(null)}>
+                  <span className="text-sm text-green-700 flex-1 truncate">{f.name}</span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setConfirmReceiptFiles(prev => prev.filter((_, i) => i !== idx))}>
                     <X className="h-3 w-3 text-red-500" />
                   </Button>
                 </div>
-              ) : (
-                <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
-                  <Plus className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">點擊或拖曳上傳收據圖片</span>
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      if (file.size > 10 * 1024 * 1024) { toast.error('檔案不能超過 10MB'); return; }
+              ))}
+              <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                <Plus className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  {confirmReceiptFiles.length === 0 ? '點擊上傳收據圖片' : '+ 再加一張收據'}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = e.target.files;
+                    if (!files) return;
+                    Array.from(files).forEach(file => {
+                      if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name} 超過 10MB`); return; }
                       const reader = new FileReader();
                       reader.onload = () => {
                         const result = reader.result as string;
                         const base64 = result.split(',')[1];
-                        setConfirmReceiptFile({ base64, mimeType: file.type, name: file.name });
+                        setConfirmReceiptFiles(prev => [...prev, { base64, mimeType: file.type, name: file.name }]);
                       };
                       reader.readAsDataURL(file);
-                    }}
-                  />
-                </label>
-              )}
+                    });
+                    e.target.value = ''; // reset input for re-selection
+                  }}
+                />
+              </label>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">管理員/教練上傳收據直接確認，無需額外審批</p>
+            <p className="text-xs text-muted-foreground mt-1">管理員/教練上傳收據直接確認，無需額外審批。可上傳多張（如兄弟各一張收據）</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFile(null); setConfirmReceivingBank("中銀香港 (BOC)"); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); setConfirmExcludedMonths([]); }}>取消</Button>
+            <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFiles([]); setConfirmReceivingBank("中銀香港 (BOC)"); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); setConfirmExcludedMonths([]); }}>取消</Button>
             <Button
               className={confirmDialog?.paymentType === 'quarterly' ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
               disabled={confirmMonthlyPayment.isPending}
@@ -1226,8 +1278,10 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                     paymentType: effectivePaymentType,
                     receivingBank: confirmReceivingBank || undefined,
                     paymentDate: confirmPaymentDate ? new Date(confirmPaymentDate) : undefined,
-                    receiptBase64: confirmReceiptFile?.base64,
-                    receiptMimeType: confirmReceiptFile?.mimeType,
+                    // 多張收據支援：傳入陣列；向下相容單張
+                    receipts: confirmReceiptFiles.length > 0
+                      ? confirmReceiptFiles.map(f => ({ base64: f.base64, mimeType: f.mimeType }))
+                      : undefined,
                     overrideAmounts: overrideAmounts.length > 0 ? overrideAmounts : undefined,
                   });
                   setConfirmExcludedMonths([]);

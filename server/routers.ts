@@ -2688,7 +2688,12 @@ export const appRouter = router({
         bank: z.string().optional(), // 付款銀行
         receivingBank: z.string().optional(), // 收款銀行（入數到哪間銀行）
         paymentDate: z.date().optional(), // 管理員輸入的付款日期（會計記帳用）
-        // 收據上傳（可選）
+        // 收據上傳（支援多張）
+        receipts: z.array(z.object({
+          base64: z.string(),
+          mimeType: z.string(),
+        })).optional(),
+        // 向下相容：單張收據
         receiptBase64: z.string().optional(),
         receiptMimeType: z.string().optional(),
         // 請假扣減後的實際金額覆蓋（前端已計算好 adjustedFee）
@@ -2728,10 +2733,32 @@ export const appRouter = router({
           studentsData.push(s);
         }
 
-        // 處理收據上傳（只上傳一次，多位學生共用）
+        // 處理收據上傳（支援多張，多位學生共用）
         let receiptUrl: string | null = null;
         let receiptKey: string | null = null;
-        if (input.receiptBase64 && input.receiptMimeType) {
+        if (input.receipts && input.receipts.length > 0) {
+          // 多張收據：逐張上傳，URL 存為 JSON 陣列
+          const uploadedUrls: string[] = [];
+          const uploadedKeys: string[] = [];
+          for (let i = 0; i < input.receipts.length; i++) {
+            const r = input.receipts[i];
+            const receiptBuffer = Buffer.from(r.base64, 'base64');
+            const fileExt = r.mimeType.split('/')[1] || 'jpg';
+            const rKey = `receipts/regular-${allStudentIds.join('_')}-${Date.now()}-${i}.${fileExt}`;
+            const result = await storagePut(rKey, receiptBuffer, r.mimeType);
+            uploadedUrls.push(result.url);
+            uploadedKeys.push(rKey);
+          }
+          // 單張時存普通 URL（向下相容），多張存 JSON 陣列
+          if (uploadedUrls.length === 1) {
+            receiptUrl = uploadedUrls[0];
+            receiptKey = uploadedKeys[0];
+          } else {
+            receiptUrl = JSON.stringify(uploadedUrls);
+            receiptKey = JSON.stringify(uploadedKeys);
+          }
+        } else if (input.receiptBase64 && input.receiptMimeType) {
+          // 向下相容：單張收據舊格式
           const receiptBuffer = Buffer.from(input.receiptBase64, 'base64');
           const fileExt = input.receiptMimeType.split('/')[1] || 'jpg';
           const rKey = `receipts/regular-${allStudentIds.join('_')}-${Date.now()}.${fileExt}`;
