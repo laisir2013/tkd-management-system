@@ -34,6 +34,7 @@ export default function Register() {
   const [referrer, setReferrer] = useState("");
   const [firstClassDate, setFirstClassDate] = useState("");
   const [firstClassDateCustom, setFirstClassDateCustom] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState("");
   const [selectedDojoId, setSelectedDojoId] = useState("");
   const [beltLevel, setBeltLevel] = useState("");
   const [studentBirthYear, setStudentBirthYear] = useState("");
@@ -74,6 +75,26 @@ export default function Register() {
     }
     return options;
   }, [dojosQuery.data]);
+
+  // Unique location names for step 1
+  const locationNames = useMemo(() => {
+    if (!dojosQuery.data) return [];
+    return dojosQuery.data.map(d => d.name);
+  }, [dojosQuery.data]);
+
+  // Filtered time slots for selected location (step 2)
+  const filteredSchedules = useMemo(() => {
+    if (!selectedLocation || !dojosQuery.data) return [];
+    const dojo = dojosQuery.data.find(d => d.name === selectedLocation);
+    if (!dojo) return [];
+    return dojo.schedules.map(s => ({
+      id: String(s.id),
+      day: s.day,
+      time: s.time,
+      coach: s.coach || '',
+      label: `${s.day} ${s.time}${s.coach ? ` (${s.coach}教練)` : ''}`,
+    }));
+  }, [selectedLocation, dojosQuery.data]);
 
   // 計算首堂日期選項：前3週 + 後3週
   const firstClassDateOptions = useMemo(() => {
@@ -350,25 +371,42 @@ export default function Register() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-4">
-              {/* 上課地點及時間 */}
+              {/* 上課地點 — Step 1 */}
               <div>
-                <Label className="text-sm font-medium text-slate-700">上課地點及時間 <span className="text-red-500">*</span></Label>
+                <Label className="text-sm font-medium text-slate-700">上課地點 <span className="text-red-500">*</span></Label>
                 {dojosQuery.isLoading ? (
                   <div className="flex items-center gap-2 text-slate-400 text-sm py-4"><Loader2 className="w-4 h-4 animate-spin" /> 載入中...</div>
                 ) : (
-                  <div className="mt-2 space-y-2 max-h-[320px] overflow-y-auto pr-1">
-                    {dojoScheduleOptions.map(opt => (
-                      <button key={opt.id} type="button"
-                        onClick={() => { setSelectedDojoId(opt.id); setFirstClassDate(''); setFirstClassDateCustom(''); }}
-                        className={`w-full text-left px-4 py-3 rounded-xl text-sm border-2 transition-all ${selectedDojoId === opt.id ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm' : 'border-slate-100 text-slate-600 hover:border-slate-200 hover:bg-slate-50'}`}>
-                        <span className="font-medium">{opt.dojoName}</span>
-                        <span className="text-slate-400 ml-2">{opt.schedule}</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                    {locationNames.map(name => (
+                      <button key={name} type="button"
+                        onClick={() => { setSelectedLocation(name); setSelectedDojoId(''); setFirstClassDate(''); setFirstClassDateCustom(''); }}
+                        className={`px-4 py-3 rounded-xl text-sm font-medium border-2 transition-all ${selectedLocation === name ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm' : 'border-slate-100 text-slate-600 hover:border-slate-200 hover:bg-slate-50'}`}>
+                        {name}
                       </button>
                     ))}
                   </div>
                 )}
                 <FieldError name="preferredDojo" />
               </div>
+
+              {/* 上課時間 — Step 2 (cascaded from location) */}
+              {selectedLocation && filteredSchedules.length > 0 && (
+                <div className="pt-2 border-t">
+                  <Label className="text-sm font-medium text-slate-700">上課時間 <span className="text-red-500">*</span></Label>
+                  <p className="text-xs text-slate-400 mt-0.5 mb-2">{selectedLocation} 可選時段</p>
+                  <div className="space-y-2">
+                    {filteredSchedules.map(s => (
+                      <button key={s.id} type="button"
+                        onClick={() => { setSelectedDojoId(s.id); setFirstClassDate(''); setFirstClassDateCustom(''); }}
+                        className={`w-full text-left px-4 py-3 rounded-xl text-sm border-2 transition-all ${selectedDojoId === s.id ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm' : 'border-slate-100 text-slate-600 hover:border-slate-200 hover:bg-slate-50'}`}>
+                        <span className="font-medium">{s.day} {s.time}</span>
+                        {s.coach && <span className="text-slate-400 ml-2">({s.coach}教練)</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* 首堂日期 */}
               {selectedDojoId && (
