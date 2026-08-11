@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
-import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle, Search, Plus, X, Building2, PauseCircle } from "lucide-react";
+import { Image, Upload, ShieldCheck, Check, Calendar, CreditCard, Undo2, AlertTriangle, Search, Plus, X, Building2, PauseCircle, Pencil } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -98,16 +98,18 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   } | null>(null);
   const [revertPassword, setRevertPassword] = useState("");
 
-  // 修改銀行 dialog state
+  // 修改付款資訊 dialog state（銀行 + 日期）
   const [editBankDialog, setEditBankDialog] = useState<{
     paymentRecordId: number;
     studentName: string;
     month: number;
     currentBank: string;
     currentReceivingBank: string;
+    currentPaymentDate: string;
   } | null>(null);
   const [editBank, setEditBank] = useState("");
   const [editReceivingBank, setEditReceivingBank] = useState("");
+  const [editPaymentDate, setEditPaymentDate] = useState("");
 
   const confirmMonthlyPayment = trpc.payments.confirmMonthlyPayment.useMutation({
     onSuccess: () => {
@@ -432,21 +434,28 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               {monthData.paymentRecordId && (
                 <button
                   onClick={() => {
+                    const dateStr = monthData.paymentDate
+                      ? (typeof monthData.paymentDate === 'string'
+                          ? monthData.paymentDate.slice(0, 10)
+                          : new Date(monthData.paymentDate).toISOString().slice(0, 10))
+                      : new Date().toISOString().slice(0, 10);
                     setEditBankDialog({
                       paymentRecordId: monthData.paymentRecordId!,
                       studentName,
                       month,
                       currentBank: monthData.bank || '',
                       currentReceivingBank: monthData.receivingBank || '',
+                      currentPaymentDate: dateStr,
                     });
                     setEditBank(monthData.bank || '');
                     setEditReceivingBank(monthData.receivingBank || '');
+                    setEditPaymentDate(dateStr);
                   }}
                   className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors border border-blue-300"
-                  title="修改轉入銀行"
+                  title="修改付款日期 / 轉入銀行"
                 >
-                  <Building2 className="w-2.5 h-2.5" />
-                  銀行
+                  <Pencil className="w-2.5 h-2.5" />
+                  修改
                 </button>
               )}
             </div>
