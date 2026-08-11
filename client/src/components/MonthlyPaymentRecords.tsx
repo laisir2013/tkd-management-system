@@ -474,6 +474,29 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   修改
                 </button>
               )}
+              {/* 已繳月份：標記/取消請假（繳完後才知道要請假，下次扣減用） */}
+              {hasPaidLeave ? (
+                <button
+                  onClick={() => cancelLeave.mutate({ studentId, year: selectedYear, month })}
+                  className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors border border-orange-300"
+                  title="取消此月請假"
+                >
+                  <Undo2 className="w-2.5 h-2.5" />
+                  取消假
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setLeaveClassesInput(0);
+                    setLeaveDialog({ studentId, studentName, month });
+                  }}
+                  className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-400 text-white hover:bg-orange-500 transition-colors"
+                  title="標記此月請假（下次繳費扣減）"
+                >
+                  <PauseCircle className="w-2.5 h-2.5" />
+                  請假
+                </button>
+              )}
             </div>
           )}
         </div>
