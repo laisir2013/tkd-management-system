@@ -1304,15 +1304,22 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                   const s = filteredStatuses.find((st: any) => st.studentId === sid);
                   const stdFee = s ? parseFloat(s.feePerQuarter || '0') : 0;
                   const nq = allNextUnpaidQuarters?.[sid];
-                  // 首季使用 adjustedFee（考慮請假扣減），額外季度用標準費用
-                  const firstQFee = (nq?.adjustedFee !== undefined) ? nq.adjustedFee : stdFee;
-                  // 如有排除月份，按排除後的月數計算（月繳費率）
-                  if (confirmExcludedMonths.length > 0) {
-                    const monthlyFee = stdFee / 3;
-                    const paidMonths = 3 - confirmExcludedMonths.length;
-                    grandTotal += monthlyFee * paidMonths + stdFee * (totalQuarters - 1);
+                  if (confirmDialog?.paymentType === 'monthly') {
+                    // 月繳：每月 = 季費 / 3
+                    const monthlyFee = Math.round((stdFee / 3) * 100) / 100;
+                    const monthCount = confirmDialog?.months?.length || 1;
+                    grandTotal += monthlyFee * monthCount;
                   } else {
-                    grandTotal += firstQFee + stdFee * (totalQuarters - 1);
+                    // 季繳：首季使用 adjustedFee（考慮請假扣減），額外季度用標準費用
+                    const firstQFee = (nq?.adjustedFee !== undefined) ? nq.adjustedFee : stdFee;
+                    // 如有排除月份，按排除後的月數計算（月繳費率）
+                    if (confirmExcludedMonths.length > 0) {
+                      const monthlyFee = stdFee / 3;
+                      const paidMonths = 3 - confirmExcludedMonths.length;
+                      grandTotal += monthlyFee * paidMonths + stdFee * (totalQuarters - 1);
+                    } else {
+                      grandTotal += firstQFee + stdFee * (totalQuarters - 1);
+                    }
                   }
                 });
                 grandTotal = Math.round(grandTotal);
