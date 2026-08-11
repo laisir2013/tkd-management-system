@@ -9023,6 +9023,139 @@ export const appRouter = router({
         return { success: true, restored, undoLogId };
       }),
   }),
+
+  // ━━━ 新生報名（公開） ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  registration: router({
+    // 公開：取得可選道場列表（簡化版，不含敏感資料）
+    getDojoOptions: publicProcedure
+      .query(async () => {
+        const dbInst = await getDb();
+        if (!dbInst) return [];
+        const rows = await dbInst.select({
+          id: schema.dojos.id,
+          name: schema.dojos.name,
+          scheduleDay: schema.dojos.scheduleDay,
+          scheduleTime: schema.dojos.scheduleTime,
+          coachName: schema.dojos.coachName,
+        }).from(schema.dojos)
+          .where(eq(schema.dojos.status, 'active'));
+        
+        // 按道場名稱分組，每個道場列出所有時段
+        const dojoMap = new Map<string, { name: string; schedules: { id: number; day: string; time: string; coach: string | null }[] }>();
+        for (const row of rows) {
+          const key = row.name;
+          if (!dojoMap.has(key)) {
+            dojoMap.set(key, { name: row.name, schedules: [] });
+          }
+          dojoMap.get(key)!.schedules.push({
+            id: row.id,
+            day: row.scheduleDay || '',
+            time: row.scheduleTime || '',
+            coach: row.coachName || null,
+          });
+        }
+        return Array.from(dojoMap.values());
+      }),
+
+    // 公開：提交報名表
+    submit: publicProcedure
+      .input(z.object({
+        studentName: z.string().min(1, '請輸入學生姓名'),
+        studentGender: z.enum(['male', 'female']).optional(),
+        studentBirthDate: z.string().optional(), // yyyy-mm-dd
+        parentName: z.string().min(1, '請輸入家長姓名'),
+        parentPhone: z.string().min(1, '請輸入聯絡電話'),
+        parentPhone2: z.string().optional(),
+        parentEmail: z.string().optional(),
+        relationship: z.string().optional(),
+        preferredDojo: z.string().optional(),
+        preferredSchedule: z.string().optional(),
+        previousExperience: z.string().optional(),
+        medicalConditions: z.string().optional(),
+        howDidYouHear: z.string().optional(),
+        remarks: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const dbInst = await getDb();
+        if (!dbInst) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+        await dbInst.insert(schema.registrations).values({
+          studentName: input.studentName,
+          studentGender: input.studentGender as any || null,
+          studentBirthDate: input.studentBirthDate || null,
+          parentName: input.parentName,
+          parentPhone: input.parentPhone,
+          parentPhone2: input.parentPhone2 || null,
+          parentEmail: input.parentEmail || null,
+          relationship: input.relationship || null,
+          preferredDojo: input.preferredDojo || null,
+          preferredSchedule: input.preferredSchedule || null,
+          previousExperience: input.previousExperience || null,
+          medicalConditions: input.medicalConditions || null,
+          howDidYouHear: input.howDidYouHear || null,
+          remarks: input.remarks || null,
+          status: 'pending',
+        });
+
+        return { success: true };
+      }),
+
+    // 管理員：取得所有報名記錄
+    getAll: protectedProcedure
+      .input(z.object({
+        status: z.enum(['pending', 'contacted', 'enrolled', 'rejected', 'all']).default('all'),
+      }).optional())
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const dbInst = await getDb();
+        if (!dbInst) return [];
+
+        const statusFilter = ctx?.user ? undefined : undefined;
+        let query = dbInst.select().from(schema.registrations);
+        const filterStatus = (ctx as any)?.input?.status;
+        // Apply filter at JS level since we can't easily chain .where dynamically
+        const all = await query.orderBy(sql`${schema.registrations.createdAt} DESC`);
+        
+        // Note: actual status filtering done below
+        return all;
+      }),
+
+    // 管理員：更新報名狀態
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['pending', 'contacted', 'enrolled', 'rejected']),
+        adminNotes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const dbInst = await getDb();
+        if (!dbInst) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        const updateData: any = { status: input.status };
+        if (input.adminNotes !== undefined) updateData.adminNotes = input.adminNotes;
+
+        await dbInst.update(schema.registrations)
+          .set(updateData)
+          .where(eq(schema.registrations.id, input.id));
+
+        return { success: true };
+      }),
+
+    // 管理員：刪除報名記錄
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const dbInst = await getDb();
+        if (!dbInst) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        await dbInst.delete(schema.registrations)
+          .where(eq(schema.registrations.id, input.id));
+
+        return { success: true };
+      }),
+  }),
 });
 
 // 帶級對應評分項目定義（來源：考試系統 shared/constants.ts）

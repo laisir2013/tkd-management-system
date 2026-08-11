@@ -37,6 +37,7 @@ import AccountingReports from "@/components/AccountingReports";
 import BankStatementReconciliation from "@/components/BankStatementReconciliation";
 import ReceiptReviewContent from "@/components/ReceiptReviewContent";
 import PushQueueReviewContent from "@/components/PushQueueReviewContent";
+import RegistrationManagement from "@/components/RegistrationManagement";
 import { StudentRecordDialog } from "@/components/StudentRecordDialog";
 
 
@@ -601,6 +602,7 @@ export default function Admin() {
                 <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{pushQueueCount.count > 99 ? '99+' : pushQueueCount.count}</span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="registrations" className="text-[10px] sm:text-sm px-1.5 sm:px-4 py-2 sm:py-2 border border-emerald-300 bg-emerald-50 text-emerald-700 rounded-md data-[state=active]:border-emerald-500 data-[state=active]:bg-emerald-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">{"📝"}<span className="hidden sm:inline"> 新生報名</span><span className="sm:hidden"> 報名</span></TabsTrigger>
           </TabsList>
 
           {/* ========= 恆常班管理 (內含子分頁) ========= */}
@@ -1212,6 +1214,11 @@ export default function Admin() {
           {/* ========= 推播審核 ========= */}
           <TabsContent value="push-queue">
             <PushQueueReviewContent />
+          </TabsContent>
+
+          {/* ========= 新生報名管理 ========= */}
+          <TabsContent value="registrations">
+            <RegistrationManagement />
           </TabsContent>
         </Tabs>
       </div>

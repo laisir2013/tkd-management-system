@@ -19,6 +19,7 @@ import ParentAttendance from "./pages/ParentAttendance";
 import ExamAttendance from "./pages/ExamAttendance";
 import StaffLogin from "./pages/StaffLogin";
 import StaffDashboard from "./pages/StaffDashboard";
+import Register from "./pages/Register";
 
 function Router() {
   return (
@@ -37,6 +38,7 @@ function Router() {
       <Route path={"/exam/:examId/attendance"} component={ExamAttendance} />
       <Route path={"/staff-login"} component={StaffLogin} />
       <Route path={"/staff"} component={StaffDashboard} />
+      <Route path={"/register"} component={Register} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

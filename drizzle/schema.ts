@@ -181,6 +181,40 @@ export type StudentLeaveMonth = typeof studentLeaveMonths.$inferSelect;
 export type InsertStudentLeaveMonth = typeof studentLeaveMonths.$inferInsert;
 
 /**
+ * 新生報名表 — 公開報名表提交的資料（待管理員審核後轉為正式學生）
+ */
+export const registrations = mysqlTable("registrations", {
+  id: int("id").autoincrement().primaryKey(),
+  // 學生資料
+  studentName: varchar("student_name", { length: 100 }).notNull(),
+  studentGender: mysqlEnum("student_gender", ["male", "female"]),
+  studentBirthDate: date("student_birth_date"),
+  // 家長/監護人
+  parentName: varchar("parent_name", { length: 100 }).notNull(),
+  parentPhone: varchar("parent_phone", { length: 50 }).notNull(),
+  parentPhone2: varchar("parent_phone2", { length: 50 }), // 第二聯絡電話
+  parentEmail: varchar("parent_email", { length: 320 }),
+  relationship: varchar("relationship", { length: 50 }), // 與學生的關係：父/母/監護人
+  // 道場選擇
+  preferredDojo: varchar("preferred_dojo", { length: 200 }), // 首選道場名稱
+  preferredSchedule: varchar("preferred_schedule", { length: 200 }), // 首選時段
+  // 其他
+  previousExperience: text("previous_experience"), // 是否有跆拳道經驗
+  medicalConditions: text("medical_conditions"), // 特殊身體狀況/過敏
+  howDidYouHear: varchar("how_did_you_hear", { length: 200 }), // 從何處得知
+  remarks: text("remarks"), // 其他備註
+  // 狀態管理
+  status: mysqlEnum("status", ["pending", "contacted", "enrolled", "rejected"]).default("pending").notNull(),
+  adminNotes: text("admin_notes"), // 管理員備註
+  convertedStudentId: int("converted_student_id"), // 轉為正式學生後的 ID
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Registration = typeof registrations.$inferSelect;
+export type InsertRegistration = typeof registrations.$inferInsert;
+
+/**
  * 課程表
  */
 export const courses = mysqlTable("courses", {
