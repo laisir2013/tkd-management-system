@@ -111,6 +111,10 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const [editReceivingBank, setEditReceivingBank] = useState("");
   const [editPaymentDate, setEditPaymentDate] = useState("");
 
+  // 多張收據查看狀態
+  const [receiptUrls, setReceiptUrls] = useState<string[]>([]);
+  const [receiptIndex, setReceiptIndex] = useState(0);
+
   const confirmMonthlyPayment = trpc.payments.confirmMonthlyPayment.useMutation({
     onSuccess: () => {
       toast.success('已確認繳費');
@@ -295,8 +299,6 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
     } catch { /* not JSON, single URL */ }
     return [url];
   };
-  const [receiptUrls, setReceiptUrls] = useState<string[]>([]);
-  const [receiptIndex, setReceiptIndex] = useState(0);
   const handleViewReceipt = (url: string, studentName: string, month: string) => {
     const urls = parseReceiptUrls(url);
     setReceiptUrls(urls);
