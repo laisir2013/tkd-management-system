@@ -37,6 +37,7 @@ export default function Register() {
   const [englishName, setEnglishName] = useState("");
   const [referrer, setReferrer] = useState("");
   const [firstClassDate, setFirstClassDate] = useState("");
+  const [firstClassDateCustom, setFirstClassDateCustom] = useState(""); // 自選日期
   const [selectedDojoId, setSelectedDojoId] = useState(""); // 選中的道場時段 ID
   const [beltLevel, setBeltLevel] = useState("");
   const [studentBirthYear, setStudentBirthYear] = useState("");
@@ -69,16 +70,53 @@ export default function Register() {
   // Build flat list of all dojo+schedule options
   const dojoScheduleOptions = useMemo(() => {
     if (!dojosQuery.data) return [];
-    const options: { id: string; label: string; dojoName: string; schedule: string }[] = [];
+    const options: { id: string; label: string; dojoName: string; schedule: string; day: string }[] = [];
     for (const dojo of dojosQuery.data) {
       for (const s of dojo.schedules) {
         const schedule = `${s.day} ${s.time}`;
         const label = `${dojo.name} — ${schedule}${s.coach ? ` (${s.coach})` : ''}`;
-        options.push({ id: String(s.id), label, dojoName: dojo.name, schedule });
+        options.push({ id: String(s.id), label, dojoName: dojo.name, schedule, day: s.day });
       }
     }
     return options;
   }, [dojosQuery.data]);
+
+  // 計算首堂日期選項：根據選擇的道場星期，給出前後3週的對應日期
+  const firstClassDateOptions = useMemo(() => {
+    if (!selectedDojoId) return [];
+    const selected = dojoScheduleOptions.find(o => o.id === selectedDojoId);
+    if (!selected) return [];
+
+    // 星期對應表
+    const dayMap: Record<string, number> = {
+      '星期日': 0, '星期一': 1, '星期二': 2, '星期三': 3,
+      '星期四': 4, '星期五': 5, '星期六': 6,
+    };
+    const targetDayNum = dayMap[selected.day];
+    if (targetDayNum === undefined) return [];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 找到今天或之後的第一個目標星期
+    const todayDay = today.getDay();
+    let diff = targetDayNum - todayDay;
+    if (diff < 0) diff += 7;
+
+    const dates: { value: string; label: string }[] = [];
+    // 給出前後3週（包含本週共4個日期）
+    for (let i = 0; i < 4; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + diff + i * 7);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const value = `${yyyy}-${mm}-${dd}`;
+      const label = `${yyyy}年${d.getMonth() + 1}月${d.getDate()}日 (${selected.day})`;
+      dates.push({ value, label });
+    }
+    return dates;
+  }, [selectedDojoId, dojoScheduleOptions]);
 
   const submitMutation = trpc.registration.submit.useMutation({
     onSuccess: () => setSubmitted(true),
@@ -120,7 +158,13 @@ export default function Register() {
     if (!address.trim()) errs.address = "請輸入住址";
     if (dobokSizes.length === 0) errs.dobokSize = "請選擇跆拳道袍尺寸";
     if (!howDidYouHear && !howDidYouHearOther.trim()) errs.howDidYouHear = "請選擇從何得知課程";
-    if (!firstClassDate) errs.firstClassDate = "請選擇入學日期";
+    if (!selectedDojoId) {
+      // skip firstClassDate check if no dojo selected
+    } else if (!firstClassDate) {
+      errs.firstClassDate = "請選擇首堂日期";
+    } else if (firstClassDate === '__custom__' && !firstClassDateCustom) {
+      errs.firstClassDate = "請選擇自選日期";
+    }
     if (!receiptFile) errs.receipt = "請上傳繳費收據";
     if (!parentName.trim()) errs.parentName = "請輸入家長/監護人姓名";
     setErrors(errs);
@@ -160,7 +204,7 @@ export default function Register() {
       address: address.trim() || undefined,
       facebook: facebook.trim() || undefined,
       dobokSize: dobokSizes.join(', ') || undefined,
-      firstClassDate: firstClassDate || undefined,
+      firstClassDate: (firstClassDate === '__custom__' ? firstClassDateCustom : firstClassDate) || undefined,
       tuitionAmount: tuitionAmount ? Number(tuitionAmount) : undefined,
       receivingBank: receivingBank || undefined,
       receiptBase64: receiptFile?.base64,
@@ -271,22 +315,6 @@ export default function Register() {
             </CardContent>
           </Card>
 
-          {/* 入學日期 */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                入學日期 <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                type="date"
-                value={firstClassDate}
-                onChange={e => setFirstClassDate(e.target.value)}
-                className={`mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600 ${errors.firstClassDate ? "border-red-400" : ""}`}
-              />
-              {errors.firstClassDate && <p className="text-red-500 text-xs mt-1">{errors.firstClassDate}</p>}
-            </CardContent>
-          </Card>
-
           {/* 上課地點及時間 — from system dojos */}
           <Card className="shadow-sm">
             <CardContent className="pt-5 pb-5">
@@ -300,7 +328,7 @@ export default function Register() {
               ) : (
                 <RadioGroup
                   value={selectedDojoId}
-                  onValueChange={setSelectedDojoId}
+                  onValueChange={v => { setSelectedDojoId(v); setFirstClassDate(''); setFirstClassDateCustom(''); }}
                   className="mt-3 space-y-3"
                 >
                   {dojoScheduleOptions.map(opt => (
@@ -314,6 +342,41 @@ export default function Register() {
               {errors.preferredDojo && <p className="text-red-500 text-xs mt-1">{errors.preferredDojo}</p>}
             </CardContent>
           </Card>
+
+          {/* 首堂日期 — 根據選擇的道場星期自動配對 */}
+          {selectedDojoId && (
+            <Card className="shadow-sm">
+              <CardContent className="pt-5 pb-5">
+                <Label className="text-base font-normal">
+                  首堂日期（入學日） <span className="text-red-500">*</span>
+                </Label>
+                <p className="text-xs text-gray-400 mt-1 mb-2">請選擇第一次上課的日期</p>
+                <RadioGroup
+                  value={firstClassDate}
+                  onValueChange={v => { setFirstClassDate(v); if (v !== '__custom__') setFirstClassDateCustom(''); }}
+                  className="space-y-3"
+                >
+                  {firstClassDateOptions.map(opt => (
+                    <div key={opt.value} className="flex items-center space-x-3">
+                      <RadioGroupItem value={opt.value} id={`fcd-${opt.value}`} />
+                      <Label htmlFor={`fcd-${opt.value}`} className="font-normal cursor-pointer text-sm">{opt.label}</Label>
+                    </div>
+                  ))}
+                  <div className="flex items-center space-x-3">
+                    <RadioGroupItem value="__custom__" id="fcd-custom" />
+                    <Label htmlFor="fcd-custom" className="font-normal cursor-pointer text-sm">自選日期：</Label>
+                    <Input
+                      type="date"
+                      value={firstClassDateCustom}
+                      onChange={e => { setFirstClassDateCustom(e.target.value); setFirstClassDate('__custom__'); }}
+                      className="flex-1 border-0 border-b border-gray-300 rounded-none px-0 h-8 focus-visible:ring-0 focus-visible:border-blue-600"
+                    />
+                  </div>
+                </RadioGroup>
+                {errors.firstClassDate && <p className="text-red-500 text-xs mt-1">{errors.firstClassDate}</p>}
+              </CardContent>
+            </Card>
+          )}
 
           {/* 現時色帶 */}
           <Card className="shadow-sm">
