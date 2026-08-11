@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,16 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
 import { CheckCircle2, Loader2, Camera, X } from "lucide-react";
 
-// ── 場館列表（flat radio，按 Google Form 原樣） ──
-const VENUE_LIST = [
-  "寶林體育館", "寶林文娛活動會堂", "坑口體育館", "單車館體育館",
-  "調景嶺體育館", "翠林體育館", "瑞和街體育館", "曉光街體育館",
-  "藍田東區社區中心", "順利社區會堂", "牛頭角體育館", "茜草灣鄰里社區中心",
-  "油塘社區會堂", "黃大仙竹園體育館", "蒲崗村道體育館", "九龍城體育館",
-  "沙田石門道場", "鰂魚涌道場", "港島東體育館", "柴灣體育館",
-  "至善活動中心", "保安道體育館", "荃灣道場", "彩榮路體育館",
-  "九龍灣體育館",
-];
+
 
 // ── 色帶列表 ──
 const BELT_LEVELS = [
@@ -46,9 +37,7 @@ export default function Register() {
   const [englishName, setEnglishName] = useState("");
   const [referrer, setReferrer] = useState("");
   const [firstClassDate, setFirstClassDate] = useState("");
-  const [preferredDojo, setPreferredDojo] = useState("");
-  const [venueOther, setVenueOther] = useState("");
-  const [classSchedule, setClassSchedule] = useState("");
+  const [selectedDojoId, setSelectedDojoId] = useState(""); // 選中的道場時段 ID
   const [beltLevel, setBeltLevel] = useState("");
   const [studentBirthYear, setStudentBirthYear] = useState("");
   const [studentBirthMonth, setStudentBirthMonth] = useState("");
@@ -73,6 +62,23 @@ export default function Register() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch dojo options from system
+  const dojosQuery = trpc.registration.getDojoOptions.useQuery();
+
+  // Build flat list of all dojo+schedule options
+  const dojoScheduleOptions = useMemo(() => {
+    if (!dojosQuery.data) return [];
+    const options: { id: string; label: string; dojoName: string; schedule: string }[] = [];
+    for (const dojo of dojosQuery.data) {
+      for (const s of dojo.schedules) {
+        const schedule = `${s.day} ${s.time}`;
+        const label = `${dojo.name} — ${schedule}${s.coach ? ` (${s.coach})` : ''}`;
+        options.push({ id: String(s.id), label, dojoName: dojo.name, schedule });
+      }
+    }
+    return options;
+  }, [dojosQuery.data]);
 
   const submitMutation = trpc.registration.submit.useMutation({
     onSuccess: () => setSubmitted(true),
@@ -102,8 +108,7 @@ export default function Register() {
     const errs: Record<string, string> = {};
     if (!studentName.trim()) errs.studentName = "請輸入學生姓名(中文)";
     if (!englishName.trim()) errs.englishName = "請輸入學生姓名(英文)";
-    if (!preferredDojo && !venueOther.trim()) errs.preferredDojo = "請選擇上課地點";
-    if (!classSchedule.trim()) errs.classSchedule = "請輸入上課日期及時間";
+    if (!selectedDojoId) errs.preferredDojo = "請選擇上課地點及時間";
     if (!beltLevel) errs.beltLevel = "請選擇現時色帶";
     if (!studentBirthYear || !studentBirthMonth || !studentBirthDay) errs.birthDate = "請選擇出生日期";
     if (!parentPhone.trim()) errs.parentPhone = "請輸入聯絡電話";
@@ -133,8 +138,10 @@ export default function Register() {
 
     // Build birth date
     const birthDate = `${studentBirthYear}-${studentBirthMonth.padStart(2, '0')}-${studentBirthDay.padStart(2, '0')}`;
-    const finalVenue = preferredDojo === '其他' ? venueOther.trim() : preferredDojo;
     const finalHowKnow = howDidYouHear === '其他' ? howDidYouHearOther.trim() : howDidYouHear;
+
+    // Get selected dojo info
+    const selectedOption = dojoScheduleOptions.find(o => o.id === selectedDojoId);
 
     submitMutation.mutate({
       studentName: studentName.trim(),
@@ -146,8 +153,9 @@ export default function Register() {
       parentPhone: parentPhone.trim(),
       parentPhone2: parentPhone2.trim() || undefined,
       parentEmail: parentEmail.trim() || undefined,
-      preferredDojo: finalVenue || undefined,
-      classSchedule: classSchedule.trim() || undefined,
+      preferredDojo: selectedOption?.dojoName || undefined,
+      classSchedule: selectedOption?.schedule || undefined,
+      preferredSchedule: selectedOption?.label || undefined,
       beltLevel: beltLevel || undefined,
       address: address.trim() || undefined,
       facebook: facebook.trim() || undefined,
@@ -279,51 +287,31 @@ export default function Register() {
             </CardContent>
           </Card>
 
-          {/* 上課地點及時間 — flat radio list */}
+          {/* 上課地點及時間 — from system dojos */}
           <Card className="shadow-sm">
             <CardContent className="pt-5 pb-5">
               <Label className="text-base font-normal">
-                上課地點及 時間 <span className="text-red-500">*</span>
+                上課地點及時間 <span className="text-red-500">*</span>
               </Label>
-              <RadioGroup
-                value={preferredDojo}
-                onValueChange={v => { setPreferredDojo(v); if (v !== '其他') setVenueOther(''); }}
-                className="mt-3 space-y-3"
-              >
-                {VENUE_LIST.map(venue => (
-                  <div key={venue} className="flex items-center space-x-3">
-                    <RadioGroupItem value={venue} id={`venue-${venue}`} />
-                    <Label htmlFor={`venue-${venue}`} className="font-normal cursor-pointer text-sm">{venue}</Label>
-                  </div>
-                ))}
-                <div className="flex items-center space-x-3">
-                  <RadioGroupItem value="其他" id="venue-other" />
-                  <Label htmlFor="venue-other" className="font-normal cursor-pointer text-sm">其他：</Label>
-                  <Input
-                    placeholder=""
-                    value={venueOther}
-                    onChange={e => { setVenueOther(e.target.value); setPreferredDojo('其他'); }}
-                    className="flex-1 border-0 border-b border-gray-300 rounded-none px-0 h-8 focus-visible:ring-0 focus-visible:border-blue-600"
-                  />
+              {dojosQuery.isLoading ? (
+                <div className="flex items-center gap-2 text-gray-400 text-sm py-3">
+                  <Loader2 className="w-4 h-4 animate-spin" /> 載入中...
                 </div>
-              </RadioGroup>
+              ) : (
+                <RadioGroup
+                  value={selectedDojoId}
+                  onValueChange={setSelectedDojoId}
+                  className="mt-3 space-y-3"
+                >
+                  {dojoScheduleOptions.map(opt => (
+                    <div key={opt.id} className="flex items-center space-x-3">
+                      <RadioGroupItem value={opt.id} id={`dojo-${opt.id}`} />
+                      <Label htmlFor={`dojo-${opt.id}`} className="font-normal cursor-pointer text-sm">{opt.label}</Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              )}
               {errors.preferredDojo && <p className="text-red-500 text-xs mt-1">{errors.preferredDojo}</p>}
-            </CardContent>
-          </Card>
-
-          {/* 上課日期及時間 — free text */}
-          <Card className="shadow-sm">
-            <CardContent className="pt-5 pb-5">
-              <Label className="text-base font-normal">
-                上課日期及時間 <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                placeholder="您的答案"
-                value={classSchedule}
-                onChange={e => setClassSchedule(e.target.value)}
-                className={`mt-2 border-0 border-b border-gray-300 rounded-none px-0 focus-visible:ring-0 focus-visible:border-blue-600 ${errors.classSchedule ? "border-red-400" : ""}`}
-              />
-              {errors.classSchedule && <p className="text-red-500 text-xs mt-1">{errors.classSchedule}</p>}
             </CardContent>
           </Card>
 
