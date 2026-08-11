@@ -9057,7 +9057,7 @@ export const appRouter = router({
         return Array.from(dojoMap.values());
       }),
 
-    // 公開：提交報名表
+    // 公開：提交報名表（含收據上傳）
     submit: publicProcedure
       .input(z.object({
         studentName: z.string().min(1, '請輸入學生姓名'),
@@ -9070,6 +9070,11 @@ export const appRouter = router({
         relationship: z.string().optional(),
         preferredDojo: z.string().optional(),
         preferredSchedule: z.string().optional(),
+        firstClassDate: z.string().optional(), // yyyy-mm-dd 首堂日期
+        tuitionAmount: z.number().optional(), // 繳費金額
+        receivingBank: z.string().optional(), // 收款銀行: BOC/HSBC/CASH
+        receiptBase64: z.string().optional(), // 收據base64
+        receiptMimeType: z.string().optional(),
         previousExperience: z.string().optional(),
         medicalConditions: z.string().optional(),
         howDidYouHear: z.string().optional(),
@@ -9078,6 +9083,24 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const dbInst = await getDb();
         if (!dbInst) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+        // 上傳收據（如有）
+        let receiptUrl: string | null = null;
+        let receiptKey: string | null = null;
+        if (input.receiptBase64 && input.receiptMimeType) {
+          const receiptBuffer = Buffer.from(input.receiptBase64, 'base64');
+          const fileExt = input.receiptMimeType.split('/')[1] || 'jpg';
+          const rKey = `receipts/registration-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+          const uploadResult = await storagePut(rKey, receiptBuffer, input.receiptMimeType);
+          receiptUrl = uploadResult.url;
+          receiptKey = rKey;
+        }
+
+        // 收款銀行標準化
+        const receivingBankLabel = input.receivingBank === 'BOC' ? '中銀香港 (BOC)'
+          : input.receivingBank === 'HSBC' ? '滙豐銀行 (HSBC)'
+          : input.receivingBank === 'CASH' ? '現金'
+          : input.receivingBank || null;
 
         await dbInst.insert(schema.registrations).values({
           studentName: input.studentName,
@@ -9090,6 +9113,11 @@ export const appRouter = router({
           relationship: input.relationship || null,
           preferredDojo: input.preferredDojo || null,
           preferredSchedule: input.preferredSchedule || null,
+          firstClassDate: input.firstClassDate || null,
+          tuitionAmount: input.tuitionAmount ? String(input.tuitionAmount) as any : null,
+          receiptUrl,
+          receiptKey,
+          receivingBank: receivingBankLabel,
           previousExperience: input.previousExperience || null,
           medicalConditions: input.medicalConditions || null,
           howDidYouHear: input.howDidYouHear || null,
@@ -9102,25 +9130,222 @@ export const appRouter = router({
 
     // 管理員：取得所有報名記錄
     getAll: protectedProcedure
-      .input(z.object({
-        status: z.enum(['pending', 'contacted', 'enrolled', 'rejected', 'all']).default('all'),
-      }).optional())
       .query(async ({ ctx }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
         const dbInst = await getDb();
         if (!dbInst) return [];
-
-        const statusFilter = ctx?.user ? undefined : undefined;
-        let query = dbInst.select().from(schema.registrations);
-        const filterStatus = (ctx as any)?.input?.status;
-        // Apply filter at JS level since we can't easily chain .where dynamically
-        const all = await query.orderBy(sql`${schema.registrations.createdAt} DESC`);
-        
-        // Note: actual status filtering done below
+        const all = await dbInst.select().from(schema.registrations)
+          .orderBy(sql`${schema.registrations.createdAt} DESC`);
         return all;
       }),
 
-    // 管理員：更新報名狀態
+    // 管理員：更新報名資料（可修改所有欄位）
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        studentName: z.string().optional(),
+        studentGender: z.enum(['male', 'female']).nullable().optional(),
+        studentBirthDate: z.string().nullable().optional(),
+        parentName: z.string().optional(),
+        parentPhone: z.string().optional(),
+        parentPhone2: z.string().nullable().optional(),
+        parentEmail: z.string().nullable().optional(),
+        relationship: z.string().nullable().optional(),
+        preferredDojo: z.string().nullable().optional(),
+        preferredSchedule: z.string().nullable().optional(),
+        firstClassDate: z.string().nullable().optional(),
+        tuitionAmount: z.number().nullable().optional(),
+        receivingBank: z.string().nullable().optional(),
+        previousExperience: z.string().nullable().optional(),
+        medicalConditions: z.string().nullable().optional(),
+        remarks: z.string().nullable().optional(),
+        adminNotes: z.string().nullable().optional(),
+        status: z.enum(['pending', 'contacted', 'enrolled', 'rejected']).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const dbInst = await getDb();
+        if (!dbInst) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        const { id, ...fields } = input;
+        const updateData: any = {};
+        for (const [key, value] of Object.entries(fields)) {
+          if (value !== undefined) {
+            if (key === 'tuitionAmount') {
+              updateData[key] = value !== null ? String(value) : null;
+            } else {
+              updateData[key] = value;
+            }
+          }
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await dbInst.update(schema.registrations)
+            .set(updateData)
+            .where(eq(schema.registrations.id, id));
+        }
+        return { success: true };
+      }),
+
+    // 管理員：批准報名 → 自動建立學生 + 繳費記錄 + 會計記錄
+    approve: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        // 可覆蓋的欄位（管理員修改後的最終值）
+        studentName: z.string(),
+        parentPhone: z.string(),
+        preferredDojo: z.string(),
+        preferredSchedule: z.string().optional(),
+        firstClassDate: z.string(), // yyyy-mm-dd（必填）
+        tuitionAmount: z.number(), // 繳費金額（必填）
+        feePerQuarter: z.number(), // 季費標準（用於計算月數）
+        receivingBank: z.string().optional(),
+        studentGender: z.enum(['male', 'female']).nullable().optional(),
+        studentBirthDate: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const dbInst = await getDb();
+        if (!dbInst) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // 1. 取得報名記錄（含收據）
+        const [reg] = await dbInst.select().from(schema.registrations)
+          .where(eq(schema.registrations.id, input.id));
+        if (!reg) throw new TRPCError({ code: 'NOT_FOUND', message: '報名記錄不存在' });
+        if (reg.status === 'enrolled') throw new TRPCError({ code: 'BAD_REQUEST', message: '此報名已批准入學' });
+
+        // 2. 根據道場查找對應教練
+        const dojoRows = await dbInst.select({
+          coachName: schema.dojos.coachName,
+          scheduleDay: schema.dojos.scheduleDay,
+          scheduleTime: schema.dojos.scheduleTime,
+        }).from(schema.dojos)
+          .where(and(
+            eq(schema.dojos.name, input.preferredDojo),
+            eq(schema.dojos.status, 'active')
+          ));
+        
+        // 嘗試匹配具體時段的教練
+        let coachName = '賴政堡教練'; // 預設
+        let scheduleDay: string | null = null;
+        let scheduleTime: string | null = null;
+        
+        if (input.preferredSchedule && dojoRows.length > 0) {
+          // 從 preferredSchedule 解析 day 和 time，格式如 "星期一 4:00-5:00pm (賴政堡教練)"
+          const matched = dojoRows.find(d => {
+            const label = `${d.scheduleDay} ${d.scheduleTime}${d.coachName ? ` (${d.coachName})` : ''}`;
+            return label === input.preferredSchedule;
+          });
+          if (matched) {
+            if (matched.coachName) coachName = matched.coachName;
+            scheduleDay = matched.scheduleDay;
+            scheduleTime = matched.scheduleTime;
+          }
+        }
+        // 如果沒有匹配到具體時段，取第一個有教練的
+        if (coachName === '賴政堡教練' && dojoRows.length > 0) {
+          const withCoach = dojoRows.find(d => d.coachName);
+          if (withCoach?.coachName) coachName = withCoach.coachName;
+        }
+
+        // 3. 建立學生記錄
+        const firstClassDate = new Date(input.firstClassDate + 'T00:00:00');
+        const studentResult = await dbInst.insert(schema.students).values({
+          name: input.studentName,
+          phone: input.parentPhone,
+          venue: input.preferredDojo,
+          scheduleDay: scheduleDay,
+          scheduleTime: scheduleTime,
+          feePerQuarter: String(input.feePerQuarter) as any,
+          beltLevel: null,
+          birthDate: input.studentBirthDate || null,
+          coach: coachName,
+          joinDate: firstClassDate,
+          gender: input.studentGender as any || null,
+          status: 'active',
+        });
+        const studentId = studentResult[0].insertId;
+
+        // 4. 計算覆蓋月份（同新生首期邏輯）
+        const startMonth = firstClassDate.getMonth() + 1;
+        const monthlyFee = input.feePerQuarter / 3;
+        const monthCount = monthlyFee > 0 ? Math.round(input.tuitionAmount / monthlyFee) : 3;
+
+        const coveredMonths: number[] = [];
+        for (let i = 0; i < monthCount; i++) {
+          const m = ((startMonth - 1 + i) % 12) + 1;
+          coveredMonths.push(m);
+        }
+
+        // 判斷季度
+        const quarterDefs: Record<string, number[]> = {
+          Q1: [1, 2, 3], Q2: [4, 5, 6], Q3: [7, 8, 9], Q4: [10, 11, 12],
+        };
+        let matchedQuarter: string | null = null;
+        for (const [qName, qMonths] of Object.entries(quarterDefs)) {
+          if (coveredMonths.length === 3 &&
+              coveredMonths[0] === qMonths[0] &&
+              coveredMonths[1] === qMonths[1] &&
+              coveredMonths[2] === qMonths[2]) {
+            matchedQuarter = qName;
+            break;
+          }
+        }
+        const paymentPeriod = matchedQuarter || 'CUSTOM';
+        const customMonths = matchedQuarter ? null : JSON.stringify(coveredMonths.map(String));
+
+        // 收款銀行
+        const receivingBankLabel = input.receivingBank === 'BOC' ? '中銀香港 (BOC)'
+          : input.receivingBank === 'HSBC' ? '滙豐銀行 (HSBC)'
+          : input.receivingBank === 'CASH' ? '現金'
+          : input.receivingBank || reg.receivingBank || null;
+
+        // 5. 建立繳費記錄
+        const payYear = firstClassDate.getFullYear();
+        const paymentResult = await dbInst.insert(schema.paymentRecords).values({
+          studentId: studentId,
+          year: payYear,
+          paymentPeriod: paymentPeriod as any,
+          customMonths: customMonths as any,
+          amount: String(input.tuitionAmount) as any,
+          paymentDate: firstClassDate,
+          status: 'confirmed',
+          confirmedBy: 'admin_approved',
+          receiptUrl: reg.receiptUrl,
+          receiptKey: reg.receiptKey,
+          receivingBank: receivingBankLabel,
+        });
+        const paymentRecordId = paymentResult[0].insertId;
+
+        // 6. 建立會計記錄
+        const monthsLabel = coveredMonths.map(m => `${m}月`).join('、');
+        await insertAccountingRecord({
+          transactionDate: firstClassDate,
+          amount: String(input.tuitionAmount) as any,
+          type: 'income',
+          category: 'tuition',
+          description: `${input.studentName} 新生首期學費 (${monthsLabel})`,
+          receiptUrl: reg.receiptUrl,
+          receiptKey: reg.receiptKey,
+          paymentRecordId,
+          elitePaymentRecordId: null,
+          studentName: input.studentName,
+          coachName: coachName,
+          dojoName: input.preferredDojo,
+          source: 'auto_sync',
+          receivingBank: receivingBankLabel,
+        });
+
+        // 7. 更新報名記錄狀態
+        await dbInst.update(schema.registrations).set({
+          status: 'enrolled',
+          convertedStudentId: studentId,
+        }).where(eq(schema.registrations.id, input.id));
+
+        return { success: true, studentId, monthsCovered: coveredMonths };
+      }),
+
+    // 管理員：更新報名狀態（簡單狀態變更）
     updateStatus: protectedProcedure
       .input(z.object({
         id: z.number(),

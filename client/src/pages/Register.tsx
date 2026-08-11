@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, Loader2, UserPlus, Phone, Mail, MapPin, Calendar, Heart, Info, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle2, Loader2, UserPlus, Phone, Mail, MapPin, Calendar, Heart, Info, ChevronDown, ChevronUp, Camera, Upload, X, CreditCard } from "lucide-react";
 
 export default function Register() {
   const [submitted, setSubmitted] = useState(false);
@@ -25,12 +25,17 @@ export default function Register() {
   const [relationship, setRelationship] = useState("");
   const [preferredDojo, setPreferredDojo] = useState("");
   const [preferredSchedule, setPreferredSchedule] = useState("");
+  const [firstClassDate, setFirstClassDate] = useState("");
+  const [tuitionAmount, setTuitionAmount] = useState("");
+  const [receivingBank, setReceivingBank] = useState("BOC");
+  const [receiptFile, setReceiptFile] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [previousExperience, setPreviousExperience] = useState("");
   const [medicalConditions, setMedicalConditions] = useState("");
   const [howDidYouHear, setHowDidYouHear] = useState("");
   const [remarks, setRemarks] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showOptional, setShowOptional] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch dojo options (public API)
   const dojosQuery = trpc.registration.getDojoOptions.useQuery();
@@ -51,12 +56,36 @@ export default function Register() {
     return dojosQuery.data.map(d => d.name);
   }, [dojosQuery.data]);
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setErrors(prev => ({ ...prev, receipt: "檔案大小不能超過 10MB" }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      setReceiptFile({
+        base64,
+        mimeType: file.type,
+        preview: URL.createObjectURL(file),
+      });
+      setErrors(prev => { const { receipt, ...rest } = prev; return rest; });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!studentName.trim()) errs.studentName = "請輸入學生姓名";
     if (!parentName.trim()) errs.parentName = "請輸入家長/監護人姓名";
     if (!parentPhone.trim()) errs.parentPhone = "請輸入聯絡電話";
     else if (!/^\d{8}$/.test(parentPhone.trim())) errs.parentPhone = "請輸入8位數字電話號碼";
+    if (!preferredDojo) errs.preferredDojo = "請選擇道場";
+    if (!preferredSchedule) errs.preferredSchedule = "請選擇上課時段";
+    if (!firstClassDate) errs.firstClassDate = "請選擇首堂日期";
+    if (!receiptFile) errs.receipt = "請上傳繳費收據";
     if (parentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail)) errs.parentEmail = "電郵格式不正確";
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -83,6 +112,11 @@ export default function Register() {
       relationship: relationship || undefined,
       preferredDojo: preferredDojo || undefined,
       preferredSchedule: preferredSchedule || undefined,
+      firstClassDate: firstClassDate || undefined,
+      tuitionAmount: tuitionAmount ? Number(tuitionAmount) : undefined,
+      receivingBank: receivingBank || undefined,
+      receiptBase64: receiptFile?.base64,
+      receiptMimeType: receiptFile?.mimeType,
       previousExperience: previousExperience.trim() || undefined,
       medicalConditions: medicalConditions.trim() || undefined,
       howDidYouHear: howDidYouHear || undefined,
@@ -101,12 +135,13 @@ export default function Register() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900">報名成功！</h2>
             <p className="text-gray-600 leading-relaxed">
-              感謝您的報名！我們已收到 <span className="font-semibold text-gray-900">{studentName}</span> 的報名資料。
+              感謝您的報名！我們已收到 <span className="font-semibold text-gray-900">{studentName}</span> 的報名資料及繳費收據。
             </p>
             <div className="bg-blue-50 rounded-lg p-4 text-left">
               <p className="text-sm text-blue-800 leading-relaxed">
                 <strong>後續安排：</strong><br />
-                教練將於 1-2 個工作天內透過電話/WhatsApp 與您聯繫，安排體驗課程及入學事宜。
+                管理員將於 1-2 個工作天內核實收據並確認報名。<br />
+                確認後會透過 WhatsApp 通知您入學詳情。
               </p>
             </div>
             <Button
@@ -116,8 +151,10 @@ export default function Register() {
                 setStudentBirthMonth(""); setStudentBirthDay("");
                 setParentName(""); setParentPhone(""); setParentPhone2("");
                 setParentEmail(""); setRelationship(""); setPreferredDojo("");
-                setPreferredSchedule(""); setPreviousExperience("");
-                setMedicalConditions(""); setHowDidYouHear(""); setRemarks("");
+                setPreferredSchedule(""); setFirstClassDate(""); setTuitionAmount("");
+                setReceivingBank("BOC"); setReceiptFile(null);
+                setPreviousExperience(""); setMedicalConditions("");
+                setHowDidYouHear(""); setRemarks("");
               }}
               variant="outline" className="mt-2"
             >
@@ -141,7 +178,7 @@ export default function Register() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-wide">跆拳道新生報名表</h1>
           </div>
           <p className="text-blue-100 text-sm sm:text-base">
-            歡迎加入我們的跆拳道大家庭！請填寫以下資料，我們將盡快與您聯繫。
+            歡迎加入！請填寫以下資料並上傳繳費收據，管理員核實後即完成報名。
           </p>
         </div>
       </div>
@@ -235,7 +272,6 @@ export default function Register() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* 家長姓名 */}
               <div className="space-y-2">
                 <Label htmlFor="parentName" className="font-medium">
                   家長/監護人姓名 <span className="text-red-500">*</span>
@@ -250,7 +286,6 @@ export default function Register() {
                 {errors.parentName && <p className="text-red-500 text-xs">{errors.parentName}</p>}
               </div>
 
-              {/* 與學生關係 */}
               <div className="space-y-2">
                 <Label className="font-medium">與學生的關係</Label>
                 <Select value={relationship} onValueChange={setRelationship}>
@@ -266,7 +301,6 @@ export default function Register() {
                 </Select>
               </div>
 
-              {/* 聯絡電話 */}
               <div className="space-y-2">
                 <Label htmlFor="parentPhone" className="font-medium">
                   聯絡電話 (WhatsApp) <span className="text-red-500">*</span>
@@ -284,7 +318,6 @@ export default function Register() {
                 {errors.parentPhone && <p className="text-red-500 text-xs">{errors.parentPhone}</p>}
               </div>
 
-              {/* 第二聯絡電話 */}
               <div className="space-y-2">
                 <Label htmlFor="parentPhone2" className="font-medium">第二聯絡電話（選填）</Label>
                 <Input
@@ -298,7 +331,6 @@ export default function Register() {
                 />
               </div>
 
-              {/* 電郵 */}
               <div className="space-y-2">
                 <Label htmlFor="parentEmail" className="font-medium flex items-center gap-1">
                   <Mail className="w-3.5 h-3.5" />
@@ -317,25 +349,28 @@ export default function Register() {
             </CardContent>
           </Card>
 
-          {/* ─── Section 3: 道場選擇 ─── */}
+          {/* ─── Section 3: 道場選擇 + 首堂日期 ─── */}
           <Card className="shadow-md border-0">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg text-blue-700">
                 <MapPin className="w-5 h-5" />
-                選擇道場
+                上課安排
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* 道場 */}
               <div className="space-y-2">
-                <Label className="font-medium">首選道場</Label>
+                <Label className="font-medium">
+                  選擇道場 <span className="text-red-500">*</span>
+                </Label>
                 {dojosQuery.isLoading ? (
                   <div className="flex items-center gap-2 text-gray-400 text-sm py-2">
                     <Loader2 className="w-4 h-4 animate-spin" /> 載入中...
                   </div>
                 ) : (
                   <Select value={preferredDojo} onValueChange={v => { setPreferredDojo(v); setPreferredSchedule(""); }}>
-                    <SelectTrigger><SelectValue placeholder="請選擇道場" /></SelectTrigger>
+                    <SelectTrigger className={errors.preferredDojo ? "border-red-400" : ""}>
+                      <SelectValue placeholder="請選擇道場" />
+                    </SelectTrigger>
                     <SelectContent>
                       {dojoNames.map(name => (
                         <SelectItem key={name} value={name}>{name}</SelectItem>
@@ -343,14 +378,18 @@ export default function Register() {
                     </SelectContent>
                   </Select>
                 )}
+                {errors.preferredDojo && <p className="text-red-500 text-xs">{errors.preferredDojo}</p>}
               </div>
 
-              {/* 時段 */}
               {preferredDojo && selectedDojoSchedules.length > 0 && (
                 <div className="space-y-2">
-                  <Label className="font-medium">首選時段</Label>
+                  <Label className="font-medium">
+                    上課時段 <span className="text-red-500">*</span>
+                  </Label>
                   <Select value={preferredSchedule} onValueChange={setPreferredSchedule}>
-                    <SelectTrigger><SelectValue placeholder="請選擇時段" /></SelectTrigger>
+                    <SelectTrigger className={errors.preferredSchedule ? "border-red-400" : ""}>
+                      <SelectValue placeholder="請選擇時段" />
+                    </SelectTrigger>
                     <SelectContent>
                       {selectedDojoSchedules.map(s => {
                         const label = `${s.day} ${s.time}${s.coach ? ` (${s.coach})` : ''}`;
@@ -358,12 +397,119 @@ export default function Register() {
                       })}
                     </SelectContent>
                   </Select>
+                  {errors.preferredSchedule && <p className="text-red-500 text-xs">{errors.preferredSchedule}</p>}
                 </div>
               )}
+
+              {/* 首堂日期 */}
+              <div className="space-y-2">
+                <Label htmlFor="firstClassDate" className="font-medium flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  首堂日期 <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="firstClassDate"
+                  type="date"
+                  value={firstClassDate}
+                  onChange={e => setFirstClassDate(e.target.value)}
+                  className={errors.firstClassDate ? "border-red-400" : ""}
+                />
+                <p className="text-xs text-gray-400">第一次上課的日期</p>
+                {errors.firstClassDate && <p className="text-red-500 text-xs">{errors.firstClassDate}</p>}
+              </div>
             </CardContent>
           </Card>
 
-          {/* ─── Section 4: 其他資料（可收合） ─── */}
+          {/* ─── Section 4: 繳費資料 ─── */}
+          <Card className="shadow-md border-0">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg text-blue-700">
+                <CreditCard className="w-5 h-5" />
+                繳費資料
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* 繳費金額 */}
+              <div className="space-y-2">
+                <Label htmlFor="tuitionAmount" className="font-medium">繳費金額 (HKD)</Label>
+                <Input
+                  id="tuitionAmount"
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="例：1800"
+                  value={tuitionAmount}
+                  onChange={e => setTuitionAmount(e.target.value)}
+                />
+                <p className="text-xs text-gray-400">請輸入已轉帳的金額</p>
+              </div>
+
+              {/* 收款方式 */}
+              <div className="space-y-2">
+                <Label className="font-medium">轉帳至</Label>
+                <RadioGroup
+                  value={receivingBank}
+                  onValueChange={setReceivingBank}
+                  className="flex flex-wrap gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="BOC" id="bank-boc" />
+                    <Label htmlFor="bank-boc" className="cursor-pointer">中銀香港 (BOC)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="HSBC" id="bank-hsbc" />
+                    <Label htmlFor="bank-hsbc" className="cursor-pointer">滙豐銀行 (HSBC)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="CASH" id="bank-cash" />
+                    <Label htmlFor="bank-cash" className="cursor-pointer">現金</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* 收據上傳 */}
+              <div className="space-y-2">
+                <Label className="font-medium">
+                  繳費收據 <span className="text-red-500">*</span>
+                </Label>
+                {receiptFile ? (
+                  <div className="relative border rounded-lg overflow-hidden">
+                    <img
+                      src={receiptFile.preview}
+                      alt="收據預覽"
+                      className="w-full max-h-64 object-contain bg-gray-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => { setReceiptFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors ${errors.receipt ? 'border-red-400 bg-red-50/50' : 'border-gray-300'}`}
+                  >
+                    <Camera className="w-10 h-10 mx-auto text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 font-medium">點擊上傳收據照片</p>
+                    <p className="text-xs text-gray-400 mt-1">支援 JPG、PNG，最大 10MB</p>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                {errors.receipt && <p className="text-red-500 text-xs">{errors.receipt}</p>}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ─── Section 5: 其他資料（可收合） ─── */}
           <Card className="shadow-md border-0">
             <CardHeader className="pb-2 cursor-pointer" onClick={() => setShowOptional(!showOptional)}>
               <CardTitle className="flex items-center justify-between text-lg text-blue-700">
@@ -376,7 +522,6 @@ export default function Register() {
             </CardHeader>
             {showOptional && (
               <CardContent className="space-y-5 pt-2">
-                {/* 跆拳道經驗 */}
                 <div className="space-y-2">
                   <Label className="font-medium">是否曾學習跆拳道？</Label>
                   <RadioGroup
@@ -403,7 +548,6 @@ export default function Register() {
                   </RadioGroup>
                 </div>
 
-                {/* 身體狀況 */}
                 <div className="space-y-2">
                   <Label htmlFor="medical" className="font-medium flex items-center gap-1">
                     <Heart className="w-3.5 h-3.5" />
@@ -418,7 +562,6 @@ export default function Register() {
                   />
                 </div>
 
-                {/* 從何處得知 */}
                 <div className="space-y-2">
                   <Label className="font-medium">從何處得知我們？</Label>
                   <Select value={howDidYouHear} onValueChange={setHowDidYouHear}>
@@ -435,7 +578,6 @@ export default function Register() {
                   </Select>
                 </div>
 
-                {/* 備註 */}
                 <div className="space-y-2">
                   <Label htmlFor="remarks" className="font-medium">其他備註</Label>
                   <Textarea
@@ -472,9 +614,8 @@ export default function Register() {
             </div>
           )}
 
-          {/* Footer note */}
           <p className="text-center text-xs text-gray-400 mt-4">
-            提交後，教練將於 1-2 個工作天內與您聯繫
+            提交後，管理員將核實收據並確認報名
           </p>
         </form>
       </div>

@@ -198,6 +198,12 @@ export const registrations = mysqlTable("registrations", {
   // 道場選擇
   preferredDojo: varchar("preferred_dojo", { length: 200 }), // 首選道場名稱
   preferredSchedule: varchar("preferred_schedule", { length: 200 }), // 首選時段
+  // 繳費相關
+  firstClassDate: date("first_class_date"), // 首堂日期（即入學日期，用於計算覆蓋月份）
+  tuitionAmount: decimal("tuition_amount", { precision: 10, scale: 2 }), // 繳費金額
+  receiptUrl: text("receipt_url"), // 收據圖片URL
+  receiptKey: text("receipt_key"), // 收據儲存key
+  receivingBank: varchar("receiving_bank", { length: 100 }), // 收款銀行
   // 其他
   previousExperience: text("previous_experience"), // 是否有跆拳道經驗
   medicalConditions: text("medical_conditions"), // 特殊身體狀況/過敏
