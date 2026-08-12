@@ -582,7 +582,7 @@ export default function Register() {
               <div>
                 <Label className="text-sm font-medium text-slate-700">轉帳至</Label>
                 <div className="flex gap-2 mt-1.5">
-                  {[{ v: 'BOC', l: '中銀' }, { v: 'HSBC', l: '滙豐' }, { v: 'CASH', l: '現金' }].map(b => (
+                  {[{ v: 'BOC', l: '中銀' }, { v: 'HSBC', l: '滙豐' }].map(b => (
                     <button key={b.v} type="button" onClick={() => setReceivingBank(b.v)}
                       className={`flex-1 py-2.5 rounded-lg text-xs font-medium border-2 transition-all ${receivingBank === b.v ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
                       {b.l}
