@@ -92,7 +92,7 @@ export default function Register() {
       day: s.day,
       time: s.time,
       coach: s.coach || '',
-      label: `${s.day} ${s.time}${s.coach ? ` (${s.coach}教練)` : ''}`,
+      label: `${s.day} ${s.time}`,
     }));
   }, [selectedLocation, dojosQuery.data]);
 
@@ -401,7 +401,6 @@ export default function Register() {
                         onClick={() => { setSelectedDojoId(s.id); setFirstClassDate(''); setFirstClassDateCustom(''); }}
                         className={`w-full text-left px-4 py-3 rounded-xl text-sm border-2 transition-all ${selectedDojoId === s.id ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm' : 'border-slate-100 text-slate-600 hover:border-slate-200 hover:bg-slate-50'}`}>
                         <span className="font-medium">{s.day} {s.time}</span>
-                        {s.coach && <span className="text-slate-400 ml-2">({s.coach}教練)</span>}
                       </button>
                     ))}
                   </div>
