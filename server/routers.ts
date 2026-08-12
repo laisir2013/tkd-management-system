@@ -9255,8 +9255,9 @@ export const appRouter = router({
         if (!reg) throw new TRPCError({ code: 'NOT_FOUND', message: '報名記錄不存在' });
         if (reg.status === 'enrolled') throw new TRPCError({ code: 'BAD_REQUEST', message: '此報名已批准入學' });
 
-        // 2. 根據道場查找對應教練
+        // 2. 根據道場查找對應教練及 dojo_id
         const dojoRows = await dbInst.select({
+          id: schema.dojos.id,
           coachName: schema.dojos.coachName,
           scheduleDay: schema.dojos.scheduleDay,
           scheduleTime: schema.dojos.scheduleTime,
@@ -9266,27 +9267,41 @@ export const appRouter = router({
             eq(schema.dojos.status, 'active')
           ));
         
-        // 嘗試匹配具體時段的教練
+        // 嘗試匹配具體時段的教練和 dojo_id
         let coachName = '賴政堡教練'; // 預設
         let scheduleDay: string | null = null;
         let scheduleTime: string | null = null;
+        let matchedDojoId: number | null = null;
         
-        if (input.preferredSchedule && dojoRows.length > 0) {
-          // 從 preferredSchedule 解析 day 和 time，格式如 "星期一 4:00-5:00pm (賴政堡教練)"
+        // 優先用 classSchedule 匹配（新版報名表傳 "星期一 4:00-5:00pm" 格式）
+        const scheduleStr = input.classSchedule || input.preferredSchedule || reg.classSchedule || '';
+        if (scheduleStr && dojoRows.length > 0) {
+          // classSchedule 格式: "星期一 4:00-5:00pm"
           const matched = dojoRows.find(d => {
-            const label = `${d.scheduleDay} ${d.scheduleTime}${d.coachName ? ` (${d.coachName})` : ''}`;
-            return label === input.preferredSchedule;
+            const label = `${d.scheduleDay} ${d.scheduleTime}`;
+            return label === scheduleStr || `${label} (${d.coachName})` === scheduleStr;
           });
           if (matched) {
+            matchedDojoId = matched.id;
             if (matched.coachName) coachName = matched.coachName;
             scheduleDay = matched.scheduleDay;
             scheduleTime = matched.scheduleTime;
           }
         }
         // 如果沒有匹配到具體時段，取第一個有教練的
-        if (coachName === '賴政堡教練' && dojoRows.length > 0) {
+        if (!matchedDojoId && dojoRows.length > 0) {
           const withCoach = dojoRows.find(d => d.coachName);
-          if (withCoach?.coachName) coachName = withCoach.coachName;
+          if (withCoach) {
+            matchedDojoId = withCoach.id;
+            if (withCoach.coachName) coachName = withCoach.coachName;
+            scheduleDay = withCoach.scheduleDay;
+            scheduleTime = withCoach.scheduleTime;
+          } else {
+            // 如果都沒有教練，取第一個
+            matchedDojoId = dojoRows[0].id;
+            scheduleDay = dojoRows[0].scheduleDay;
+            scheduleTime = dojoRows[0].scheduleTime;
+          }
         }
 
         // 3. 建立學生記錄
@@ -9295,6 +9310,7 @@ export const appRouter = router({
           name: input.studentName,
           phone: input.parentPhone,
           venue: input.preferredDojo,
+          dojoId: matchedDojoId,
           scheduleDay: scheduleDay,
           scheduleTime: scheduleTime,
           feePerQuarter: String(input.feePerQuarter) as any,
