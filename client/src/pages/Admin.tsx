@@ -621,7 +621,7 @@ export default function Admin() {
               <TabsContent value="students">
 
           {/* 學生管理 */}
-            <Card>
+            <Card className="overflow-visible">
               <CardHeader>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -777,9 +777,8 @@ export default function Admin() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto -mx-2 px-2">
-                  <Table className="min-w-[800px]">
+              <CardContent className="px-0">
+                  <Table className="min-w-[1050px]">
                      <TableHeader className="sticky top-0 z-10 bg-background">
                        <TableRow>
                          <TableHead className="w-10 whitespace-nowrap px-2">編號</TableHead>
@@ -948,7 +947,6 @@ export default function Admin() {
                       })}
                     </TableBody>
                   </Table>
-                </div>
               </CardContent>
             </Card>
 
