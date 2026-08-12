@@ -22,6 +22,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 
 export default function RegistrationManagement() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchText, setSearchText] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [approveDialog, setApproveDialog] = useState<any | null>(null);
@@ -47,7 +48,19 @@ export default function RegistrationManagement() {
   });
 
   const registrations = registrationsQuery.data || [];
-  const filtered = statusFilter === "all" ? registrations : registrations.filter(r => r.status === statusFilter);
+  const filtered = (statusFilter === "all" ? registrations : registrations.filter(r => r.status === statusFilter))
+    .filter(r => {
+      if (!searchText.trim()) return true;
+      const q = searchText.trim().toLowerCase();
+      return (
+        r.studentName?.toLowerCase().includes(q) ||
+        r.englishName?.toLowerCase().includes(q) ||
+        r.parentName?.toLowerCase().includes(q) ||
+        r.parentPhone?.includes(q) ||
+        r.preferredDojo?.toLowerCase().includes(q) ||
+        r.parentEmail?.toLowerCase().includes(q)
+      );
+    });
 
   const counts = {
     all: registrations.length,
@@ -88,24 +101,32 @@ export default function RegistrationManagement() {
         </CardContent>
       </Card>
 
-      {/* Filter */}
-      <div className="flex flex-wrap gap-2">
-        {([
-          { key: "all", label: "全部" },
-          { key: "pending", label: "待審核" },
-          { key: "contacted", label: "已聯繫" },
-          { key: "enrolled", label: "已入學" },
-          { key: "rejected", label: "已拒絕" },
-        ] as const).map(({ key, label }) => (
-          <Button
-            key={key}
-            variant={statusFilter === key ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatusFilter(key)}
-          >
-            {label} <Badge variant="secondary" className="ml-1 text-xs">{counts[key]}</Badge>
-          </Button>
-        ))}
+      {/* Filter + Search */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-wrap gap-2 flex-1">
+          {([
+            { key: "all", label: "全部" },
+            { key: "pending", label: "待審核" },
+            { key: "contacted", label: "已聯繫" },
+            { key: "enrolled", label: "已入學" },
+            { key: "rejected", label: "已拒絕" },
+          ] as const).map(({ key, label }) => (
+            <Button
+              key={key}
+              variant={statusFilter === key ? "default" : "outline"}
+              size="sm"
+              onClick={() => setStatusFilter(key)}
+            >
+              {label} <Badge variant="secondary" className="ml-1 text-xs">{counts[key]}</Badge>
+            </Button>
+          ))}
+        </div>
+        <Input
+          placeholder="搜尋姓名/電話/道場..."
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          className="w-full sm:w-48 h-8 text-sm"
+        />
       </div>
 
       {/* List */}
