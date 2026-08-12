@@ -63,6 +63,8 @@ export default function Register() {
 
   // Fetch dojo options from system
   const dojosQuery = trpc.registration.getDojoOptions.useQuery();
+  // Fetch payment methods from system
+  const paymentMethodsQuery = trpc.registration.getPaymentMethods.useQuery();
 
   // Build flat list of all dojo+schedule options
   const dojoScheduleOptions = useMemo(() => {
@@ -553,6 +555,27 @@ export default function Register() {
                   <div className="border-t border-amber-200 pt-2 mt-2 flex justify-between">
                     <span className="text-sm font-bold text-amber-900">合計</span>
                     <span className="text-lg font-bold text-amber-900">${feeBreakdown.total.toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 轉帳資料 */}
+              {paymentMethodsQuery.data && paymentMethodsQuery.data.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-blue-800 mb-2">轉帳資料</p>
+                  <div className="space-y-2">
+                    {paymentMethodsQuery.data.map((m, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap">
+                          {m.type === 'fps' ? 'FPS' : '銀行'}
+                        </span>
+                        <div>
+                          <p className="text-slate-700 font-medium">{m.bankName}</p>
+                          <p className="text-slate-600 font-mono">{m.account}</p>
+                          <p className="text-slate-500 text-xs">{m.name}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

@@ -9058,6 +9058,21 @@ export const appRouter = router({
         return Array.from(dojoMap.values());
       }),
 
+    // 公開：取得轉帳資料
+    getPaymentMethods: publicProcedure
+      .query(async () => {
+        const { getRawPool } = await import("./db");
+        const pool = await getRawPool();
+        if (!pool) return [];
+        const [rows] = await pool.execute(
+          "SELECT config_value FROM system_config WHERE config_key = 'accepted_payee_accounts'"
+        ) as any;
+        if (!rows || rows.length === 0) return [];
+        try {
+          return JSON.parse(rows[0].config_value) as { name: string; account: string; type: string; bankName: string }[];
+        } catch { return []; }
+      }),
+
     // 公開：提交報名表（含收據上傳）
     submit: publicProcedure
       .input(z.object({
