@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, Loader2, Camera, X, User, MapPin, BookOpen, Phone, CreditCard, HelpCircle, Copy } from "lucide-react";
+import { CheckCircle2, Loader2, Camera, X, User, MapPin, BookOpen, Phone, CreditCard, HelpCircle, Copy, Upload, ImagePlus } from "lucide-react";
 
 // ── 色帶列表 ──
 const BELT_LEVELS = [
@@ -79,6 +79,7 @@ export default function Register() {
     setReceiptFile(null);
     setReceivingBank("BOC");
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
     // 保留：parentName, parentPhone, parentPhone2, parentEmail, facebook, address, howDidYouHear, referrer
     // 重置提交狀態
     setSubmitted(false);
@@ -90,6 +91,7 @@ export default function Register() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [copiedAccount, setCopiedAccount] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch dojo options from system
   const dojosQuery = trpc.registration.getDojoOptions.useQuery();
@@ -706,22 +708,40 @@ export default function Register() {
                   <div className="relative mt-3 rounded-2xl overflow-hidden border-2 border-slate-200">
                     <img src={receiptFile.preview} alt="收據" className="w-full max-h-60 object-contain bg-slate-50" />
                     <button type="button"
-                      onClick={() => { setReceiptFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                      onClick={() => { setReceiptFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; if (cameraInputRef.current) cameraInputRef.current.value = ''; }}
                       className="absolute top-3 right-3 bg-red-500 text-white rounded-full p-2 shadow-lg hover:bg-red-600 transition-colors">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
-                  <div onClick={() => fileInputRef.current?.click()}
-                    className={`mt-3 border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer hover:bg-slate-50 transition-all ${errors.receipt ? 'border-red-300 bg-red-50/30' : 'border-slate-300'}`}>
-                    <div className="w-14 h-14 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center mb-3">
-                      <Camera className="w-7 h-7 text-slate-400" />
+                  <div className={`mt-3 rounded-2xl ${errors.receipt ? 'ring-2 ring-red-300' : ''}`}>
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* 上傳相片 (從相簿選擇) */}
+                      <button type="button" onClick={() => fileInputRef.current?.click()}
+                        className="flex flex-col items-center gap-2 p-5 border-2 border-dashed border-slate-300 rounded-2xl hover:bg-blue-50 hover:border-blue-400 transition-all cursor-pointer">
+                        <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                          <Upload className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700">上傳相片</span>
+                        <span className="text-[11px] text-slate-400">從相簿選擇</span>
+                      </button>
+                      {/* 即時影相 (開啟相機) */}
+                      <button type="button" onClick={() => cameraInputRef.current?.click()}
+                        className="flex flex-col items-center gap-2 p-5 border-2 border-dashed border-slate-300 rounded-2xl hover:bg-green-50 hover:border-green-400 transition-all cursor-pointer">
+                        <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                          <Camera className="w-6 h-6 text-green-600" />
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700">即時影相</span>
+                        <span className="text-[11px] text-slate-400">開啟相機拍攝</span>
+                      </button>
                     </div>
-                    <p className="text-sm text-slate-600 font-semibold">點擊上傳收據</p>
-                    <p className="text-xs text-slate-400 mt-1">支援 JPG、PNG，最大 10MB</p>
+                    <p className="text-xs text-slate-400 mt-2 text-center">支援 JPG、PNG，最大 10MB</p>
                   </div>
                 )}
-                <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
+                {/* 從相簿上傳 - 無 capture 屬性 */}
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                {/* 即時拍照 - 有 capture 屬性 */}
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
                 <FieldError name="receipt" />
               </div>
             </CardContent>
