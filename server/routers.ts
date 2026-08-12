@@ -9166,7 +9166,14 @@ export const appRouter = router({
         if (!dbInst) return [];
         const all = await dbInst.select().from(schema.registrations)
           .orderBy(sql`${schema.registrations.createdAt} DESC`);
-        return all;
+        // 將 Date 物件轉為 ISO string，避免 superjson 反序列化後在前端渲染 Date 物件導致 React 崩潰
+        return all.map(row => ({
+          ...row,
+          createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+          updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
+          studentBirthDate: row.studentBirthDate instanceof Date ? row.studentBirthDate.toISOString().split('T')[0] : row.studentBirthDate,
+          firstClassDate: row.firstClassDate instanceof Date ? row.firstClassDate.toISOString().split('T')[0] : row.firstClassDate,
+        }));
       }),
 
     // 管理員：更新報名資料（可修改所有欄位）

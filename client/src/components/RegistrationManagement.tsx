@@ -154,7 +154,7 @@ export default function RegistrationManagement() {
                         <span>{reg.parentPhone}</span>
                         <span>{reg.preferredDojo || '未選道場'}</span>
                         {reg.classSchedule && <span>{reg.classSchedule}</span>}
-                        {reg.firstClassDate && <span>入學：{reg.firstClassDate}</span>}
+                        {reg.firstClassDate && <span>入學：{String(reg.firstClassDate)}</span>}
                         <span>{reg.createdAt ? new Date(reg.createdAt).toLocaleDateString('zh-HK') : ''}</span>
                       </div>
                     </div>
@@ -171,7 +171,7 @@ export default function RegistrationManagement() {
                         {reg.englishName && <div><span className="text-gray-400">英文名：</span>{reg.englishName}</div>}
                         {reg.referrer && <div><span className="text-gray-400">介紹人：</span>{reg.referrer}</div>}
                         {reg.beltLevel && <div><span className="text-gray-400">色帶：</span>{reg.beltLevel}</div>}
-                        {reg.studentBirthDate && <div><span className="text-gray-400">出生日期：</span>{reg.studentBirthDate}</div>}
+                        {reg.studentBirthDate && <div><span className="text-gray-400">出生日期：</span>{String(reg.studentBirthDate)}</div>}
                         {reg.parentName && <div><span className="text-gray-400">家長：</span>{reg.parentName}</div>}
                         {reg.parentPhone2 && <div><span className="text-gray-400">第二電話：</span>{reg.parentPhone2}</div>}
                         {reg.parentEmail && <div><span className="text-gray-400">電郵：</span>{reg.parentEmail}</div>}
