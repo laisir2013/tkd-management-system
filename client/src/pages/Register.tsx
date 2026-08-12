@@ -582,7 +582,7 @@ export default function Register() {
                           <div className="flex items-center gap-2 mt-0.5">
                             <p className="text-slate-800 font-mono text-base font-bold tracking-wide">{m.account}</p>
                             <button type="button"
-                              onClick={() => { navigator.clipboard.writeText(m.account); setCopiedAccount(m.account); setTimeout(() => setCopiedAccount(''), 2000); }}
+                              onClick={() => { navigator.clipboard.writeText(m.account.replace(/-/g, '')); setCopiedAccount(m.account); setTimeout(() => setCopiedAccount(''), 2000); }}
                               className="shrink-0 p-1.5 rounded-lg hover:bg-blue-100 transition-colors border border-transparent hover:border-blue-200">
                               {copiedAccount === m.account
                                 ? <CheckCircle2 className="w-4 h-4 text-green-600" />
