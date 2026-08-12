@@ -9324,9 +9324,13 @@ export const appRouter = router({
         const studentId = studentResult[0].insertId;
 
         // 4. 計算覆蓋月份（同新生首期邏輯）
+        // 新生首期繳費 = 學費 + 裝備費（道袍$400 + 手把$150 = $550）
+        // 計算月份時需扣除裝備費，只用純學費部分來推算覆蓋月數
+        const EQUIPMENT_FEE = 550; // 道袍($400) + 手把($150)
         const startMonth = firstClassDate.getMonth() + 1;
         const monthlyFee = input.feePerQuarter / 3;
-        const monthCount = monthlyFee > 0 ? Math.round(input.tuitionAmount / monthlyFee) : 3;
+        const pureTuition = Math.max(input.tuitionAmount - EQUIPMENT_FEE, monthlyFee); // 扣除裝備費，至少1個月
+        const monthCount = monthlyFee > 0 ? Math.round(pureTuition / monthlyFee) : 3;
 
         const coveredMonths: number[] = [];
         for (let i = 0; i < monthCount; i++) {
