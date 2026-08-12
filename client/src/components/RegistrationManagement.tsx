@@ -348,7 +348,9 @@ export default function RegistrationManagement() {
                     <br />
                     月費 = ${approveDialog.feePerQuarter}/3 = ${Math.round(approveDialog.feePerQuarter / 3)}/月
                     <br />
-                    覆蓋月數 = ${approveDialog.tuitionAmount} ÷ ${Math.round(approveDialog.feePerQuarter / 3)} = {Math.round(approveDialog.tuitionAmount / (approveDialog.feePerQuarter / 3))} 個月
+                    純學費 = ${approveDialog.tuitionAmount} − $550(裝備) = ${Math.max(approveDialog.tuitionAmount - 550, Math.round(approveDialog.feePerQuarter / 3))}
+                    <br />
+                    覆蓋月數 = ${Math.max(approveDialog.tuitionAmount - 550, Math.round(approveDialog.feePerQuarter / 3))} ÷ ${Math.round(approveDialog.feePerQuarter / 3)} = {Math.round(Math.max(approveDialog.tuitionAmount - 550, approveDialog.feePerQuarter / 3) / (approveDialog.feePerQuarter / 3))} 個月
                     <br />
                     起始月份 = {new Date(approveDialog.firstClassDate + 'T00:00:00').getMonth() + 1}月
                   </div>
