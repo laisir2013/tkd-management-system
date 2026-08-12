@@ -47,6 +47,7 @@ export const dojos = mysqlTable("dojos", {
   scheduleTime: varchar("schedule_time", { length: 100 }),
   coachName: varchar("coach_name", { length: 100 }),
   color: varchar("color", { length: 50 }).default("#3b82f6"),
+  quarterlyFee: decimal("quarterly_fee", { precision: 10, scale: 2 }).notNull().default("1800.00"),
   status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

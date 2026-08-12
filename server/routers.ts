@@ -9037,15 +9037,16 @@ export const appRouter = router({
           scheduleDay: schema.dojos.scheduleDay,
           scheduleTime: schema.dojos.scheduleTime,
           coachName: schema.dojos.coachName,
+          quarterlyFee: schema.dojos.quarterlyFee,
         }).from(schema.dojos)
           .where(eq(schema.dojos.status, 'active'));
         
         // 按道場名稱分組，每個道場列出所有時段
-        const dojoMap = new Map<string, { name: string; schedules: { id: number; day: string; time: string; coach: string | null }[] }>();
+        const dojoMap = new Map<string, { name: string; quarterlyFee: number; schedules: { id: number; day: string; time: string; coach: string | null }[] }>();
         for (const row of rows) {
           const key = row.name;
           if (!dojoMap.has(key)) {
-            dojoMap.set(key, { name: row.name, schedules: [] });
+            dojoMap.set(key, { name: row.name, quarterlyFee: Number(row.quarterlyFee) || 1800, schedules: [] });
           }
           dojoMap.get(key)!.schedules.push({
             id: row.id,

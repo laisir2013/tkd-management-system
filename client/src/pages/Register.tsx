@@ -50,6 +50,8 @@ export default function Register() {
   const [howDidYouHearOther, setHowDidYouHearOther] = useState("");
   const [parentName, setParentName] = useState("");
   const [parentPhone2, setParentPhone2] = useState("");
+  const [needDobok, setNeedDobok] = useState(true);
+  const [needMitts, setNeedMitts] = useState(true);
   const [tuitionAmount, setTuitionAmount] = useState("");
   const [receivingBank, setReceivingBank] = useState("BOC");
   const [receiptFile, setReceiptFile] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
@@ -95,6 +97,18 @@ export default function Register() {
       label: `${s.day} ${s.time}`,
     }));
   }, [selectedLocation, dojosQuery.data]);
+
+  // 費用自動計算
+  const feeBreakdown = useMemo(() => {
+    if (!selectedLocation || !dojosQuery.data) return null;
+    const dojo = dojosQuery.data.find(d => d.name === selectedLocation);
+    if (!dojo) return null;
+    const tuition = dojo.quarterlyFee;
+    const dobok = needDobok ? 400 : 0;
+    const mitts = needMitts ? 150 : 0;
+    const total = tuition + dobok + mitts;
+    return { tuition, dobok, mitts, total };
+  }, [selectedLocation, dojosQuery.data, needDobok, needMitts]);
 
   // 計算首堂日期選項：前3週 + 後3週
   const firstClassDateOptions = useMemo(() => {
@@ -204,7 +218,9 @@ export default function Register() {
       facebook: facebook.trim() || undefined,
       dobokSize: dobokSizes.join(', ') || undefined,
       firstClassDate: (firstClassDate === '__custom__' ? firstClassDateCustom : firstClassDate) || undefined,
-      tuitionAmount: tuitionAmount ? Number(tuitionAmount) : undefined,
+      tuitionAmount: feeBreakdown?.total || undefined,
+      needDobok: needDobok || undefined,
+      needMitts: needMitts || undefined,
       receivingBank: receivingBank || undefined,
       receiptBase64: receiptFile?.base64,
       receiptMimeType: receiptFile?.mimeType,
@@ -510,23 +526,47 @@ export default function Register() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium text-slate-700">繳費金額 (HKD)</Label>
-                  <Input type="number" inputMode="numeric" placeholder="例：1800"
-                    value={tuitionAmount} onChange={e => setTuitionAmount(e.target.value)}
-                    className="mt-1.5 rounded-lg" />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-slate-700">轉帳至</Label>
-                  <div className="flex gap-2 mt-1.5">
-                    {[{ v: 'BOC', l: '中銀' }, { v: 'HSBC', l: '滙豐' }, { v: 'CASH', l: '現金' }].map(b => (
-                      <button key={b.v} type="button" onClick={() => setReceivingBank(b.v)}
-                        className={`flex-1 py-2.5 rounded-lg text-xs font-medium border-2 transition-all ${receivingBank === b.v ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                        {b.l}
-                      </button>
-                    ))}
+              {/* 費用明細 */}
+              {feeBreakdown && (
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 space-y-2">
+                  <p className="text-sm font-semibold text-amber-800 mb-2">費用明細</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">學費（3個月）</span>
+                    <span className="font-medium text-slate-800">${feeBreakdown.tuition.toLocaleString()}</span>
                   </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={needDobok} onChange={e => setNeedDobok(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
+                      <span className="text-slate-600">道袍</span>
+                    </label>
+                    <span className={`font-medium ${needDobok ? 'text-slate-800' : 'text-slate-400 line-through'}`}>$400</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={needMitts} onChange={e => setNeedMitts(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
+                      <span className="text-slate-600">手把</span>
+                    </label>
+                    <span className={`font-medium ${needMitts ? 'text-slate-800' : 'text-slate-400 line-through'}`}>$150</span>
+                  </div>
+                  <div className="border-t border-amber-200 pt-2 mt-2 flex justify-between">
+                    <span className="text-sm font-bold text-amber-900">合計</span>
+                    <span className="text-lg font-bold text-amber-900">${feeBreakdown.total.toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 轉帳方式 */}
+              <div>
+                <Label className="text-sm font-medium text-slate-700">轉帳至</Label>
+                <div className="flex gap-2 mt-1.5">
+                  {[{ v: 'BOC', l: '中銀' }, { v: 'HSBC', l: '滙豐' }, { v: 'CASH', l: '現金' }].map(b => (
+                    <button key={b.v} type="button" onClick={() => setReceivingBank(b.v)}
+                      className={`flex-1 py-2.5 rounded-lg text-xs font-medium border-2 transition-all ${receivingBank === b.v ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                      {b.l}
+                    </button>
+                  ))}
                 </div>
               </div>
 
