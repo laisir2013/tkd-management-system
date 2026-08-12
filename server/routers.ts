@@ -9397,13 +9397,71 @@ export const appRouter = router({
           receivingBank: receivingBankLabel,
         });
 
-        // 7. 更新報名記錄狀態
+        // 7. 計算下期繳費資訊（12堂制 → 按比例接回自然季度）
+        function getQuarterEnd(date: Date) {
+          const m = date.getMonth();
+          const y = date.getFullYear();
+          if (m <= 2) return new Date(y, 2, 31);
+          if (m <= 5) return new Date(y, 5, 30);
+          if (m <= 8) return new Date(y, 8, 30);
+          return new Date(y, 11, 31);
+        }
+        function getNextQuarterStart(date: Date) {
+          const qEnd = getQuarterEnd(date);
+          return new Date(qEnd.getFullYear(), qEnd.getMonth() + 1, 1);
+        }
+
+        // 首期第12堂（第1堂=week0）
+        const lastClassOfFirst = new Date(firstClassDate);
+        lastClassOfFirst.setDate(lastClassOfFirst.getDate() + 11 * 7);
+
+        const startQuarterEnd = getQuarterEnd(firstClassDate);
+        const firstPeriodCrossesQuarter = lastClassOfFirst.getTime() > startQuarterEnd.getTime();
+
+        let nextPaymentDate: Date;
+        let nextPaymentAmount: number;
+
+        if (!firstPeriodCrossesQuarter) {
+          // 12堂在本季內完成 → 下期為下一個完整季度
+          nextPaymentDate = getNextQuarterStart(firstClassDate);
+          nextPaymentAmount = input.feePerQuarter;
+        } else {
+          // 首期跨季 → 第13堂起到該季尾，按比例
+          const nextClassStart = new Date(lastClassOfFirst);
+          nextClassStart.setDate(nextClassStart.getDate() + 7);
+          const nextQuarterEnd = getQuarterEnd(nextClassStart);
+          const diffMs = nextQuarterEnd.getTime() - nextClassStart.getTime();
+          let diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
+
+          if (diffWeeks <= 0) {
+            // 第13堂已近季尾，跳到下一完整季度
+            nextPaymentDate = getNextQuarterStart(nextClassStart);
+            nextPaymentAmount = input.feePerQuarter;
+          } else {
+            if (diffWeeks >= 12) diffWeeks = 12;
+            nextPaymentDate = nextClassStart;
+            nextPaymentAmount = Math.round((diffWeeks / 12) * input.feePerQuarter / 10) * 10;
+          }
+        }
+
+        // 更新學生的下期繳費資訊
+        await dbInst.execute(
+          sql`UPDATE students SET next_payment_date = ${nextPaymentDate.toISOString().split('T')[0]}, next_payment_amount = ${nextPaymentAmount} WHERE id = ${studentId}`
+        );
+
+        // 8. 更新報名記錄狀態
         await dbInst.update(schema.registrations).set({
           status: 'enrolled',
           convertedStudentId: studentId,
         }).where(eq(schema.registrations.id, input.id));
 
-        return { success: true, studentId, monthsCovered: coveredMonths };
+        return {
+          success: true,
+          studentId,
+          monthsCovered: coveredMonths,
+          nextPaymentDate: nextPaymentDate.toISOString().split('T')[0],
+          nextPaymentAmount,
+        };
       }),
 
     // 管理員：更新報名狀態（簡單狀態變更）
