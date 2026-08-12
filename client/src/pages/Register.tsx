@@ -27,6 +27,7 @@ const HOW_KNOW_OPTIONS = ["朋友介紹", "FACEBOOK", "傳單", "街招", "Googl
 
 export default function Register() {
   const [submitted, setSubmitted] = useState(false);
+  const [submittedStudentName, setSubmittedStudentName] = useState("");
 
   // Form state
   const [studentName, setStudentName] = useState("");
@@ -55,6 +56,36 @@ export default function Register() {
   const [receiptFile, setReceiptFile] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [medicalConditions, setMedicalConditions] = useState("");
   const [remarks, setRemarks] = useState("");
+
+  // 「再報一位家庭成員」— 只清學生欄位，保留家長/聯絡資料
+  const handleRegisterAnother = () => {
+    // 清空學生專屬欄位
+    setStudentName("");
+    setEnglishName("");
+    setStudentGender("");
+    setStudentBirthYear("");
+    setStudentBirthMonth("");
+    setStudentBirthDay("");
+    setBeltLevel("");
+    setDobokSizes([]);
+    setMedicalConditions("");
+    setRemarks("");
+    // 清空上課安排（兄弟可能不同時段）
+    setSelectedLocation("");
+    setSelectedDojoId("");
+    setFirstClassDate("");
+    setFirstClassDateCustom("");
+    // 清空繳費收據（每位學生需獨立收據）
+    setReceiptFile(null);
+    setReceivingBank("BOC");
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    // 保留：parentName, parentPhone, parentPhone2, parentEmail, facebook, address, howDidYouHear, referrer
+    // 重置提交狀態
+    setSubmitted(false);
+    setErrors({});
+    // 滾到頂部
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [copiedAccount, setCopiedAccount] = useState("");
@@ -145,7 +176,10 @@ export default function Register() {
   }, [selectedDojoId, dojoScheduleOptions]);
 
   const submitMutation = trpc.registration.submit.useMutation({
-    onSuccess: () => setSubmitted(true),
+    onSuccess: () => {
+      setSubmittedStudentName(studentName);
+      setSubmitted(true);
+    },
   });
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -242,15 +276,22 @@ export default function Register() {
           </div>
           <CardContent className="pt-8 pb-10 px-8 text-center space-y-5">
             <p className="text-gray-600 text-base">
-              已收到 <strong className="text-slate-900">{studentName}</strong> 的報名資料及繳費收據。
+              已收到 <strong className="text-slate-900">{submittedStudentName}</strong> 的報名資料及繳費收據。
             </p>
             <div className="bg-slate-50 rounded-2xl p-5 text-left text-sm text-slate-700 leading-relaxed border border-slate-100">
               <p className="font-bold mb-2 text-slate-900">後續安排：</p>
               <p>管理員將於 1-2 個工作天內核實收據並確認報名，確認後會透過 WhatsApp 通知您。</p>
             </div>
-            <Button onClick={() => window.location.reload()} variant="outline" className="mt-3 rounded-full px-8 h-11 font-semibold border-2">
-              再報名另一位學生
-            </Button>
+            <div className="space-y-3 pt-2">
+              <Button onClick={handleRegisterAnother}
+                className="w-full h-12 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-lg shadow-blue-500/20">
+                👨‍👩‍👦 再報一位家庭成員
+              </Button>
+              <p className="text-xs text-slate-400">家長資料將自動帶入，只需填寫學生資料</p>
+              <Button onClick={() => window.location.reload()} variant="outline" className="w-full h-11 rounded-2xl font-semibold border-2 text-slate-600">
+                完成報名
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
