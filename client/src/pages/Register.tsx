@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, Loader2, Camera, X, User, MapPin, BookOpen, Phone, CreditCard, HelpCircle, Copy, Upload, ImagePlus } from "lucide-react";
+import { CheckCircle2, Loader2, Camera, X, User, MapPin, BookOpen, Phone, CreditCard, HelpCircle, Copy, Upload } from "lucide-react";
 
 // ── 色帶列表 ──
 const BELT_LEVELS = [
@@ -76,6 +76,7 @@ export default function Register() {
     setFirstClassDate("");
     setFirstClassDateCustom("");
     // 清空繳費收據（每位學生需獨立收據）
+    if (receiptFile?.preview) URL.revokeObjectURL(receiptFile.preview);
     setReceiptFile(null);
     setReceivingBank("BOC");
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -194,6 +195,8 @@ export default function Register() {
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = (reader.result as string).split(',')[1];
+      // Revoke previous URL to prevent memory leak
+      if (receiptFile?.preview) URL.revokeObjectURL(receiptFile.preview);
       setReceiptFile({ base64, mimeType: file.type, preview: URL.createObjectURL(file) });
       setErrors(prev => { const { receipt, ...rest } = prev; return rest; });
     };
@@ -708,7 +711,7 @@ export default function Register() {
                   <div className="relative mt-3 rounded-2xl overflow-hidden border-2 border-slate-200">
                     <img src={receiptFile.preview} alt="收據" className="w-full max-h-60 object-contain bg-slate-50" />
                     <button type="button"
-                      onClick={() => { setReceiptFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; if (cameraInputRef.current) cameraInputRef.current.value = ''; }}
+                      onClick={() => { if (receiptFile?.preview) URL.revokeObjectURL(receiptFile.preview); setReceiptFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; if (cameraInputRef.current) cameraInputRef.current.value = ''; }}
                       className="absolute top-3 right-3 bg-red-500 text-white rounded-full p-2 shadow-lg hover:bg-red-600 transition-colors">
                       <X className="w-4 h-4" />
                     </button>

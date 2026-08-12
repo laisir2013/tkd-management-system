@@ -9122,6 +9122,7 @@ export const appRouter = router({
         // 收款銀行標準化
         const receivingBankLabel = input.receivingBank === 'BOC' ? '中銀香港 (BOC)'
           : input.receivingBank === 'HSBC' ? '滙豐銀行 (HSBC)'
+          : input.receivingBank === 'FPS' ? '轉數快 (FPS)'
           : input.receivingBank === 'CASH' ? '現金'
           : input.receivingBank || null;
 
