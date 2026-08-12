@@ -50,8 +50,6 @@ export default function Register() {
   const [howDidYouHearOther, setHowDidYouHearOther] = useState("");
   const [parentName, setParentName] = useState("");
   const [parentPhone2, setParentPhone2] = useState("");
-  const [needDobok, setNeedDobok] = useState(true);
-  const [needMitts, setNeedMitts] = useState(true);
   const [tuitionAmount, setTuitionAmount] = useState("");
   const [receivingBank, setReceivingBank] = useState("BOC");
   const [receiptFile, setReceiptFile] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
@@ -100,17 +98,17 @@ export default function Register() {
     }));
   }, [selectedLocation, dojosQuery.data]);
 
-  // 費用自動計算
+  // 費用自動計算（道袍+手把為必買項目）
   const feeBreakdown = useMemo(() => {
     if (!selectedLocation || !dojosQuery.data) return null;
     const dojo = dojosQuery.data.find(d => d.name === selectedLocation);
     if (!dojo) return null;
     const tuition = dojo.quarterlyFee;
-    const dobok = needDobok ? 400 : 0;
-    const mitts = needMitts ? 150 : 0;
+    const dobok = 400;
+    const mitts = 150;
     const total = tuition + dobok + mitts;
     return { tuition, dobok, mitts, total };
-  }, [selectedLocation, dojosQuery.data, needDobok, needMitts]);
+  }, [selectedLocation, dojosQuery.data]);
 
   // 計算首堂日期選項：前3週 + 後3週
   const firstClassDateOptions = useMemo(() => {
@@ -221,8 +219,6 @@ export default function Register() {
       dobokSize: dobokSizes.join(', ') || undefined,
       firstClassDate: (firstClassDate === '__custom__' ? firstClassDateCustom : firstClassDate) || undefined,
       tuitionAmount: feeBreakdown?.total || undefined,
-      needDobok: needDobok || undefined,
-      needMitts: needMitts || undefined,
       receivingBank: receivingBank || undefined,
       receiptBase64: receiptFile?.base64,
       receiptMimeType: receiptFile?.mimeType,
@@ -536,21 +532,13 @@ export default function Register() {
                     <span className="text-slate-600">學費（3個月）</span>
                     <span className="font-medium text-slate-800">${feeBreakdown.tuition.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={needDobok} onChange={e => setNeedDobok(e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
-                      <span className="text-slate-600">道袍</span>
-                    </label>
-                    <span className={`font-medium ${needDobok ? 'text-slate-800' : 'text-slate-400 line-through'}`}>$400</span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">道袍</span>
+                    <span className="font-medium text-slate-800">$400</span>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={needMitts} onChange={e => setNeedMitts(e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
-                      <span className="text-slate-600">手把</span>
-                    </label>
-                    <span className={`font-medium ${needMitts ? 'text-slate-800' : 'text-slate-400 line-through'}`}>$150</span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">手把</span>
+                    <span className="font-medium text-slate-800">$150</span>
                   </div>
                   <div className="border-t border-amber-200 pt-2 mt-2 flex justify-between">
                     <span className="text-sm font-bold text-amber-900">合計</span>
