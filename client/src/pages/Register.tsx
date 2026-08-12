@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, Loader2, Camera, X, User, MapPin, BookOpen, Phone, CreditCard, HelpCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Camera, X, User, MapPin, BookOpen, Phone, CreditCard, HelpCircle, Copy } from "lucide-react";
 
 // ── 色帶列表 ──
 const BELT_LEVELS = [
@@ -57,6 +57,7 @@ export default function Register() {
   const [remarks, setRemarks] = useState("");
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [copiedAccount, setCopiedAccount] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch dojo options from system
@@ -557,9 +558,18 @@ export default function Register() {
                         <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap">
                           {m.type === 'fps' ? 'FPS' : '銀行'}
                         </span>
-                        <div>
+                        <div className="flex-1">
                           <p className="text-slate-700 font-medium">{m.bankName}</p>
-                          <p className="text-slate-600 font-mono">{m.account}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-slate-600 font-mono">{m.account}</p>
+                            <button type="button"
+                              onClick={() => { navigator.clipboard.writeText(m.account); setCopiedAccount(m.account); setTimeout(() => setCopiedAccount(''), 2000); }}
+                              className="p-1 rounded hover:bg-blue-100 transition-colors">
+                              {copiedAccount === m.account
+                                ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                                : <Copy className="w-3.5 h-3.5 text-blue-500" />}
+                            </button>
+                          </div>
                           <p className="text-slate-500 text-xs">{m.name}</p>
                         </div>
                       </div>
