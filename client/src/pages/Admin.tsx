@@ -778,7 +778,8 @@ export default function Admin() {
                 </div>
               </CardHeader>
               <CardContent className="px-0">
-                  <Table className="min-w-[1050px]">
+                <div className="overflow-auto max-h-[75vh] border-t border-slate-200" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <table className="w-full caption-bottom text-sm min-w-[1050px]">
                      <TableHeader className="sticky top-0 z-20 bg-background">
                        <TableRow>
                          <TableHead className="sticky left-0 z-30 bg-background whitespace-nowrap px-2 sm:px-3 w-10">編號</TableHead>
@@ -946,7 +947,8 @@ export default function Admin() {
                         );
                       })}
                     </TableBody>
-                  </Table>
+                  </table>
+                </div>
               </CardContent>
             </Card>
 
