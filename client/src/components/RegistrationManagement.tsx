@@ -85,6 +85,7 @@ export default function RegistrationManagement() {
     } catch { return DEFAULT_FORM_FIELDS; }
   });
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
 
   const registrationsQuery = trpc.registration.getAll.useQuery();
   const updateMutation = trpc.registration.update.useMutation({
@@ -295,11 +296,27 @@ export default function RegistrationManagement() {
   }
 
   // ═══════════════════════════════════════════
-  // PAGE: 報名表設定 (拖拽排版)
+  // PAGE: 報名表設定 (Google Form 風格)
   // ═══════════════════════════════════════════
   if (pageView === "settings") {
-    const sections = [...new Set(formFields.map(f => f.section))];
     const sortedFields = [...formFields].sort((a, b) => a.order - b.order);
+    const sections = ["學生資料", "上課安排", "聯絡資料", "繳費資料", "其他資料"];
+    const SECTION_COLORS: Record<string, { bg: string; icon: string; border: string }> = {
+      "學生資料": { bg: "bg-blue-100", icon: "text-blue-600", border: "border-blue-200" },
+      "上課安排": { bg: "bg-emerald-100", icon: "text-emerald-600", border: "border-emerald-200" },
+      "聯絡資料": { bg: "bg-violet-100", icon: "text-violet-600", border: "border-violet-200" },
+      "繳費資料": { bg: "bg-amber-100", icon: "text-amber-600", border: "border-amber-200" },
+      "其他資料": { bg: "bg-slate-100", icon: "text-slate-600", border: "border-slate-200" },
+    };
+    const SECTION_ICONS: Record<string, typeof User> = {
+      "學生資料": User,
+      "上課安排": MapPin,
+      "聯絡資料": Phone,
+      "繳費資料": CreditCard,
+      "其他資料": FileText,
+    };
+    // Which field is being edited (expanded)
+    const resetEditField = () => setEditingField(null);
 
     const handleDragStart = (idx: number) => setDragIdx(idx);
     const handleDragOver = (e: React.DragEvent, idx: number) => {
@@ -338,87 +355,179 @@ export default function RegistrationManagement() {
 
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        {/* Sticky header bar */}
+        <div className="flex items-center justify-between sticky top-0 z-20 bg-white/95 backdrop-blur-sm -mx-1 px-1 py-2 border-b border-slate-100">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => setPageView("list")}>
               <ArrowLeft className="w-4 h-4 mr-1" /> 返回
             </Button>
             <h3 className="font-bold text-lg">報名表設定</h3>
+            <span className="text-xs text-gray-400 hidden sm:inline">（拖拽排序 • 點擊欄位可修改）</span>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={resetSettings}>重置預設</Button>
-            <Button size="sm" onClick={saveSettings} className="bg-blue-600 hover:bg-blue-700">儲存設定</Button>
+            <Button size="sm" onClick={saveSettings} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> 儲存設定
+            </Button>
           </div>
         </div>
 
-        <p className="text-sm text-gray-500">拖拽欄位調整順序，開關控制顯示/隱藏和必填。修改會影響報名表的顯示排版。</p>
+        {/* Form header preview - like real form */}
+        <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-lg">
+          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-red-950 p-6 text-center relative">
+            <div className="absolute top-2 right-2 bg-white/10 backdrop-blur px-2 py-1 rounded-full text-[10px] text-white/60">預覽</div>
+            <img src="/static/logo.png" alt="Logo" className="mx-auto w-16 h-16 object-contain mb-2 drop-shadow-lg" />
+            <h2 className="text-xl font-black text-white">創武跆拳道館</h2>
+            <p className="text-sm text-white/70">新生報名表</p>
+          </div>
+        </div>
 
-        <Card>
-          <CardContent className="pt-4 pb-2">
-            <div className="space-y-1">
-              {sortedFields.map((field, idx) => (
-                <div
-                  key={field.key}
-                  draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragOver={(e) => handleDragOver(e, idx)}
-                  onDragEnd={handleDragEnd}
-                  className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${
-                    dragIdx === idx ? 'bg-blue-50 border-blue-300 shadow-md scale-[1.02]' : 'border-slate-200 hover:bg-slate-50'
-                  } ${!field.visible ? 'opacity-50' : ''}`}
-                >
-                  <GripVertical className="w-4 h-4 text-gray-300 shrink-0" />
-                  <span className="text-xs text-gray-400 w-5 text-center shrink-0">{idx + 1}</span>
+        {/* Form sections - Google Form style */}
+        {sections.map(sectionName => {
+          const sectionFields = sortedFields.filter(f => f.section === sectionName);
+          if (sectionFields.length === 0) return null;
+          const color = SECTION_COLORS[sectionName] || SECTION_COLORS["其他資料"];
+          const IconComp = SECTION_ICONS[sectionName] || FileText;
 
-                  {/* Editable label */}
-                  <input
-                    value={field.label}
-                    onChange={e => updateLabel(field.key, e.target.value)}
-                    className="flex-1 text-sm font-medium bg-transparent border-none outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 -mx-1 min-w-0"
-                  />
-
-                  {/* Section tag */}
-                  <select
-                    value={field.section}
-                    onChange={e => updateSection(field.key, e.target.value)}
-                    className="text-[10px] bg-slate-100 border-none rounded px-2 py-1 text-slate-500 shrink-0"
-                  >
-                    {sections.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-
-                  {/* Required toggle */}
-                  <button
-                    onClick={() => toggleRequired(field.key)}
-                    className={`text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${field.required ? 'bg-red-50 text-red-600 border-red-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}
-                  >
-                    {field.required ? "必填" : "選填"}
-                  </button>
-
-                  {/* Visible toggle */}
-                  <button onClick={() => toggleVisible(field.key)} className="shrink-0">
-                    {field.visible ? <Eye className="w-4 h-4 text-green-500" /> : <EyeOff className="w-4 h-4 text-gray-300" />}
-                  </button>
+          return (
+            <div key={sectionName} className={`rounded-3xl border ${color.border} overflow-hidden shadow-sm`}>
+              {/* Section header */}
+              <div className="bg-white border-b border-slate-100 px-5 py-4 flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-xl ${color.bg} flex items-center justify-center`}>
+                  <IconComp className={`w-4 h-4 ${color.icon}`} />
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <span className="font-bold text-slate-800 text-sm">{sectionName}</span>
+                <span className="text-[10px] text-slate-400 ml-auto">{sectionFields.filter(f => f.visible).length}/{sectionFields.length} 欄位顯示中</span>
+              </div>
 
-        {/* Preview section */}
-        <Card>
-          <CardContent className="pt-4">
-            <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><Eye className="w-4 h-4" /> 排版預覽</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              {sortedFields.filter(f => f.visible).map(field => (
-                <div key={field.key} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-dashed border-slate-200">
-                  <span className="text-gray-500">{field.label}</span>
-                  {field.required && <span className="text-red-400 text-xs">*</span>}
-                  <span className="ml-auto text-[10px] text-gray-300">{field.section}</span>
-                </div>
-              ))}
+              {/* Fields in this section */}
+              <div className="bg-white p-4 space-y-2">
+                {sectionFields.map((field, localIdx) => {
+                  const globalIdx = sortedFields.findIndex(f => f.key === field.key);
+                  const isEditing = editingField === field.key;
+                  const isDragging = dragIdx === globalIdx;
+
+                  return (
+                    <div
+                      key={field.key}
+                      draggable
+                      onDragStart={() => handleDragStart(globalIdx)}
+                      onDragOver={(e) => handleDragOver(e, globalIdx)}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => setEditingField(isEditing ? null : field.key)}
+                      className={`group relative rounded-2xl border-2 transition-all duration-200 cursor-grab active:cursor-grabbing ${
+                        isDragging
+                          ? 'border-blue-400 bg-blue-50 shadow-lg scale-[1.02] ring-2 ring-blue-200'
+                          : isEditing
+                            ? 'border-blue-400 bg-white shadow-md ring-1 ring-blue-100'
+                            : 'border-transparent hover:border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-sm'
+                      } ${!field.visible ? 'opacity-40' : ''}`}
+                    >
+                      {/* Drag handle bar */}
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-slate-200 group-hover:bg-slate-300 mt-1 transition-colors" />
+
+                      <div className="p-4 pt-4">
+                        {/* Field display — like the real form */}
+                        <div className="flex items-start gap-3">
+                          <GripVertical className="w-4 h-4 text-slate-300 group-hover:text-slate-400 mt-0.5 shrink-0 transition-colors" />
+
+                          <div className="flex-1 min-w-0">
+                            {/* Label row */}
+                            <div className="flex items-center gap-2 mb-2">
+                              {isEditing ? (
+                                <input
+                                  value={field.label}
+                                  onChange={e => { e.stopPropagation(); updateLabel(field.key, e.target.value); }}
+                                  onClick={e => e.stopPropagation()}
+                                  className="flex-1 text-sm font-semibold text-slate-700 bg-white border border-blue-300 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-200"
+                                  autoFocus
+                                />
+                              ) : (
+                                <span className="text-sm font-semibold text-slate-700">{field.label}</span>
+                              )}
+                              {field.required && <span className="text-red-500 text-sm">*</span>}
+                              {!field.visible && (
+                                <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full">已隱藏</span>
+                              )}
+                            </div>
+
+                            {/* Fake input — shows what the field looks like */}
+                            <div className="h-10 rounded-xl border border-slate-200 bg-slate-50/80 flex items-center px-3">
+                              <span className="text-sm text-slate-300 truncate">
+                                {field.key === 'studentGender' ? '男 / 女' :
+                                 field.key === 'studentBirthDate' ? '年 / 月 / 日' :
+                                 field.key === 'beltLevel' ? '選擇色帶...' :
+                                 field.key === 'dobokSize' ? '選擇道袍尺寸...' :
+                                 field.key === 'preferredDojo' ? '選擇道場...' :
+                                 field.key === 'classSchedule' ? '選擇上課時間...' :
+                                 field.key === 'firstClassDate' ? '選擇日期...' :
+                                 field.key === 'receivingBank' ? '選擇收款方式...' :
+                                 field.key === 'receiptUrl' ? '📷 上傳收據圖片' :
+                                 field.key === 'howDidYouHear' ? '選擇途徑...' :
+                                 field.key === 'medicalConditions' || field.key === 'remarks' ? '選填文字...' :
+                                 `輸入${field.label}...`}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Quick controls - always visible on hover, always on editing */}
+                          <div className={`flex items-center gap-1 shrink-0 transition-opacity ${isEditing || isDragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                            onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => toggleRequired(field.key)}
+                              title={field.required ? "改為選填" : "改為必填"}
+                              className={`text-[10px] px-2 py-1 rounded-full border font-medium transition-colors ${
+                                field.required ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+                              }`}
+                            >
+                              {field.required ? "必填" : "選填"}
+                            </button>
+                            <button
+                              onClick={() => toggleVisible(field.key)}
+                              title={field.visible ? "隱藏此欄位" : "顯示此欄位"}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                            >
+                              {field.visible ? <Eye className="w-3.5 h-3.5 text-green-500" /> : <EyeOff className="w-3.5 h-3.5 text-gray-300" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Expanded editing panel */}
+                        {isEditing && (
+                          <div className="mt-3 pt-3 border-t border-dashed border-blue-200" onClick={e => e.stopPropagation()}>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">所屬區塊</label>
+                                <select
+                                  value={field.section}
+                                  onChange={e => updateSection(field.key, e.target.value)}
+                                  className="mt-1 w-full text-xs bg-white border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-200"
+                                >
+                                  {sections.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">欄位 ID</label>
+                                <div className="mt-1 text-xs text-slate-400 bg-slate-50 rounded-lg px-2 py-1.5 font-mono border border-slate-100">{field.key}</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          );
+        })}
+
+        {/* Floating save bar for mobile */}
+        <div className="sticky bottom-4 flex justify-center">
+          <Button onClick={saveSettings} className="bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-600/30 rounded-full px-6 h-11">
+            <CheckCircle2 className="w-4 h-4 mr-2" /> 儲存所有設定
+          </Button>
+        </div>
       </div>
     );
   }
