@@ -15,7 +15,7 @@ import {
   Phone, Loader2, Trash2, ExternalLink, Copy,
   MessageSquare, CheckCircle2, Image, CreditCard, User,
   MapPin, Settings, GripVertical, Eye, EyeOff, Pencil, FileText,
-  ArrowLeft, ClipboardList
+  ArrowLeft, ClipboardList, Plus, X, CircleDot, CheckSquare, Type, List
 } from "lucide-react";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -26,6 +26,8 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 // ═══ Form field configuration (for settings page) ═══
+type FieldType = "text" | "radio" | "checkbox" | "textarea" | "date" | "file" | "select";
+
 type FormField = {
   key: string;
   label: string;
@@ -33,6 +35,21 @@ type FormField = {
   visible: boolean;
   required: boolean;
   order: number;
+  // Custom question fields
+  fieldType?: FieldType;      // field input type
+  options?: string[];         // choices for radio/checkbox/select
+  isCustom?: boolean;         // true = user-added question (can be deleted)
+  placeholder?: string;       // placeholder hint text
+};
+
+const FIELD_TYPE_LABELS: Record<FieldType, string> = {
+  text: "文字輸入",
+  radio: "單選題",
+  checkbox: "多選題",
+  textarea: "長文字",
+  date: "日期",
+  file: "檔案上傳",
+  select: "下拉選單",
 };
 
 const DEFAULT_FORM_FIELDS: FormField[] = [
@@ -343,6 +360,78 @@ export default function RegistrationManagement() {
     const updateSection = (key: string, section: string) => {
       setFormFields(prev => prev.map(f => f.key === key ? { ...f, section } : f));
     };
+    const updateFieldType = (key: string, fieldType: FieldType) => {
+      setFormFields(prev => prev.map(f => {
+        if (f.key !== key) return f;
+        const updated = { ...f, fieldType };
+        // Auto-add default options for radio/checkbox/select if none exist
+        if ((fieldType === 'radio' || fieldType === 'checkbox' || fieldType === 'select') && (!updated.options || updated.options.length === 0)) {
+          updated.options = ["選項 1", "選項 2"];
+        }
+        // Clear options for non-choice types
+        if (fieldType === 'text' || fieldType === 'textarea' || fieldType === 'date' || fieldType === 'file') {
+          updated.options = undefined;
+        }
+        return updated;
+      }));
+    };
+    const updateOption = (key: string, idx: number, value: string) => {
+      setFormFields(prev => prev.map(f => {
+        if (f.key !== key || !f.options) return f;
+        const opts = [...f.options];
+        opts[idx] = value;
+        return { ...f, options: opts };
+      }));
+    };
+    const addOption = (key: string) => {
+      setFormFields(prev => prev.map(f => {
+        if (f.key !== key) return f;
+        const opts = [...(f.options || [])];
+        opts.push(`選項 ${opts.length + 1}`);
+        return { ...f, options: opts };
+      }));
+    };
+    const removeOption = (key: string, idx: number) => {
+      setFormFields(prev => prev.map(f => {
+        if (f.key !== key || !f.options) return f;
+        const opts = f.options.filter((_, i) => i !== idx);
+        return { ...f, options: opts.length > 0 ? opts : ["選項 1"] };
+      }));
+    };
+    const addCustomField = (section: string) => {
+      const newKey = `custom_${Date.now()}`;
+      const maxOrder = Math.max(...formFields.map(f => f.order), -1);
+      // Insert after last field of this section
+      const sectionFields = formFields.filter(f => f.section === section);
+      const insertAfterOrder = sectionFields.length > 0
+        ? Math.max(...sectionFields.map(f => f.order))
+        : maxOrder;
+      // Shift all fields after insertion point
+      const updated = formFields.map(f => f.order > insertAfterOrder ? { ...f, order: f.order + 1 } : f);
+      const newField: FormField = {
+        key: newKey,
+        label: "新問題",
+        section,
+        visible: true,
+        required: false,
+        order: insertAfterOrder + 1,
+        fieldType: "text",
+        isCustom: true,
+        placeholder: "輸入答案...",
+      };
+      setFormFields([...updated, newField]);
+      setEditingField(newKey);
+    };
+    const deleteField = (key: string) => {
+      setFormFields(prev => {
+        const filtered = prev.filter(f => f.key !== key);
+        // Re-order
+        const sorted = [...filtered].sort((a, b) => a.order - b.order);
+        sorted.forEach((f, i) => f.order = i);
+        return sorted;
+      });
+      if (editingField === key) setEditingField(null);
+    };
     const saveSettings = () => {
       localStorage.setItem("reg_form_fields", JSON.stringify(formFields));
       toast.success("報名表設定已儲存");
@@ -351,6 +440,34 @@ export default function RegistrationManagement() {
       setFormFields(DEFAULT_FORM_FIELDS);
       localStorage.removeItem("reg_form_fields");
       toast.success("已重置為預設");
+    };
+
+    // Helper: get display placeholder for a field
+    const getFieldPlaceholder = (field: FormField): string => {
+      if (field.isCustom) {
+        if (field.fieldType === 'radio') return '⊙ 單選題';
+        if (field.fieldType === 'checkbox') return '☑ 多選題';
+        if (field.fieldType === 'select') return '▼ 下拉選單';
+        if (field.fieldType === 'textarea') return '長文字輸入...';
+        if (field.fieldType === 'date') return '選擇日期...';
+        if (field.fieldType === 'file') return '📎 上傳檔案';
+        return field.placeholder || `輸入${field.label}...`;
+      }
+      // Built-in fields
+      switch (field.key) {
+        case 'studentGender': return '男 / 女';
+        case 'studentBirthDate': return '年 / 月 / 日';
+        case 'beltLevel': return '選擇色帶...';
+        case 'dobokSize': return '選擇道袍尺寸...';
+        case 'preferredDojo': return '選擇道場...';
+        case 'classSchedule': return '選擇上課時間...';
+        case 'firstClassDate': return '選擇日期...';
+        case 'receivingBank': return '選擇收款方式...';
+        case 'receiptUrl': return '📷 上傳收據圖片';
+        case 'howDidYouHear': return '選擇途徑...';
+        case 'medicalConditions': case 'remarks': return '選填文字...';
+        default: return `輸入${field.label}...`;
+      }
     };
 
     return (
@@ -385,7 +502,7 @@ export default function RegistrationManagement() {
         {/* Form sections - Google Form style */}
         {sections.map(sectionName => {
           const sectionFields = sortedFields.filter(f => f.section === sectionName);
-          if (sectionFields.length === 0) return null;
+          if (sectionFields.length === 0 && !["學生資料", "上課安排", "聯絡資料", "繳費資料", "其他資料"].includes(sectionName)) return null;
           const color = SECTION_COLORS[sectionName] || SECTION_COLORS["其他資料"];
           const IconComp = SECTION_ICONS[sectionName] || FileText;
 
@@ -397,15 +514,17 @@ export default function RegistrationManagement() {
                   <IconComp className={`w-4 h-4 ${color.icon}`} />
                 </div>
                 <span className="font-bold text-slate-800 text-sm">{sectionName}</span>
-                <span className="text-[10px] text-slate-400 ml-auto">{sectionFields.filter(f => f.visible).length}/{sectionFields.length} 欄位顯示中</span>
+                <span className="text-[10px] text-slate-400 ml-auto">{sectionFields.filter(f => f.visible).length}/{sectionFields.length} 欄位</span>
               </div>
 
               {/* Fields in this section */}
               <div className="bg-white p-4 space-y-2">
-                {sectionFields.map((field, localIdx) => {
+                {sectionFields.map((field) => {
                   const globalIdx = sortedFields.findIndex(f => f.key === field.key);
                   const isEditing = editingField === field.key;
                   const isDragging = dragIdx === globalIdx;
+                  const hasOptions = field.options && field.options.length > 0;
+                  const fType = field.fieldType || 'text';
 
                   return (
                     <div
@@ -446,32 +565,94 @@ export default function RegistrationManagement() {
                                 <span className="text-sm font-semibold text-slate-700">{field.label}</span>
                               )}
                               {field.required && <span className="text-red-500 text-sm">*</span>}
+                              {field.isCustom && (
+                                <span className="text-[10px] bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded-full border border-blue-200">自訂</span>
+                              )}
                               {!field.visible && (
                                 <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full">已隱藏</span>
                               )}
                             </div>
 
-                            {/* Fake input — shows what the field looks like */}
-                            <div className="h-10 rounded-xl border border-slate-200 bg-slate-50/80 flex items-center px-3">
-                              <span className="text-sm text-slate-300 truncate">
-                                {field.key === 'studentGender' ? '男 / 女' :
-                                 field.key === 'studentBirthDate' ? '年 / 月 / 日' :
-                                 field.key === 'beltLevel' ? '選擇色帶...' :
-                                 field.key === 'dobokSize' ? '選擇道袍尺寸...' :
-                                 field.key === 'preferredDojo' ? '選擇道場...' :
-                                 field.key === 'classSchedule' ? '選擇上課時間...' :
-                                 field.key === 'firstClassDate' ? '選擇日期...' :
-                                 field.key === 'receivingBank' ? '選擇收款方式...' :
-                                 field.key === 'receiptUrl' ? '📷 上傳收據圖片' :
-                                 field.key === 'howDidYouHear' ? '選擇途徑...' :
-                                 field.key === 'medicalConditions' || field.key === 'remarks' ? '選填文字...' :
-                                 `輸入${field.label}...`}
-                              </span>
-                            </div>
+                            {/* Field preview — depends on type */}
+                            {(fType === 'radio' || fType === 'checkbox') && hasOptions ? (
+                              /* Radio/Checkbox options preview */
+                              <div className="space-y-1.5">
+                                {field.options!.map((opt, oi) => (
+                                  <div key={oi} className="flex items-center gap-2">
+                                    {fType === 'radio' ? (
+                                      <div className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0" />
+                                    ) : (
+                                      <div className="w-4 h-4 rounded border-2 border-slate-300 shrink-0" />
+                                    )}
+                                    {isEditing ? (
+                                      <div className="flex-1 flex items-center gap-1">
+                                        <input
+                                          value={opt}
+                                          onChange={e => { e.stopPropagation(); updateOption(field.key, oi, e.target.value); }}
+                                          onClick={e => e.stopPropagation()}
+                                          className="flex-1 text-sm text-slate-600 bg-transparent border-b border-slate-200 focus:border-blue-400 outline-none py-0.5 px-1"
+                                        />
+                                        {field.options!.length > 1 && (
+                                          <button onClick={e => { e.stopPropagation(); removeOption(field.key, oi); }}
+                                            className="p-0.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-400 transition-colors">
+                                            <X className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-sm text-slate-600">{opt}</span>
+                                    )}
+                                  </div>
+                                ))}
+                                {isEditing && (
+                                  <button onClick={e => { e.stopPropagation(); addOption(field.key); }}
+                                    className="flex items-center gap-2 text-xs text-blue-500 hover:text-blue-700 ml-6 mt-1 py-1">
+                                    <Plus className="w-3.5 h-3.5" /> 新增選項
+                                  </button>
+                                )}
+                              </div>
+                            ) : fType === 'select' && hasOptions ? (
+                              /* Select dropdown preview */
+                              <div className="space-y-1.5">
+                                <div className="h-10 rounded-xl border border-slate-200 bg-slate-50/80 flex items-center px-3 justify-between">
+                                  <span className="text-sm text-slate-300">▼ 從下列選項中選擇...</span>
+                                </div>
+                                {isEditing && (
+                                  <div className="ml-2 pl-3 border-l-2 border-slate-200 space-y-1 mt-2">
+                                    {field.options!.map((opt, oi) => (
+                                      <div key={oi} className="flex items-center gap-1">
+                                        <span className="text-[10px] text-slate-300 w-4">{oi+1}.</span>
+                                        <input
+                                          value={opt}
+                                          onChange={e => { e.stopPropagation(); updateOption(field.key, oi, e.target.value); }}
+                                          onClick={e => e.stopPropagation()}
+                                          className="flex-1 text-sm text-slate-600 bg-transparent border-b border-slate-200 focus:border-blue-400 outline-none py-0.5 px-1"
+                                        />
+                                        {field.options!.length > 1 && (
+                                          <button onClick={e => { e.stopPropagation(); removeOption(field.key, oi); }}
+                                            className="p-0.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-400">
+                                            <X className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    ))}
+                                    <button onClick={e => { e.stopPropagation(); addOption(field.key); }}
+                                      className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 mt-1 py-1">
+                                      <Plus className="w-3.5 h-3.5" /> 新增選項
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              /* Text/textarea/date/file input preview */
+                              <div className={`${fType === 'textarea' ? 'h-20' : 'h-10'} rounded-xl border border-slate-200 bg-slate-50/80 flex items-center px-3`}>
+                                <span className="text-sm text-slate-300 truncate">{getFieldPlaceholder(field)}</span>
+                              </div>
+                            )}
                           </div>
 
-                          {/* Quick controls - always visible on hover, always on editing */}
-                          <div className={`flex items-center gap-1 shrink-0 transition-opacity ${isEditing || isDragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                          {/* Quick controls */}
+                          <div className={`flex flex-col items-end gap-1 shrink-0 transition-opacity ${isEditing || isDragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                             onClick={e => e.stopPropagation()}>
                             <button
                               onClick={() => toggleRequired(field.key)}
@@ -482,20 +663,47 @@ export default function RegistrationManagement() {
                             >
                               {field.required ? "必填" : "選填"}
                             </button>
-                            <button
-                              onClick={() => toggleVisible(field.key)}
-                              title={field.visible ? "隱藏此欄位" : "顯示此欄位"}
-                              className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
-                            >
-                              {field.visible ? <Eye className="w-3.5 h-3.5 text-green-500" /> : <EyeOff className="w-3.5 h-3.5 text-gray-300" />}
-                            </button>
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                onClick={() => toggleVisible(field.key)}
+                                title={field.visible ? "隱藏此欄位" : "顯示此欄位"}
+                                className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                              >
+                                {field.visible ? <Eye className="w-3.5 h-3.5 text-green-500" /> : <EyeOff className="w-3.5 h-3.5 text-gray-300" />}
+                              </button>
+                              {field.isCustom && (
+                                <button
+                                  onClick={() => deleteField(field.key)}
+                                  title="刪除此問題"
+                                  className="p-1 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
 
                         {/* Expanded editing panel */}
                         {isEditing && (
                           <div className="mt-3 pt-3 border-t border-dashed border-blue-200" onClick={e => e.stopPropagation()}>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">問題類型</label>
+                                <select
+                                  value={fType}
+                                  onChange={e => updateFieldType(field.key, e.target.value as FieldType)}
+                                  className="mt-1 w-full text-xs bg-white border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-200"
+                                >
+                                  <option value="text">✏️ 文字輸入</option>
+                                  <option value="radio">⊙ 單選題</option>
+                                  <option value="checkbox">☑ 多選題</option>
+                                  <option value="select">▼ 下拉選單</option>
+                                  <option value="textarea">📝 長文字</option>
+                                  <option value="date">📅 日期</option>
+                                  <option value="file">📎 檔案上傳</option>
+                                </select>
+                              </div>
                               <div>
                                 <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">所屬區塊</label>
                                 <select
@@ -508,8 +716,17 @@ export default function RegistrationManagement() {
                               </div>
                               <div>
                                 <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">欄位 ID</label>
-                                <div className="mt-1 text-xs text-slate-400 bg-slate-50 rounded-lg px-2 py-1.5 font-mono border border-slate-100">{field.key}</div>
+                                <div className="mt-1 text-xs text-slate-400 bg-slate-50 rounded-lg px-2 py-1.5 font-mono border border-slate-100 truncate">{field.key}</div>
                               </div>
+                            </div>
+
+                            {/* Type description */}
+                            <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
+                              {fType === 'radio' && <><CircleDot className="w-3 h-3" /> 家長只能選 1 個答案</>}
+                              {fType === 'checkbox' && <><CheckSquare className="w-3 h-3" /> 家長可以選多個答案</>}
+                              {fType === 'select' && <><List className="w-3 h-3" /> 下拉式選單，只能選 1 個</>}
+                              {fType === 'text' && <><Type className="w-3 h-3" /> 家長自由輸入文字</>}
+                              {fType === 'textarea' && <><Type className="w-3 h-3" /> 多行文字輸入</>}
                             </div>
                           </div>
                         )}
@@ -517,6 +734,15 @@ export default function RegistrationManagement() {
                     </div>
                   );
                 })}
+
+                {/* Add question button */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); addCustomField(sectionName); }}
+                  className="w-full flex items-center justify-center gap-2 py-3 mt-2 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/50 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="text-sm font-medium">新增問題</span>
+                </button>
               </div>
             </div>
           );
