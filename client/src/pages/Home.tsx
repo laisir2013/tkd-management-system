@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogIn, GraduationCap, ClipboardCheck, Shield, CreditCard } from "lucide-react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 
 // 根據角色陣列決定可用入口
@@ -22,12 +22,17 @@ function getPortals(roles: string[]) {
 }
 
 export default function Home() {
+  const search = useSearch();
+  const urlParams = new URLSearchParams(search);
+  const initialRedirectTab = urlParams.get("tab") || "";
+
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [loggedInUser, setLoggedInUser] = useState<{ name: string; roles: string[]; role: string } | null>(null);
+  const [redirectTab, setRedirectTab] = useState(initialRedirectTab);
 
   const utils = trpc.useUtils();
   const loginMutation = trpc.auth.login.useMutation();
@@ -76,7 +81,8 @@ export default function Home() {
         
         // 家長直接跳轉繳費頁
         if (result.role === 'parent' || (roles.length === 1 && roles[0] === 'user')) {
-          setLocation(`/payment?phone=${encodeURIComponent(phone)}`);
+          const tabParam = redirectTab ? `&tab=${redirectTab}` : '';
+          setLocation(`/payment?phone=${encodeURIComponent(phone)}${tabParam}`);
           return;
         }
         
@@ -199,6 +205,29 @@ export default function Home() {
             </div>
           </CardContent>
         </Card>
+
+        {/* 快捷入口 */}
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setLocation("/register")}
+            className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-100 hover:border-blue-200"
+          >
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+              <span className="text-lg">📝</span>
+            </div>
+            <span className="text-sm font-medium text-gray-700">新生報名</span>
+          </button>
+          <button
+            onClick={() => { setRedirectTab('exam-registration'); setError(''); }}
+            className={`flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition-all border ${redirectTab === 'exam-registration' ? 'border-orange-400 ring-2 ring-orange-200' : 'border-gray-100 hover:border-orange-200'}`}
+          >
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+              <span className="text-lg">🥋</span>
+            </div>
+            <span className="text-sm font-medium text-gray-700">考試報名</span>
+            {redirectTab === 'exam-registration' && <span className="text-[10px] text-orange-600">登入後直接跳轉</span>}
+          </button>
+        </div>
       </div>
     </div>
   );
