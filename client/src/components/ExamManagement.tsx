@@ -338,6 +338,20 @@ function OverviewPage({ examId }: { examId: number }) {
           >
             {examData.registrationOpen ? '📋 報名中' : '📋 開放報名'}
           </Button>
+          {examData.registrationOpen && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-blue-600 border-blue-300"
+              onClick={() => {
+                const url = `${window.location.origin}/exam-register/${examId}`;
+                navigator.clipboard.writeText(url);
+                toast.success('報名連結已複製！可發送給家長');
+              }}
+            >
+              🔗 複製報名連結
+            </Button>
+          )}
           {examData.status === 'draft' && <Button size="sm" variant="outline" onClick={() => updateExam.mutate({ id: examId, status: 'scheduled' })}>排程</Button>}
           {examData.status === 'scheduled' && <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-white" onClick={() => updateExam.mutate({ id: examId, status: 'in_progress' })}>開始考試</Button>}
           {examData.status === 'in_progress' && <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => updateExam.mutate({ id: examId, status: 'completed' })}>完成考試</Button>}

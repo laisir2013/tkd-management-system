@@ -20,6 +20,7 @@ import ExamAttendance from "./pages/ExamAttendance";
 import StaffLogin from "./pages/StaffLogin";
 import StaffDashboard from "./pages/StaffDashboard";
 import Register from "./pages/Register";
+import ExamRegister from "./pages/ExamRegister";
 
 function Router() {
   return (
@@ -39,6 +40,7 @@ function Router() {
       <Route path={"/staff-login"} component={StaffLogin} />
       <Route path={"/staff"} component={StaffDashboard} />
       <Route path={"/register"} component={Register} />
+      <Route path={"/exam-register/:examId"} component={ExamRegister} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
