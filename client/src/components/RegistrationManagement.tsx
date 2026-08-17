@@ -15,8 +15,11 @@ import {
   Phone, Loader2, Trash2, ExternalLink, Copy,
   MessageSquare, CheckCircle2, Image, CreditCard, User,
   MapPin, Settings, GripVertical, Eye, EyeOff, Pencil, FileText,
-  ArrowLeft, ClipboardList, Plus, X, CircleDot, CheckSquare, Type, List
+  ArrowLeft, ClipboardList, Plus, X, CircleDot, CheckSquare, Type, List,
+  Send
 } from "lucide-react";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
+import { calcNewStudentProRata, WEEKDAY_NAMES } from "@/lib/newStudentCalc";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   pending: { label: "待處理", color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
@@ -93,6 +96,10 @@ export default function RegistrationManagement() {
   const [approveDialog, setApproveDialog] = useState<any | null>(null);
   const [editDialog, setEditDialog] = useState<any | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+  const [approvalResult, setApprovalResult] = useState<{
+    data: any;          // server response: { studentId, monthsCovered, nextPaymentDate, nextPaymentAmount }
+    dialogSnapshot: any; // approveDialog data at the time of approval
+  } | null>(null);
 
   // Form settings state
   const [formFields, setFormFields] = useState<FormField[]>(() => {
@@ -112,7 +119,8 @@ export default function RegistrationManagement() {
     onSuccess: (data) => {
       registrationsQuery.refetch();
       toast.success(`已批准入學！學生已加入系統，覆蓋 ${data.monthsCovered.map((m: number) => m + '月').join('、')}`);
-      setApproveDialog(null);
+      // 不關閉 dialog，而是切換到 WhatsApp 通知模式
+      setApprovalResult({ data, dialogSnapshot: { ...approveDialog } });
     },
     onError: (err) => toast.error(`批准失敗：${err.message}`),
   });
@@ -932,6 +940,7 @@ export default function RegistrationManagement() {
                             feePerQuarter: 1800,
                             firstClassDate: reg.firstClassDate || '',
                             receivingBank: reg.receivingBank?.includes('BOC') ? 'BOC' : reg.receivingBank?.includes('HSBC') ? 'HSBC' : reg.receivingBank?.includes('FPS') ? 'FPS' : reg.receivingBank === '現金' ? 'CASH' : 'BOC',
+                            dobokSize: reg.dobokSize || '',
                           })}>
                           <CheckCircle2 className="w-3 h-3 mr-1" /> 批准入學
                         </Button>
@@ -959,109 +968,296 @@ export default function RegistrationManagement() {
 
       {/* ═══ Approve Dialog ═══ */}
       {approveDialog && (
-        <Dialog open={true} onOpenChange={() => setApproveDialog(null)}>
+        <Dialog open={true} onOpenChange={() => { setApproveDialog(null); setApprovalResult(null); }}>
           <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
-                批准報名 — {approveDialog.studentName}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <p className="text-sm text-gray-500">
-                批准後系統將自動建立學生資料、繳費記錄及會計記錄。請確認以下資料：
-              </p>
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">學生姓名</Label>
-                  <Input value={approveDialog.studentName} onChange={e => setApproveDialog({ ...approveDialog, studentName: e.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">家長電話</Label>
-                  <Input value={approveDialog.parentPhone} onChange={e => setApproveDialog({ ...approveDialog, parentPhone: e.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">道場</Label>
-                  <Input value={approveDialog.preferredDojo} onChange={e => setApproveDialog({ ...approveDialog, preferredDojo: e.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">時段</Label>
-                  <Input value={approveDialog.preferredSchedule || ''} readOnly className="bg-gray-50" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">首堂日期 (入學日) <span className="text-red-500">*</span></Label>
-                  <Input type="date" value={approveDialog.firstClassDate} onChange={e => setApproveDialog({ ...approveDialog, firstClassDate: e.target.value })} />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">繳費金額 <span className="text-red-500">*</span></Label>
-                    <Input type="number" value={approveDialog.tuitionAmount} onChange={e => setApproveDialog({ ...approveDialog, tuitionAmount: Number(e.target.value) })} />
+            {/* ─── 批准成功：WhatsApp 通知模式 ─── */}
+            {approvalResult ? (() => {
+              const snap = approvalResult.dialogSnapshot;
+              const res = approvalResult.data;
+              // 從 classSchedule 或 preferredSchedule 提取星期
+              const scheduleStr = snap.classSchedule || snap.preferredSchedule || '';
+              // 嘗試從 scheduleStr 提取星期X（e.g. "星期六 2:00-3:00pm"）
+              const weekdayMatch = scheduleStr.match(/星期[一二三四五六日]/);
+              const scheduleDayStr = weekdayMatch ? weekdayMatch[0] : '';
+              // 計算 pro-rata 資訊
+              const proRata = scheduleDayStr
+                ? calcNewStudentProRata(snap.firstClassDate, scheduleDayStr, snap.feePerQuarter)
+                : null;
+              // 覆蓋月份文字
+              const coveredMonthsText = (res.monthsCovered as number[]).map((m: number) => `${m}月`).join('、');
+              // 首堂日期
+              const joinDate = new Date(snap.firstClassDate + 'T00:00:00');
+              const joinDateText = `${joinDate.getFullYear()}年${joinDate.getMonth() + 1}月${joinDate.getDate()}日`;
+              // 12 堂結束日期
+              const class12DateText = proRata
+                ? `${proRata.class12Date.getFullYear()}年${proRata.class12Date.getMonth() + 1}月${proRata.class12Date.getDate()}日`
+                : '';
+              // 學費期間文字
+              const firstMonth = (res.monthsCovered as number[])[0];
+              const lastMonth = (res.monthsCovered as number[])[(res.monthsCovered as number[]).length - 1];
+              const tuitionPeriodText = `${joinDate.getMonth() + 1}月${joinDate.getDate()}日–${lastMonth}月底`;
+              // 下期繳費
+              const nextPayDate = new Date(res.nextPaymentDate + 'T00:00:00');
+              const nextPayDateText = `${nextPayDate.getFullYear()}年${nextPayDate.getMonth() + 1}月`;
+              // 下期季度標籤
+              const nextQuarterLabel = proRata?.nextQuarterLabel || (() => {
+                const m = nextPayDate.getMonth() + 1;
+                if (m <= 3) return '1-3月';
+                if (m <= 6) return '4-6月';
+                if (m <= 9) return '7-9月';
+                return '10-12月';
+              })();
+              // 道袍尺寸
+              const dobokSize = snap.dobokSize || '';
+              // 學費金額分解
+              const EQUIPMENT_FEE = 550;
+              const pureTuition = snap.tuitionAmount - EQUIPMENT_FEE;
+
+              // ═══ 生成 WhatsApp 訊息 ═══
+              const buildWhatsAppMessage = () => {
+                const lines: string[] = [];
+
+                // Part 1: 收費確認
+                lines.push(`🥋 *${snap.studentName}* 家長您好！`);
+                lines.push('');
+                lines.push(`感謝您報讀本館跆拳道課程。現確認已收到閣下繳交之費用 *$${snap.tuitionAmount.toLocaleString()}*，明細如下：`);
+                lines.push('');
+                lines.push('📋 *繳費明細*');
+                lines.push(`• 學費（${tuitionPeriodText}，共12堂）：$${pureTuition.toLocaleString()}`);
+                lines.push(`• 手把：$150`);
+                lines.push(`• 道袍${dobokSize ? `（${dobokSize}）` : ''}：$400`);
+                lines.push(`• 合計：*$${snap.tuitionAmount.toLocaleString()}*`);
+
+                // Part 2: 上課詳情
+                lines.push('');
+                lines.push('📍 *上課詳情*');
+                lines.push(`• 地點：${snap.preferredDojo}`);
+                lines.push(`• 時間：${scheduleStr || '待安排'}`);
+                lines.push(`• 首堂日期：${joinDateText}`);
+                if (class12DateText) {
+                  lines.push(`• 第12堂日期：${class12DateText}`);
+                }
+
+                // Part 3: 收費模式說明
+                lines.push('');
+                lines.push('───────────────');
+                lines.push('');
+                lines.push('📌 *收費模式說明*');
+                lines.push('');
+                lines.push('本館採用「季度繳費」制度，每年分為四個季度：');
+                lines.push('• 第一季：1月 – 3月');
+                lines.push('• 第二季：4月 – 6月');
+                lines.push('• 第三季：7月 – 9月');
+                lines.push('• 第四季：10月 – 12月');
+                lines.push('');
+                lines.push(`每季學費為 *$${snap.feePerQuarter.toLocaleString()}*（3個月），即每月 $${Math.round(snap.feePerQuarter / 3).toLocaleString()}。`);
+
+                // Part 4: 中途插班比例計算
+                lines.push('');
+                lines.push('📐 *中途入學按比例安排*');
+                lines.push('');
+                lines.push(`由於 ${snap.studentName} 於季度中途入學，首期費用以按比例方式計算。首12堂課程完成後，將銜接回本館的季度繳費周期。`);
+                lines.push('');
+
+                // Part 5: 下期繳費
+                lines.push('💰 *下期繳費安排*');
+                lines.push('');
+                if (res.nextPaymentAmount >= snap.feePerQuarter) {
+                  lines.push(`下一期繳費期為 *${nextQuarterLabel}*，費用為全期 *$${res.nextPaymentAmount.toLocaleString()}*。`);
+                } else {
+                  lines.push(`下一期繳費期為 *${nextQuarterLabel}*，由於12堂週期已覆蓋部分月份，按比例計算後費用為 *$${res.nextPaymentAmount.toLocaleString()}*。`);
+                  if (proRata) {
+                    if (proRata.coveredWholeMonths > 0) {
+                      const coveredNames = [];
+                      const qStartMonth = proRata.nextQuarterMonths[0];
+                      for (let i = 0; i < proRata.coveredWholeMonths; i++) {
+                        coveredNames.push(`${qStartMonth + i}月`);
+                      }
+                      lines.push(`（${coveredNames.join('、')}仍在12堂週期內，只需繳交餘下${proRata.monthsCharged}個月的費用${proRata.overlapClasses > 0 ? `，另扣除${proRata.overlapClasses}堂重疊堂數$${proRata.overlapDeduction}` : ''}）`);
+                    } else if (proRata.overlapClasses > 0) {
+                      lines.push(`（扣除${proRata.overlapClasses}堂重疊堂數 $${proRata.overlapDeduction}）`);
+                    }
+                  }
+                }
+
+                // Part 6: 補堂及順延政策
+                lines.push('');
+                lines.push('───────────────');
+                lines.push('');
+                lines.push('📝 *補堂及費用順延政策*');
+                lines.push('');
+                lines.push('1️⃣ *補堂安排*');
+                lines.push('如因事請假，可安排於其他時段補課。補堂不限於當期完成，日後任何時間均可安排補回。');
+                lines.push('');
+                lines.push('2️⃣ *費用順延*');
+                lines.push('如需申請費用順延，請於請假前 *至少一個月* 提出申請。未能於一個月前通知者，該堂費用將不作順延處理。');
+
+                // Part 7: 結尾
+                lines.push('');
+                lines.push('───────────────');
+                lines.push('');
+                lines.push('如有任何疑問，歡迎隨時聯絡我們！🙏');
+
+                return lines.join('\n');
+              };
+
+              const whatsappMessage = buildWhatsAppMessage();
+              const whatsappUrl = `https://api.whatsapp.com/send?phone=852${snap.parentPhone}&text=${encodeURIComponent(whatsappMessage)}`;
+
+              return (
+                <>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-green-700">
+                      <CheckCircle2 className="w-5 h-5" />
+                      入學批准成功！
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    {/* 成功摘要 */}
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm space-y-1">
+                      <div className="font-semibold text-green-800">✅ {snap.studentName} 已成功加入系統</div>
+                      <div className="text-green-700">學生 ID：{res.studentId}</div>
+                      <div className="text-green-700">已繳 ${snap.tuitionAmount.toLocaleString()}（覆蓋 {coveredMonthsText}）</div>
+                      <div className="text-green-700">下期：{nextQuarterLabel} — ${res.nextPaymentAmount.toLocaleString()}</div>
+                    </div>
+
+                    {/* WhatsApp 訊息預覽 */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-gray-600">📱 WhatsApp 通知訊息預覽</Label>
+                      <div className="bg-gray-50 border rounded-lg p-3 text-xs whitespace-pre-wrap max-h-60 overflow-y-auto font-mono leading-relaxed">
+                        {whatsappMessage}
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">季費標準</Label>
-                    <Input type="number" value={approveDialog.feePerQuarter} onChange={e => setApproveDialog({ ...approveDialog, feePerQuarter: Number(e.target.value) })} />
+                  <DialogFooter className="flex-col sm:flex-row gap-2">
+                    <Button variant="outline" onClick={() => { setApproveDialog(null); setApprovalResult(null); }}>
+                      關閉
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="text-gray-600"
+                      onClick={() => {
+                        navigator.clipboard.writeText(whatsappMessage);
+                        toast.success('訊息已複製到剪貼板');
+                      }}
+                    >
+                      <Copy className="w-4 h-4 mr-1" /> 複製訊息
+                    </Button>
+                    <Button
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => window.open(whatsappUrl, '_blank')}
+                    >
+                      <WhatsAppIcon className="w-4 h-4 mr-1" /> 發送 WhatsApp 通知
+                    </Button>
+                  </DialogFooter>
+                </>
+              );
+            })() : (
+              /* ─── 批准確認表單（原有邏輯） ─── */
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    批准報名 — {approveDialog.studentName}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <p className="text-sm text-gray-500">
+                    批准後系統將自動建立學生資料、繳費記錄及會計記錄。請確認以下資料：
+                  </p>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">學生姓名</Label>
+                      <Input value={approveDialog.studentName} onChange={e => setApproveDialog({ ...approveDialog, studentName: e.target.value })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">家長電話</Label>
+                      <Input value={approveDialog.parentPhone} onChange={e => setApproveDialog({ ...approveDialog, parentPhone: e.target.value })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">道場</Label>
+                      <Input value={approveDialog.preferredDojo} onChange={e => setApproveDialog({ ...approveDialog, preferredDojo: e.target.value })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">時段</Label>
+                      <Input value={approveDialog.preferredSchedule || approveDialog.classSchedule || ''} readOnly className="bg-gray-50" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">首堂日期 (入學日) <span className="text-red-500">*</span></Label>
+                      <Input type="date" value={approveDialog.firstClassDate} onChange={e => setApproveDialog({ ...approveDialog, firstClassDate: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">繳費金額 <span className="text-red-500">*</span></Label>
+                        <Input type="number" value={approveDialog.tuitionAmount} onChange={e => setApproveDialog({ ...approveDialog, tuitionAmount: Number(e.target.value) })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">季費標準</Label>
+                        <Input type="number" value={approveDialog.feePerQuarter} onChange={e => setApproveDialog({ ...approveDialog, feePerQuarter: Number(e.target.value) })} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">收款方式</Label>
+                      <Select value={approveDialog.receivingBank} onValueChange={v => setApproveDialog({ ...approveDialog, receivingBank: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="BOC">中銀香港 (BOC)</SelectItem>
+                          <SelectItem value="HSBC">滙豐銀行 (HSBC)</SelectItem>
+                          <SelectItem value="FPS">轉數快 (FPS)</SelectItem>
+                          <SelectItem value="CASH">現金</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {approveDialog.beltLevel && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">色帶</Label>
+                        <Input value={approveDialog.beltLevel} readOnly className="bg-gray-50" />
+                      </div>
+                    )}
+                    {approveDialog.firstClassDate && approveDialog.feePerQuarter > 0 && approveDialog.tuitionAmount > 0 && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                        <strong>系統將自動計算：</strong><br />
+                        月費 = ${approveDialog.feePerQuarter}/3 = ${Math.round(approveDialog.feePerQuarter / 3)}/月<br />
+                        純學費 = ${approveDialog.tuitionAmount} − $550(裝備) = ${Math.max(approveDialog.tuitionAmount - 550, Math.round(approveDialog.feePerQuarter / 3))}<br />
+                        覆蓋月數 = {Math.round(Math.max(approveDialog.tuitionAmount - 550, approveDialog.feePerQuarter / 3) / (approveDialog.feePerQuarter / 3))} 個月<br />
+                        起始月份 = {new Date(approveDialog.firstClassDate + 'T00:00:00').getMonth() + 1}月
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">收款方式</Label>
-                  <Select value={approveDialog.receivingBank} onValueChange={v => setApproveDialog({ ...approveDialog, receivingBank: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BOC">中銀香港 (BOC)</SelectItem>
-                      <SelectItem value="HSBC">滙豐銀行 (HSBC)</SelectItem>
-                      <SelectItem value="FPS">轉數快 (FPS)</SelectItem>
-                      <SelectItem value="CASH">現金</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {approveDialog.beltLevel && (
-                  <div className="space-y-1">
-                    <Label className="text-xs">色帶</Label>
-                    <Input value={approveDialog.beltLevel} readOnly className="bg-gray-50" />
-                  </div>
-                )}
-                {approveDialog.firstClassDate && approveDialog.feePerQuarter > 0 && approveDialog.tuitionAmount > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                    <strong>系統將自動計算：</strong><br />
-                    月費 = ${approveDialog.feePerQuarter}/3 = ${Math.round(approveDialog.feePerQuarter / 3)}/月<br />
-                    純學費 = ${approveDialog.tuitionAmount} − $550(裝備) = ${Math.max(approveDialog.tuitionAmount - 550, Math.round(approveDialog.feePerQuarter / 3))}<br />
-                    覆蓋月數 = {Math.round(Math.max(approveDialog.tuitionAmount - 550, approveDialog.feePerQuarter / 3) / (approveDialog.feePerQuarter / 3))} 個月<br />
-                    起始月份 = {new Date(approveDialog.firstClassDate + 'T00:00:00').getMonth() + 1}月
-                  </div>
-                )}
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setApproveDialog(null)}>取消</Button>
-              <Button
-                className="bg-green-600 hover:bg-green-700"
-                disabled={approveMutation.isPending || !approveDialog.firstClassDate || !approveDialog.tuitionAmount}
-                onClick={() => {
-                  if (!approveDialog.firstClassDate) { toast.error("請填寫首堂日期"); return; }
-                  if (!approveDialog.tuitionAmount) { toast.error("請填寫繳費金額"); return; }
-                  if (!approveDialog.preferredDojo) { toast.error("請填寫道場"); return; }
-                  approveMutation.mutate({
-                    id: approveDialog.id,
-                    studentName: approveDialog.studentName,
-                    parentPhone: approveDialog.parentPhone,
-                    preferredDojo: approveDialog.preferredDojo,
-                    preferredSchedule: approveDialog.preferredSchedule || undefined,
-                    classSchedule: approveDialog.classSchedule || undefined,
-                    firstClassDate: approveDialog.firstClassDate,
-                    tuitionAmount: approveDialog.tuitionAmount,
-                    feePerQuarter: approveDialog.feePerQuarter,
-                    receivingBank: approveDialog.receivingBank,
-                    studentGender: approveDialog.studentGender || null,
-                    studentBirthDate: approveDialog.studentBirthDate || null,
-                    beltLevel: approveDialog.beltLevel || null,
-                    englishName: approveDialog.englishName || null,
-                  });
-                }}
-              >
-                {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
-                確認批准入學
-              </Button>
-            </DialogFooter>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setApproveDialog(null)}>取消</Button>
+                  <Button
+                    className="bg-green-600 hover:bg-green-700"
+                    disabled={approveMutation.isPending || !approveDialog.firstClassDate || !approveDialog.tuitionAmount}
+                    onClick={() => {
+                      if (!approveDialog.firstClassDate) { toast.error("請填寫首堂日期"); return; }
+                      if (!approveDialog.tuitionAmount) { toast.error("請填寫繳費金額"); return; }
+                      if (!approveDialog.preferredDojo) { toast.error("請填寫道場"); return; }
+                      approveMutation.mutate({
+                        id: approveDialog.id,
+                        studentName: approveDialog.studentName,
+                        parentPhone: approveDialog.parentPhone,
+                        preferredDojo: approveDialog.preferredDojo,
+                        preferredSchedule: approveDialog.preferredSchedule || undefined,
+                        classSchedule: approveDialog.classSchedule || undefined,
+                        firstClassDate: approveDialog.firstClassDate,
+                        tuitionAmount: approveDialog.tuitionAmount,
+                        feePerQuarter: approveDialog.feePerQuarter,
+                        receivingBank: approveDialog.receivingBank,
+                        studentGender: approveDialog.studentGender || null,
+                        studentBirthDate: approveDialog.studentBirthDate || null,
+                        beltLevel: approveDialog.beltLevel || null,
+                        englishName: approveDialog.englishName || null,
+                      });
+                    }}
+                  >
+                    {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+                    確認批准入學
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </DialogContent>
         </Dialog>
       )}
