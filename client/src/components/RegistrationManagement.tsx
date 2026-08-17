@@ -100,6 +100,7 @@ export default function RegistrationManagement() {
     data: any;          // server response: { studentId, monthsCovered, nextPaymentDate, nextPaymentAmount }
     dialogSnapshot: any; // approveDialog data at the time of approval
   } | null>(null);
+  const [enrolledNotifyDialog, setEnrolledNotifyDialog] = useState<any | null>(null);
 
   // Form settings state
   const [formFields, setFormFields] = useState<FormField[]>(() => {
@@ -908,8 +909,17 @@ export default function RegistrationManagement() {
 
                   {/* Enrolled badge */}
                   {reg.status === 'enrolled' && reg.convertedStudentId && (
-                    <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-800 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> 已入學（學生 ID: {reg.convertedStudentId}）
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-800 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> 已入學（學生 ID: {reg.convertedStudentId}）
+                      </div>
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs bg-green-600 hover:bg-green-700"
+                        onClick={() => setEnrolledNotifyDialog(reg)}
+                      >
+                        <WhatsAppIcon className="w-3 h-3 mr-1" /> 發送入學通知
+                      </Button>
                     </div>
                   )}
 
@@ -1261,6 +1271,180 @@ export default function RegistrationManagement() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ═══ Enrolled Notify Dialog (已入學 WhatsApp 通知) ═══ */}
+      {enrolledNotifyDialog && (() => {
+        const reg = enrolledNotifyDialog;
+        const scheduleStr = reg.classSchedule || reg.preferredSchedule || '';
+        const weekdayMatch = scheduleStr.match(/星期[一二三四五六日]/);
+        const scheduleDayStr = weekdayMatch ? weekdayMatch[0] : '';
+        const feePerQuarter = 1800; // 標準季費
+        const tuitionAmount = reg.tuitionAmount ? Number(reg.tuitionAmount) : 2350;
+        const firstClassDate = reg.firstClassDate ? String(reg.firstClassDate) : '';
+        const dobokSize = reg.dobokSize || '';
+
+        // 用 calcNewStudentProRata 計算下期
+        const proRata = (scheduleDayStr && firstClassDate)
+          ? calcNewStudentProRata(firstClassDate, scheduleDayStr, feePerQuarter)
+          : null;
+
+        // 計算覆蓋月份
+        const EQUIPMENT_FEE = 550;
+        const monthlyFee = feePerQuarter / 3;
+        const pureTuition = Math.max(tuitionAmount - EQUIPMENT_FEE, monthlyFee);
+        const monthCount = monthlyFee > 0 ? Math.round(pureTuition / monthlyFee) : 3;
+        const joinDate = firstClassDate ? new Date(firstClassDate + 'T00:00:00') : new Date();
+        const startMonth = joinDate.getMonth() + 1;
+        const coveredMonths: number[] = [];
+        for (let i = 0; i < monthCount; i++) {
+          coveredMonths.push(((startMonth - 1 + i) % 12) + 1);
+        }
+        const lastMonth = coveredMonths[coveredMonths.length - 1];
+        const joinDateText = `${joinDate.getFullYear()}年${joinDate.getMonth() + 1}月${joinDate.getDate()}日`;
+        const tuitionPeriodText = `${joinDate.getMonth() + 1}月${joinDate.getDate()}日–${lastMonth}月底`;
+        const class12DateText = proRata
+          ? `${proRata.class12Date.getFullYear()}年${proRata.class12Date.getMonth() + 1}月${proRata.class12Date.getDate()}日`
+          : '';
+
+        // 下期繳費資訊（從 proRata 或手動推算）
+        const nextQuarterLabel = proRata?.nextQuarterLabel || (() => {
+          const endMonth = coveredMonths[coveredMonths.length - 1];
+          const nextM = (endMonth % 12) + 1;
+          if (nextM <= 3) return '1-3月';
+          if (nextM <= 6) return '4-6月';
+          if (nextM <= 9) return '7-9月';
+          return '10-12月';
+        })();
+        const nextPaymentAmount = proRata?.proRataFee ?? feePerQuarter;
+
+        // ═══ 生成 WhatsApp 訊息 ═══
+        const buildMessage = () => {
+          const lines: string[] = [];
+          lines.push(`🥋 *${reg.studentName}* 家長您好！`);
+          lines.push('');
+          lines.push(`感謝您報讀本館跆拳道課程。現確認已收到閣下繳交之費用 *$${tuitionAmount.toLocaleString()}*，明細如下：`);
+          lines.push('');
+          lines.push('📋 *繳費明細*');
+          lines.push(`• 學費（${tuitionPeriodText}，共12堂）：$${pureTuition.toLocaleString()}`);
+          lines.push(`• 手把：$150`);
+          lines.push(`• 道袍${dobokSize ? `（${dobokSize}）` : ''}：$400`);
+          lines.push(`• 合計：*$${tuitionAmount.toLocaleString()}*`);
+
+          lines.push('');
+          lines.push('📍 *上課詳情*');
+          lines.push(`• 地點：${reg.preferredDojo || '—'}`);
+          lines.push(`• 時間：${scheduleStr || '待安排'}`);
+          lines.push(`• 首堂日期：${joinDateText}`);
+          if (class12DateText) {
+            lines.push(`• 第12堂日期：${class12DateText}`);
+          }
+
+          lines.push('');
+          lines.push('───────────────');
+          lines.push('');
+          lines.push('📌 *收費模式說明*');
+          lines.push('');
+          lines.push('本館採用「季度繳費」制度，每年分為四個季度：');
+          lines.push('• 第一季：1月 – 3月');
+          lines.push('• 第二季：4月 – 6月');
+          lines.push('• 第三季：7月 – 9月');
+          lines.push('• 第四季：10月 – 12月');
+          lines.push('');
+          lines.push(`每季學費為 *$${feePerQuarter.toLocaleString()}*（3個月），即每月 $${Math.round(monthlyFee).toLocaleString()}。`);
+
+          lines.push('');
+          lines.push('📐 *中途入學按比例安排*');
+          lines.push('');
+          lines.push(`由於 ${reg.studentName} 於季度中途入學，首期費用以按比例方式計算。首12堂課程完成後，將銜接回本館的季度繳費周期。`);
+          lines.push('');
+
+          lines.push('💰 *下期繳費安排*');
+          lines.push('');
+          if (nextPaymentAmount >= feePerQuarter) {
+            lines.push(`下一期繳費期為 *${nextQuarterLabel}*，費用為全期 *$${nextPaymentAmount.toLocaleString()}*。`);
+          } else {
+            lines.push(`下一期繳費期為 *${nextQuarterLabel}*，由於12堂週期已覆蓋部分月份，按比例計算後費用為 *$${nextPaymentAmount.toLocaleString()}*。`);
+            if (proRata) {
+              if (proRata.coveredWholeMonths > 0) {
+                const coveredNames = [];
+                const qStartMonth = proRata.nextQuarterMonths[0];
+                for (let i = 0; i < proRata.coveredWholeMonths; i++) {
+                  coveredNames.push(`${qStartMonth + i}月`);
+                }
+                lines.push(`（${coveredNames.join('、')}仍在12堂週期內，只需繳交餘下${proRata.monthsCharged}個月的費用${proRata.overlapClasses > 0 ? `，另扣除${proRata.overlapClasses}堂重疊堂數$${proRata.overlapDeduction}` : ''}）`);
+              } else if (proRata.overlapClasses > 0) {
+                lines.push(`（扣除${proRata.overlapClasses}堂重疊堂數 $${proRata.overlapDeduction}）`);
+              }
+            }
+          }
+
+          lines.push('');
+          lines.push('───────────────');
+          lines.push('');
+          lines.push('📝 *補堂及費用順延政策*');
+          lines.push('');
+          lines.push('1️⃣ *補堂安排*');
+          lines.push('如因事請假，可安排於其他時段補課。補堂不限於當期完成，日後任何時間均可安排補回。');
+          lines.push('');
+          lines.push('2️⃣ *費用順延*');
+          lines.push('如需申請費用順延，請於請假前 *至少一個月* 提出申請。未能於一個月前通知者，該堂費用將不作順延處理。');
+          lines.push('');
+          lines.push('───────────────');
+          lines.push('');
+          lines.push('如有任何疑問，歡迎隨時聯絡我們！🙏');
+          return lines.join('\n');
+        };
+
+        const whatsappMessage = buildMessage();
+        const whatsappUrl = `https://api.whatsapp.com/send?phone=852${reg.parentPhone}&text=${encodeURIComponent(whatsappMessage)}`;
+
+        return (
+          <Dialog open={true} onOpenChange={() => setEnrolledNotifyDialog(null)}>
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-green-700">
+                  <WhatsAppIcon className="w-5 h-5" />
+                  入學通知 — {reg.studentName}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm space-y-1">
+                  <div className="font-semibold text-green-800">✅ 已入學學生（ID: {reg.convertedStudentId}）</div>
+                  <div className="text-green-700">已繳 ${tuitionAmount.toLocaleString()}（覆蓋 {coveredMonths.map(m => m + '月').join('、')}）</div>
+                  <div className="text-green-700">下期：{nextQuarterLabel} — ${nextPaymentAmount.toLocaleString()}</div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-gray-600">📱 WhatsApp 通知訊息預覽</Label>
+                  <div className="bg-gray-50 border rounded-lg p-3 text-xs whitespace-pre-wrap max-h-60 overflow-y-auto font-mono leading-relaxed">
+                    {whatsappMessage}
+                  </div>
+                </div>
+              </div>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                <Button variant="outline" onClick={() => setEnrolledNotifyDialog(null)}>
+                  關閉
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-gray-600"
+                  onClick={() => {
+                    navigator.clipboard.writeText(whatsappMessage);
+                    toast.success('訊息已複製到剪貼板');
+                  }}
+                >
+                  <Copy className="w-4 h-4 mr-1" /> 複製訊息
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={() => window.open(whatsappUrl, '_blank')}
+                >
+                  <WhatsAppIcon className="w-4 h-4 mr-1" /> 發送 WhatsApp 通知
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* ═══ Edit Dialog ═══ */}
       {editDialog && (
