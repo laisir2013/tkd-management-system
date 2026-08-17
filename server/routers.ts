@@ -255,10 +255,20 @@ import { sdk } from "./_core/sdk";
  * 只有當季度內所有3個月都被覆蓋（已繳/請假）才標記季度為 paid。
  * 這確保插班生的部分繳費季度不會被錯誤跳過。
  */
-function resolvePaidQuarters(payments: any[], leaveMonthsSet?: Set<string>): {
+function resolvePaidQuarters(payments: any[], leaveMonthsSet?: Set<string>, joinDate?: Date | string | null): {
   paidQuarters: Set<string>;
   paidMonthsByYear: Map<number, Set<number>>;
 } {
+  // 解析入學日期：入學月之前的月份不算應繳
+  let joinYear: number | null = null;
+  let joinMonth: number | null = null;
+  if (joinDate) {
+    const jd = new Date(joinDate);
+    if (!isNaN(jd.getTime())) {
+      joinYear = jd.getFullYear();
+      joinMonth = jd.getMonth() + 1;
+    }
+  }
   const paidQuarters = new Set<string>();
   // 精確追蹤每個已繳月份（MONTHLY + CUSTOM 逐月）
   const individualPaidMonths: { year: number; month: number }[] = [];
@@ -280,53 +290,14 @@ function resolvePaidQuarters(payments: any[], leaveMonthsSet?: Set<string>): {
       const y = payment.year || year;
       individualPaidMonths.push({ year: y, month: payment.paymentMonth });
     } else if (payment.paymentPeriod === 'CUSTOM' && payment.customMonths) {
-      // CUSTOM：精確解析每個月份，不直接標記季度
-      try {
-        let monthsArray: string[] = [];
-        if (typeof payment.customMonths === 'string') {
-          monthsArray = JSON.parse(payment.customMonths);
-        } else if (Array.isArray(payment.customMonths)) {
-          monthsArray = payment.customMonths;
+      // CUSTOM：使用通用 extractMonthNumbers 解析所有格式（含純數字 "8","9","10"）
+      const monthNums = extractMonthNumbers(payment.customMonths, year);
+      if (monthNums.length > 0) {
+        for (const m of monthNums) {
+          individualPaidMonths.push({ year, month: m });
         }
-
-        const resolvedMonths: { year: number; month: number }[] = [];
-
-        for (const entry of monthsArray) {
-          const parts = entry.split(/[,，、;；]+/).map((s: string) => s.trim()).filter(Boolean);
-          for (const part of parts) {
-            const rangeMatch = part.match(/(\d{4})年(\d{1,2})-(\d{1,2})月/);
-            if (rangeMatch) {
-              const y = parseInt(rangeMatch[1]);
-              const start = parseInt(rangeMatch[2]);
-              const end = parseInt(rangeMatch[3]);
-              for (let m = start; m <= end; m++) {
-                resolvedMonths.push({ year: y, month: m });
-              }
-              continue;
-            }
-            const singleMatch = part.match(/(\d{4})年(\d{1,2})月/);
-            if (singleMatch) {
-              resolvedMonths.push({ year: parseInt(singleMatch[1]), month: parseInt(singleMatch[2]) });
-              continue;
-            }
-            const monthOnly = part.match(/^(\d{1,2})月$/);
-            if (monthOnly) {
-              resolvedMonths.push({ year, month: parseInt(monthOnly[1]) });
-            }
-          }
-        }
-
-        // CUSTOM 月份加入逐月追蹤（不直接標記季度）
-        for (const rm of resolvedMonths) {
-          individualPaidMonths.push(rm);
-        }
-
-        // 解析失敗回退
-        if (resolvedMonths.length === 0) {
-          const fallbackMonth = paymentDate.getMonth() + 1;
-          individualPaidMonths.push({ year, month: fallbackMonth });
-        }
-      } catch (e) {
+      } else {
+        // 解析失敗回退：使用付款日期的月份
         const fallbackMonth = paymentDate.getMonth() + 1;
         individualPaidMonths.push({ year, month: fallbackMonth });
       }
@@ -373,6 +344,25 @@ function resolvePaidQuarters(payments: any[], leaveMonthsSet?: Set<string>): {
       if (paidQuarters.has(qKey)) continue;
       const qMonths = quarterMonths[q];
       if (qMonths.every(m => months.has(m))) {
+        paidQuarters.add(qKey);
+      }
+    }
+  }
+
+  // 入學前月份視為已覆蓋：入學月之前的月份不算應繳
+  if (joinYear !== null && joinMonth !== null) {
+    // 確保入學年已在 paidMonthsByYear 中
+    if (!paidMonthsByYear.has(joinYear)) paidMonthsByYear.set(joinYear, new Set());
+    const yearMonths = paidMonthsByYear.get(joinYear)!;
+    for (let m = 1; m < joinMonth; m++) {
+      yearMonths.add(m); // 入學前的月份視為「已覆蓋」
+    }
+    // 重新檢查入學年的季度
+    for (let q = 1; q <= 4; q++) {
+      const qKey = `${joinYear}-Q${q}`;
+      if (paidQuarters.has(qKey)) continue;
+      const qMonths = quarterMonths[q];
+      if (qMonths.every(m => yearMonths.has(m))) {
         paidQuarters.add(qKey);
       }
     }
@@ -1177,10 +1167,14 @@ export const appRouter = router({
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
 
+        // 載入學生資料（取得 join_date）
+        const studentData = await db.select().from(schema.students).where(eq(schema.students.id, input.studentId));
+        const studentJoinDate = studentData[0]?.joinDate || (studentData[0] as any)?.join_date || null;
+
         // 載入該學生的請假記錄
         const studentLeaves = await getLeaveMonthsByStudent(input.studentId, currentYear);
         const leaveSet = new Set(studentLeaves.map(lv => `${lv.year}-${lv.month}`));
-        const { paidQuarters } = resolvePaidQuarters(payments, leaveSet.size > 0 ? leaveSet : undefined);
+        const { paidQuarters } = resolvePaidQuarters(payments, leaveSet.size > 0 ? leaveSet : undefined, studentJoinDate);
         
         let currentQuarter = 1;
         if (currentMonth >= 4 && currentMonth <= 6) currentQuarter = 2;
@@ -1272,7 +1266,8 @@ export const appRouter = router({
         for (const student of allStudents) {
           const payments = paymentsByStudent.get(student.id) || [];
           const studentLeavesStr = leaveByStudentStr.get(student.id);
-          const { paidQuarters, paidMonthsByYear } = resolvePaidQuarters(payments, studentLeavesStr);
+          const studentJoinDate = student.joinDate || (student as any).join_date || null;
+          const { paidQuarters, paidMonthsByYear } = resolvePaidQuarters(payments, studentLeavesStr, studentJoinDate);
           
           let found = false;
           for (let q = currentQuarter; q <= 4; q++) {

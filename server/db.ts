@@ -533,9 +533,13 @@ export async function getQuarterlyPaymentStatuses(year?: number): Promise<Quarte
           //    某些學生該季度只上2個月，排除了1個月後以月繳方式入帳
           //    只要所有「已到期月份」都有繳費記錄就視為已繳
           const qMonths = quarterMonthsMap[quarter];
-          const dueMonthsInQuarter = qMonths.filter(m => 
-            targetYear < currentYear || (targetYear === currentYear && m <= currentMonth)
-          );
+          const dueMonthsInQuarter = qMonths.filter(m => {
+            // 過濾已到期月份
+            const isDueMonth = targetYear < currentYear || (targetYear === currentYear && m <= currentMonth);
+            // 排除入學前的月份（入學月之前的月份不算應繳）
+            if (joinDateObj && targetYear === (joinYear || 0) && m < (joinMonth || 1)) return false;
+            return isDueMonth;
+          });
           
           if (dueMonthsInQuarter.length > 0) {
             const studentLeaves = leaveMap.get(student.id) || new Set<number>();
