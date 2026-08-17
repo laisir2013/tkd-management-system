@@ -4,14 +4,22 @@ import mysql from "mysql2/promise";
 import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig, bankStatements, InsertBankStatement, BankStatement, bankStatementTransactions, InsertBankStatementTransaction, BankStatementTransaction, studentLeaveMonths, examPayments, InsertExamPayment, ExamPayment, auditLog } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
-// 安全解析 customMonths JSON：防止 double-parse 和無效格式
+// 安全解析 customMonths JSON：支援 double-parse（Drizzle json() 可能只解一層）
 function safeParseCustomMonths(value: any): string[] | null {
   if (!value) return null;
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') {
     try { 
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : null;
+      let parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+      // 二次 parse：處理雙重 JSON 字串（如 '"[\"8\",\"9\",\"10\"]"'）
+      if (typeof parsed === 'string') {
+        try {
+          const parsed2 = JSON.parse(parsed);
+          if (Array.isArray(parsed2)) return parsed2;
+        } catch { /* 忽略二次 parse 失敗 */ }
+      }
+      return null;
     } catch { return null; }
   }
   return null;
