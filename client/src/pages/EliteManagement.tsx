@@ -1050,7 +1050,7 @@ function EliteAttendanceTab() {
                     if (cyclePos === 1) {
                       // 新循環的第1堂
                       const d = new Date(s.trainingDate);
-                      currentCycleFirstDate = `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
+                      currentCycleFirstDate = `${d.getUTCDate()}/${d.getUTCMonth() + 1}/${d.getUTCFullYear()}`;
                     }
                     latestAttendedSchedule = s;
                     latestAttendedNum = cyclePos;
@@ -1106,15 +1106,18 @@ function EliteAttendanceTab() {
                           return <span className="text-gray-300 text-xs">—</span>;
                         }
                         const latestDate = new Date(latestAttendedSchedule.trainingDate);
-                        const latestDateStr = `${latestDate.getUTCDate()}/${latestDate.getUTCMonth() + 1}`;
+                        const latestDateStr = `${latestDate.getUTCDate()}/${latestDate.getUTCMonth() + 1}/${latestDate.getUTCFullYear()}`;
+                        const remainingClasses = 12 - latestAttendedNum;
                         const msg = [
                           `🥋 *${student.name}* 家長您好！`,
                           '',
                           `📌 *精英班最新出席通知*`,
                           '',
-                          `✅ 最新一堂：*第 ${latestAttendedNum} 堂 / 12堂*`,
+                          `✅ 剛剛出席的最新一堂：*第 ${latestAttendedNum} 堂*`,
                           `📅 日期：${latestDateStr}`,
                           currentCycleFirstDate ? `🔖 本期第1堂日期：${currentCycleFirstDate}` : '',
+                          '',
+                          `*今期仲有${remainingClasses}堂*`,
                           '',
                           `───────────────`,
                           `方便大家對番紀錄 🙏`,
