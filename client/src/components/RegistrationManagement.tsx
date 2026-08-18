@@ -1002,10 +1002,12 @@ export default function RegistrationManagement() {
               const class12DateText = proRata
                 ? `${proRata.class12Date.getFullYear()}年${proRata.class12Date.getMonth() + 1}月${proRata.class12Date.getDate()}日`
                 : '';
-              // 學費期間文字
-              const firstMonth = (res.monthsCovered as number[])[0];
-              const lastMonth = (res.monthsCovered as number[])[(res.monthsCovered as number[]).length - 1];
-              const tuitionPeriodText = `${joinDate.getMonth() + 1}月${joinDate.getDate()}日–${lastMonth}月底`;
+              // 學費期間文字：用首堂到第12堂的實際日期
+              const firstClassActual = proRata ? proRata.firstClassDate : joinDate;
+              const firstClassText = `${firstClassActual.getMonth() + 1}月${firstClassActual.getDate()}日`;
+              const tuitionPeriodText = class12DateText
+                ? `${firstClassText}–${proRata!.class12Date.getMonth() + 1}月${proRata!.class12Date.getDate()}日`
+                : `${firstClassText}起，共12堂`;
               // 下期繳費
               const nextPayDate = new Date(res.nextPaymentDate + 'T00:00:00');
               const nextPayDateText = `${nextPayDate.getFullYear()}年${nextPayDate.getMonth() + 1}月`;
@@ -1044,9 +1046,6 @@ export default function RegistrationManagement() {
                 lines.push(`• 地點：${snap.preferredDojo}`);
                 lines.push(`• 時間：${scheduleStr || '待安排'}`);
                 lines.push(`• 首堂日期：${joinDateText}`);
-                if (class12DateText) {
-                  lines.push(`• 第12堂日期：${class12DateText}`);
-                }
 
                 // Part 3: 收費模式說明
                 lines.push('');
@@ -1299,12 +1298,13 @@ export default function RegistrationManagement() {
         for (let i = 0; i < monthCount; i++) {
           coveredMonths.push(((startMonth - 1 + i) % 12) + 1);
         }
-        const lastMonth = coveredMonths[coveredMonths.length - 1];
         const joinDateText = `${joinDate.getFullYear()}年${joinDate.getMonth() + 1}月${joinDate.getDate()}日`;
-        const tuitionPeriodText = `${joinDate.getMonth() + 1}月${joinDate.getDate()}日–${lastMonth}月底`;
-        const class12DateText = proRata
-          ? `${proRata.class12Date.getFullYear()}年${proRata.class12Date.getMonth() + 1}月${proRata.class12Date.getDate()}日`
-          : '';
+        // 學費期間：用首堂到第12堂的實際日期
+        const firstClassActual = proRata ? proRata.firstClassDate : joinDate;
+        const firstClassText = `${firstClassActual.getMonth() + 1}月${firstClassActual.getDate()}日`;
+        const tuitionPeriodText = proRata
+          ? `${firstClassText}–${proRata.class12Date.getMonth() + 1}月${proRata.class12Date.getDate()}日`
+          : `${firstClassText}起，共12堂`;
 
         // 下期繳費資訊（從 proRata 或手動推算）
         const nextQuarterLabel = proRata?.nextQuarterLabel || (() => {
@@ -1335,9 +1335,6 @@ export default function RegistrationManagement() {
           lines.push(`• 地點：${reg.preferredDojo || '—'}`);
           lines.push(`• 時間：${scheduleStr || '待安排'}`);
           lines.push(`• 首堂日期：${joinDateText}`);
-          if (class12DateText) {
-            lines.push(`• 第12堂日期：${class12DateText}`);
-          }
 
           lines.push('');
           lines.push('───────────────');
