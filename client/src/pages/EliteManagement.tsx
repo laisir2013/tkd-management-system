@@ -1033,12 +1033,27 @@ function EliteAttendanceTab() {
                 const sortedSchedules = [...classSchedules].sort((a: any, b: any) => 
                   new Date(a.trainingDate).getTime() - new Date(b.trainingDate).getTime()
                 );
+                // 追蹤每12堂循環的資訊（用於 WhatsApp 快速通知）
+                let latestAttendedSchedule: any = null;  // 最新出席的 schedule
+                let latestAttendedNum = 0;               // 最新出席是第幾堂（循環內 1-12）
+                let currentCycleFirstDate: string = '';   // 當前循環第1堂的日期
+                let cycleStartCount = 0;                  // 記錄循環起始點
+
                 for (const s of sortedSchedules) {
                   if (getClassStatus(s) === 'cancelled') continue;
                   const status = attendanceMap[`${s.id}-${student.id}`];
                   if (status === 'present' || status === 'late') {
                     runningCount++;
                     cellNumbers[s.id] = runningCount;
+                    // 循環內堂數 (1-12)
+                    const cyclePos = ((runningCount - 1) % 12) + 1;
+                    if (cyclePos === 1) {
+                      // 新循環的第1堂
+                      const d = new Date(s.trainingDate);
+                      currentCycleFirstDate = `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
+                    }
+                    latestAttendedSchedule = s;
+                    latestAttendedNum = cyclePos;
                   }
                 }
 
@@ -1085,16 +1100,42 @@ function EliteAttendanceTab() {
                       );
                     })}
                     <TableCell className="text-center">
-                      <EliteAttendanceWhatsAppButton
-                        studentId={student.id}
-                        studentName={student.name}
-                        studentPhone={cycle?.phone || student.phone || ''}
-                        cycleNumber={cycleNum}
-                        totalAttended={cycle?.totalAttended || 0}
-                        lastAttendedDate={cycle?.lastAttendedDate}
-                        amountDue={needReminder ? 2400 : 0}
-                        cycleDetails={cycle?.cycleDetails || []}
-                      />
+                      {(() => {
+                        const phone = cycle?.phone || student.phone || '';
+                        if (!latestAttendedSchedule || !phone) {
+                          return <span className="text-gray-300 text-xs">—</span>;
+                        }
+                        const latestDate = new Date(latestAttendedSchedule.trainingDate);
+                        const latestDateStr = `${latestDate.getUTCDate()}/${latestDate.getUTCMonth() + 1}`;
+                        const msg = [
+                          `🥋 *${student.name}* 家長您好！`,
+                          '',
+                          `📌 *精英班最新出席通知*`,
+                          '',
+                          `✅ 最新一堂：*第 ${latestAttendedNum} 堂 / 12堂*`,
+                          `📅 日期：${latestDateStr}`,
+                          currentCycleFirstDate ? `🔖 本期第1堂日期：${currentCycleFirstDate}` : '',
+                          '',
+                          `───────────────`,
+                          `方便大家對番紀錄 🙏`,
+                        ].filter(Boolean).join('\n');
+                        const url = `https://api.whatsapp.com/send?phone=852${phone}&text=${encodeURIComponent(msg)}`;
+                        return (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-6 px-1.5 ${
+                              latestAttendedNum >= 10
+                                ? "text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                : "text-green-600 hover:text-green-700 hover:bg-green-50"
+                            }`}
+                            title={`第${latestAttendedNum}堂 (${latestDateStr})`}
+                            onClick={(e) => { e.stopPropagation(); window.open(url, '_blank'); }}
+                          >
+                            <WhatsAppIcon className="w-3.5 h-3.5" />
+                          </Button>
+                        );
+                      })()}
                     </TableCell>
                   </TableRow>
                 );
