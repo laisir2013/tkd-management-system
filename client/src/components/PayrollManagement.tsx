@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { DollarSign, Loader2, RefreshCw, CreditCard, CheckCircle2, AlertCircle, FileText, Banknote } from "lucide-react";
+import { DollarSign, Loader2, RefreshCw, CreditCard, CheckCircle2, AlertCircle, FileText, Banknote, Edit2 } from "lucide-react";
 import { useState } from "react";
 
 const MONTH_LABELS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -25,6 +25,7 @@ export default function PayrollManagement() {
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [paymentBank, setPaymentBank] = useState<string>('');
   const [showPayDialog, setShowPayDialog] = useState<number | null>(null);
+  const [editingRecord, setEditingRecord] = useState<{ id: number; coachName: string; bonus: string; deductions: string; notes: string } | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -79,6 +80,15 @@ export default function PayrollManagement() {
       utils.payroll.getSummary.invalidate();
     },
     onError: (err) => alert(`刪除失敗：${err.message}`),
+  });
+
+  const upsertMutation = trpc.payroll.upsert.useMutation({
+    onSuccess: () => {
+      utils.payroll.getAll.invalidate();
+      utils.payroll.getSummary.invalidate();
+      setEditingRecord(null);
+    },
+    onError: (err) => alert(`更新失敗：${err.message}`),
   });
 
   const yearOptions = [];
@@ -332,6 +342,21 @@ export default function PayrollManagement() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
+                                  className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700"
+                                  onClick={() => setEditingRecord({
+                                    id: record.id,
+                                    coachName: record.coachName,
+                                    bonus: String(record.bonus || '0'),
+                                    deductions: String(record.deductions || '0'),
+                                    notes: record.notes || '',
+                                  })}
+                                >
+                                  <Edit2 className="h-3 w-3 mr-1" />
+                                  調整
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
                                   className="h-7 px-2 text-xs text-emerald-600 hover:text-emerald-700"
                                   onClick={() => handleSinglePay(record.id)}
                                   disabled={processPaymentMutation.isPending}
@@ -424,6 +449,79 @@ export default function PayrollManagement() {
           </ul>
         </CardContent>
       </Card>
+
+      {/* 編輯獎金/扣款 Dialog */}
+      {editingRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setEditingRecord(null)}>
+          <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <CardHeader>
+              <CardTitle className="text-base">調整薪資 — {editingRecord.coachName}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">獎金/津貼 ($)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editingRecord.bonus}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, bonus: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">扣款 ($)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editingRecord.deductions}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, deductions: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">備註</label>
+                <Input
+                  value={editingRecord.notes}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, notes: e.target.value })}
+                  placeholder="例：本月額外教學津貼"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="outline" onClick={() => setEditingRecord(null)}>取消</Button>
+                <Button
+                  onClick={() => {
+                    const record = records?.find(r => r.id === editingRecord.id);
+                    if (!record) return;
+                    const bonus = parseFloat(editingRecord.bonus) || 0;
+                    const deductions = parseFloat(editingRecord.deductions) || 0;
+                    const regularIncome = parseFloat(String(record.regularIncome)) || 0;
+                    const eliteIncome = parseFloat(String(record.eliteIncome)) || 0;
+                    const totalIncome = regularIncome + eliteIncome + bonus - deductions;
+                    const mpf = Math.round(totalIncome * 0.10);
+                    const operating = Math.round(totalIncome * 0.05);
+                    const netAmount = totalIncome - mpf - operating;
+                    
+                    upsertMutation.mutate({
+                      coachName: record.coachName,
+                      year: selectedYear,
+                      month: selectedMonth,
+                      bonus: bonus.toFixed(2),
+                      deductions: deductions.toFixed(2),
+                      mpf: mpf.toFixed(2),
+                      operatingFee: operating.toFixed(2),
+                      netAmount: netAmount.toFixed(2),
+                      notes: editingRecord.notes || null,
+                    });
+                  }}
+                  disabled={upsertMutation.isPending}
+                >
+                  {upsertMutation.isPending ? '儲存中...' : '儲存並重新計算'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

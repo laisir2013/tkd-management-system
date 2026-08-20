@@ -2,7 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { DollarSign, TrendingUp, TrendingDown, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { DollarSign, TrendingUp, TrendingDown, Loader2, ChevronDown, ChevronUp, CheckCircle2, Clock } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +16,9 @@ export default function MonthlyFinanceReport() {
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(new Set([currentMonth]));
 
   const { data, isLoading } = trpc.coachStats.getMonthlyFinance.useQuery({ year: selectedYear });
+
+  // 取得該年度所有薪資記錄，用於顯示出糧狀態
+  const { data: payrollRecords } = trpc.payroll.getAll.useQuery({ year: selectedYear });
 
   const yearOptions = [];
   for (let y = 2026; y <= currentYear + 1; y++) yearOptions.push(y);
@@ -267,10 +271,19 @@ export default function MonthlyFinanceReport() {
                           </div>
                         )}
 
-                        {/* 結餘 */}
+                        {/* 結餘 + 出糧狀態 */}
                         <div className="flex justify-between items-center pt-2 border-t-2 border-teal-200">
                           <span className="text-xs font-bold text-teal-800">💰 教練實收</span>
-                          <span className="text-base font-bold text-teal-700">${cm.netSalary.toLocaleString()}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-bold text-teal-700">${cm.netSalary.toLocaleString()}</span>
+                            {(() => {
+                              const pr = payrollRecords?.find((p: any) => p.coachName === coach.coachName && p.month === month);
+                              if (pr?.status === 'paid') return <Badge variant="default" className="text-[9px] px-1.5 py-0 bg-green-600"><CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />已出糧</Badge>;
+                              if (pr?.status === 'pending') return <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-400 text-amber-600"><Clock className="h-2.5 w-2.5 mr-0.5" />待發放</Badge>;
+                              if (pr?.status === 'draft') return <Badge variant="secondary" className="text-[9px] px-1.5 py-0">草稿</Badge>;
+                              return null;
+                            })()}
+                          </div>
                         </div>
                       </div>
                     );
