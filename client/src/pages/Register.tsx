@@ -12,8 +12,16 @@ import { CheckCircle2, Loader2, Camera, X, User, MapPin, BookOpen, Phone, Credit
 
 // ── 色帶列表 ──
 const BELT_LEVELS = [
-  "白帶 / 新生", "黃帶", "黃綠帶", "綠帶", "綠藍帶",
-  "藍帶", "藍紅帶", "紅帶", "紅黑帶", "黑帶",
+  { zh: "白帶 / 新生", en: "White / Beginner" },
+  { zh: "黃帶", en: "Yellow" },
+  { zh: "黃綠帶", en: "Yellow-Green" },
+  { zh: "綠帶", en: "Green" },
+  { zh: "綠藍帶", en: "Green-Blue" },
+  { zh: "藍帶", en: "Blue" },
+  { zh: "藍紅帶", en: "Blue-Red" },
+  { zh: "紅帶", en: "Red" },
+  { zh: "紅黑帶", en: "Red-Black" },
+  { zh: "黑帶", en: "Black" },
 ];
 
 // ── 道袍尺寸 ──
@@ -23,7 +31,13 @@ const DOBOK_SIZES = [
 ];
 
 // ── 從何得知 ──
-const HOW_KNOW_OPTIONS = ["朋友介紹", "FACEBOOK", "傳單", "街招", "Google"];
+const HOW_KNOW_OPTIONS = [
+  { zh: "朋友介紹", en: "Friend referral" },
+  { zh: "FACEBOOK", en: "Facebook" },
+  { zh: "傳單", en: "Flyer" },
+  { zh: "街招", en: "Street sign" },
+  { zh: "Google", en: "Google" },
+];
 
 export default function Register() {
   const [submitted, setSubmitted] = useState(false);
@@ -189,7 +203,7 @@ export default function Register() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      setErrors(prev => ({ ...prev, receipt: "檔案大小不能超過 10MB" }));
+      setErrors(prev => ({ ...prev, receipt: "檔案大小不能超過 10MB / File size exceeds 10MB" }));
       return;
     }
     const reader = new FileReader();
@@ -205,24 +219,24 @@ export default function Register() {
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!studentName.trim()) errs.studentName = "必填";
-    if (!englishName.trim()) errs.englishName = "必填";
-    if (!selectedDojoId) errs.preferredDojo = "請選擇上課地點及時間";
-    if (selectedDojoId && !firstClassDate) errs.firstClassDate = "請選擇首堂日期";
-    else if (firstClassDate === '__custom__' && !firstClassDateCustom) errs.firstClassDate = "請選擇日期";
-    if (!beltLevel) errs.beltLevel = "必填";
-    if (!studentBirthYear || !studentBirthMonth || !studentBirthDay) errs.birthDate = "必填";
-    if (!parentPhone.trim()) errs.parentPhone = "必填";
-    else if (!/^\d{8}$/.test(parentPhone.trim())) errs.parentPhone = "請輸入8位數字";
-    if (!studentGender) errs.studentGender = "必填";
-    if (!parentEmail.trim()) errs.parentEmail = "必填";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail.trim())) errs.parentEmail = "格式不正確";
-    if (!facebook.trim()) errs.facebook = "必填（如沒有請填「沒有」）";
-    if (!address.trim()) errs.address = "必填";
-    if (dobokSizes.length === 0) errs.dobokSize = "必填";
-    if (!howDidYouHear && !howDidYouHearOther.trim()) errs.howDidYouHear = "必填";
-    if (!receiptFile) errs.receipt = "請上傳收據";
-    if (!parentName.trim()) errs.parentName = "必填";
+    if (!studentName.trim()) errs.studentName = "必填 Required";
+    if (!englishName.trim()) errs.englishName = "必填 Required";
+    if (!selectedDojoId) errs.preferredDojo = "請選擇上課地點及時間 Please select location & time";
+    if (selectedDojoId && !firstClassDate) errs.firstClassDate = "請選擇首堂日期 Please select first class date";
+    else if (firstClassDate === '__custom__' && !firstClassDateCustom) errs.firstClassDate = "請選擇日期 Please select a date";
+    if (!beltLevel) errs.beltLevel = "必填 Required";
+    if (!studentBirthYear || !studentBirthMonth || !studentBirthDay) errs.birthDate = "必填 Required";
+    if (!parentPhone.trim()) errs.parentPhone = "必填 Required";
+    else if (!/^\d{8}$/.test(parentPhone.trim())) errs.parentPhone = "請輸入8位數字 Enter 8 digits";
+    if (!studentGender) errs.studentGender = "必填 Required";
+    if (!parentEmail.trim()) errs.parentEmail = "必填 Required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail.trim())) errs.parentEmail = "格式不正確 Invalid format";
+    if (!facebook.trim()) errs.facebook = "必填（如沒有請填「沒有」）Required (type 'N/A' if none)";
+    if (!address.trim()) errs.address = "必填 Required";
+    if (dobokSizes.length === 0) errs.dobokSize = "必填 Required";
+    if (!howDidYouHear && !howDidYouHearOther.trim()) errs.howDidYouHear = "必填 Required";
+    if (!receiptFile) errs.receipt = "請上傳收據 Please upload receipt";
+    if (!parentName.trim()) errs.parentName = "必填 Required";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -305,33 +319,35 @@ export default function Register() {
             <div className="mx-auto w-20 h-20 bg-white/20 backdrop-blur-md rounded-3xl flex items-center justify-center mb-4 border border-white/30">
               <CheckCircle2 className="w-12 h-12 text-white" />
             </div>
-            <h2 className="text-2xl font-black text-white">報名成功！</h2>
+            <h2 className="text-2xl font-black text-white">報名成功！Registration Successful!</h2>
           </div>
           <CardContent className="pt-8 pb-10 px-8 text-center space-y-5">
             <p className="text-gray-600 text-base">
               已收到 <strong className="text-slate-900">{submittedStudentName}</strong> 的報名資料及繳費收據。
+              <br/><span className="text-xs text-slate-400">Registration and payment receipt received.</span>
             </p>
             <div className="bg-slate-50 rounded-2xl p-5 text-left text-sm text-slate-700 leading-relaxed border border-slate-100">
-              <p className="font-bold mb-2 text-slate-900">後續安排：</p>
+              <p className="font-bold mb-2 text-slate-900">後續安排 What’s Next:</p>
               <p>管理員將於 1-2 個工作天內核實收據並確認報名，確認後會透過 WhatsApp 通知您。</p>
+              <p className="text-xs text-slate-400 mt-1">Our team will verify your receipt within 1-2 working days and confirm via WhatsApp.</p>
             </div>
             
             {/* WhatsApp 通知按鈕 */}
             <a href={whatsappUrl} target="_blank" rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 w-full h-12 rounded-2xl bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg shadow-green-600/25 transition-colors">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              WhatsApp 通知道場
+              WhatsApp 通知道場 Notify Dojo
             </a>
-            <p className="text-xs text-slate-400 -mt-2">點擊後會開啟 WhatsApp 將報名資料發送給道場</p>
+            <p className="text-xs text-slate-400 -mt-2">點擊後會開啟 WhatsApp 將報名資料發送給道場 Click to send registration info to the dojo via WhatsApp</p>
 
             <div className="space-y-3 pt-2">
               <Button onClick={handleRegisterAnother}
                 className="w-full h-12 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-lg shadow-blue-500/20">
-                👨‍👩‍👦 再報一位家庭成員
+                👨‍👩‍👦 再報一位家庭成員 Register Another Family Member
               </Button>
-              <p className="text-xs text-slate-400">家長資料將自動帶入，只需填寫學生資料</p>
+              <p className="text-xs text-slate-400">家長資料將自動帶入，只需填寫學生資料 Parent info will be pre-filled; only student info needed</p>
               <Button onClick={() => window.location.reload()} variant="outline" className="w-full h-11 rounded-2xl font-semibold border-2 text-slate-600">
-                完成報名
+                完成報名 Done
               </Button>
             </div>
           </CardContent>
@@ -354,12 +370,12 @@ export default function Register() {
         <div className="relative max-w-2xl mx-auto px-4 pt-10 pb-10 text-center">
           <img src="/static/logo.png" alt="創武跆拳道館" className="mx-auto w-28 h-28 object-contain mb-4 drop-shadow-2xl" />
           <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight mb-2">創武跆拳道館</h1>
-          <p className="text-lg text-white/70 font-medium">新生報名表</p>
+          <p className="text-lg text-white/70 font-medium">新生報名表 New Student Registration</p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-sm">
             <a href="https://wa.me/85298809483" target="_blank" rel="noopener"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-green-600/90 hover:bg-green-500 text-white font-semibold transition-colors shadow-lg shadow-green-900/30">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              WhatsApp 查詢
+              WhatsApp 查詢 Enquiry
             </a>
             <a href="https://www.instagram.com/chongmotkd.ig/" target="_blank" rel="noopener"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-semibold transition-all shadow-lg shadow-purple-900/30">
@@ -386,20 +402,20 @@ export default function Register() {
                 <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center">
                   <User className="w-4 h-4 text-blue-600" />
                 </div>
-                學生資料
+                學生資料 <span className="text-xs font-normal text-slate-400 ml-1">Student Info</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-5 bg-white">
               {/* 中文名 + 英文名 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">中文姓名 <span className="text-red-500">*</span></Label>
+                  <Label className="text-sm font-semibold text-slate-700">中文姓名 Chinese Name <span className="text-red-500">*</span></Label>
                   <Input placeholder="陳大文" value={studentName} onChange={e => setStudentName(e.target.value)}
                     className={`mt-1.5 h-11 rounded-xl border-slate-200 focus:border-blue-400 focus:ring-blue-400/20 ${errors.studentName ? 'border-red-400 bg-red-50/50' : ''}`} />
                   <FieldError name="studentName" />
                 </div>
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">英文姓名 <span className="text-red-500">*</span></Label>
+                  <Label className="text-sm font-semibold text-slate-700">英文姓名 English Name <span className="text-red-500">*</span></Label>
                   <Input placeholder="Chan Tai Man" value={englishName} onChange={e => setEnglishName(e.target.value)}
                     className={`mt-1.5 h-11 rounded-xl border-slate-200 focus:border-blue-400 focus:ring-blue-400/20 ${errors.englishName ? 'border-red-400 bg-red-50/50' : ''}`} />
                   <FieldError name="englishName" />
@@ -409,9 +425,9 @@ export default function Register() {
               {/* 性別 + 出生日期 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">性別 <span className="text-red-500">*</span></Label>
+                  <Label className="text-sm font-semibold text-slate-700">性別 Gender <span className="text-red-500">*</span></Label>
                   <div className="flex gap-3 mt-2">
-                    {[{ v: 'male', l: '男', icon: '👦' }, { v: 'female', l: '女', icon: '👧' }].map(g => (
+                    {[{ v: 'male', l: '男 Male', icon: '👦' }, { v: 'female', l: '女 Female', icon: '👧' }].map(g => (
                       <button key={g.v} type="button"
                         onClick={() => setStudentGender(g.v)}
                         className={`flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all duration-200 ${studentGender === g.v ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10' : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}>
@@ -422,18 +438,18 @@ export default function Register() {
                   <FieldError name="studentGender" />
                 </div>
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">出生日期 <span className="text-red-500">*</span></Label>
+                  <Label className="text-sm font-semibold text-slate-700">出生日期 Date of Birth <span className="text-red-500">*</span></Label>
                   <div className="grid grid-cols-3 gap-1.5 mt-2">
                     <Select value={studentBirthYear} onValueChange={setStudentBirthYear}>
-                      <SelectTrigger className={`rounded-xl h-11 text-sm ${errors.birthDate ? 'border-red-400' : 'border-slate-200'}`}><SelectValue placeholder="年" /></SelectTrigger>
+                      <SelectTrigger className={`rounded-xl h-11 text-sm ${errors.birthDate ? 'border-red-400' : 'border-slate-200'}`}><SelectValue placeholder="年 Year" /></SelectTrigger>
                       <SelectContent>{Array.from({ length: 30 }, (_, i) => currentYear - i).map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
                     </Select>
                     <Select value={studentBirthMonth} onValueChange={setStudentBirthMonth}>
-                      <SelectTrigger className={`rounded-xl h-11 text-sm ${errors.birthDate ? 'border-red-400' : 'border-slate-200'}`}><SelectValue placeholder="月" /></SelectTrigger>
+                      <SelectTrigger className={`rounded-xl h-11 text-sm ${errors.birthDate ? 'border-red-400' : 'border-slate-200'}`}><SelectValue placeholder="月 Month" /></SelectTrigger>
                       <SelectContent>{Array.from({ length: 12 }, (_, i) => i + 1).map(m => <SelectItem key={m} value={String(m)}>{m}月</SelectItem>)}</SelectContent>
                     </Select>
                     <Select value={studentBirthDay} onValueChange={setStudentBirthDay}>
-                      <SelectTrigger className={`rounded-xl h-11 text-sm ${errors.birthDate ? 'border-red-400' : 'border-slate-200'}`}><SelectValue placeholder="日" /></SelectTrigger>
+                      <SelectTrigger className={`rounded-xl h-11 text-sm ${errors.birthDate ? 'border-red-400' : 'border-slate-200'}`}><SelectValue placeholder="日 Day" /></SelectTrigger>
                       <SelectContent>{Array.from({ length: 31 }, (_, i) => i + 1).map(d => <SelectItem key={d} value={String(d)}>{d}日</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -443,13 +459,13 @@ export default function Register() {
 
               {/* 色帶 */}
               <div>
-                <Label className="text-sm font-semibold text-slate-700">現時色帶 <span className="text-red-500">*</span></Label>
+                <Label className="text-sm font-semibold text-slate-700">現時色帶 Current Belt <span className="text-red-500">*</span></Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                   {BELT_LEVELS.map(belt => (
-                    <button key={belt} type="button"
-                      onClick={() => setBeltLevel(belt)}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-semibold border-2 transition-all duration-200 ${beltLevel === belt ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10' : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}>
-                      {belt}
+                    <button key={belt.zh} type="button"
+                      onClick={() => setBeltLevel(belt.zh)}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-semibold border-2 transition-all duration-200 ${beltLevel === belt.zh ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10' : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}>
+                      {belt.zh}<br/><span className="font-normal text-[10px] text-slate-400">{belt.en}</span>
                     </button>
                   ))}
                 </div>
@@ -458,8 +474,8 @@ export default function Register() {
 
               {/* 道袍尺寸 */}
               <div>
-                <Label className="text-sm font-semibold text-slate-700">跆拳道袍尺寸 <span className="text-red-500">*</span></Label>
-                <p className="text-xs text-slate-400 mt-0.5">新生專用，可多選</p>
+                <Label className="text-sm font-semibold text-slate-700">跆拳道袍尺寸 Dobok Size <span className="text-red-500">*</span></Label>
+                <p className="text-xs text-slate-400 mt-0.5">新生專用，可多選 For new students, multiple selections allowed</p>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mt-2">
                   {DOBOK_SIZES.map(size => (
                     <button key={size} type="button"
@@ -481,15 +497,15 @@ export default function Register() {
                 <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
                   <MapPin className="w-4 h-4 text-emerald-600" />
                 </div>
-                上課安排
+                上課安排 <span className="text-xs font-normal text-slate-400 ml-1">Class Schedule</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-5 bg-white">
               {/* 上課地點 — Step 1 */}
               <div>
-                <Label className="text-sm font-semibold text-slate-700">上課地點 <span className="text-red-500">*</span></Label>
+                <Label className="text-sm font-semibold text-slate-700">上課地點 Location <span className="text-red-500">*</span></Label>
                 {dojosQuery.isLoading ? (
-                  <div className="flex items-center gap-2 text-slate-400 text-sm py-6"><Loader2 className="w-4 h-4 animate-spin" /> 載入中...</div>
+                  <div className="flex items-center gap-2 text-slate-400 text-sm py-6"><Loader2 className="w-4 h-4 animate-spin" /> 載入中 Loading...</div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-3">
                     {locationNames.map(name => (
@@ -507,8 +523,8 @@ export default function Register() {
               {/* 上課時間 — Step 2 */}
               {selectedLocation && filteredSchedules.length > 0 && (
                 <div className="pt-4 border-t border-dashed border-slate-200">
-                  <Label className="text-sm font-semibold text-slate-700">上課時間 <span className="text-red-500">*</span></Label>
-                  <p className="text-xs text-slate-400 mt-0.5 mb-3">{selectedLocation} 可選時段</p>
+                  <Label className="text-sm font-semibold text-slate-700">上課時間 Class Time <span className="text-red-500">*</span></Label>
+                  <p className="text-xs text-slate-400 mt-0.5 mb-3">{selectedLocation} 可選時段 Available time slots</p>
                   <div className="space-y-2">
                     {filteredSchedules.map(s => (
                       <button key={s.id} type="button"
@@ -524,8 +540,8 @@ export default function Register() {
               {/* 首堂日期 */}
               {selectedDojoId && (
                 <div className="pt-4 border-t border-dashed border-slate-200">
-                  <Label className="text-sm font-semibold text-slate-700">首堂日期 <span className="text-red-500">*</span></Label>
-                  <p className="text-xs text-slate-400 mt-0.5 mb-3">選擇第一次上課的日期</p>
+                  <Label className="text-sm font-semibold text-slate-700">首堂日期 First Class Date <span className="text-red-500">*</span></Label>
+                  <p className="text-xs text-slate-400 mt-0.5 mb-3">選擇第一次上課的日期 Choose your first class date</p>
                   <div className="flex flex-wrap gap-2">
                     {firstClassDateOptions.map(opt => (
                       <button key={opt.value} type="button"
@@ -538,7 +554,7 @@ export default function Register() {
                       <button type="button"
                         onClick={() => setFirstClassDate('__custom__')}
                         className={`px-4 py-2.5 rounded-xl text-xs font-semibold border-2 transition-all duration-200 ${firstClassDate === '__custom__' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}>
-                        自選日期
+                        自選日期 Other date
                       </button>
                       {firstClassDate === '__custom__' && (
                         <Input type="date" value={firstClassDateCustom}
@@ -560,19 +576,19 @@ export default function Register() {
                 <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center">
                   <Phone className="w-4 h-4 text-violet-600" />
                 </div>
-                聯絡資料
+                聯絡資料 <span className="text-xs font-normal text-slate-400 ml-1">Contact Info</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-5 bg-white">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">家長/監護人姓名 <span className="text-red-500">*</span></Label>
-                  <Input placeholder="姓名" value={parentName} onChange={e => setParentName(e.target.value)}
+                  <Label className="text-sm font-semibold text-slate-700">家長/監護人姓名 Parent/Guardian Name <span className="text-red-500">*</span></Label>
+                  <Input placeholder="姓名 Name" value={parentName} onChange={e => setParentName(e.target.value)}
                     className={`mt-1.5 h-11 rounded-xl border-slate-200 ${errors.parentName ? 'border-red-400 bg-red-50/50' : ''}`} />
                   <FieldError name="parentName" />
                 </div>
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">聯絡電話 <span className="text-red-500">*</span></Label>
+                  <Label className="text-sm font-semibold text-slate-700">聯絡電話 Phone <span className="text-red-500">*</span></Label>
                   <Input type="tel" inputMode="numeric" placeholder="98765432" maxLength={8}
                     value={parentPhone} onChange={e => setParentPhone(e.target.value.replace(/\D/g, ''))}
                     className={`mt-1.5 h-11 rounded-xl border-slate-200 ${errors.parentPhone ? 'border-red-400 bg-red-50/50' : ''}`} />
@@ -582,13 +598,13 @@ export default function Register() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">第二聯絡電話</Label>
-                  <Input type="tel" inputMode="numeric" placeholder="選填" maxLength={8}
+                  <Label className="text-sm font-semibold text-slate-700">第二聯絡電話 2nd Phone</Label>
+                  <Input type="tel" inputMode="numeric" placeholder="選填 Optional" maxLength={8}
                     value={parentPhone2} onChange={e => setParentPhone2(e.target.value.replace(/\D/g, ''))}
                     className="mt-1.5 h-11 rounded-xl border-slate-200" />
                 </div>
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">Email <span className="text-red-500">*</span></Label>
+                  <Label className="text-sm font-semibold text-slate-700">電子郵件 Email <span className="text-red-500">*</span></Label>
                   <Input type="email" placeholder="example@email.com"
                     value={parentEmail} onChange={e => setParentEmail(e.target.value)}
                     className={`mt-1.5 h-11 rounded-xl border-slate-200 ${errors.parentEmail ? 'border-red-400 bg-red-50/50' : ''}`} />
@@ -599,20 +615,20 @@ export default function Register() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-semibold text-slate-700">Facebook <span className="text-red-500">*</span></Label>
-                  <Input placeholder="如沒有請填「沒有」" value={facebook} onChange={e => setFacebook(e.target.value)}
+                  <Input placeholder="如沒有請填「沒有」 Type 'N/A' if none" value={facebook} onChange={e => setFacebook(e.target.value)}
                     className={`mt-1.5 h-11 rounded-xl border-slate-200 ${errors.facebook ? 'border-red-400 bg-red-50/50' : ''}`} />
                   <FieldError name="facebook" />
                 </div>
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">介紹人</Label>
-                  <Input placeholder="選填" value={referrer} onChange={e => setReferrer(e.target.value)}
+                  <Label className="text-sm font-semibold text-slate-700">介紹人 Referrer</Label>
+                  <Input placeholder="選填 Optional" value={referrer} onChange={e => setReferrer(e.target.value)}
                     className="mt-1.5 h-11 rounded-xl border-slate-200" />
                 </div>
               </div>
 
               <div>
-                <Label className="text-sm font-semibold text-slate-700">住址 <span className="text-red-500">*</span></Label>
-                <Input placeholder="完整住址" value={address} onChange={e => setAddress(e.target.value)}
+                <Label className="text-sm font-semibold text-slate-700">住址 Address <span className="text-red-500">*</span></Label>
+                <Input placeholder="完整住址 Full address" value={address} onChange={e => setAddress(e.target.value)}
                   className={`mt-1.5 h-11 rounded-xl border-slate-200 ${errors.address ? 'border-red-400 bg-red-50/50' : ''}`} />
                 <FieldError name="address" />
               </div>
@@ -626,7 +642,7 @@ export default function Register() {
                 <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center">
                   <CreditCard className="w-4 h-4 text-amber-600" />
                 </div>
-                繳費資料
+                繳費資料 <span className="text-xs font-normal text-slate-400 ml-1">Payment</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-5 bg-white">
@@ -634,23 +650,23 @@ export default function Register() {
               {feeBreakdown && (
                 <div className="rounded-2xl border border-slate-200 overflow-hidden">
                   <div className="bg-slate-800 px-5 py-3">
-                    <p className="text-sm font-bold text-white">費用明細</p>
+                    <p className="text-sm font-bold text-white">費用明細 Fee Breakdown</p>
                   </div>
                   <div className="p-5 space-y-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">學費（3個月）</span>
+                      <span className="text-slate-600">學費（3個月）Tuition (3 months)</span>
                       <span className="font-semibold text-slate-800">${feeBreakdown.tuition.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">道袍</span>
+                      <span className="text-slate-600">道袍 Dobok</span>
                       <span className="font-semibold text-slate-800">$400</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">手把</span>
+                      <span className="text-slate-600">手把 Mitts</span>
                       <span className="font-semibold text-slate-800">$150</span>
                     </div>
                     <div className="border-t border-dashed border-slate-200 pt-3 flex justify-between items-center">
-                      <span className="text-base font-bold text-slate-900">合計</span>
+                      <span className="text-base font-bold text-slate-900">合計 Total</span>
                       <span className="text-2xl font-black text-red-600">${feeBreakdown.total.toLocaleString()}</span>
                     </div>
                   </div>
@@ -662,7 +678,7 @@ export default function Register() {
                 <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/80 to-indigo-50/50 p-5">
                   <p className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
                     <span className="w-5 h-5 bg-blue-600 rounded-md flex items-center justify-center text-white text-[10px] font-bold">$</span>
-                    轉帳資料
+                    轉帳資料 Bank Transfer Info
                   </p>
                   <div className="space-y-3">
                     {paymentMethodsQuery.data.map((m, i) => (
@@ -692,7 +708,7 @@ export default function Register() {
 
               {/* 轉帳方式 */}
               <div>
-                <Label className="text-sm font-semibold text-slate-700">轉帳至哪間銀行？</Label>
+                <Label className="text-sm font-semibold text-slate-700">轉帳至哪間銀行？ Which bank did you transfer to?</Label>
                 <div className="flex gap-3 mt-2">
                   {[{ v: 'BOC', l: '中國銀行' }, { v: 'HSBC', l: '匯豐銀行' }, { v: 'FPS', l: '轉數快' }].map(b => (
                     <button key={b.v} type="button" onClick={() => setReceivingBank(b.v)}
@@ -705,8 +721,8 @@ export default function Register() {
 
               {/* 收據上傳 */}
               <div>
-                <Label className="text-sm font-semibold text-slate-700">繳費收據 <span className="text-red-500">*</span></Label>
-                <p className="text-xs text-slate-400 mt-0.5">轉帳後請上傳截圖或收據照片</p>
+                <Label className="text-sm font-semibold text-slate-700">繳費收據 Payment Receipt <span className="text-red-500">*</span></Label>
+                <p className="text-xs text-slate-400 mt-0.5">轉帳後請上傳截圖或收據照片 Upload screenshot or photo of receipt after transfer</p>
                 {receiptFile ? (
                   <div className="relative mt-3 rounded-2xl overflow-hidden border-2 border-slate-200">
                     <img src={receiptFile.preview} alt="收據" className="w-full max-h-60 object-contain bg-slate-50" />
@@ -725,8 +741,8 @@ export default function Register() {
                         <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                           <Upload className="w-6 h-6 text-blue-600" />
                         </div>
-                        <span className="text-sm font-semibold text-slate-700">上傳相片</span>
-                        <span className="text-[11px] text-slate-400">從相簿選擇</span>
+                        <span className="text-sm font-semibold text-slate-700">上傳相片 Upload</span>
+                        <span className="text-[11px] text-slate-400">從相簿選擇 From gallery</span>
                       </button>
                       {/* 即時影相 (開啟相機) */}
                       <button type="button" onClick={() => cameraInputRef.current?.click()}
@@ -734,11 +750,11 @@ export default function Register() {
                         <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                           <Camera className="w-6 h-6 text-green-600" />
                         </div>
-                        <span className="text-sm font-semibold text-slate-700">即時影相</span>
-                        <span className="text-[11px] text-slate-400">開啟相機拍攝</span>
+                        <span className="text-sm font-semibold text-slate-700">即時影相 Camera</span>
+                        <span className="text-[11px] text-slate-400">開啟相機拍攝 Take photo</span>
                       </button>
                     </div>
-                    <p className="text-xs text-slate-400 mt-2 text-center">支援 JPG、PNG，最大 10MB</p>
+                    <p className="text-xs text-slate-400 mt-2 text-center">支援 JPG、PNG，最大 10MB / Supports JPG, PNG, max 10MB</p>
                   </div>
                 )}
                 {/* 從相簿上傳 - 無 capture 屬性 */}
@@ -757,27 +773,27 @@ export default function Register() {
                 <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
                   <HelpCircle className="w-4 h-4 text-slate-600" />
                 </div>
-                其他資料
+                其他資料 <span className="text-xs font-normal text-slate-400 ml-1">Other Info</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-5 bg-white">
               {/* 從何得知 */}
               <div>
-                <Label className="text-sm font-semibold text-slate-700">請問在那裡知道我們既課程？ <span className="text-red-500">*</span></Label>
+                <Label className="text-sm font-semibold text-slate-700">請問在那裡知道我們的課程？ How did you hear about us? <span className="text-red-500">*</span></Label>
                 <div className="flex flex-wrap gap-2 mt-3">
                   {HOW_KNOW_OPTIONS.map(opt => (
-                    <button key={opt} type="button" onClick={() => { setHowDidYouHear(opt); setHowDidYouHearOther(''); }}
-                      className={`px-4 py-2.5 rounded-xl text-xs font-semibold border-2 transition-all duration-200 ${howDidYouHear === opt ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}>
-                      {opt}
+                    <button key={opt.zh} type="button" onClick={() => { setHowDidYouHear(opt.zh); setHowDidYouHearOther(''); }}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-semibold border-2 transition-all duration-200 ${howDidYouHear === opt.zh ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}>
+                      {opt.zh}<span className="font-normal text-[10px] opacity-70 ml-1">{opt.en}</span>
                     </button>
                   ))}
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => setHowDidYouHear('其他')}
                       className={`px-4 py-2.5 rounded-xl text-xs font-semibold border-2 transition-all duration-200 ${howDidYouHear === '其他' ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}>
-                      其他
+                      其他 Other
                     </button>
                     {howDidYouHear === '其他' && (
-                      <Input placeholder="請說明" value={howDidYouHearOther}
+                      <Input placeholder="請說明 Please specify" value={howDidYouHearOther}
                         onChange={e => setHowDidYouHearOther(e.target.value)}
                         className="w-36 h-10 rounded-xl text-sm border-slate-200" />
                     )}
@@ -788,16 +804,16 @@ export default function Register() {
 
               {/* 身體狀況 */}
               <div>
-                <Label className="text-sm font-semibold text-slate-700">特殊身體狀況 / 過敏</Label>
-                <Textarea placeholder="選填，如有任何需注意事項" value={medicalConditions}
+                <Label className="text-sm font-semibold text-slate-700">特殊身體狀況 / 過敏 Medical Conditions / Allergies</Label>
+                <Textarea placeholder="選填，如有任何需注意事項 Optional, any special health concerns" value={medicalConditions}
                   onChange={e => setMedicalConditions(e.target.value)} rows={2}
                   className="mt-1.5 rounded-xl resize-none border-slate-200" />
               </div>
 
               {/* 備註 */}
               <div>
-                <Label className="text-sm font-semibold text-slate-700">其他備註</Label>
-                <Textarea placeholder="選填" value={remarks} onChange={e => setRemarks(e.target.value)}
+                <Label className="text-sm font-semibold text-slate-700">其他備註 Remarks</Label>
+                <Textarea placeholder="選填 Optional" value={remarks} onChange={e => setRemarks(e.target.value)}
                   rows={2} className="mt-1.5 rounded-xl resize-none border-slate-200" />
               </div>
             </CardContent>
@@ -808,18 +824,18 @@ export default function Register() {
             className="w-full h-14 text-base font-bold rounded-2xl bg-gradient-to-r from-red-600 via-red-500 to-orange-500 hover:from-red-700 hover:via-red-600 hover:to-orange-600 shadow-xl shadow-red-500/25 transition-all duration-200 border-0"
             disabled={submitMutation.isPending}>
             {submitMutation.isPending ? (
-              <span className="flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />提交中...</span>
-            ) : "提交報名 →"}
+              <span className="flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />提交中 Submitting...</span>
+            ) : "提交報名 Submit Registration →"}
           </Button>
 
           {submitMutation.isError && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700 text-sm text-center">
-              提交失敗：{submitMutation.error?.message || '請稍後再試'}
+              提交失敗 Submission failed：{submitMutation.error?.message || '請稍後再試 Please try again later'}
             </div>
           )}
 
           <p className="text-center text-xs text-slate-400 pb-6">
-            所有資料只用作報名用途，絕對保密
+            所有資料只用作報名用途，絕對保密 All information is strictly confidential and used for registration purposes only.
           </p>
         </form>
       </div>
