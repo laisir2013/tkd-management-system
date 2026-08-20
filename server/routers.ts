@@ -216,6 +216,15 @@ import {
   getAuditLogById,
   markAuditLogUndone,
   deleteAuditLog,
+  // 教練薪資
+  getAllPayrollRecords,
+  getPayrollRecordById,
+  getPayrollByCoachMonth,
+  upsertPayrollRecord,
+  updatePayrollStatus,
+  deletePayrollRecord,
+  processPayrollPayment,
+  getPayrollSummary,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -9016,6 +9025,225 @@ export const appRouter = router({
         }
 
         return { success: true, restored, undoLogId };
+      }),
+  }),
+
+  // ==================== 教練薪資 (Payroll) ====================
+  payroll: router({
+    // 取得所有薪資記錄（支援篩選）
+    getAll: protectedProcedure
+      .input(z.object({
+        year: z.number().optional(),
+        month: z.number().min(1).max(12).optional(),
+        coachName: z.string().optional(),
+        status: z.string().optional(),
+      }).optional())
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以查看薪資記錄' });
+        }
+        return getAllPayrollRecords(input || undefined);
+      }),
+
+    // 取得單筆薪資記錄
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return getPayrollRecordById(input.id);
+      }),
+
+    // 取得匯總統計
+    getSummary: protectedProcedure
+      .input(z.object({
+        year: z.number(),
+        month: z.number().min(1).max(12).optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return getPayrollSummary(input.year, input.month);
+      }),
+
+    // 建立/更新薪資記錄（生成草稿或更新）
+    upsert: protectedProcedure
+      .input(z.object({
+        coachName: z.string(),
+        year: z.number(),
+        month: z.number().min(1).max(12),
+        baseSalary: z.string().optional(),
+        regularIncome: z.string().optional(),
+        eliteIncome: z.string().optional(),
+        bonus: z.string().optional(),
+        deductions: z.string().optional(),
+        mpf: z.string().optional(),
+        operatingFee: z.string().optional(),
+        netAmount: z.string(),
+        paymentDate: z.string().nullable().optional(),
+        paymentMethod: z.string().nullable().optional(),
+        paymentBank: z.string().nullable().optional(),
+        referenceNumber: z.string().nullable().optional(),
+        status: z.enum(['draft', 'pending', 'paid', 'cancelled']).optional(),
+        notes: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const result = await upsertPayrollRecord({
+          ...input,
+          createdBy: ctx.user.username || 'admin',
+        });
+        return result;
+      }),
+
+    // 批量生成某月所有教練的薪資草稿（根據財務報表數據自動計算）
+    generateMonth: protectedProcedure
+      .input(z.object({
+        year: z.number(),
+        month: z.number().min(1).max(12),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        
+        // 利用現有的 getMonthlyFinanceReport 取得該年度的財務數據
+        const financeData = await getMonthlyFinanceReport(input.year);
+        if (!financeData || financeData.length === 0) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '該年度無財務數據' });
+        }
+
+        const results: Array<{ coachName: string; id: number; isNew: boolean; netAmount: string }> = [];
+
+        for (const coach of financeData) {
+          const monthData = coach.months[input.month];
+          if (!monthData) continue;
+
+          const regularIncome = monthData.regularIncome || 0;
+          const eliteIncome = monthData.eliteIncome || 0;
+          const totalIncome = monthData.totalIncome || 0;
+          const mpf = monthData.mpf || 0;
+          const operating = monthData.operating || 0;
+          const netSalary = monthData.netSalary || 0;
+
+          // 只有有收入的教練才生成
+          if (totalIncome <= 0 && netSalary <= 0) continue;
+
+          const result = await upsertPayrollRecord({
+            coachName: coach.coachName,
+            year: input.year,
+            month: input.month,
+            baseSalary: '0.00', // 目前系統用收入比例計算，未用固定底薪
+            regularIncome: regularIncome.toFixed(2),
+            eliteIncome: eliteIncome.toFixed(2),
+            bonus: '0.00',
+            deductions: '0.00',
+            mpf: mpf.toFixed(2),
+            operatingFee: operating.toFixed(2),
+            netAmount: netSalary.toFixed(2),
+            status: 'draft',
+            createdBy: ctx.user.username || 'admin',
+          });
+
+          results.push({
+            coachName: coach.coachName,
+            id: result.id,
+            isNew: result.isNew,
+            netAmount: netSalary.toFixed(2),
+          });
+        }
+
+        return { generated: results.length, records: results };
+      }),
+
+    // 確認出糧（發放薪資 → 同步會計帳）
+    processPayment: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        paymentDate: z.string(), // YYYY-MM-DD
+        paymentMethod: z.string().optional(),
+        paymentBank: z.string().optional(),
+        referenceNumber: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const result = await processPayrollPayment(input.id, {
+          paymentDate: input.paymentDate,
+          paymentMethod: input.paymentMethod,
+          paymentBank: input.paymentBank,
+          referenceNumber: input.referenceNumber,
+        });
+        if (!result.success) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
+        }
+        return result;
+      }),
+
+    // 批量出糧（一次性對某月所有 pending 記錄出糧）
+    batchProcessPayment: protectedProcedure
+      .input(z.object({
+        ids: z.array(z.number()),
+        paymentDate: z.string(),
+        paymentMethod: z.string().optional(),
+        paymentBank: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const results: Array<{ id: number; success: boolean; error?: string }> = [];
+        for (const id of input.ids) {
+          const result = await processPayrollPayment(id, {
+            paymentDate: input.paymentDate,
+            paymentMethod: input.paymentMethod,
+            paymentBank: input.paymentBank,
+          });
+          results.push({ id, success: result.success, error: result.error });
+        }
+        return {
+          total: results.length,
+          success: results.filter(r => r.success).length,
+          failed: results.filter(r => !r.success).length,
+          details: results,
+        };
+      }),
+
+    // 更新狀態（不出糧，僅改狀態，如 draft→pending 或 cancel）
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['draft', 'pending', 'paid', 'cancelled']),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await updatePayrollStatus(input.id, input.status);
+        return { success: true };
+      }),
+
+    // 刪除薪資記錄（僅 draft 可刪）
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const record = await getPayrollRecordById(input.id);
+        if (!record) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '找不到薪資記錄' });
+        }
+        if (record.status === 'paid') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '已出糧的記錄不可刪除' });
+        }
+        await deletePayrollRecord(input.id);
+        return { success: true };
       }),
   }),
 

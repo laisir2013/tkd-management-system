@@ -1,7 +1,7 @@
 import { eq, and, inArray, gte, lte, sql, or, desc, asc, isNull, between } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig, bankStatements, InsertBankStatement, BankStatement, bankStatementTransactions, InsertBankStatementTransaction, BankStatementTransaction, studentLeaveMonths, examPayments, InsertExamPayment, ExamPayment, auditLog } from "../drizzle/schema";
+import { InsertUser, users, students, InsertStudent, paymentRecords, InsertPaymentRecord, Student, PaymentRecord, dojos, InsertDojo, Dojo, coaches, InsertCoach, Coach, beltLevels, InsertBeltLevel, BeltLevel, trainingSchedules, InsertTrainingSchedule, TrainingSchedule, attendanceRecords, InsertAttendanceRecord, AttendanceRecord, whatsappTemplates, InsertWhatsappTemplate, WhatsappTemplate, eliteStudents, InsertEliteStudent, EliteStudent, eliteTrainingSchedules, InsertEliteTrainingSchedule, EliteTrainingSchedule, eliteAttendanceRecords, InsertEliteAttendanceRecord, EliteAttendanceRecord, elitePaymentRecords, InsertElitePaymentRecord, ElitePaymentRecord, accountingRecords, InsertAccountingRecord, AccountingRecord, events, InsertEvent, Event, eventRegistrations, InsertEventRegistration, EventRegistration, examSessions, InsertExamSession, ExamSession, examCandidates, InsertExamCandidate, ExamCandidate, examScoringItems, InsertExamScoringItem, ExamScoringItem, examScores, InsertExamScore, ExamScore, examSchedules, InsertExamSchedule, ExamSchedule, chartOfAccounts, journalEntries, journalEntryLines, mappingRules, systemConfig, bankStatements, InsertBankStatement, BankStatement, bankStatementTransactions, InsertBankStatementTransaction, BankStatementTransaction, studentLeaveMonths, examPayments, InsertExamPayment, ExamPayment, auditLog, payrollRecords, InsertPayrollRecord, PayrollRecord } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 // 安全解析 customMonths JSON：支援 double-parse（Drizzle json() 可能只解一層）
@@ -5294,4 +5294,263 @@ export async function deleteAuditLog(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(auditLog).where(eq(auditLog.id, id));
+}
+
+// ==================== 教練薪資 (Payroll) ====================
+
+/**
+ * 取得所有薪資記錄（支援篩選）
+ */
+export async function getAllPayrollRecords(filter?: { year?: number; month?: number; coachName?: string; status?: string }) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: any[] = [];
+  if (filter?.year) conditions.push(eq(payrollRecords.year, filter.year));
+  if (filter?.month) conditions.push(eq(payrollRecords.month, filter.month));
+  if (filter?.coachName) conditions.push(eq(payrollRecords.coachName, filter.coachName));
+  if (filter?.status) conditions.push(eq(payrollRecords.status, filter.status as any));
+
+  if (conditions.length > 0) {
+    return db.select().from(payrollRecords)
+      .where(and(...conditions))
+      .orderBy(desc(payrollRecords.year), desc(payrollRecords.month), asc(payrollRecords.coachName));
+  }
+  return db.select().from(payrollRecords)
+    .orderBy(desc(payrollRecords.year), desc(payrollRecords.month), asc(payrollRecords.coachName));
+}
+
+/**
+ * 取得單筆薪資記錄
+ */
+export async function getPayrollRecordById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(payrollRecords).where(eq(payrollRecords.id, id)).limit(1);
+  return rows[0] || null;
+}
+
+/**
+ * 取得某教練某月的薪資記錄
+ */
+export async function getPayrollByCoachMonth(coachName: string, year: number, month: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(payrollRecords)
+    .where(and(
+      eq(payrollRecords.coachName, coachName),
+      eq(payrollRecords.year, year),
+      eq(payrollRecords.month, month),
+    ))
+    .limit(1);
+  return rows[0] || null;
+}
+
+/**
+ * 建立或更新薪資記錄（upsert by coach+year+month）
+ */
+export async function upsertPayrollRecord(data: {
+  coachName: string;
+  year: number;
+  month: number;
+  baseSalary?: string;
+  regularIncome?: string;
+  eliteIncome?: string;
+  bonus?: string;
+  deductions?: string;
+  mpf?: string;
+  operatingFee?: string;
+  netAmount: string;
+  paymentDate?: string | null;
+  paymentMethod?: string | null;
+  paymentBank?: string | null;
+  referenceNumber?: string | null;
+  status?: 'draft' | 'pending' | 'paid' | 'cancelled';
+  notes?: string | null;
+  createdBy?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+
+  const existing = await getPayrollByCoachMonth(data.coachName, data.year, data.month);
+  
+  if (existing) {
+    // Update existing
+    await db.update(payrollRecords)
+      .set({
+        baseSalary: data.baseSalary ?? existing.baseSalary,
+        regularIncome: data.regularIncome ?? existing.regularIncome,
+        eliteIncome: data.eliteIncome ?? existing.eliteIncome,
+        bonus: data.bonus ?? existing.bonus,
+        deductions: data.deductions ?? existing.deductions,
+        mpf: data.mpf ?? existing.mpf,
+        operatingFee: data.operatingFee ?? existing.operatingFee,
+        netAmount: data.netAmount,
+        paymentDate: data.paymentDate ? new Date(data.paymentDate) : existing.paymentDate,
+        paymentMethod: data.paymentMethod ?? existing.paymentMethod,
+        paymentBank: data.paymentBank ?? existing.paymentBank,
+        referenceNumber: data.referenceNumber ?? existing.referenceNumber,
+        status: data.status ?? existing.status,
+        notes: data.notes !== undefined ? data.notes : existing.notes,
+      } as any)
+      .where(eq(payrollRecords.id, existing.id));
+    return { id: existing.id, isNew: false };
+  } else {
+    // Insert new
+    const result = await db.insert(payrollRecords).values({
+      coachName: data.coachName,
+      year: data.year,
+      month: data.month,
+      baseSalary: data.baseSalary || '0.00',
+      regularIncome: data.regularIncome || '0.00',
+      eliteIncome: data.eliteIncome || '0.00',
+      bonus: data.bonus || '0.00',
+      deductions: data.deductions || '0.00',
+      mpf: data.mpf || '0.00',
+      operatingFee: data.operatingFee || '0.00',
+      netAmount: data.netAmount,
+      paymentDate: data.paymentDate ? new Date(data.paymentDate) : null,
+      paymentMethod: data.paymentMethod || null,
+      paymentBank: data.paymentBank || null,
+      referenceNumber: data.referenceNumber || null,
+      status: data.status || 'draft',
+      notes: data.notes || null,
+      createdBy: data.createdBy || null,
+    } as any);
+    return { id: Number(result[0].insertId), isNew: true };
+  }
+}
+
+/**
+ * 更新薪資記錄狀態
+ */
+export async function updatePayrollStatus(id: number, status: 'draft' | 'pending' | 'paid' | 'cancelled', extra?: {
+  paymentDate?: string;
+  paymentMethod?: string;
+  paymentBank?: string;
+  referenceNumber?: string;
+  accountingRecordId?: number;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(payrollRecords)
+    .set({
+      status,
+      ...(extra?.paymentDate && { paymentDate: new Date(extra.paymentDate) }),
+      ...(extra?.paymentMethod && { paymentMethod: extra.paymentMethod }),
+      ...(extra?.paymentBank && { paymentBank: extra.paymentBank }),
+      ...(extra?.referenceNumber && { referenceNumber: extra.referenceNumber }),
+      ...(extra?.accountingRecordId && { accountingRecordId: extra.accountingRecordId }),
+    } as any)
+    .where(eq(payrollRecords.id, id));
+}
+
+/**
+ * 刪除薪資記錄
+ */
+export async function deletePayrollRecord(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(payrollRecords).where(eq(payrollRecords.id, id));
+}
+
+/**
+ * 出糧並同步到會計帳（核心流程）
+ * 1. 更新 payroll_records 為 paid
+ * 2. 建立 accounting_records (type=expense, category=coach_salary)
+ * 3. 自動產生 journal entry (debit 5003 薪金, credit 1001 銀行)
+ */
+export async function processPayrollPayment(payrollId: number, paymentInfo: {
+  paymentDate: string; // YYYY-MM-DD
+  paymentMethod?: string;
+  paymentBank?: string;
+  referenceNumber?: string;
+}): Promise<{ success: boolean; accountingRecordId?: number; journalEntryId?: number; error?: string }> {
+  const db = await getDb();
+  if (!db) return { success: false, error: 'Database not available' };
+
+  const record = await getPayrollRecordById(payrollId);
+  if (!record) return { success: false, error: '找不到薪資記錄' };
+  if (record.status === 'paid') return { success: false, error: '此記錄已出糧，不可重複操作' };
+  if (record.status === 'cancelled') return { success: false, error: '此記錄已取消' };
+
+  const normalizedBank = paymentInfo.paymentBank ? normalizeBankName(paymentInfo.paymentBank) : null;
+  const displayBank = normalizedBank ? paymentMethodToDisplayName(normalizedBank) : (paymentInfo.paymentBank || null);
+
+  // 1. 建立會計記錄 (expense → coach_salary)
+  const acctResult = await insertAccountingRecord({
+    transactionDate: new Date(paymentInfo.paymentDate),
+    bank: displayBank,
+    receivingBank: null,
+    amount: String(record.netAmount),
+    type: 'expense',
+    category: 'coach_salary',
+    description: `${record.coachName} ${record.year}年${record.month}月薪資`,
+    receiptUrl: null,
+    receiptKey: null,
+    paymentRecordId: null,
+    elitePaymentRecordId: null,
+    studentName: null,
+    coachName: record.coachName,
+    dojoName: null,
+    source: 'auto_sync',
+  });
+
+  const accountingRecordId = acctResult.insertId;
+
+  // 2. 自動產生日記帳分錄
+  let journalEntryId: number | undefined;
+  try {
+    const jeResult = await createJournalEntryFromRecord({
+      id: accountingRecordId,
+      type: 'expense',
+      amount: String(record.netAmount),
+      category: 'coach_salary',
+      paymentMethod: normalizedBank,
+      description: `${record.coachName} ${record.year}年${record.month}月薪資`,
+      date: paymentInfo.paymentDate,
+    });
+    if (jeResult.success) {
+      journalEntryId = jeResult.journalEntryId;
+      // 連結 journal entry 到 accounting record
+      await db.update(accountingRecords)
+        .set({ journalEntryId: journalEntryId })
+        .where(eq(accountingRecords.id, accountingRecordId));
+    }
+  } catch (e) {
+    console.error('Payroll auto journal entry failed:', e);
+  }
+
+  // 3. 更新 payroll record 為 paid
+  await updatePayrollStatus(payrollId, 'paid', {
+    paymentDate: paymentInfo.paymentDate,
+    paymentMethod: paymentInfo.paymentMethod,
+    paymentBank: displayBank || undefined,
+    referenceNumber: paymentInfo.referenceNumber,
+    accountingRecordId,
+  });
+
+  return { success: true, accountingRecordId, journalEntryId };
+}
+
+/**
+ * 取得薪資匯總統計
+ */
+export async function getPayrollSummary(year: number, month?: number) {
+  const db = await getDb();
+  if (!db) return { total: 0, paid: 0, pending: 0, draft: 0, totalAmount: 0, paidAmount: 0 };
+
+  const conditions: any[] = [eq(payrollRecords.year, year)];
+  if (month) conditions.push(eq(payrollRecords.month, month));
+
+  const rows = await db.select().from(payrollRecords).where(and(...conditions));
+  
+  return {
+    total: rows.length,
+    paid: rows.filter(r => r.status === 'paid').length,
+    pending: rows.filter(r => r.status === 'pending').length,
+    draft: rows.filter(r => r.status === 'draft').length,
+    totalAmount: rows.reduce((sum, r) => sum + parseFloat(String(r.netAmount)), 0),
+    paidAmount: rows.filter(r => r.status === 'paid').reduce((sum, r) => sum + parseFloat(String(r.netAmount)), 0),
+  };
 }

@@ -801,3 +801,45 @@ export const auditLog = mysqlTable("audit_log", {
 
 export type AuditLog = typeof auditLog.$inferSelect;
 export type InsertAuditLog = typeof auditLog.$inferInsert;
+
+// ==================== 教練薪資記錄 ====================
+export const payrollRecords = mysqlTable("payroll_records", {
+  id: int("id").autoincrement().primaryKey(),
+  coachName: varchar("coach_name", { length: 100 }).notNull(), // 教練名稱（含「教練」後綴）
+  year: int("year").notNull(),
+  month: int("month").notNull(), // 1-12，薪資所屬月份
+  
+  // 薪資組成
+  baseSalary: decimal("base_salary", { precision: 10, scale: 2 }).notNull().default('0.00'), // 底薪
+  regularIncome: decimal("regular_income", { precision: 10, scale: 2 }).notNull().default('0.00'), // 恆常班收入（來自學費）
+  eliteIncome: decimal("elite_income", { precision: 10, scale: 2 }).notNull().default('0.00'), // 精英班收入
+  bonus: decimal("bonus", { precision: 10, scale: 2 }).notNull().default('0.00'), // 獎金/津貼
+  deductions: decimal("deductions", { precision: 10, scale: 2 }).notNull().default('0.00'), // 扣款
+  mpf: decimal("mpf", { precision: 10, scale: 2 }).notNull().default('0.00'), // 強積金扣款
+  operatingFee: decimal("operating_fee", { precision: 10, scale: 2 }).notNull().default('0.00'), // 公司營運費扣款
+  
+  // 最終實發金額
+  netAmount: decimal("net_amount", { precision: 10, scale: 2 }).notNull(), // 實發薪資
+  
+  // 支付資訊
+  paymentDate: date("payment_date"), // 實際發薪日期
+  paymentMethod: varchar("payment_method", { length: 50 }), // 支付方式（bank_transfer, cash 等）
+  paymentBank: varchar("payment_bank", { length: 100 }), // 轉帳銀行
+  referenceNumber: varchar("reference_number", { length: 100 }), // 轉帳參考編號
+  
+  // 狀態
+  status: mysqlEnum("status", ["draft", "pending", "paid", "cancelled"]).notNull().default("draft"),
+  // draft=草稿計算中, pending=待發放, paid=已發放, cancelled=已取消
+  
+  notes: text("notes"), // 備註
+  
+  // 會計連結
+  accountingRecordId: int("accounting_record_id"), // 關聯的會計記錄ID
+  
+  createdBy: varchar("created_by", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PayrollRecord = typeof payrollRecords.$inferSelect;
+export type InsertPayrollRecord = typeof payrollRecords.$inferInsert;

@@ -38,6 +38,7 @@ import BankStatementReconciliation from "@/components/BankStatementReconciliatio
 import ReceiptReviewContent from "@/components/ReceiptReviewContent";
 import PushQueueReviewContent from "@/components/PushQueueReviewContent";
 import RegistrationManagement from "@/components/RegistrationManagement";
+import PayrollManagement from "@/components/PayrollManagement";
 import { StudentRecordDialog } from "@/components/StudentRecordDialog";
 
 
@@ -589,6 +590,7 @@ export default function Admin() {
             <TabsTrigger value="elite-link" className="text-[10px] sm:text-sm px-1.5 sm:px-4 py-2 sm:py-2 border border-amber-400 bg-amber-50 text-amber-700 rounded-md data-[state=active]:border-amber-500 data-[state=active]:bg-amber-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold" onClick={() => window.location.href = '/elite'}>{"🥋"}<span className="hidden sm:inline"> 精英班管理</span><span className="sm:hidden"> 精英</span></TabsTrigger>
             <TabsTrigger value="coach-stats" className="text-[10px] sm:text-sm px-1.5 sm:px-4 py-2 sm:py-2 border border-green-300 bg-green-50 text-green-700 rounded-md data-[state=active]:border-green-500 data-[state=active]:bg-green-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">{"📊"}<span className="hidden sm:inline"> 教練統計</span><span className="sm:hidden"> 統計</span></TabsTrigger>
             <TabsTrigger value="monthly-finance" className="text-[10px] sm:text-sm px-1.5 sm:px-4 py-2 sm:py-2 border border-teal-300 bg-teal-50 text-teal-700 rounded-md data-[state=active]:border-teal-500 data-[state=active]:bg-teal-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">{"💰"}<span className="hidden sm:inline"> 財務報表</span><span className="sm:hidden"> 財務</span></TabsTrigger>
+            <TabsTrigger value="payroll" className="text-[10px] sm:text-sm px-1.5 sm:px-4 py-2 sm:py-2 border border-emerald-300 bg-emerald-50 text-emerald-700 rounded-md data-[state=active]:border-emerald-500 data-[state=active]:bg-emerald-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">{"💵"}<span className="hidden sm:inline"> 教練出糧</span><span className="sm:hidden"> 出糧</span></TabsTrigger>
             <TabsTrigger value="accounting" className="text-[10px] sm:text-sm px-1.5 sm:px-4 py-2 sm:py-2 border border-violet-300 bg-violet-50 text-violet-700 rounded-md data-[state=active]:border-violet-500 data-[state=active]:bg-violet-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">{"📋"}<span className="hidden sm:inline"> 會計總帳</span><span className="sm:hidden"> 會計</span></TabsTrigger>
             <TabsTrigger value="bank-reconciliation" className="text-[10px] sm:text-sm px-1.5 sm:px-4 py-2 sm:py-2 border-2 border-indigo-400 bg-indigo-50 text-indigo-700 rounded-md data-[state=active]:border-indigo-500 data-[state=active]:bg-indigo-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-bold">{"🏦"}<span className="hidden sm:inline"> 銀行對帳</span><span className="sm:hidden"> 對帳</span></TabsTrigger>
             <TabsTrigger value="events" className="text-[10px] sm:text-sm px-1.5 sm:px-4 py-2 sm:py-2 border border-orange-300 bg-orange-50 text-orange-700 rounded-md data-[state=active]:border-orange-500 data-[state=active]:bg-orange-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">{"🏆"}<span className="hidden sm:inline"> 活動管理</span><span className="sm:hidden"> 活動</span></TabsTrigger>
@@ -1151,6 +1153,11 @@ export default function Admin() {
           {/* ========= 每月財務報表 ========= */}
           <TabsContent value="monthly-finance">
             <MonthlyFinanceReport />
+          </TabsContent>
+
+          {/* ========= 教練出糧 ========= */}
+          <TabsContent value="payroll">
+            <PayrollManagement />
           </TabsContent>
 
           {/* ========= 會計總帳 (含子分頁) ========= */}
