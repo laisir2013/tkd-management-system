@@ -16,7 +16,7 @@ import {
   MessageSquare, CheckCircle2, Image, CreditCard, User,
   MapPin, Settings, GripVertical, Eye, EyeOff, Pencil, FileText,
   ArrowLeft, ClipboardList, Plus, X, CircleDot, CheckSquare, Type, List,
-  Send
+  Send, LayoutGrid, Table2, ZoomIn
 } from "lucide-react";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { calcNewStudentProRata, WEEKDAY_NAMES } from "@/lib/newStudentCalc";
@@ -101,6 +101,8 @@ export default function RegistrationManagement() {
     dialogSnapshot: any; // approveDialog data at the time of approval
   } | null>(null);
   const [enrolledNotifyDialog, setEnrolledNotifyDialog] = useState<any | null>(null);
+  const [listMode, setListMode] = useState<'card' | 'sheet'>('card');
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
 
   // Form settings state
   const [formFields, setFormFields] = useState<FormField[]>(() => {
@@ -815,18 +817,148 @@ export default function RegistrationManagement() {
             </Button>
           ))}
         </div>
-        <Input
-          placeholder="搜尋姓名/電話/道場..."
-          value={searchText}
-          onChange={e => setSearchText(e.target.value)}
-          className="w-full sm:w-48 h-8 text-sm"
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder="搜尋姓名/電話/道場..."
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            className="w-full sm:w-48 h-8 text-sm"
+          />
+          <div className="flex border rounded-lg overflow-hidden shrink-0">
+            <button onClick={() => setListMode('card')}
+              className={`p-1.5 ${listMode === 'card' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}
+              title="卡片模式">
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button onClick={() => setListMode('sheet')}
+              className={`p-1.5 ${listMode === 'sheet' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}
+              title="表格模式">
+              <Table2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Registration cards - full display */}
+      {/* Registration list */}
       {filtered.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-gray-400">暫無報名記錄</CardContent></Card>
+      ) : listMode === 'sheet' ? (
+        /* ═══ Sheet / Table mode ═══ */
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b text-left">
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap sticky left-0 bg-slate-50 z-10">學生姓名</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">狀態</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">道場</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">時段</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">首堂</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">家長</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">電話</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">繳費</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">收據</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">報名日期</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(reg => {
+                  const statusInfo = STATUS_MAP[reg.status] || STATUS_MAP.pending;
+                  const receiptSrc = reg.receiptUrl
+                    ? (reg.receiptUrl.startsWith('/') ? reg.receiptUrl : `/api/receipts/${reg.receiptKey}`)
+                    : null;
+                  return (
+                    <tr key={reg.id} className="border-b hover:bg-slate-50/50 transition-colors">
+                      {/* 學生姓名 */}
+                      <td className="px-3 py-2 sticky left-0 bg-white z-10">
+                        <div className="flex items-center gap-1.5 min-w-[100px]">
+                          <span className="font-semibold text-slate-800">{reg.studentName}</span>
+                          {reg.studentGender && <span className="text-xs">{reg.studentGender === 'male' ? '♂' : '♀'}</span>}
+                        </div>
+                        {reg.englishName && <div className="text-[11px] text-slate-400">{reg.englishName}</div>}
+                      </td>
+                      {/* 狀態 */}
+                      <td className="px-3 py-2">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] border font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
+                      </td>
+                      {/* 道場 */}
+                      <td className="px-3 py-2 whitespace-nowrap text-slate-700">{reg.preferredDojo || '—'}</td>
+                      {/* 時段 */}
+                      <td className="px-3 py-2 whitespace-nowrap text-slate-700">{reg.classSchedule || reg.preferredSchedule || '—'}</td>
+                      {/* 首堂 */}
+                      <td className="px-3 py-2 whitespace-nowrap text-slate-700">{reg.firstClassDate ? String(reg.firstClassDate) : '—'}</td>
+                      {/* 家長 */}
+                      <td className="px-3 py-2 whitespace-nowrap text-slate-700">{reg.parentName || '—'}</td>
+                      {/* 電話 */}
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <a href={`https://wa.me/852${reg.parentPhone}`} target="_blank" rel="noopener noreferrer"
+                          className="text-green-700 hover:text-green-600 font-medium">{reg.parentPhone}</a>
+                      </td>
+                      {/* 繳費 */}
+                      <td className="px-3 py-2 whitespace-nowrap font-medium text-slate-800">
+                        {reg.tuitionAmount ? `$${Number(reg.tuitionAmount).toLocaleString()}` : '—'}
+                      </td>
+                      {/* 收據 */}
+                      <td className="px-3 py-2">
+                        {receiptSrc ? (
+                          <button onClick={() => setReceiptPreview(receiptSrc)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-[11px] font-medium hover:bg-blue-100 border border-blue-200 transition-colors">
+                            <Image className="w-3 h-3" /> 查看
+                          </button>
+                        ) : <span className="text-slate-300 text-xs">—</span>}
+                      </td>
+                      {/* 報名日期 */}
+                      <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-500">
+                        {reg.createdAt ? new Date(reg.createdAt).toLocaleDateString('zh-HK') : ''}
+                      </td>
+                      {/* 操作 */}
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="查看詳情"
+                            onClick={() => { setSelectedRecord(reg); setPageView("record"); }}>
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          {reg.status === 'enrolled' && reg.convertedStudentId && (
+                            <Button size="sm" className="h-7 text-[11px] bg-green-600 hover:bg-green-700 px-2"
+                              onClick={() => setEnrolledNotifyDialog(reg)}>
+                              <WhatsAppIcon className="w-3 h-3 mr-0.5" /> 通知
+                            </Button>
+                          )}
+                          {reg.status !== 'enrolled' && (
+                            <>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="修改"
+                                onClick={() => setEditDialog({ ...reg, tuitionAmount: reg.tuitionAmount ? Number(reg.tuitionAmount) : '' })}>
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button size="sm" className="h-7 text-[11px] bg-green-600 hover:bg-green-700 px-2" title="批准入學"
+                                onClick={() => setApproveDialog({
+                                  ...reg,
+                                  tuitionAmount: reg.tuitionAmount ? Number(reg.tuitionAmount) : 1800,
+                                  feePerQuarter: 1800,
+                                  firstClassDate: reg.firstClassDate || '',
+                                  receivingBank: reg.receivingBank?.includes('BOC') ? 'BOC' : reg.receivingBank?.includes('HSBC') ? 'HSBC' : reg.receivingBank?.includes('FPS') ? 'FPS' : reg.receivingBank === '現金' ? 'CASH' : 'BOC',
+                                  dobokSize: reg.dobokSize || '',
+                                })}>
+                                <CheckCircle2 className="w-3 h-3 mr-0.5" /> 批准
+                              </Button>
+                            </>
+                          )}
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600" title="刪除"
+                            onClick={() => setDeleteId(reg.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       ) : (
+        /* ═══ Card mode (original) ═══ */
         <div className="space-y-4">
           {filtered.map(reg => {
             const statusInfo = STATUS_MAP[reg.status] || STATUS_MAP.pending;
@@ -892,11 +1024,18 @@ export default function RegistrationManagement() {
                     )}
                   </div>
 
-                  {/* Receipt thumbnail */}
+                  {/* Receipt thumbnail — click to expand */}
                   {reg.receiptUrl && (
                     <div className="mt-3">
                       <span className="text-gray-400 text-xs flex items-center gap-1 mb-1"><Image className="w-3 h-3" /> 收據</span>
-                      <img src={reg.receiptUrl.startsWith('/') ? reg.receiptUrl : `/api/receipts/${reg.receiptKey}`} alt="收據" className="max-h-32 rounded-lg border object-contain" />
+                      <div className="relative inline-block group cursor-pointer"
+                        onClick={() => setReceiptPreview(reg.receiptUrl.startsWith('/') ? reg.receiptUrl : `/api/receipts/${reg.receiptKey}`)}>
+                        <img src={reg.receiptUrl.startsWith('/') ? reg.receiptUrl : `/api/receipts/${reg.receiptKey}`} alt="收據"
+                          className="max-h-32 rounded-lg border object-contain transition-opacity group-hover:opacity-80" />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="bg-black/60 rounded-full p-2"><ZoomIn className="w-5 h-5 text-white" /></div>
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -1483,6 +1622,20 @@ export default function RegistrationManagement() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* ═══ Receipt Preview Lightbox ═══ */}
+      {receiptPreview && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setReceiptPreview(null)}>
+          <div className="relative max-w-3xl max-h-[90vh] w-full" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setReceiptPreview(null)}
+              className="absolute -top-3 -right-3 z-10 bg-white rounded-full p-1.5 shadow-lg hover:bg-gray-100 transition-colors border">
+              <X className="w-5 h-5 text-gray-600" />
+            </button>
+            <img src={receiptPreview} alt="收據" className="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl bg-white" />
+          </div>
+        </div>
       )}
 
       {/* Delete confirm */}
