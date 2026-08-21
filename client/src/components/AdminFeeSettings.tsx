@@ -42,7 +42,7 @@ const defaultForm: FeeSettingForm = {
 };
 
 export default function AdminFeeSettings() {
-  const [filterCoach, setFilterCoach] = useState<string>('');
+  const [filterCoach, setFilterCoach] = useState<string>('all');
   const [showDialog, setShowDialog] = useState(false);
   const [form, setForm] = useState<FeeSettingForm>(defaultForm);
   const [isEditing, setIsEditing] = useState(false);
@@ -65,7 +65,7 @@ export default function AdminFeeSettings() {
   }
 
   const coaches = [...new Set((settings || []).map(s => s.coach_name))].sort();
-  const filtered = filterCoach
+  const filtered = filterCoach && filterCoach !== 'all'
     ? (settings || []).filter(s => s.coach_name === filterCoach)
     : (settings || []);
 
@@ -161,12 +161,12 @@ export default function AdminFeeSettings() {
       {/* 工具列 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Select value={filterCoach} onValueChange={setFilterCoach}>
+          <Select value={filterCoach || 'all'} onValueChange={setFilterCoach}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="全部教練" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">全部教練</SelectItem>
+              <SelectItem value="all">全部教練</SelectItem>
               {coaches.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>
           </Select>

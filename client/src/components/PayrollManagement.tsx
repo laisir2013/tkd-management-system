@@ -367,7 +367,7 @@ export default function PayrollManagement() {
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">轉帳銀行</label>
-              <Select value={paymentBank} onValueChange={setPaymentBank}>
+              <Select value={paymentBank || undefined} onValueChange={setPaymentBank}>
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="選擇銀行" />
                 </SelectTrigger>
@@ -673,7 +673,7 @@ export default function PayrollManagement() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">教練</label>
-                <Select value={adhocCoach} onValueChange={setAdhocCoach}>
+                <Select value={adhocCoach || undefined} onValueChange={setAdhocCoach}>
                   <SelectTrigger>
                     <SelectValue placeholder="選擇教練" />
                   </SelectTrigger>
