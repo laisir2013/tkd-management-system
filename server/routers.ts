@@ -234,6 +234,7 @@ import {
   upsertAdminFeeSetting,
   deleteAdminFeeSetting,
   toggleAdminFeeSetting,
+  getRawPool,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -9183,18 +9184,62 @@ export const appRouter = router({
         amount: z.number().positive(),
         paymentDate: z.string(), // YYYY-MM-DD
         notes: z.string().optional(),
+        receiptBase64: z.string().optional(),
+        receiptMimeType: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
+
+        // 如果有收據，先上傳
+        let receiptUrl: string | undefined;
+        let receiptKey: string | undefined;
+        if (input.receiptBase64) {
+          const mimeType = input.receiptMimeType || 'image/jpeg';
+          const ext = mimeType.includes('png') ? 'png' : mimeType.includes('pdf') ? 'pdf' : 'jpg';
+          const key = `payroll-receipts/${input.coachName}-${Date.now()}.${ext}`;
+          const buffer = Buffer.from(input.receiptBase64, 'base64');
+          const result = await storagePut(key, buffer, mimeType);
+          receiptUrl = result.url;
+          receiptKey = result.key;
+        }
+
         return insertAdhocPayment({
           coachName: input.coachName,
           amount: input.amount,
           paymentDate: input.paymentDate,
           notes: input.notes,
+          receiptUrl,
+          receiptKey,
           createdBy: ctx.user.username || 'admin',
         });
+      }),
+
+    // 上傳出糧收據（為已存在的記錄補傳收據）
+    uploadReceipt: protectedProcedure
+      .input(z.object({
+        payrollId: z.number(),
+        receiptBase64: z.string(),
+        receiptMimeType: z.string().default('image/jpeg'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const ext = input.receiptMimeType.includes('png') ? 'png' : input.receiptMimeType.includes('pdf') ? 'pdf' : 'jpg';
+        const key = `payroll-receipts/${input.payrollId}-${Date.now()}.${ext}`;
+        const buffer = Buffer.from(input.receiptBase64, 'base64');
+        const { url: receiptUrl, key: receiptKey } = await storagePut(key, buffer, input.receiptMimeType);
+
+        // 更新 payroll_records
+        const pool = await getRawPool();
+        await pool.execute(
+          'UPDATE payroll_records SET receipt_url = ?, receipt_key = ? WHERE id = ?',
+          [receiptUrl, receiptKey, input.payrollId]
+        );
+
+        return { success: true, receiptUrl };
       }),
 
     // 建立/更新薪資記錄（生成草稿或更新）

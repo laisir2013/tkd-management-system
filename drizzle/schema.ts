@@ -839,6 +839,10 @@ export const payrollRecords = mysqlTable("payroll_records", {
   // 會計連結
   accountingRecordId: int("accounting_record_id"), // 關聯的會計記錄ID
   
+  // 收據
+  receiptUrl: text("receipt_url"), // 出糧收據圖片URL
+  receiptKey: varchar("receipt_key", { length: 500 }), // 收據存儲key
+  
   createdBy: varchar("created_by", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

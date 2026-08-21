@@ -5688,6 +5688,8 @@ export async function insertAdhocPayment(data: {
   amount: number;
   paymentDate: string; // YYYY-MM-DD
   notes?: string;
+  receiptUrl?: string;
+  receiptKey?: string;
   createdBy?: string;
 }) {
   const pool = await getRawPool();
@@ -5696,9 +5698,9 @@ export async function insertAdhocPayment(data: {
   const month = payDate.getMonth() + 1;
 
   const [result] = await pool.execute(
-    `INSERT INTO payroll_records (coach_name, year, month, net_amount, payment_date, status, is_adhoc, notes, created_by)
-     VALUES (?, ?, ?, ?, ?, 'paid', 1, ?, ?)`,
-    [data.coachName, year, month, data.amount, data.paymentDate, data.notes || '不定期出糧', data.createdBy || 'admin']
+    `INSERT INTO payroll_records (coach_name, year, month, net_amount, payment_date, status, is_adhoc, notes, receipt_url, receipt_key, created_by)
+     VALUES (?, ?, ?, ?, ?, 'paid', 1, ?, ?, ?, ?)`,
+    [data.coachName, year, month, data.amount, data.paymentDate, data.notes || '不定期出糧', data.receiptUrl || null, data.receiptKey || null, data.createdBy || 'admin']
   ) as any[];
 
   return { id: result.insertId, year, month };

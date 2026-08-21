@@ -123,18 +123,16 @@ export default function PayrollSheet() {
       return;
     }
 
-    // 如有收據先上傳
-    let receiptUrl: string | undefined;
+    // 收據轉 base64
+    let receiptBase64: string | undefined;
+    let receiptMimeType: string | undefined;
     if (payReceipt) {
-      try {
-        const formData = new FormData();
-        formData.append('file', payReceipt);
-        const resp = await fetch('/api/upload/receipt', { method: 'POST', body: formData });
-        const data = await resp.json();
-        if (data.url) receiptUrl = data.url;
-      } catch (e) {
-        // 上傳失敗不阻擋出糧
-      }
+      receiptMimeType = payReceipt.type || 'image/jpeg';
+      const arrayBuffer = await payReceipt.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      bytes.forEach(b => binary += String.fromCharCode(b));
+      receiptBase64 = btoa(binary);
     }
 
     const dateStr = new Date().toISOString().split('T')[0];
@@ -142,7 +140,9 @@ export default function PayrollSheet() {
       coachName: showPayDialog.coachName,
       amount,
       paymentDate: `${showPayDialog.year}-${String(showPayDialog.month).padStart(2, '0')}-${dateStr.split('-')[2]}`,
-      notes: payNotes || `${showPayDialog.year}年${showPayDialog.month}月出糧${receiptUrl ? ' (附收據)' : ''}`,
+      notes: payNotes || `${showPayDialog.year}年${showPayDialog.month}月出糧${receiptBase64 ? ' (附收據)' : ''}`,
+      receiptBase64,
+      receiptMimeType,
     });
   };
 

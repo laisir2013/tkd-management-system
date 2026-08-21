@@ -20,6 +20,7 @@ export default function CoachStatsWithElite() {
   const [showPayDialog, setShowPayDialog] = useState<{ coachName: string; amount: number } | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payNotes, setPayNotes] = useState('');
+  const [payReceipt, setPayReceipt] = useState<File | null>(null);
 
   // 傳入 year/quarter 讓後端按季度計算實收
   const { data: coachStats, isLoading } = trpc.coachStats.getAll.useQuery({
@@ -38,6 +39,7 @@ export default function CoachStatsWithElite() {
       setShowPayDialog(null);
       setPayAmount('');
       setPayNotes('');
+      setPayReceipt(null);
       alert('✅ 出糧成功！');
     },
     onError: (err) => alert(`出糧失敗：${err.message}`),
@@ -327,6 +329,23 @@ export default function CoachStatsWithElite() {
                 />
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-medium">上傳收據</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => setPayReceipt(e.target.files?.[0] || null)}
+                    className="text-xs"
+                  />
+                  {payReceipt && (
+                    <Badge variant="outline" className="text-[10px] shrink-0">
+                      <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
+                      已選檔
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-medium">備註</label>
                 <Input
                   value={payNotes}
@@ -338,15 +357,29 @@ export default function CoachStatsWithElite() {
                 <Button variant="outline" onClick={() => setShowPayDialog(null)}>取消</Button>
                 <Button
                   className="bg-emerald-600 hover:bg-emerald-700 gap-1"
-                  onClick={() => {
+                  onClick={async () => {
                     const amount = parseFloat(payAmount);
                     if (isNaN(amount) || amount <= 0) { alert('請輸入有效金額'); return; }
                     const today = new Date().toISOString().split('T')[0];
+
+                    let receiptBase64: string | undefined;
+                    let receiptMimeType: string | undefined;
+                    if (payReceipt) {
+                      receiptMimeType = payReceipt.type || 'image/jpeg';
+                      const arrayBuffer = await payReceipt.arrayBuffer();
+                      const bytes = new Uint8Array(arrayBuffer);
+                      let binary = '';
+                      bytes.forEach(b => binary += String.fromCharCode(b));
+                      receiptBase64 = btoa(binary);
+                    }
+
                     payMutation.mutate({
                       coachName: showPayDialog.coachName,
                       amount,
                       paymentDate: today,
                       notes: payNotes || `${selectedYear}年${QUARTER_LABELS[selectedQuarter - 1]}出糧`,
+                      receiptBase64,
+                      receiptMimeType,
                     });
                   }}
                   disabled={payMutation.isPending || !payAmount}
