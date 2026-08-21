@@ -28,7 +28,7 @@ function getQuarterForMonth(month: number): { quarter: string; months: number[] 
   return { quarter: 'Q4', months: [10, 11, 12] };
 }
 
-export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachName?: string; readOnly?: boolean } = {}) {
+export function MonthlyPaymentRecords({ coachName, readOnly = false, isCoach = false }: { coachName?: string; readOnly?: boolean; isCoach?: boolean } = {}) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [coachFilter, setCoachFilter] = useState<string>(coachName || "all");
@@ -116,8 +116,12 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
   const [receiptIndex, setReceiptIndex] = useState(0);
 
   const confirmMonthlyPayment = trpc.payments.confirmMonthlyPayment.useMutation({
-    onSuccess: () => {
-      toast.success('已確認繳費');
+    onSuccess: (data: any) => {
+      if (data?.needsApproval) {
+        toast.success('✅ 繳費已提交，待管理員批准');
+      } else {
+        toast.success('已確認繳費');
+      }
       refetch();
       setConfirmDialog(null);
       setConfirmReceiptFiles([]);
@@ -424,7 +428,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             </button>
           )}
           {/* WhatsApp 通知已收學費 + 撤銷繳費（僅管理員可見） */}
-          {!readOnly && (
+          {!readOnly && !isCoach && (
             <div className="flex flex-col items-center gap-0.5">
               <button
                 onClick={() => handlePaidWhatsApp(studentId, studentName, month, monthData.paymentType || 'monthly')}
@@ -510,7 +514,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
           {monthData.amount && parseFloat(monthData.amount) > 0 && (
             <div className="text-[9px] text-yellow-700 font-medium">${monthData.amount}</div>
           )}
-          {!readOnly && monthData.paymentRecordId && (
+          {!readOnly && !isCoach && monthData.paymentRecordId && (
             <button
               onClick={() => {
                 setApproveDialog({
@@ -553,7 +557,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             <div className="text-[9px] text-orange-600">-${deductAmt}</div>
           )}
           {/* 取消請假按鈕（僅管理員可見） */}
-          {!readOnly && (
+          {!readOnly && !isCoach && (
             <button
               onClick={() => cancelLeave.mutate({ studentId, year: selectedYear, month })}
               className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors border border-orange-300 mx-auto"
@@ -579,13 +583,13 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
           <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-300">
             未繳
           </div>
-          {/* 確認繳費按鈕（僅管理員可見） */}
+          {/* 確認繳費按鈕（管理員+教練可見） */}
           {!readOnly && (
             <div className="flex flex-col items-center gap-0.5">
               <button
                 onClick={() => handleConfirmMonth(studentId, studentName, month)}
                 className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
-                title="確認單月已繳"
+                title={isCoach ? "登記單月繳費（待批准）" : "確認單月已繳"}
               >
                 <Check className="w-2.5 h-2.5" />
                 月繳
@@ -593,11 +597,12 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               <button
                 onClick={() => handleConfirmQuarter(studentId, studentName, month)}
                 className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-                title="確認整季已繳"
+                title={isCoach ? "登記整季繳費（待批准）" : "確認整季已繳"}
               >
                 <CreditCard className="w-2.5 h-2.5" />
                 季繳
               </button>
+              {!isCoach && (
               <button
                 onClick={() => {
                   setLeaveClassesInput(0);
@@ -609,6 +614,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                 <PauseCircle className="w-2.5 h-2.5" />
                 請假
               </button>
+              )}
             </div>
           )}
         </div>
@@ -620,13 +626,13 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
           <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-300">
             未到期
           </div>
-          {/* 預繳按鈕（僅管理員可見） */}
+          {/* 預繳按鈕（管理員+教練可見） */}
           {!readOnly && (
             <div className="flex flex-col items-center gap-0.5">
               <button
                 onClick={() => handleConfirmMonth(studentId, studentName, month)}
                 className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-blue-400 text-white hover:bg-blue-500 transition-colors"
-                title="預繳單月"
+                title={isCoach ? "預登記單月繳費（待批准）" : "預繳單月"}
               >
                 <Check className="w-2.5 h-2.5" />
                 月繳
@@ -634,11 +640,12 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
               <button
                 onClick={() => handleConfirmQuarter(studentId, studentName, month)}
                 className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-indigo-400 text-white hover:bg-indigo-500 transition-colors"
-                title="預繳整季"
+                title={isCoach ? "預登記整季繳費（待批准）" : "預繳整季"}
               >
                 <CreditCard className="w-2.5 h-2.5" />
                 季繳
               </button>
+              {!isCoach && (
               <button
                 onClick={() => {
                   setLeaveClassesInput(0);
@@ -650,6 +657,7 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                 <PauseCircle className="w-2.5 h-2.5" />
                 請假
               </button>
+              )}
             </div>
           )}
         </div>
@@ -1208,9 +1216,9 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
             </Select>
             <p className="text-xs text-muted-foreground mt-1">錢入了公司哪間銀行帳戶？現金則選「現金」</p>
           </div>
-          {/* 收據上傳（可選，支援多張） */}
+          {/* 收據上傳（教練必須，管理員可選，支援多張） */}
           <div className="px-0">
-            <Label className="text-sm font-medium">上傳收據（可選，可多張）</Label>
+            <Label className="text-sm font-medium">上傳收據（{isCoach ? '必須' : '可選'}，可多張）</Label>
             <div className="mt-1 space-y-1">
               {confirmReceiptFiles.map((f, idx) => (
                 <div key={idx} className="flex items-center gap-2 p-2 border rounded-lg bg-green-50">
@@ -1249,15 +1257,20 @@ export function MonthlyPaymentRecords({ coachName, readOnly = false }: { coachNa
                 />
               </label>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">管理員/教練上傳收據直接確認，無需額外審批。可上傳多張（如兄弟各一張收據）</p>
+            <p className="text-xs text-muted-foreground mt-1">{isCoach ? '教練登記繳費必須上傳收據，提交後待管理員批准。可上傳多張' : '管理員/教練上傳收據直接確認，無需額外審批。可上傳多張（如兄弟各一張收據）'}</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setConfirmDialog(null); setConfirmReceiptFiles([]); setConfirmReceivingBank("中銀香港 (BOC)"); setConfirmPaymentDate(new Date().toISOString().split('T')[0]); setConfirmExtraStudentIds([]); setConfirmExtraQuarters([]); setConfirmExcludedMonths([]); }}>取消</Button>
             <Button
               className={confirmDialog?.paymentType === 'quarterly' ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
-              disabled={confirmMonthlyPayment.isPending}
+              disabled={confirmMonthlyPayment.isPending || (isCoach && confirmReceiptFiles.length === 0)}
               onClick={() => {
                 if (confirmDialog) {
+                  // 教練必須上傳收據
+                  if (isCoach && confirmReceiptFiles.length === 0) {
+                    toast.error('教練登記繳費必須上傳收據');
+                    return;
+                  }
                   // 合併當前季度月份 + 額外選中的季度月份
                   let allMonths = [...confirmDialog.months];
                   if (confirmDialog.paymentType === 'quarterly' && confirmExtraQuarters.length > 0) {

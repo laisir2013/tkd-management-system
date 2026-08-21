@@ -105,7 +105,7 @@ export default function CoachDashboard() {
 
               {/* Payment Records — reuse shared component */}
               <TabsContent value="payments">
-                <MonthlyPaymentRecords coachName={coachName} readOnly={true} />
+                <MonthlyPaymentRecords coachName={coachName} readOnly={false} isCoach={true} />
               </TabsContent>
 
               {/* Attendance — reuse shared component */}

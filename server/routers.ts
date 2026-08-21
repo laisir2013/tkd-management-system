@@ -2759,12 +2759,32 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員或教練可以確認繳費' });
         }
 
+        const isCoachSubmission = ctx.user.role === 'coach';
+
+        // 教練必須上傳收據
+        if (isCoachSubmission) {
+          const hasReceipt = (input.receipts && input.receipts.length > 0) || (input.receiptBase64 && input.receiptMimeType);
+          if (!hasReceipt) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '教練登記繳費必須上傳收據' });
+          }
+        }
+
         // 向後兼容：支援單一 studentId 或多個 studentIds
         const allStudentIds = input.studentIds && input.studentIds.length > 0
           ? input.studentIds
           : (input.studentId ? [input.studentId] : []);
         if (allStudentIds.length === 0) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: '至少需要一位學生' });
+        }
+
+        // 教練只能為自己的學生登記繳費
+        if (isCoachSubmission) {
+          for (const sid of allStudentIds) {
+            const s = await getStudentById(sid);
+            if (!s || s.coach !== ctx.user.coachName) {
+              throw new TRPCError({ code: 'FORBIDDEN', message: `學生 ID ${sid} 不屬於您，無法登記繳費` });
+            }
+          }
         }
 
         // 建立 overrideAmounts 查找 Map（studentId → {amount, note}）
@@ -2817,7 +2837,10 @@ export const appRouter = router({
           receiptKey = rKey;
         }
 
-        const confirmedBy = 'admin_approved';
+        const confirmedBy = isCoachSubmission ? 'coach_submitted' : 'admin_approved';
+        const recordStatus = isCoachSubmission ? 'pending' : 'confirmed';
+        const reviewStatus = isCoachSubmission ? 'pending_review' : undefined;
+        const reviewReason = isCoachSubmission ? '教練上傳收據，待管理員批准' : undefined;
 
         // 為每位學生建立繳費記錄
         for (const student of studentsData) {
@@ -2866,11 +2889,16 @@ export const appRouter = router({
                 bank: input.bank || null,
                 receivingBank: input.receivingBank || null,
                 paymentDate: qtrTxDate,
-                status: 'confirmed',
+                status: recordStatus,
                 confirmedBy,
                 notes: leaveNote || null,
+                reviewStatus: reviewStatus || undefined,
+                reviewReason: reviewReason || undefined,
+                reviewMatchType: isCoachSubmission ? 'coach_upload' : undefined,
               });
 
+              // 只有管理員確認的才自動同步到會計記錄
+              if (!isCoachSubmission) {
               try {
                 await syncPaymentToAccounting({
                   paymentRecordId: qtrPmtId,
@@ -2888,6 +2916,7 @@ export const appRouter = router({
                 });
               } catch (e) {
                 console.error(`Auto sync to accounting after quarterly confirmMonthlyPayment failed (student=${student.name}, ${quarter}):`, e);
+              }
               }
             }
           } else {
@@ -2909,10 +2938,15 @@ export const appRouter = router({
                 bank: input.bank || null,
                 receivingBank: input.receivingBank || null,
                 paymentDate: monthTxDate,
-                status: 'confirmed',
+                status: recordStatus,
                 confirmedBy,
+                reviewStatus: reviewStatus || undefined,
+                reviewReason: reviewReason || undefined,
+                reviewMatchType: isCoachSubmission ? 'coach_upload' : undefined,
               });
 
+              // 只有管理員確認的才自動同步到會計記錄
+              if (!isCoachSubmission) {
               try {
                 await syncPaymentToAccounting({
                   paymentRecordId: monthPmtId,
@@ -2930,12 +2964,13 @@ export const appRouter = router({
               } catch (e) {
                 console.error(`Auto sync to accounting after monthly confirmMonthlyPayment failed (student=${student.name}):`, e);
               }
+              }
             }
           }
         }
 
-        console.log(`[confirmMonthlyPayment] 完成：學生=${studentsData.map(s => s.name).join(', ')}, 月份=${input.months.join(',')}, 類型=${input.paymentType}${overrideMap.size > 0 ? `, 含請假扣減${overrideMap.size}位` : ''}`);
-        return { success: true };
+        console.log(`[confirmMonthlyPayment] 完成：學生=${studentsData.map(s => s.name).join(', ')}, 月份=${input.months.join(',')}, 類型=${input.paymentType}${isCoachSubmission ? '（教練提交，待批准）' : ''}${overrideMap.size > 0 ? `, 含請假扣減${overrideMap.size}位` : ''}`);
+        return { success: true, needsApproval: isCoachSubmission };
       }),
 
     // 撤銷繳費：將已繳轉為未繳（刪除指定月份的繳費記錄）
