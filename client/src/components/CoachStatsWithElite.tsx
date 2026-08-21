@@ -31,6 +31,12 @@ export default function CoachStatsWithElite() {
   // 讀取行政費率設定
   const { data: feeRates } = trpc.adminFees.getAllRates.useQuery({});
 
+  // 讀取月度財務報表（每月薪金明細）
+  const { data: monthlyFinance } = trpc.coachStats.getMonthlyFinance.useQuery({ year: selectedYear });
+
+  // 讀取出糧記錄
+  const { data: payrollRecords } = trpc.payroll.getAll.useQuery({ year: selectedYear });
+
   const utils = trpc.useUtils();
   // 出糧 mutation
   const payMutation = trpc.payroll.addAdhocPayment.useMutation({
@@ -269,13 +275,94 @@ export default function CoachStatsWithElite() {
                 </div>
               </div>
 
-              {/* 展開的季度統計 */}
+              {/* 展開的月度薪金明細 + 每月出糧 */}
               {isExpanded && (
-                <div className="pt-4 border-t">
-                  <h4 className="text-sm font-semibold mb-3 text-muted-foreground">
-                    恆常班季度統計詳情 — {selectedYear}年 {QUARTER_LABELS[selectedQuarter - 1]}
-                  </h4>
-                  <QuarterlyFeeStatistics coachName={coach.coachName} year={selectedYear} quarter={selectedQuarter} />
+                <div className="pt-4 border-t space-y-4">
+                  {/* 每月薪金表 */}
+                  <div>
+                    <h4 className="text-sm font-semibold mb-2 text-muted-foreground">
+                      📅 每月薪金明細 — {selectedYear}年
+                    </h4>
+                    {(() => {
+                      const coachFinance = monthlyFinance?.find(c => c.coachName === coach.coachName);
+                      if (!coachFinance) return <p className="text-xs text-gray-400">暫無月度數據</p>;
+
+                      const startMonth = (selectedQuarter - 1) * 3 + 1;
+                      const endMonth = selectedQuarter * 3;
+
+                      return (
+                        <div className="overflow-x-auto rounded-lg border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-gray-50 text-xs">
+                                <TableHead className="text-xs">月份</TableHead>
+                                <TableHead className="text-xs text-right">恆常班</TableHead>
+                                <TableHead className="text-xs text-right">精英班</TableHead>
+                                <TableHead className="text-xs text-right">總收入</TableHead>
+                                <TableHead className="text-xs text-right text-red-600">MPF</TableHead>
+                                <TableHead className="text-xs text-right text-red-600">行政費</TableHead>
+                                <TableHead className="text-xs text-right font-bold">應發</TableHead>
+                                <TableHead className="text-xs text-right text-green-700">已出糧</TableHead>
+                                <TableHead className="text-xs text-center w-20">操作</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {Array.from({ length: 3 }, (_, i) => startMonth + i).map(m => {
+                                const md = coachFinance.months[m];
+                                if (!md || md.totalIncome === 0) return null;
+
+                                const monthPaid = (payrollRecords || [])
+                                  .filter((r: any) => r.coachName === coach.coachName && r.year === selectedYear && r.month === m && r.status === 'paid')
+                                  .reduce((sum: number, r: any) => sum + parseFloat(String(r.netAmount)), 0);
+
+                                return (
+                                  <TableRow key={m} className="text-xs">
+                                    <TableCell className="font-medium">{m}月</TableCell>
+                                    <TableCell className="text-right">${md.regularIncome.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right">${md.eliteIncome.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right">${md.totalIncome.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-red-600">−${md.mpf.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-red-600">−${md.operating.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right font-bold text-teal-700">${md.netSalary.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right">
+                                      {monthPaid > 0 ? (
+                                        <span className="text-green-700 font-medium">${monthPaid.toLocaleString()}</span>
+                                      ) : (
+                                        <span className="text-gray-300">—</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 px-2 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                        onClick={() => {
+                                          setShowPayDialog({ coachName: coach.coachName, amount: md.netSalary });
+                                          setPayAmount(md.netSalary.toString());
+                                          setPayNotes(`${selectedYear}年${m}月出糧`);
+                                        }}
+                                      >
+                                        <Banknote className="h-3 w-3 mr-0.5" />
+                                        出糧
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* 季度繳費詳情 */}
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3 text-muted-foreground">
+                      恆常班季度統計詳情 — {selectedYear}年 {QUARTER_LABELS[selectedQuarter - 1]}
+                    </h4>
+                    <QuarterlyFeeStatistics coachName={coach.coachName} year={selectedYear} quarter={selectedQuarter} />
+                  </div>
                 </div>
               )}
             </CardContent>
