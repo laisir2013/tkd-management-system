@@ -225,6 +225,13 @@ import {
   deletePayrollRecord,
   processPayrollPayment,
   getPayrollSummary,
+  // 行政費設定
+  getAllAdminFeeSettings,
+  getCoachFeeRates,
+  getAllCoachFeeRates,
+  upsertAdminFeeSetting,
+  deleteAdminFeeSetting,
+  toggleAdminFeeSetting,
 } from "./db";
 import { users, students, InsertStudent } from "../drizzle/schema";
 import * as schema from "../drizzle/schema";
@@ -9025,6 +9032,91 @@ export const appRouter = router({
         }
 
         return { success: true, restored, undoLogId };
+      }),
+  }),
+
+  // ==================== 行政費設定 (Admin Fee Settings) ====================
+  adminFees: router({
+    // 取得所有設定
+    getAll: protectedProcedure
+      .input(z.object({
+        coachName: z.string().optional(),
+        feeType: z.string().optional(),
+        activeOnly: z.boolean().optional(),
+      }).optional())
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return getAllAdminFeeSettings(input || {});
+      }),
+
+    // 取得特定教練的有效費率
+    getCoachRates: protectedProcedure
+      .input(z.object({
+        coachName: z.string(),
+        date: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        return getCoachFeeRates(input.coachName, input.date);
+      }),
+
+    // 取得所有教練費率（用於報表顯示）
+    getAllRates: protectedProcedure
+      .input(z.object({
+        date: z.string().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        const rateMap = await getAllCoachFeeRates(input?.date);
+        // Convert Map to serializable object
+        const result: Record<string, { mpfRate: number; operatingRate: number }> = {};
+        rateMap.forEach((v, k) => { result[k] = v; });
+        return result;
+      }),
+
+    // 新增/更新設定
+    upsert: protectedProcedure
+      .input(z.object({
+        id: z.number().optional(),
+        coach_name: z.string(),
+        fee_type: z.enum(['mpf', 'operating', 'other']),
+        fee_name: z.string(),
+        rate: z.number().min(0).max(1),
+        fixed_amount: z.number().nullable().optional(),
+        calc_method: z.enum(['percentage', 'fixed', 'percentage_plus_fixed']).optional(),
+        applies_to: z.enum(['regular', 'elite', 'all']).optional(),
+        effective_from: z.string().optional(),
+        effective_to: z.string().nullable().optional(),
+        is_active: z.boolean().optional(),
+        notes: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return upsertAdminFeeSetting(input);
+      }),
+
+    // 刪除設定
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await deleteAdminFeeSetting(input.id);
+        return { success: true };
+      }),
+
+    // 切換啟用/停用
+    toggle: protectedProcedure
+      .input(z.object({ id: z.number(), isActive: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await toggleAdminFeeSetting(input.id, input.isActive);
+        return { success: true };
       }),
   }),
 

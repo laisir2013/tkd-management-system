@@ -23,6 +23,9 @@ export default function CoachStatsWithElite() {
     quarter: selectedQuarter,
   });
 
+  // 讀取行政費率設定
+  const { data: feeRates } = trpc.adminFees.getAllRates.useQuery({});
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -118,8 +121,9 @@ export default function CoachStatsWithElite() {
 
         // 薪金計算用實收
         const totalRevenue = regularPaid + coach.eliteTotalPaid;
-        const mpfDeduction = Math.round(totalRevenue * 0.10);
-        const operatingFee = Math.round(totalRevenue * 0.05);
+        const coachRates = feeRates?.[coach.coachName] || { mpfRate: 0.10, operatingRate: 0.05 };
+        const mpfDeduction = Math.round(totalRevenue * coachRates.mpfRate);
+        const operatingFee = Math.round(totalRevenue * coachRates.operatingRate);
         const netSalary = totalRevenue - mpfDeduction - operatingFee;
 
         return (
@@ -215,7 +219,7 @@ export default function CoachStatsWithElite() {
                       <TableCell className="py-1.5 text-right text-red-600">−${mpfDeduction.toLocaleString()}</TableCell>
                     </TableRow>
                     <TableRow className="border-0">
-                      <TableCell className="py-1.5 pl-0 text-sm text-red-600">− 公司營運費用 (5%)</TableCell>
+                      <TableCell className="py-1.5 pl-0 text-sm text-red-600">− 公司營運費用 ({Math.round(coachRates.operatingRate * 100)}%)</TableCell>
                       <TableCell className="py-1.5 text-right text-red-600">−${operatingFee.toLocaleString()}</TableCell>
                     </TableRow>
                     <TableRow className="border-t-2 border-teal-300">
@@ -253,7 +257,7 @@ export default function CoachStatsWithElite() {
             <li>• <strong>精英班</strong>：根據精英班學生管理中設定的「負責教練」欄位歸屬</li>
             <li>• 精英班學費以每 12 堂 $2,400 為一個繳費循環計算</li>
             <li>• 未設定負責教練的精英班學生不會計入任何教練的統計</li>
-            <li className="border-t pt-1.5 mt-1.5">• <strong>教練薪金計算</strong>：學費總收入（實收）− 10% MPF 強積金 − 5% 公司營運費用 = 實收 85%</li>
+            <li className="border-t pt-1.5 mt-1.5">• <strong>教練薪金計算</strong>：學費總收入（實收）− MPF 強積金 − 公司營運費用 = 教練實收（費率可在行政費管理設定）</li>
           </ul>
         </CardContent>
       </Card>

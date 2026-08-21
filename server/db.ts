@@ -2069,6 +2069,9 @@ export async function getMonthlyFinanceReport(year: number) {
   const db = await getDb();
   if (!db) return [];
 
+  // 讀取所有教練的行政費率設定
+  const allFeeRates = await getAllCoachFeeRates(`${year}-12-31`);
+
   // 恆常班學生 + 繳費
   const allStudents = await getAllStudents();
   const allPayments = await getAllPaymentRecords();
@@ -2144,6 +2147,9 @@ export async function getMonthlyFinanceReport(year: number) {
     const coachEliteStudents = allEliteStudents.filter(s => s.status === 'active' && s.coach === coachName);
     const eliteStudentIds = new Set(coachEliteStudents.map(s => s.id));
     
+    // 該教練的費率設定（從 admin_fee_settings 讀取）
+    const coachRates = allFeeRates.get(coachName) || { mpfRate: 0.10, operatingRate: 0.05 };
+
     // 該教練的恆常班付款
     const coachRegularPayments = confirmedRegularPayments.filter(p => coachStudentIds.has(p.studentId));
 
@@ -2203,8 +2209,9 @@ export async function getMonthlyFinanceReport(year: number) {
       const eliteClassCount = monthElitePayments.reduce((sum, p) => sum + (p.classCount || 0), 0);
 
       const totalIncome = regularIncome + eliteIncome;
-      const mpf = Math.round(totalIncome * 0.10);
-      const operating = Math.round(totalIncome * 0.05);
+      // 使用動態費率（從 admin_fee_settings 讀取，已在外層取得）
+      const mpf = Math.round(totalIncome * coachRates.mpfRate);
+      const operating = Math.round(totalIncome * coachRates.operatingRate);
       const netSalary = totalIncome - mpf - operating;
 
       months[m] = {
@@ -2221,7 +2228,7 @@ export async function getMonthlyFinanceReport(year: number) {
       };
     }
 
-    return { coachName, months };
+    return { coachName, months, feeRates: coachRates };
   });
 }
 
@@ -5553,4 +5560,191 @@ export async function getPayrollSummary(year: number, month?: number) {
     totalAmount: rows.reduce((sum, r) => sum + parseFloat(String(r.netAmount)), 0),
     paidAmount: rows.filter(r => r.status === 'paid').reduce((sum, r) => sum + parseFloat(String(r.netAmount)), 0),
   };
+}
+
+// ========== 行政費設定 (Admin Fee Settings) ==========
+
+export interface AdminFeeSetting {
+  id: number;
+  coach_name: string;
+  fee_type: 'mpf' | 'operating' | 'other';
+  fee_name: string;
+  rate: number;
+  fixed_amount: number | null;
+  calc_method: 'percentage' | 'fixed' | 'percentage_plus_fixed';
+  applies_to: 'regular' | 'elite' | 'all';
+  effective_from: string;
+  effective_to: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminFeeSettingInput {
+  coach_name: string;
+  fee_type: 'mpf' | 'operating' | 'other';
+  fee_name: string;
+  rate: number;
+  fixed_amount?: number | null;
+  calc_method?: 'percentage' | 'fixed' | 'percentage_plus_fixed';
+  applies_to?: 'regular' | 'elite' | 'all';
+  effective_from?: string;
+  effective_to?: string | null;
+  is_active?: boolean;
+  notes?: string | null;
+}
+
+// 獲取所有行政費設定
+export async function getAllAdminFeeSettings(filter?: { coachName?: string; feeType?: string; activeOnly?: boolean }) {
+  const pool = await getPool();
+  let sql = 'SELECT * FROM admin_fee_settings WHERE 1=1';
+  const params: any[] = [];
+
+  if (filter?.coachName) {
+    sql += ' AND coach_name = ?';
+    params.push(filter.coachName);
+  }
+  if (filter?.feeType) {
+    sql += ' AND fee_type = ?';
+    params.push(filter.feeType);
+  }
+  if (filter?.activeOnly !== false) {
+    sql += ' AND is_active = 1';
+  }
+
+  sql += ' ORDER BY coach_name, fee_type, effective_from DESC';
+  const [rows] = await pool.execute(sql, params);
+  return rows as AdminFeeSetting[];
+}
+
+// 獲取特定教練的有效費率（用於計算）
+export async function getCoachFeeRates(coachName: string, date?: string): Promise<{ mpfRate: number; operatingRate: number; otherFees: Array<{ name: string; rate: number; fixedAmount: number | null; calcMethod: string; appliesTo: string }> }> {
+  const pool = await getPool();
+  const targetDate = date || new Date().toISOString().split('T')[0];
+
+  const [rows] = await pool.execute(
+    `SELECT * FROM admin_fee_settings 
+     WHERE coach_name = ? AND is_active = 1 
+     AND effective_from <= ?
+     AND (effective_to IS NULL OR effective_to >= ?)
+     ORDER BY fee_type, effective_from DESC`,
+    [coachName, targetDate, targetDate]
+  ) as any;
+
+  let mpfRate = 0.10; // 預設 10%
+  let operatingRate = 0.05; // 預設 5%
+  const otherFees: Array<{ name: string; rate: number; fixedAmount: number | null; calcMethod: string; appliesTo: string }> = [];
+
+  const seen = new Set<string>();
+  for (const row of rows) {
+    // 同一 fee_type+fee_name 只取最新生效的
+    const key = `${row.fee_type}_${row.fee_name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    if (row.fee_type === 'mpf') {
+      mpfRate = parseFloat(row.rate);
+    } else if (row.fee_type === 'operating') {
+      operatingRate = parseFloat(row.rate);
+    } else {
+      otherFees.push({
+        name: row.fee_name,
+        rate: parseFloat(row.rate),
+        fixedAmount: row.fixed_amount ? parseFloat(row.fixed_amount) : null,
+        calcMethod: row.calc_method,
+        appliesTo: row.applies_to,
+      });
+    }
+  }
+
+  return { mpfRate, operatingRate, otherFees };
+}
+
+// 獲取所有教練的費率（批量，用於報表）
+export async function getAllCoachFeeRates(date?: string): Promise<Map<string, { mpfRate: number; operatingRate: number }>> {
+  const pool = await getPool();
+  const targetDate = date || new Date().toISOString().split('T')[0];
+
+  const [rows] = await pool.execute(
+    `SELECT * FROM admin_fee_settings 
+     WHERE is_active = 1 
+     AND effective_from <= ?
+     AND (effective_to IS NULL OR effective_to >= ?)
+     ORDER BY coach_name, fee_type, effective_from DESC`,
+    [targetDate, targetDate]
+  ) as any;
+
+  const rateMap = new Map<string, { mpfRate: number; operatingRate: number }>();
+  const seen = new Map<string, Set<string>>();
+
+  for (const row of rows) {
+    if (!rateMap.has(row.coach_name)) {
+      rateMap.set(row.coach_name, { mpfRate: 0.10, operatingRate: 0.05 });
+      seen.set(row.coach_name, new Set());
+    }
+
+    const coachSeen = seen.get(row.coach_name)!;
+    const key = `${row.fee_type}_${row.fee_name}`;
+    if (coachSeen.has(key)) continue;
+    coachSeen.add(key);
+
+    const rates = rateMap.get(row.coach_name)!;
+    if (row.fee_type === 'mpf') {
+      rates.mpfRate = parseFloat(row.rate);
+    } else if (row.fee_type === 'operating') {
+      rates.operatingRate = parseFloat(row.rate);
+    }
+  }
+
+  return rateMap;
+}
+
+// 新增/更新行政費設定
+export async function upsertAdminFeeSetting(data: AdminFeeSettingInput & { id?: number }) {
+  const pool = await getPool();
+
+  if (data.id) {
+    // 更新
+    await pool.execute(
+      `UPDATE admin_fee_settings SET 
+        coach_name = ?, fee_type = ?, fee_name = ?, rate = ?, fixed_amount = ?,
+        calc_method = ?, applies_to = ?, effective_from = ?, effective_to = ?,
+        is_active = ?, notes = ?
+      WHERE id = ?`,
+      [
+        data.coach_name, data.fee_type, data.fee_name, data.rate, data.fixed_amount || null,
+        data.calc_method || 'percentage', data.applies_to || 'all',
+        data.effective_from || '2025-01-01', data.effective_to || null,
+        data.is_active !== undefined ? (data.is_active ? 1 : 0) : 1, data.notes || null,
+        data.id
+      ]
+    );
+    return { id: data.id, isNew: false };
+  } else {
+    // 新增
+    const [result] = await pool.execute(
+      `INSERT INTO admin_fee_settings (coach_name, fee_type, fee_name, rate, fixed_amount, calc_method, applies_to, effective_from, effective_to, is_active, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.coach_name, data.fee_type, data.fee_name, data.rate, data.fixed_amount || null,
+        data.calc_method || 'percentage', data.applies_to || 'all',
+        data.effective_from || '2025-01-01', data.effective_to || null,
+        data.is_active !== undefined ? (data.is_active ? 1 : 0) : 1, data.notes || null
+      ]
+    ) as any;
+    return { id: result.insertId, isNew: true };
+  }
+}
+
+// 刪除行政費設定
+export async function deleteAdminFeeSetting(id: number) {
+  const pool = await getPool();
+  await pool.execute('DELETE FROM admin_fee_settings WHERE id = ?', [id]);
+}
+
+// 切換啟用/停用
+export async function toggleAdminFeeSetting(id: number, isActive: boolean) {
+  const pool = await getPool();
+  await pool.execute('UPDATE admin_fee_settings SET is_active = ? WHERE id = ?', [isActive ? 1 : 0, id]);
 }

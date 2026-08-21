@@ -39,6 +39,7 @@ import ReceiptReviewContent from "@/components/ReceiptReviewContent";
 import PushQueueReviewContent from "@/components/PushQueueReviewContent";
 import RegistrationManagement from "@/components/RegistrationManagement";
 import PayrollManagement from "@/components/PayrollManagement";
+import AdminFeeSettings from "@/components/AdminFeeSettings";
 import { StudentRecordDialog } from "@/components/StudentRecordDialog";
 
 
@@ -605,6 +606,7 @@ export default function Admin() {
               )}
             </TabsTrigger>
             <TabsTrigger value="registrations" className="text-[10px] sm:text-sm px-1.5 sm:px-4 py-2 sm:py-2 border border-emerald-300 bg-emerald-50 text-emerald-700 rounded-md data-[state=active]:border-emerald-500 data-[state=active]:bg-emerald-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">{"📝"}<span className="hidden sm:inline"> 新生報名</span><span className="sm:hidden"> 報名</span></TabsTrigger>
+            <TabsTrigger value="admin-fees" className="text-[10px] sm:text-sm px-1.5 sm:px-4 py-2 sm:py-2 border border-rose-300 bg-rose-50 text-rose-700 rounded-md data-[state=active]:border-rose-500 data-[state=active]:bg-rose-100 data-[state=active]:shadow-sm active:scale-95 transition-transform font-semibold">{"⚙️"}<span className="hidden sm:inline"> 行政費設定</span><span className="sm:hidden"> 費設</span></TabsTrigger>
           </TabsList>
 
           {/* ========= 恆常班管理 (內含子分頁) ========= */}
@@ -1226,6 +1228,11 @@ export default function Admin() {
           {/* ========= 新生報名管理 ========= */}
           <TabsContent value="registrations">
             <RegistrationManagement />
+          </TabsContent>
+
+          {/* ========= 行政費設定 ========= */}
+          <TabsContent value="admin-fees">
+            <AdminFeeSettings />
           </TabsContent>
         </Tabs>
       </div>

@@ -147,7 +147,7 @@ export default function MonthlyFinanceReport() {
         </Card>
         <Card className="border-orange-200 bg-orange-50/50">
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-orange-600 font-medium">年度營運費 (5%)</p>
+            <p className="text-xs text-orange-600 font-medium">年度營運費</p>
             <p className="text-xl font-bold text-orange-600">${yearTotal.operating.toLocaleString()}</p>
           </CardContent>
         </Card>
@@ -254,7 +254,7 @@ export default function MonthlyFinanceReport() {
                             <span className="text-red-600">−${cm.mpf.toLocaleString()}</span>
                           </div>
                           <div className="flex justify-between text-xs pl-4">
-                            <span className="text-gray-600">公司營運費 (5%)</span>
+                            <span className="text-gray-600">公司營運費</span>
                             <span className="text-red-600">−${cm.operating.toLocaleString()}</span>
                           </div>
                         </div>
@@ -317,7 +317,7 @@ export default function MonthlyFinanceReport() {
                         <TableCell className="py-1 text-xs text-right text-red-600">−${total.mpf.toLocaleString()}</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="py-1 text-xs text-red-600">− 公司營運 (5%)</TableCell>
+                        <TableCell className="py-1 text-xs text-red-600">− 公司營運費</TableCell>
                         <TableCell className="py-1 text-xs text-right text-red-600">−${total.operating.toLocaleString()}</TableCell>
                       </TableRow>
                       <TableRow className="border-t-2">
@@ -342,8 +342,8 @@ export default function MonthlyFinanceReport() {
             <li>• <strong>恆常班月費</strong>：季度學費 ÷ 3 = 月費，只有已繳月份才計入收入</li>
             <li>• <strong>精英班收入</strong>：按收據轉帳日期歸入對應月份</li>
             <li>• <strong>MPF 強積金</strong>：收入的 10%</li>
-            <li>• <strong>公司營運費</strong>：收入的 5%</li>
-            <li>• <strong>教練實收</strong>：收入 × 85%（扣除 MPF + 營運費）</li>
+            <li>• <strong>公司營運費</strong>：按教練設定比率計算（可在行政費管理調整）</li>
+            <li>• <strong>教練實收</strong>：收入 − MPF − 營運費（費率按行政費設定）</li>
             <li>• <strong>⚠️ 逾期入帳</strong>：如收據轉帳日期在4月但5月才處理，收入仍計入4月，但會標示為逾期入帳，教練薪金計入5月出糧</li>
             <li>• 灰色月份為未到期月份（尚未有繳費數據）</li>
           </ul>
