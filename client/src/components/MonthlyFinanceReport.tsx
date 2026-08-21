@@ -21,7 +21,7 @@ export default function MonthlyFinanceReport() {
   const { data: payrollRecords } = trpc.payroll.getAll.useQuery({ year: selectedYear });
 
   const yearOptions = [];
-  for (let y = 2026; y <= currentYear + 1; y++) yearOptions.push(y);
+  for (let y = 2024; y <= currentYear + 1; y++) yearOptions.push(y);
 
   const toggleMonth = (m: number) => {
     setExpandedMonths(prev => {

@@ -5574,7 +5574,7 @@ export async function getPayrollSummary(year: number, month?: number) {
  * @returns 每位教練的 { totalOwed, totalPaid, balance (正數=欠薪, 負數=溢付), payments: [...] }
  */
 export async function getCoachArrearsBalance(upToYear: number, upToMonth: number, coachName?: string) {
-  const pool = await getPool();
+  const pool = await getRawPool();
   
   // 1. 取得所有已付金額 (paid status)
   let paidSql = `
@@ -5690,7 +5690,7 @@ export async function insertAdhocPayment(data: {
   notes?: string;
   createdBy?: string;
 }) {
-  const pool = await getPool();
+  const pool = await getRawPool();
   const payDate = new Date(data.paymentDate);
   const year = payDate.getFullYear();
   const month = payDate.getMonth() + 1;
@@ -5739,7 +5739,7 @@ export interface AdminFeeSettingInput {
 
 // 獲取所有行政費設定
 export async function getAllAdminFeeSettings(filter?: { coachName?: string; feeType?: string; activeOnly?: boolean }) {
-  const pool = await getPool();
+  const pool = await getRawPool();
   let sql = 'SELECT * FROM admin_fee_settings WHERE 1=1';
   const params: any[] = [];
 
@@ -5762,7 +5762,7 @@ export async function getAllAdminFeeSettings(filter?: { coachName?: string; feeT
 
 // 獲取特定教練的有效費率（用於計算）
 export async function getCoachFeeRates(coachName: string, date?: string): Promise<{ mpfRate: number; operatingRate: number; otherFees: Array<{ name: string; rate: number; fixedAmount: number | null; calcMethod: string; appliesTo: string }> }> {
-  const pool = await getPool();
+  const pool = await getRawPool();
   const targetDate = date || new Date().toISOString().split('T')[0];
 
   const [rows] = await pool.execute(
@@ -5805,7 +5805,7 @@ export async function getCoachFeeRates(coachName: string, date?: string): Promis
 
 // 獲取所有教練的費率（批量，用於報表）
 export async function getAllCoachFeeRates(date?: string): Promise<Map<string, { mpfRate: number; operatingRate: number }>> {
-  const pool = await getPool();
+  const pool = await getRawPool();
   const targetDate = date || new Date().toISOString().split('T')[0];
 
   const [rows] = await pool.execute(
@@ -5844,7 +5844,7 @@ export async function getAllCoachFeeRates(date?: string): Promise<Map<string, { 
 
 // 新增/更新行政費設定
 export async function upsertAdminFeeSetting(data: AdminFeeSettingInput & { id?: number }) {
-  const pool = await getPool();
+  const pool = await getRawPool();
 
   if (data.id) {
     // 更新
@@ -5881,12 +5881,12 @@ export async function upsertAdminFeeSetting(data: AdminFeeSettingInput & { id?: 
 
 // 刪除行政費設定
 export async function deleteAdminFeeSetting(id: number) {
-  const pool = await getPool();
+  const pool = await getRawPool();
   await pool.execute('DELETE FROM admin_fee_settings WHERE id = ?', [id]);
 }
 
 // 切換啟用/停用
 export async function toggleAdminFeeSetting(id: number, isActive: boolean) {
-  const pool = await getPool();
+  const pool = await getRawPool();
   await pool.execute('UPDATE admin_fee_settings SET is_active = ? WHERE id = ?', [isActive ? 1 : 0, id]);
 }
