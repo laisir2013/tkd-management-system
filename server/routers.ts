@@ -225,6 +225,8 @@ import {
   deletePayrollRecord,
   processPayrollPayment,
   getPayrollSummary,
+  getCoachArrearsBalance,
+  insertAdhocPayment,
   // 行政費設定
   getAllAdminFeeSettings,
   getCoachFeeRates,
@@ -9158,6 +9160,41 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         return getPayrollSummary(input.year, input.month);
+      }),
+
+    // 取得教練欠薪累積餘額
+    getArrearsBalance: protectedProcedure
+      .input(z.object({
+        upToYear: z.number(),
+        upToMonth: z.number().min(1).max(12),
+        coachName: z.string().optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return getCoachArrearsBalance(input.upToYear, input.upToMonth, input.coachName);
+      }),
+
+    // 新增不定期出糧記錄
+    addAdhocPayment: protectedProcedure
+      .input(z.object({
+        coachName: z.string(),
+        amount: z.number().positive(),
+        paymentDate: z.string(), // YYYY-MM-DD
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        return insertAdhocPayment({
+          coachName: input.coachName,
+          amount: input.amount,
+          paymentDate: input.paymentDate,
+          notes: input.notes,
+          createdBy: ctx.user.username || 'admin',
+        });
       }),
 
     // 建立/更新薪資記錄（生成草稿或更新）

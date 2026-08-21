@@ -5562,6 +5562,148 @@ export async function getPayrollSummary(year: number, month?: number) {
   };
 }
 
+// ========== 欠薪累積計算 (Arrears Balance) ==========
+
+/**
+ * 計算教練累積欠薪餘額
+ * 邏輯：累積應發(從財務報表) - 累積已付(payroll_records paid)
+ * 
+ * @param coachName - 教練姓名 (可選，不傳則計算所有教練)
+ * @param upToYear - 計算到哪一年
+ * @param upToMonth - 計算到哪一月
+ * @returns 每位教練的 { totalOwed, totalPaid, balance (正數=欠薪, 負數=溢付), payments: [...] }
+ */
+export async function getCoachArrearsBalance(upToYear: number, upToMonth: number, coachName?: string) {
+  const pool = await getPool();
+  
+  // 1. 取得所有已付金額 (paid status)
+  let paidSql = `
+    SELECT coach_name, 
+           SUM(net_amount) as total_paid,
+           COUNT(*) as payment_count
+    FROM payroll_records 
+    WHERE status = 'paid'
+      AND (year < ? OR (year = ? AND month <= ?))
+  `;
+  const paidParams: any[] = [upToYear, upToYear, upToMonth];
+  
+  if (coachName) {
+    paidSql += ' AND coach_name = ?';
+    paidParams.push(coachName);
+  }
+  paidSql += ' GROUP BY coach_name';
+  
+  const [paidRows] = await pool.execute(paidSql, paidParams) as any[];
+  const paidMap = new Map<string, number>();
+  const paymentCountMap = new Map<string, number>();
+  for (const row of paidRows) {
+    paidMap.set(row.coach_name, parseFloat(row.total_paid));
+    paymentCountMap.set(row.coach_name, parseInt(row.payment_count));
+  }
+
+  // 2. 取得各年的財務報表來計算應發 (需逐年計算)
+  const owedMap = new Map<string, number>();
+  
+  for (let y = 2024; y <= upToYear; y++) {
+    const financeData = await getMonthlyFinanceReport(y);
+    if (!financeData) continue;
+    
+    for (const coach of financeData) {
+      if (coachName && coach.coachName !== coachName) continue;
+      
+      const maxMonth = (y === upToYear) ? upToMonth : 12;
+      let yearTotal = 0;
+      
+      for (let m = 1; m <= maxMonth; m++) {
+        const monthData = coach.months[m];
+        if (monthData && monthData.netSalary > 0) {
+          yearTotal += monthData.netSalary;
+        }
+      }
+      
+      owedMap.set(coach.coachName, (owedMap.get(coach.coachName) || 0) + yearTotal);
+    }
+  }
+
+  // 3. 取得最近的出糧明細 (per coach)
+  let detailSql = `
+    SELECT coach_name, payment_date, net_amount, year, month, is_adhoc, notes
+    FROM payroll_records 
+    WHERE status = 'paid'
+      AND (year < ? OR (year = ? AND month <= ?))
+  `;
+  const detailParams: any[] = [upToYear, upToYear, upToMonth];
+  if (coachName) {
+    detailSql += ' AND coach_name = ?';
+    detailParams.push(coachName);
+  }
+  detailSql += ' ORDER BY payment_date DESC LIMIT 50';
+  
+  const [detailRows] = await pool.execute(detailSql, detailParams) as any[];
+
+  // 4. 組合結果
+  const allCoaches = new Set([...owedMap.keys(), ...paidMap.keys()]);
+  const results: Array<{
+    coachName: string;
+    totalOwed: number;
+    totalPaid: number;
+    balance: number; // 正數 = 欠薪, 負數 = 溢付
+    paymentCount: number;
+    recentPayments: Array<{ date: string; amount: number; year: number; month: number; isAdhoc: boolean; notes: string | null }>;
+  }> = [];
+
+  for (const name of allCoaches) {
+    const totalOwed = owedMap.get(name) || 0;
+    const totalPaid = paidMap.get(name) || 0;
+    const payments = (detailRows as any[])
+      .filter((r: any) => r.coach_name === name)
+      .map((r: any) => ({
+        date: r.payment_date ? new Date(r.payment_date).toISOString().split('T')[0] : '',
+        amount: parseFloat(r.net_amount),
+        year: r.year,
+        month: r.month,
+        isAdhoc: !!r.is_adhoc,
+        notes: r.notes,
+      }));
+
+    results.push({
+      coachName: name,
+      totalOwed: Math.round(totalOwed * 100) / 100,
+      totalPaid: Math.round(totalPaid * 100) / 100,
+      balance: Math.round((totalOwed - totalPaid) * 100) / 100,
+      paymentCount: paymentCountMap.get(name) || 0,
+      recentPayments: payments,
+    });
+  }
+
+  return results.sort((a, b) => b.balance - a.balance); // 欠薪多的排前面
+}
+
+/**
+ * 新增不定期出糧記錄 (adhoc payment)
+ * 不走 upsert 邏輯，直接 INSERT 新記錄
+ */
+export async function insertAdhocPayment(data: {
+  coachName: string;
+  amount: number;
+  paymentDate: string; // YYYY-MM-DD
+  notes?: string;
+  createdBy?: string;
+}) {
+  const pool = await getPool();
+  const payDate = new Date(data.paymentDate);
+  const year = payDate.getFullYear();
+  const month = payDate.getMonth() + 1;
+
+  const [result] = await pool.execute(
+    `INSERT INTO payroll_records (coach_name, year, month, net_amount, payment_date, status, is_adhoc, notes, created_by)
+     VALUES (?, ?, ?, ?, ?, 'paid', 1, ?, ?)`,
+    [data.coachName, year, month, data.amount, data.paymentDate, data.notes || '不定期出糧', data.createdBy || 'admin']
+  ) as any[];
+
+  return { id: result.insertId, year, month };
+}
+
 // ========== 行政費設定 (Admin Fee Settings) ==========
 
 export interface AdminFeeSetting {

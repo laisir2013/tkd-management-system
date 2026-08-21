@@ -831,6 +831,9 @@ export const payrollRecords = mysqlTable("payroll_records", {
   status: mysqlEnum("status", ["draft", "pending", "paid", "cancelled"]).notNull().default("draft"),
   // draft=草稿計算中, pending=待發放, paid=已發放, cancelled=已取消
   
+  isAdhoc: tinyint("is_adhoc").notNull().default(0), // 1=不定期出糧(非按月)
+  periodCover: varchar("period_cover", { length: 255 }), // 覆蓋月份範圍
+  
   notes: text("notes"), // 備註
   
   // 會計連結
