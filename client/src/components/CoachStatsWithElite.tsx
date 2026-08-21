@@ -290,67 +290,131 @@ export default function CoachStatsWithElite() {
                       const startMonth = (selectedQuarter - 1) * 3 + 1;
                       const endMonth = selectedQuarter * 3;
 
+                      // 計算從年初到本季的累積結餘
+                      let runningBalance = 0;
+                      const monthBalances: Record<number, { paid: number; balance: number }> = {};
+                      for (let m = 1; m <= 12; m++) {
+                        const md = coachFinance.months[m];
+                        const mNet = md?.netSalary || 0;
+                        const mPaid = (payrollRecords || [])
+                          .filter((r: any) => r.coachName === coach.coachName && r.year === selectedYear && r.month === m && r.status === 'paid')
+                          .reduce((sum: number, r: any) => sum + parseFloat(String(r.netAmount)), 0);
+                        runningBalance = runningBalance + mNet - mPaid;
+                        monthBalances[m] = { paid: mPaid, balance: Math.round(runningBalance * 100) / 100 };
+                      }
+
+                      // 上季末結餘（帶入本季）
+                      const prevQuarterEndBalance = startMonth > 1 ? (monthBalances[startMonth - 1]?.balance || 0) : 0;
+
                       return (
-                        <div className="overflow-x-auto rounded-lg border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="bg-gray-50 text-xs">
-                                <TableHead className="text-xs">月份</TableHead>
-                                <TableHead className="text-xs text-right">恆常班</TableHead>
-                                <TableHead className="text-xs text-right">精英班</TableHead>
-                                <TableHead className="text-xs text-right">總收入</TableHead>
-                                <TableHead className="text-xs text-right text-red-600">MPF</TableHead>
-                                <TableHead className="text-xs text-right text-red-600">行政費</TableHead>
-                                <TableHead className="text-xs text-right font-bold">應發</TableHead>
-                                <TableHead className="text-xs text-right text-green-700">已出糧</TableHead>
-                                <TableHead className="text-xs text-center w-20">操作</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {Array.from({ length: 3 }, (_, i) => startMonth + i).map(m => {
-                                const md = coachFinance.months[m];
-                                if (!md || md.totalIncome === 0) return null;
+                        <div className="space-y-2">
+                          {prevQuarterEndBalance !== 0 && (
+                            <div className={`text-xs px-3 py-1.5 rounded ${prevQuarterEndBalance > 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+                              上季結餘帶入：{prevQuarterEndBalance > 0 ? `欠薪 $${prevQuarterEndBalance.toLocaleString()}` : `溢付 $${Math.abs(prevQuarterEndBalance).toLocaleString()}`}
+                            </div>
+                          )}
+                          <div className="overflow-x-auto rounded-lg border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="bg-gray-50 text-xs">
+                                  <TableHead className="text-xs">月份</TableHead>
+                                  <TableHead className="text-xs text-right">恆常班</TableHead>
+                                  <TableHead className="text-xs text-right">精英班</TableHead>
+                                  <TableHead className="text-xs text-right">總收入</TableHead>
+                                  <TableHead className="text-xs text-right text-red-600">MPF</TableHead>
+                                  <TableHead className="text-xs text-right text-red-600">行政費</TableHead>
+                                  <TableHead className="text-xs text-right font-bold">應發</TableHead>
+                                  <TableHead className="text-xs text-right text-green-700">已出糧</TableHead>
+                                  <TableHead className="text-xs text-right">結餘</TableHead>
+                                  <TableHead className="text-xs text-center w-20">操作</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {Array.from({ length: 3 }, (_, i) => startMonth + i).map(m => {
+                                  const md = coachFinance.months[m];
+                                  if (!md || (md.totalIncome === 0 && monthBalances[m].paid === 0)) return null;
 
-                                const monthPaid = (payrollRecords || [])
-                                  .filter((r: any) => r.coachName === coach.coachName && r.year === selectedYear && r.month === m && r.status === 'paid')
-                                  .reduce((sum: number, r: any) => sum + parseFloat(String(r.netAmount)), 0);
+                                  const { paid: monthPaid, balance } = monthBalances[m];
 
-                                return (
-                                  <TableRow key={m} className="text-xs">
-                                    <TableCell className="font-medium">{m}月</TableCell>
-                                    <TableCell className="text-right">${md.regularIncome.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right">${md.eliteIncome.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right">${md.totalIncome.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right text-red-600">−${md.mpf.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right text-red-600">−${md.operating.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right font-bold text-teal-700">${md.netSalary.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right">
-                                      {monthPaid > 0 ? (
-                                        <span className="text-green-700 font-medium">${monthPaid.toLocaleString()}</span>
-                                      ) : (
-                                        <span className="text-gray-300">—</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-6 px-2 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                                        onClick={() => {
-                                          setShowPayDialog({ coachName: coach.coachName, amount: md.netSalary });
-                                          setPayAmount(md.netSalary.toString());
-                                          setPayNotes(`${selectedYear}年${m}月出糧`);
-                                        }}
-                                      >
-                                        <Banknote className="h-3 w-3 mr-0.5" />
-                                        出糧
-                                      </Button>
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
+                                  return (
+                                    <TableRow key={m} className="text-xs">
+                                      <TableCell className="font-medium">{m}月</TableCell>
+                                      <TableCell className="text-right">${md.regularIncome.toLocaleString()}</TableCell>
+                                      <TableCell className="text-right">${md.eliteIncome.toLocaleString()}</TableCell>
+                                      <TableCell className="text-right">${md.totalIncome.toLocaleString()}</TableCell>
+                                      <TableCell className="text-right text-red-600">−${md.mpf.toLocaleString()}</TableCell>
+                                      <TableCell className="text-right text-red-600">−${md.operating.toLocaleString()}</TableCell>
+                                      <TableCell className="text-right font-bold text-teal-700">${md.netSalary.toLocaleString()}</TableCell>
+                                      <TableCell className="text-right">
+                                        {monthPaid > 0 ? (
+                                          <span className="text-green-700 font-medium">${monthPaid.toLocaleString()}</span>
+                                        ) : (
+                                          <span className="text-gray-300">—</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        {balance > 0 ? (
+                                          <span className="text-red-600 font-medium">${balance.toLocaleString()}</span>
+                                        ) : balance < 0 ? (
+                                          <span className="text-green-600 font-medium">−${Math.abs(balance).toLocaleString()}</span>
+                                        ) : (
+                                          <span className="text-gray-400">$0</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-6 px-2 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                          onClick={() => {
+                                            // 出糧預填：如有欠薪就填欠薪金額，否則填本月應發
+                                            const suggestAmount = balance > 0 ? balance : md.netSalary;
+                                            setShowPayDialog({ coachName: coach.coachName, amount: suggestAmount });
+                                            setPayAmount(suggestAmount.toString());
+                                            setPayNotes(`${selectedYear}年${m}月出糧`);
+                                          }}
+                                        >
+                                          <Banknote className="h-3 w-3 mr-0.5" />
+                                          出糧
+                                        </Button>
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                                {/* 季度小結 */}
+                                {(() => {
+                                  const qEnd = monthBalances[endMonth]?.balance || 0;
+                                  return (
+                                    <TableRow className="bg-gray-50 font-semibold text-xs border-t-2">
+                                      <TableCell colSpan={8} className="text-right">季末累積結餘：</TableCell>
+                                      <TableCell className="text-right">
+                                        {qEnd > 0 ? (
+                                          <span className="text-red-600">欠 ${qEnd.toLocaleString()}</span>
+                                        ) : qEnd < 0 ? (
+                                          <span className="text-green-600">溢付 ${Math.abs(qEnd).toLocaleString()}</span>
+                                        ) : (
+                                          <span>結清</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell />
+                                    </TableRow>
+                                  );
+                                })()}
+                              </TableBody>
+                            </Table>
+                          </div>
+                          {(() => {
+                            const qEnd = monthBalances[endMonth]?.balance || 0;
+                            if (qEnd === 0) return null;
+                            return (
+                              <p className="text-[10px] text-gray-500">
+                                {qEnd > 0
+                                  ? `⚠️ 累積欠薪 $${qEnd.toLocaleString()} 將帶入下季。出糧時建議填入累積金額一次清還。`
+                                  : `✅ 溢付 $${Math.abs(qEnd).toLocaleString()} 已帶入下季扣減（下季少出 $${Math.abs(qEnd).toLocaleString()}）。`
+                                }
+                              </p>
+                            );
+                          })()}
                         </div>
                       );
                     })()}
