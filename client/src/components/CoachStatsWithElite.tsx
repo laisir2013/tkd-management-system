@@ -34,8 +34,12 @@ export default function CoachStatsWithElite() {
   // 讀取月度財務報表（每月薪金明細）
   const { data: monthlyFinance } = trpc.coachStats.getMonthlyFinance.useQuery({ year: selectedYear });
 
-  // 讀取出糧記錄
-  const { data: payrollRecords } = trpc.payroll.getAll.useQuery({ year: selectedYear });
+  // 讀取出糧記錄（不限年份，用於跨年累積）
+  const { data: payrollRecords } = trpc.payroll.getAll.useQuery({});
+
+  // 取得之前年份的財務數據（用於計算跨年前期結餘）
+  const prior2024 = trpc.coachStats.getMonthlyFinance.useQuery({ year: 2024 }, { enabled: selectedYear > 2024 });
+  const prior2025 = trpc.coachStats.getMonthlyFinance.useQuery({ year: 2025 }, { enabled: selectedYear > 2025 });
 
   const utils = trpc.useUtils();
   // 出糧 mutation
@@ -290,8 +294,32 @@ export default function CoachStatsWithElite() {
                       const startMonth = (selectedQuarter - 1) * 3 + 1;
                       const endMonth = selectedQuarter * 3;
 
-                      // 計算從年初到本季的累積結餘
-                      let runningBalance = 0;
+                      // 計算跨年前期結餘
+                      function getPriorBalance(coachName: string): number {
+                        let balance = 0;
+                        const priorYearsData: Array<{ year: number; data: any[] | undefined }> = [];
+                        if (selectedYear > 2024) priorYearsData.push({ year: 2024, data: prior2024.data as any });
+                        if (selectedYear > 2025) priorYearsData.push({ year: 2025, data: prior2025.data as any });
+                        for (const { year, data } of priorYearsData) {
+                          if (!data) continue;
+                          const c = data.find((x: any) => x.coachName === coachName);
+                          if (!c) continue;
+                          for (let m = 1; m <= 12; m++) {
+                            const md = c.months[m];
+                            if (md) balance += md.netSalary || 0;
+                          }
+                        }
+                        // 減去前期已付
+                        const priorPaid = (payrollRecords || [])
+                          .filter((r: any) => r.coachName === coachName && r.year < selectedYear && r.status === 'paid')
+                          .reduce((sum: number, r: any) => sum + parseFloat(String(r.netAmount)), 0);
+                        balance -= priorPaid;
+                        return Math.round(balance * 100) / 100;
+                      }
+
+                      // 從跨年前期結餘開始累積
+                      let runningBalance = getPriorBalance(coach.coachName);
+                      const priorBal = runningBalance;
                       const monthBalances: Record<number, { paid: number; balance: number }> = {};
                       for (let m = 1; m <= 12; m++) {
                         const md = coachFinance.months[m];
@@ -303,14 +331,19 @@ export default function CoachStatsWithElite() {
                         monthBalances[m] = { paid: mPaid, balance: Math.round(runningBalance * 100) / 100 };
                       }
 
-                      // 上季末結餘（帶入本季）
-                      const prevQuarterEndBalance = startMonth > 1 ? (monthBalances[startMonth - 1]?.balance || 0) : 0;
+                      // 上季末結餘（帶入本季）— 含跨年前期
+                      const prevQuarterEndBalance = startMonth > 1 ? (monthBalances[startMonth - 1]?.balance || 0) : priorBal;
 
                       return (
                         <div className="space-y-2">
+                          {priorBal !== 0 && startMonth === 1 && (
+                            <div className={`text-xs px-3 py-1.5 rounded ${priorBal > 0 ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+                              📌 跨年前期結餘（由2024年Q1累積）：{priorBal > 0 ? `欠薪 $${priorBal.toLocaleString()}` : `溢付 $${Math.abs(priorBal).toLocaleString()}`}
+                            </div>
+                          )}
                           {prevQuarterEndBalance !== 0 && (
                             <div className={`text-xs px-3 py-1.5 rounded ${prevQuarterEndBalance > 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-                              上季結餘帶入：{prevQuarterEndBalance > 0 ? `欠薪 $${prevQuarterEndBalance.toLocaleString()}` : `溢付 $${Math.abs(prevQuarterEndBalance).toLocaleString()}`}
+                              {startMonth === 1 ? '前期結餘帶入' : '上季結餘帶入'}：{prevQuarterEndBalance > 0 ? `欠薪 $${prevQuarterEndBalance.toLocaleString()}` : `溢付 $${Math.abs(prevQuarterEndBalance).toLocaleString()}`}
                             </div>
                           )}
                           <div className="overflow-x-auto rounded-lg border">

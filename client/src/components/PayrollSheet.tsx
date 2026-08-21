@@ -23,8 +23,12 @@ export default function PayrollSheet() {
   // 取得月度財務報表 (含每月薪金計算)
   const { data: financeData, isLoading } = trpc.coachStats.getMonthlyFinance.useQuery({ year: selectedYear });
 
-  // 取得該年所有出糧記錄
-  const { data: payrollRecords } = trpc.payroll.getAll.useQuery({ year: selectedYear });
+  // 取得所有出糧記錄（不限年份，用於跨年累積計算）
+  const { data: payrollRecords } = trpc.payroll.getAll.useQuery({});
+
+  // 取得之前年份的財務數據（用於計算跨年前期結餘）
+  const prior2024 = trpc.coachStats.getMonthlyFinance.useQuery({ year: 2024 }, { enabled: selectedYear > 2024 });
+  const prior2025 = trpc.coachStats.getMonthlyFinance.useQuery({ year: 2025 }, { enabled: selectedYear > 2025 });
 
   // 出糧 mutation
   const payMutation = trpc.payroll.addAdhocPayment.useMutation({
@@ -44,9 +48,37 @@ export default function PayrollSheet() {
   const yearOptions = [];
   for (let y = 2024; y <= currentYear + 1; y++) yearOptions.push(y);
 
-  // 組合每月數據 + 已出糧
+  // 組合每月數據 + 已出糧（含跨年累積結餘）
   const sheetData = useMemo(() => {
     if (!financeData) return [];
+
+    // 計算某教練在 selectedYear 之前的累積結餘（應發 - 已付）
+    function getPriorBalance(coachName: string): number {
+      let balance = 0;
+
+      // 加總前期年份的應發薪金
+      const priorYearsData: Array<{ year: number; data: any[] | undefined }> = [];
+      if (selectedYear > 2024) priorYearsData.push({ year: 2024, data: prior2024.data as any });
+      if (selectedYear > 2025) priorYearsData.push({ year: 2025, data: prior2025.data as any });
+
+      for (const { year, data } of priorYearsData) {
+        if (!data) continue;
+        const coach = data.find((c: any) => c.coachName === coachName);
+        if (!coach) continue;
+        for (let m = 1; m <= 12; m++) {
+          const md = coach.months[m];
+          if (md) balance += md.netSalary || 0;
+        }
+      }
+
+      // 減去前期年份的已付金額
+      const priorPaid = (payrollRecords || [])
+        .filter((r: any) => r.coachName === coachName && r.year < selectedYear && r.status === 'paid')
+        .reduce((sum: number, r: any) => sum + parseFloat(String(r.netAmount)), 0);
+
+      balance -= priorPaid;
+      return Math.round(balance * 100) / 100;
+    }
 
     const rows: Array<{
       coachName: string;
@@ -63,7 +95,8 @@ export default function PayrollSheet() {
     }> = [];
 
     for (const coach of financeData) {
-      let runningBalance = 0; // 累積結餘帶到下個月
+      // 從前期結餘開始累積
+      let runningBalance = getPriorBalance(coach.coachName);
 
       for (let m = 1; m <= 12; m++) {
         const monthData = coach.months[m];
@@ -78,8 +111,8 @@ export default function PayrollSheet() {
 
         // 該月已出糧金額
         const monthPaid = (payrollRecords || [])
-          .filter(r => r.coachName === coach.coachName && r.year === selectedYear && r.month === m && r.status === 'paid')
-          .reduce((sum, r) => sum + parseFloat(String(r.netAmount)), 0);
+          .filter((r: any) => r.coachName === coach.coachName && r.year === selectedYear && r.month === m && r.status === 'paid')
+          .reduce((sum: number, r: any) => sum + parseFloat(String(r.netAmount)), 0);
 
         // 結餘 = 上月結餘 + 本月應發 - 本月已出
         runningBalance = runningBalance + netSalary - monthPaid;
@@ -103,7 +136,7 @@ export default function PayrollSheet() {
     }
 
     return rows;
-  }, [financeData, payrollRecords, selectedYear]);
+  }, [financeData, payrollRecords, selectedYear, prior2024.data, prior2025.data]);
 
   // 按教練分組
   const coachGroups = useMemo(() => {
@@ -184,6 +217,28 @@ export default function PayrollSheet() {
         const totalOwed = rows.reduce((s, r) => s + r.netSalary, 0);
         const totalPaid = rows.reduce((s, r) => s + r.paidAmount, 0);
         const finalBalance = rows.length > 0 ? rows[rows.length - 1].balance : 0;
+        // 計算前期結餘（跨年累積）
+        const priorBalance = (() => {
+          if (selectedYear <= 2024) return 0;
+          let balance = 0;
+          const priorYearsData: Array<{ year: number; data: any[] | undefined }> = [];
+          if (selectedYear > 2024) priorYearsData.push({ year: 2024, data: prior2024.data as any });
+          if (selectedYear > 2025) priorYearsData.push({ year: 2025, data: prior2025.data as any });
+          for (const { data } of priorYearsData) {
+            if (!data) continue;
+            const c = data.find((x: any) => x.coachName === coachName);
+            if (!c) continue;
+            for (let m = 1; m <= 12; m++) {
+              const md = c.months[m];
+              if (md) balance += md.netSalary || 0;
+            }
+          }
+          const priorPaid = (payrollRecords || [])
+            .filter((r: any) => r.coachName === coachName && r.year < selectedYear && r.status === 'paid')
+            .reduce((sum: number, r: any) => sum + parseFloat(String(r.netAmount)), 0);
+          balance -= priorPaid;
+          return Math.round(balance * 100) / 100;
+        })();
 
         return (
           <Card key={coachName} className="overflow-hidden">
@@ -196,6 +251,11 @@ export default function PayrollSheet() {
                   {coachName}
                 </CardTitle>
                 <div className="flex items-center gap-4 text-xs">
+                  {priorBalance !== 0 && (
+                    <span className={priorBalance > 0 ? 'text-amber-700' : 'text-teal-700'}>
+                      前期: <strong>{priorBalance > 0 ? `欠$${priorBalance.toLocaleString()}` : `溢$${Math.abs(priorBalance).toLocaleString()}`}</strong>
+                    </span>
+                  )}
                   <span>應發: <strong className="text-blue-700">${totalOwed.toLocaleString()}</strong></span>
                   <span>已付: <strong className="text-green-700">${totalPaid.toLocaleString()}</strong></span>
                   {finalBalance > 0 ? (
@@ -226,6 +286,23 @@ export default function PayrollSheet() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {/* 前期結餘行 */}
+                    {priorBalance !== 0 && (
+                      <TableRow className="text-xs bg-amber-50/50 border-b-2 border-amber-200">
+                        <TableCell className="font-medium text-amber-700">📌 前期</TableCell>
+                        <TableCell colSpan={5} className="text-xs text-amber-600">由2024年Q1累積至今</TableCell>
+                        <TableCell className="text-right">—</TableCell>
+                        <TableCell className="text-right">—</TableCell>
+                        <TableCell className="text-right">
+                          {priorBalance > 0 ? (
+                            <span className="text-red-600 font-bold">${priorBalance.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-green-600 font-bold">−${Math.abs(priorBalance).toLocaleString()}</span>
+                          )}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                    )}
                     {rows.map((row) => (
                       <TableRow key={`${row.month}`} className="text-xs">
                         <TableCell className="font-medium">{MONTH_LABELS[row.month - 1]}</TableCell>
