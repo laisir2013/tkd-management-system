@@ -39,6 +39,7 @@ import ReceiptReviewContent from "@/components/ReceiptReviewContent";
 import PushQueueReviewContent from "@/components/PushQueueReviewContent";
 import RegistrationManagement from "@/components/RegistrationManagement";
 import AdminFeeSettings from "@/components/AdminFeeSettings";
+import PayrollSheet from "@/components/PayrollSheet";
 import { StudentRecordDialog } from "@/components/StudentRecordDialog";
 
 
@@ -1156,12 +1157,9 @@ export default function Admin() {
             <MonthlyFinanceReport />
           </TabsContent>
 
-          {/* ========= 教練出糧 (重構中) ========= */}
+          {/* ========= 教練出糧 ========= */}
           <TabsContent value="payroll">
-            <div className="text-center py-12 text-muted-foreground">
-              <p className="text-lg font-semibold mb-2">🚧 教練出糧管理 — 重構中</p>
-              <p className="text-sm">新版出糧系統即將上線</p>
-            </div>
+            <PayrollSheet />
           </TabsContent>
 
           {/* ========= 會計總帳 (含子分頁) ========= */}
