@@ -1,8 +1,9 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, DollarSign, Award, ChevronDown, ChevronUp, Loader2, Calculator } from "lucide-react";
+import { Users, DollarSign, Award, ChevronDown, ChevronUp, Loader2, Calculator, Banknote, CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { QuarterlyFeeStatistics } from "@/components/QuarterlyFeeStatistics";
@@ -16,6 +17,9 @@ export default function CoachStatsWithElite() {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedQuarter, setSelectedQuarter] = useState(currentQuarter);
   const [expandedCoach, setExpandedCoach] = useState<string | null>(null);
+  const [showPayDialog, setShowPayDialog] = useState<{ coachName: string; amount: number } | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payNotes, setPayNotes] = useState('');
 
   // 傳入 year/quarter 讓後端按季度計算實收
   const { data: coachStats, isLoading } = trpc.coachStats.getAll.useQuery({
@@ -25,6 +29,19 @@ export default function CoachStatsWithElite() {
 
   // 讀取行政費率設定
   const { data: feeRates } = trpc.adminFees.getAllRates.useQuery({});
+
+  const utils = trpc.useUtils();
+  // 出糧 mutation
+  const payMutation = trpc.payroll.addAdhocPayment.useMutation({
+    onSuccess: () => {
+      utils.payroll.getAll.invalidate();
+      setShowPayDialog(null);
+      setPayAmount('');
+      setPayNotes('');
+      alert('✅ 出糧成功！');
+    },
+    onError: (err) => alert(`出糧失敗：${err.message}`),
+  });
 
   if (isLoading) {
     return (
@@ -229,8 +246,25 @@ export default function CoachStatsWithElite() {
                   </TableBody>
                 </Table>
                 <p className="text-[10px] text-gray-400 mt-1">
-                  計算方式：學費總收入 − 10% MPF − 5% 公司營運 = 實收 85%
+                  計算方式：學費總收入 − MPF − 公司營運 = 教練實收
                 </p>
+                {/* 出糧按鈕 */}
+                <div className="mt-3 pt-3 border-t border-teal-200 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">
+                    {selectedYear}年 {QUARTER_LABELS[selectedQuarter - 1]} 應發薪金
+                  </span>
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 gap-1.5"
+                    onClick={() => {
+                      setShowPayDialog({ coachName: coach.coachName, amount: netSalary });
+                      setPayAmount(netSalary.toString());
+                    }}
+                  >
+                    <Banknote className="h-4 w-4" />
+                    出糧
+                  </Button>
+                </div>
               </div>
 
               {/* 展開的季度統計 */}
@@ -261,6 +295,70 @@ export default function CoachStatsWithElite() {
           </ul>
         </CardContent>
       </Card>
+
+      {/* 出糧 Dialog */}
+      {showPayDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowPayDialog(null)}>
+          <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Banknote className="h-5 w-5 text-emerald-600" />
+                  出糧 — {showPayDialog.coachName}
+                </CardTitle>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setShowPayDialog(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {selectedYear}年 {QUARTER_LABELS[selectedQuarter - 1]} · 應發 ${showPayDialog.amount.toLocaleString()}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">出糧金額 ($)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(e.target.value)}
+                  placeholder="輸入金額"
+                  className="text-lg font-bold"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">備註</label>
+                <Input
+                  value={payNotes}
+                  onChange={(e) => setPayNotes(e.target.value)}
+                  placeholder="例：銀行轉帳 / FPS / 季度出糧"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="outline" onClick={() => setShowPayDialog(null)}>取消</Button>
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 gap-1"
+                  onClick={() => {
+                    const amount = parseFloat(payAmount);
+                    if (isNaN(amount) || amount <= 0) { alert('請輸入有效金額'); return; }
+                    const today = new Date().toISOString().split('T')[0];
+                    payMutation.mutate({
+                      coachName: showPayDialog.coachName,
+                      amount,
+                      paymentDate: today,
+                      notes: payNotes || `${selectedYear}年${QUARTER_LABELS[selectedQuarter - 1]}出糧`,
+                    });
+                  }}
+                  disabled={payMutation.isPending || !payAmount}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {payMutation.isPending ? '處理中...' : '確認出糧'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
