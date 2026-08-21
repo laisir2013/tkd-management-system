@@ -3643,14 +3643,19 @@ export const appRouter = router({
         return all;
       }),
 
-    // 每月財務報表（僅管理員）
+    // 每月財務報表（管理員看全部，教練只看自己）
     getMonthlyFinance: protectedProcedure
       .input(z.object({ year: z.number() }))
       .query(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') {
-          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以查看財務報表' });
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '無權查看財務報表' });
         }
-        return getMonthlyFinanceReport(input.year);
+        const all = await getMonthlyFinanceReport(input.year);
+        if (ctx.user.role === 'coach') {
+          // 教練只能看自己的數據
+          return all.filter((r: any) => r.coachName === ctx.user.coachName);
+        }
+        return all;
       }),
   }),
 
@@ -9125,7 +9130,7 @@ export const appRouter = router({
 
   // ==================== 教練薪資 (Payroll) ====================
   payroll: router({
-    // 取得所有薪資記錄（支援篩選）
+    // 取得所有薪資記錄（管理員看全部，教練只看自己）
     getAll: protectedProcedure
       .input(z.object({
         year: z.number().optional(),
@@ -9134,8 +9139,13 @@ export const appRouter = router({
         status: z.string().optional(),
       }).optional())
       .query(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') {
-          throw new TRPCError({ code: 'FORBIDDEN', message: '只有管理員可以查看薪資記錄' });
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'coach') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '無權查看薪資記錄' });
+        }
+        if (ctx.user.role === 'coach') {
+          // 教練只能查看自己的出糧記錄，強制覆蓋 coachName 參數
+          const coachFilter = { ...(input || {}), coachName: ctx.user.coachName };
+          return getAllPayrollRecords(coachFilter);
         }
         return getAllPayrollRecords(input || undefined);
       }),
