@@ -460,7 +460,7 @@ export default function Admin() {
     );
   }
 
-  const venues = Array.from(new Set(students?.map(s => s.venue) || []));
+  const venues = Array.from(new Set(students?.map(s => s.venue).filter(Boolean) || []));
   
   // 教練名單（固定 5 位 + 從學生資料中取得的其他教練）
   const COACH_LIST = ['賴政堡教練', '鄺富華教練', '林學曉教練', '何翰錕教練', '許悠教練'];
