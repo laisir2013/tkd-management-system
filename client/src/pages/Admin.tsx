@@ -38,7 +38,6 @@ import BankStatementReconciliation from "@/components/BankStatementReconciliatio
 import ReceiptReviewContent from "@/components/ReceiptReviewContent";
 import PushQueueReviewContent from "@/components/PushQueueReviewContent";
 import RegistrationManagement from "@/components/RegistrationManagement";
-import PayrollManagement from "@/components/PayrollManagement";
 import AdminFeeSettings from "@/components/AdminFeeSettings";
 import { StudentRecordDialog } from "@/components/StudentRecordDialog";
 
@@ -1157,9 +1156,12 @@ export default function Admin() {
             <MonthlyFinanceReport />
           </TabsContent>
 
-          {/* ========= 教練出糧 ========= */}
+          {/* ========= 教練出糧 (重構中) ========= */}
           <TabsContent value="payroll">
-            <PayrollManagement />
+            <div className="text-center py-12 text-muted-foreground">
+              <p className="text-lg font-semibold mb-2">🚧 教練出糧管理 — 重構中</p>
+              <p className="text-sm">新版出糧系統即將上線</p>
+            </div>
           </TabsContent>
 
           {/* ========= 會計總帳 (含子分頁) ========= */}
