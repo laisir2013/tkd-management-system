@@ -2073,22 +2073,24 @@ export async function getMonthlyFinanceReport(year: number) {
   const allFeeRates = await getAllCoachFeeRates(`${year}-12-31`);
 
   // 恆常班學生 + 繳費
+  // 注意：薪金計算必須包含所有學生（包括已退出的），因為他們曾經繳過的學費仍算入教練收入
   const allStudents = await getAllStudents();
   const allPayments = await getAllPaymentRecords();
-  const regularStudents = allStudents.filter(s => s.status === 'active' && s.venue !== '精英班道場');
+  // 包含所有非精英班學生（active + inactive），確保歷史繳費不會遺漏
+  const regularStudents = allStudents.filter(s => s.venue !== '精英班道場');
   const regularStudentIdSet = new Set(regularStudents.map(s => s.id));
 
-  // 動態從學生資料取得教練名稱
+  // 動態從學生資料取得教練名稱（含 inactive 學生的教練）
   const coachNameSet = new Set<string>();
   allStudents.forEach(s => { if (s.coach) coachNameSet.add(s.coach); });
   const COACHES = Array.from(coachNameSet);
 
-  // 精英班學生 + 繳費
+  // 精英班學生 + 繳費（同樣包含所有狀態）
   const allEliteStudents = await getAllEliteStudents();
   const allElitePayments = await db.select().from(elitePaymentRecords)
     .where(eq(elitePaymentRecords.status, 'confirmed'));
 
-  // 恆常班：取得所有已確認且屬於恆常班的繳費
+  // 恆常班：取得所有已確認且屬於恆常班的繳費（不限學生狀態）
   const confirmedRegularPayments = allPayments.filter(p => {
     if (p.status !== 'confirmed') return false;
     if (!regularStudentIdSet.has(p.studentId)) return false;
@@ -2144,7 +2146,7 @@ export async function getMonthlyFinanceReport(year: number) {
   return COACHES.map(coachName => {
     const coachRegularStudents = regularStudents.filter(s => s.coach === coachName);
     const coachStudentIds = new Set(coachRegularStudents.map(s => s.id));
-    const coachEliteStudents = allEliteStudents.filter(s => s.status === 'active' && s.coach === coachName);
+    const coachEliteStudents = allEliteStudents.filter(s => s.coach === coachName);
     const eliteStudentIds = new Set(coachEliteStudents.map(s => s.id));
     
     // 該教練的費率設定（從 admin_fee_settings 讀取）
