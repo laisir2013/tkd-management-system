@@ -201,16 +201,17 @@ export default function CoachSalaryView({ coachName }: CoachSalaryViewProps) {
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
+        <CardContent className="p-0 sm:p-6">
+          <div className="overflow-x-auto">
+          <Table className="min-w-[500px]">
             <TableHeader>
               <TableRow>
-                <TableHead className="text-center w-16">月份</TableHead>
-                <TableHead className="text-right">收入</TableHead>
-                <TableHead className="text-right">扣除({(combinedRate * 100).toFixed(0)}%)</TableHead>
-                <TableHead className="text-right">應發</TableHead>
-                <TableHead className="text-right">已付</TableHead>
-                <TableHead className="text-right">累積結餘</TableHead>
+                <TableHead className="text-center w-12 sticky left-0 bg-white z-10">月份</TableHead>
+                <TableHead className="text-right whitespace-nowrap">收入</TableHead>
+                <TableHead className="text-right whitespace-nowrap">扣除({(combinedRate * 100).toFixed(0)}%)</TableHead>
+                <TableHead className="text-right whitespace-nowrap">應發</TableHead>
+                <TableHead className="text-right whitespace-nowrap">已付</TableHead>
+                <TableHead className="text-right whitespace-nowrap">累積結餘</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -232,7 +233,7 @@ export default function CoachSalaryView({ coachName }: CoachSalaryViewProps) {
 
                 return (
                   <TableRow key={row.month} className={row.totalIncome === 0 && row.paid === 0 ? 'opacity-50' : ''}>
-                    <TableCell className="text-center font-medium">{MONTH_LABELS[row.month - 1]}</TableCell>
+                    <TableCell className="text-center font-medium sticky left-0 bg-white z-10">{MONTH_LABELS[row.month - 1]}</TableCell>
                     <TableCell className="text-right">
                       {row.totalIncome > 0 ? `$${row.totalIncome.toLocaleString()}` : '-'}
                     </TableCell>
@@ -254,7 +255,7 @@ export default function CoachSalaryView({ coachName }: CoachSalaryViewProps) {
 
               {/* 合計列 */}
               <TableRow className="border-t-2 font-bold bg-gray-50">
-                <TableCell className="text-center">合計</TableCell>
+                <TableCell className="text-center sticky left-0 bg-gray-50 z-10">合計</TableCell>
                 <TableCell className="text-right">
                   ${monthlyBreakdown.reduce((s, r) => s + r.totalIncome, 0).toLocaleString()}
                 </TableCell>
@@ -269,6 +270,7 @@ export default function CoachSalaryView({ coachName }: CoachSalaryViewProps) {
               </TableRow>
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

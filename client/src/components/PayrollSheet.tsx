@@ -242,15 +242,15 @@ export default function PayrollSheet() {
 
         return (
           <Card key={coachName} className="overflow-hidden">
-            <CardHeader className="pb-2 bg-gray-50/50">
-              <div className="flex items-center justify-between">
+            <CardHeader className="pb-2 bg-gray-50/50 px-3 sm:px-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold text-xs">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold text-xs">
                     {coachName.charAt(0)}
                   </div>
-                  {coachName}
+                  <span className="truncate">{coachName}</span>
                 </CardTitle>
-                <div className="flex items-center gap-4 text-xs">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                   {priorBalance !== 0 && (
                     <span className={priorBalance > 0 ? 'text-amber-700' : 'text-teal-700'}>
                       前期: <strong>{priorBalance > 0 ? `欠$${priorBalance.toLocaleString()}` : `溢$${Math.abs(priorBalance).toLocaleString()}`}</strong>
@@ -269,31 +269,31 @@ export default function PayrollSheet() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto -mx-0">
+                <Table className="min-w-[700px]">
                   <TableHeader>
                     <TableRow className="bg-gray-50 text-xs">
-                      <TableHead className="text-xs w-16">月份</TableHead>
-                      <TableHead className="text-xs text-right">恆常班</TableHead>
-                      <TableHead className="text-xs text-right">精英班</TableHead>
-                      <TableHead className="text-xs text-right">總收入</TableHead>
-                      <TableHead className="text-xs text-right text-red-600">MPF</TableHead>
-                      <TableHead className="text-xs text-right text-red-600">行政費</TableHead>
-                      <TableHead className="text-xs text-right font-bold">應發薪金</TableHead>
-                      <TableHead className="text-xs text-right text-green-700">已出糧</TableHead>
-                      <TableHead className="text-xs text-right">結餘</TableHead>
-                      <TableHead className="text-xs text-center w-20">操作</TableHead>
+                      <TableHead className="text-xs w-12 sticky left-0 bg-gray-50 z-10">月份</TableHead>
+                      <TableHead className="text-xs text-right whitespace-nowrap">恆常班</TableHead>
+                      <TableHead className="text-xs text-right whitespace-nowrap">精英班</TableHead>
+                      <TableHead className="text-xs text-right whitespace-nowrap">總收入</TableHead>
+                      <TableHead className="text-xs text-right text-red-600 whitespace-nowrap">MPF</TableHead>
+                      <TableHead className="text-xs text-right text-red-600 whitespace-nowrap">行政費</TableHead>
+                      <TableHead className="text-xs text-right font-bold whitespace-nowrap">應發薪金</TableHead>
+                      <TableHead className="text-xs text-right text-green-700 whitespace-nowrap">已出糧</TableHead>
+                      <TableHead className="text-xs text-right whitespace-nowrap">結餘</TableHead>
+                      <TableHead className="text-xs text-center w-16">操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {/* 前期結餘行 */}
                     {priorBalance !== 0 && (
                       <TableRow className="text-xs bg-amber-50/50 border-b-2 border-amber-200">
-                        <TableCell className="font-medium text-amber-700">📌 前期</TableCell>
-                        <TableCell colSpan={5} className="text-xs text-amber-600">由2024年Q1累積至今</TableCell>
+                        <TableCell className="font-medium text-amber-700 sticky left-0 bg-amber-50/50 z-10 whitespace-nowrap">📌 前期</TableCell>
+                        <TableCell colSpan={5} className="text-xs text-amber-600 whitespace-nowrap">由2024年Q1累積至今</TableCell>
                         <TableCell className="text-right">—</TableCell>
                         <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right whitespace-nowrap">
                           {priorBalance > 0 ? (
                             <span className="text-red-600 font-bold">${priorBalance.toLocaleString()}</span>
                           ) : (
@@ -305,21 +305,21 @@ export default function PayrollSheet() {
                     )}
                     {rows.map((row) => (
                       <TableRow key={`${row.month}`} className="text-xs">
-                        <TableCell className="font-medium">{MONTH_LABELS[row.month - 1]}</TableCell>
-                        <TableCell className="text-right">${row.regularIncome.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">${row.eliteIncome.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">${row.totalIncome.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-red-600">−${row.mpf.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-red-600">−${row.operatingFee.toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-bold text-teal-700">${row.netSalary.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="font-medium sticky left-0 bg-white z-10">{MONTH_LABELS[row.month - 1]}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">${row.regularIncome.toLocaleString()}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">${row.eliteIncome.toLocaleString()}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">${row.totalIncome.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-red-600 whitespace-nowrap">−${row.mpf.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-red-600 whitespace-nowrap">−${row.operatingFee.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold text-teal-700 whitespace-nowrap">${row.netSalary.toLocaleString()}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">
                           {row.paidAmount > 0 ? (
                             <span className="text-green-700 font-medium">${row.paidAmount.toLocaleString()}</span>
                           ) : (
                             <span className="text-gray-300">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right whitespace-nowrap">
                           {row.balance > 0 ? (
                             <span className="text-red-600 font-medium">${row.balance.toLocaleString()}</span>
                           ) : row.balance < 0 ? (
@@ -351,7 +351,7 @@ export default function PayrollSheet() {
                     ))}
                     {/* 合計行 */}
                     <TableRow className="bg-gray-50 font-semibold text-xs border-t-2">
-                      <TableCell>合計</TableCell>
+                      <TableCell className="sticky left-0 bg-gray-50 z-10">合計</TableCell>
                       <TableCell className="text-right">${rows.reduce((s, r) => s + r.regularIncome, 0).toLocaleString()}</TableCell>
                       <TableCell className="text-right">${rows.reduce((s, r) => s + r.eliteIncome, 0).toLocaleString()}</TableCell>
                       <TableCell className="text-right">${rows.reduce((s, r) => s + r.totalIncome, 0).toLocaleString()}</TableCell>
