@@ -2111,7 +2111,7 @@ export async function getMonthlyFinanceReport(year: number) {
    */
   function getPaymentAmountForMonth(p: any, targetYear: number, targetMonth: number): number {
     const amount = parseFloat(p.amount || '0');
-    if (amount <= 0) return 0;
+    if (amount === 0) return 0;
     
     if (p.paymentPeriod === 'CUSTOM' && p.customMonths) {
       const monthNums = extractMonthNumbers(p.customMonths, targetYear);
@@ -2176,27 +2176,31 @@ export async function getMonthlyFinanceReport(year: number) {
       
       coachRegularPayments.forEach((p: any) => {
         const amt = getPaymentAmountForMonth(p, year, m);
-        if (amt > 0) {
+        if (amt !== 0) {
           regularIncome += amt;
-          paidStudentIds.add(p.studentId);
+          if (amt > 0) {
+            paidStudentIds.add(p.studentId);
+          }
           
-          // 偵測逾期入帳：收據轉帳日期（入帳月份）與處理日期（paymentDate）不同月
-          const entryDate = getEntryDateForMonth(p);
-          const processDate = p.paymentDate ? new Date(p.paymentDate) : null;
-          if (entryDate && processDate) {
-            const entryMonth = entryDate.getMonth() + 1;
-            const processMonth = processDate.getMonth() + 1;
-            const entryYr = entryDate.getFullYear();
-            const processYr = processDate.getFullYear();
-            // 如果處理日期比入帳日期晚一個月以上，標記為逾期入帳
-            if (processYr > entryYr || (processYr === entryYr && processMonth > entryMonth)) {
-              const student = coachRegularStudents.find(s => s.id === p.studentId);
-              lateEntries.push({
-                studentName: student?.name || `學生${p.studentId}`,
-                amount: amt,
-                originalMonth: entryMonth,
-                processedDate: processDate.toISOString().split('T')[0],
-              });
+          // 偵測逾期入帳：收據轉帳日期（入帳月份）與處理日期（paymentDate）不同月（僅正數付款）
+          if (amt > 0) {
+            const entryDate = getEntryDateForMonth(p);
+            const processDate = p.paymentDate ? new Date(p.paymentDate) : null;
+            if (entryDate && processDate) {
+              const entryMonth = entryDate.getMonth() + 1;
+              const processMonth = processDate.getMonth() + 1;
+              const entryYr = entryDate.getFullYear();
+              const processYr = processDate.getFullYear();
+              // 如果處理日期比入帳日期晚一個月以上，標記為逾期入帳
+              if (processYr > entryYr || (processYr === entryYr && processMonth > entryMonth)) {
+                const student = coachRegularStudents.find(s => s.id === p.studentId);
+                lateEntries.push({
+                  studentName: student?.name || `學生${p.studentId}`,
+                  amount: amt,
+                  originalMonth: entryMonth,
+                  processedDate: processDate.toISOString().split('T')[0],
+                });
+              }
             }
           }
         }
