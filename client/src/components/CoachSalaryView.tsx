@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Loader2, DollarSign, Banknote, TrendingUp } from "lucide-react";
+import { Loader2, DollarSign, Banknote, TrendingUp, FileImage, Download } from "lucide-react";
 import { useState, useMemo } from "react";
 
 const MONTH_LABELS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -295,6 +295,7 @@ export default function CoachSalaryView({ coachName }: CoachSalaryViewProps) {
                     <TableHead className="text-center">狀態</TableHead>
                     <TableHead>備註</TableHead>
                     <TableHead className="text-center">日期</TableHead>
+                    <TableHead className="text-center">收據</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -314,6 +315,31 @@ export default function CoachSalaryView({ coachName }: CoachSalaryViewProps) {
                       </TableCell>
                       <TableCell className="text-center text-sm text-muted-foreground">
                         {record.createdAt ? new Date(record.createdAt).toLocaleDateString('zh-HK') : '-'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {record.receiptUrl ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <a
+                              href={record.receiptUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800 text-xs"
+                              title="查看收據"
+                            >
+                              <FileImage className="h-3.5 w-3.5" />
+                            </a>
+                            <a
+                              href={record.receiptUrl}
+                              download
+                              className="inline-flex items-center gap-0.5 text-green-600 hover:text-green-800 text-xs"
+                              title="下載收據"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

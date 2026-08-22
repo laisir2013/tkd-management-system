@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Banknote, CheckCircle2, X } from "lucide-react";
+import { Loader2, Banknote, CheckCircle2, X, FileImage, Download, Eye } from "lucide-react";
 import { useState, useMemo } from "react";
 
 const MONTH_LABELS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -17,6 +17,7 @@ export default function PayrollSheet() {
   const [payAmount, setPayAmount] = useState('');
   const [payReceipt, setPayReceipt] = useState<File | null>(null);
   const [payNotes, setPayNotes] = useState('');
+  const [expandedCoach, setExpandedCoach] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -92,6 +93,7 @@ export default function PayrollSheet() {
       netSalary: number;
       paidAmount: number;
       balance: number; // 正=欠薪, 負=溢付
+      payments: Array<{ id: number; amount: number; receiptUrl?: string; paymentDate?: string }>;
     }> = [];
 
     for (const coach of financeData) {
@@ -110,9 +112,9 @@ export default function PayrollSheet() {
         const netSalary = monthData.netSalary || 0;
 
         // 該月已出糧金額
-        const monthPaid = (payrollRecords || [])
-          .filter((r: any) => r.coachName === coach.coachName && r.year === selectedYear && r.month === m && r.status === 'paid')
-          .reduce((sum: number, r: any) => sum + parseFloat(String(r.netAmount)), 0);
+        const monthPayments = (payrollRecords || [])
+          .filter((r: any) => r.coachName === coach.coachName && r.year === selectedYear && r.month === m && r.status === 'paid');
+        const monthPaid = monthPayments.reduce((sum: number, r: any) => sum + parseFloat(String(r.netAmount)), 0);
 
         // 結餘 = 上月結餘 + 本月應發 - 本月已出
         runningBalance = runningBalance + netSalary - monthPaid;
@@ -130,6 +132,12 @@ export default function PayrollSheet() {
             netSalary,
             paidAmount: monthPaid,
             balance: Math.round(runningBalance * 100) / 100,
+            payments: monthPayments.map((r: any) => ({
+              id: r.id,
+              amount: parseFloat(String(r.netAmount)),
+              receiptUrl: r.receiptUrl || undefined,
+              paymentDate: r.paymentDate || undefined,
+            })),
           });
         }
       }
@@ -314,7 +322,25 @@ export default function PayrollSheet() {
                         <TableCell className="text-right font-bold text-teal-700 whitespace-nowrap">${row.netSalary.toLocaleString()}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">
                           {row.paidAmount > 0 ? (
-                            <span className="text-green-700 font-medium">${row.paidAmount.toLocaleString()}</span>
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-green-700 font-medium">${row.paidAmount.toLocaleString()}</span>
+                              {row.payments.some(p => p.receiptUrl) && (
+                                <div className="flex items-center gap-0.5 ml-1">
+                                  {row.payments.filter(p => p.receiptUrl).map((p, i) => (
+                                    <a
+                                      key={p.id}
+                                      href={p.receiptUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-500 hover:text-blue-700"
+                                      title={`查看收據 #${i + 1} ($${p.amount.toLocaleString()})`}
+                                    >
+                                      <FileImage className="h-3 w-3" />
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-gray-300">—</span>
                           )}
@@ -373,6 +399,89 @@ export default function PayrollSheet() {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* 出糧明細（含收據查閱/下載） */}
+              {(() => {
+                const allPayments = (payrollRecords || [])
+                  .filter((r: any) => r.coachName === coachName && r.status === 'paid')
+                  .sort((a: any, b: any) => new Date(b.paymentDate || b.createdAt).getTime() - new Date(a.paymentDate || a.createdAt).getTime());
+                if (allPayments.length === 0) return null;
+
+                const isExpanded = expandedCoach === coachName;
+                return (
+                  <div className="border-t px-3 sm:px-4 py-2">
+                    <button
+                      className="flex items-center gap-2 text-xs text-blue-600 hover:text-blue-800 font-medium w-full text-left py-1"
+                      onClick={() => setExpandedCoach(isExpanded ? null : coachName)}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      {isExpanded ? '▼ 收起' : '▶ 展開'}出糧明細（{allPayments.length} 筆）
+                      {allPayments.some((r: any) => r.receiptUrl) && (
+                        <Badge variant="outline" className="text-[10px] ml-1 border-blue-200 text-blue-600">
+                          <FileImage className="h-2.5 w-2.5 mr-0.5" />
+                          有收據
+                        </Badge>
+                      )}
+                    </button>
+                    {isExpanded && (
+                      <div className="mt-2 overflow-x-auto">
+                        <table className="w-full text-xs min-w-[420px]">
+                          <thead>
+                            <tr className="border-b text-muted-foreground">
+                              <th className="text-left py-1.5 pr-2 font-medium">出糧日期</th>
+                              <th className="text-right py-1.5 pr-2 font-medium">金額</th>
+                              <th className="text-left py-1.5 pr-2 font-medium">備註</th>
+                              <th className="text-center py-1.5 font-medium">收據</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {allPayments.map((record: any) => (
+                              <tr key={record.id} className="border-b border-gray-100">
+                                <td className="py-1.5 pr-2 whitespace-nowrap">
+                                  {record.paymentDate ? new Date(record.paymentDate).toLocaleDateString('zh-HK') : '-'}
+                                </td>
+                                <td className="py-1.5 pr-2 text-right font-medium text-green-700 whitespace-nowrap">
+                                  ${parseFloat(String(record.netAmount)).toLocaleString()}
+                                </td>
+                                <td className="py-1.5 pr-2 text-muted-foreground max-w-[180px] truncate">
+                                  {record.notes || '-'}
+                                </td>
+                                <td className="py-1.5 text-center">
+                                  {record.receiptUrl ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                      <a
+                                        href={record.receiptUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800"
+                                        title="查看收據"
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline">查看</span>
+                                      </a>
+                                      <a
+                                        href={record.receiptUrl}
+                                        download
+                                        className="inline-flex items-center gap-0.5 text-green-600 hover:text-green-800"
+                                        title="下載收據"
+                                      >
+                                        <Download className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline">下載</span>
+                                      </a>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-300">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         );
